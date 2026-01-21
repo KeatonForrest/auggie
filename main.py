@@ -31,7 +31,7 @@ from billing import router as billing_router
 settings = get_settings()
 
 FREE_SEARCH_LIMIT = 5   # Free tier: 5 searches total, no reset
-PRO_SEARCH_LIMIT = 50   # Pro tier: 50 searches/month, resets on payment
+PRO_SEARCH_LIMIT = 25   # Pro tier: 25 searches/month, resets on payment
 
 
 def get_search_limit(user: dict) -> int:

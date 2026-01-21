@@ -117,7 +117,7 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 | Tier | Price | Searches |
 |------|-------|----------|
 | Free | $0 | 5 total (no reset) |
-| Pro | $18/mo | 50/month (resets on payment) |
+| Pro | $9.99/mo | 25/month (resets on payment) |
 
 ### Cost Structure
 
