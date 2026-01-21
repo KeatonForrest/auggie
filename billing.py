@@ -13,7 +13,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 settings = get_settings()
 stripe.api_key = settings.stripe_secret_key
 
-# Price: $18/month for 50 searches
+# Price: $9.99/month for 25 searches
 PRICE_ID = None  # Will be set after creating the product
 
 
@@ -26,7 +26,7 @@ async def get_or_create_price():
     # Check if product already exists
     products = stripe.Product.list(limit=10)
     for product in products.data:
-        if product.name == "Account Research Pro":
+        if product.name == "Auggie Pro":
             # Get the price for this product
             prices = stripe.Price.list(product=product.id, active=True, limit=1)
             if prices.data:
@@ -36,13 +36,13 @@ async def get_or_create_price():
 
     # Create new product and price
     product = stripe.Product.create(
-        name="Account Research Pro",
-        description="50 AI-powered account research documents per month",
+        name="Auggie Pro",
+        description="25 AI-powered account research documents per month",
     )
 
     price = stripe.Price.create(
         product=product.id,
-        unit_amount=1800,  # $18.00 in cents
+        unit_amount=999,  # $9.99 in cents
         currency="usd",
         recurring={"interval": "month"},
     )
