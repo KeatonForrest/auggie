@@ -1,0 +1,317 @@
+"""claude.py - AI research document generation using Claude API."""
+
+import anthropic
+from typing import Optional
+from datetime import datetime
+
+from models import ScrapedContent, ResearchDocument, TechStack, format_multi_domain_tech
+from config import get_settings
+
+
+class ClaudeService:
+    """Service for generating research documents using Claude."""
+
+    def __init__(self):
+        self.settings = get_settings()
+        self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+
+    def _build_system_prompt(self, product_context: str) -> str:
+        """Build the system prompt defining Claude's research analyst role."""
+        return f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
+
+Here is the data about the company you are researching:
+
+UNDERSTANDING THE DATA:
+
+The company data contains several types of information with different reliability levels:
+
+1. **VERIFIED Technology Stack** - This comes from automated scanning of the company's domains:
+   - **App/Product subdomains** (app.*, dashboard.*, portal.*, admin.*, etc.): This is the REAL technology stack they use to build their product. PRIORITIZE THIS - it reveals what they actually build with.
+   - **Marketing site** (www, main domain): Often uses different tech (WordPress, Webflow, etc.) and is less relevant for technical sales conversations.
+
+2. **Website Content** - Scraped text from their homepage, about page, careers page, and blog. Look for:
+   - Specific projects or initiatives mentioned by name
+   - Stated business problems or challenges
+   - Company goals and strategic direction
+   - Engineering blog posts that mention technologies
+
+3. **Job Postings** - Strong signals about:
+   - Technologies they're hiring for (these are INFERRED but reliable)
+   - Specific projects or teams mentioned
+   - Problems they're trying to solve
+   - Technical requirements
+
+4. **Firmographic Data** - Company size, industry, funding, contacts
+
+YOUR PRODUCT CONTEXT (the product you are selling):
+
+{product_context}
+
+When analyzing the prospect, specifically look for:
+- **Pain point matches**: Does the prospect have problems that align with what your product solves?
+- **Competitor presence**: Are they using any of your competitors? Flag this prominently.
+- **ICP fit**: Does their company size/industry match your target? Note fit or misfit.
+- **Persona alignment**: Are the job titles you target present in their hiring or org?
+- **Differentiation opportunities**: Where could your unique differentiators matter to them?
+
+ANALYSIS APPROACH:
+
+Before writing your research document, use a scratchpad to:
+1. Identify all VERIFIED technologies, separating app/product tech from marketing site tech
+2. Extract specific project names, initiatives, or systems mentioned anywhere in the data
+3. List all technologies mentioned in job postings or blogs (INFERRED)
+4. Identify stated business problems or challenges
+5. Note what information is NOT present in the data
+
+CRITICAL REQUIREMENTS:
+
+- **Be SPECIFIC**: Reference actual project names, specific technologies, and concrete initiatives found in the data
+- **CITE SOURCES**: For every claim, note where in the data you found it (e.g., "from job posting for Senior Backend Engineer," "mentioned in blog post titled X," "detected on app.company.com")
+- **Distinguish VERIFIED from INFERRED**: Clearly separate confirmed technology detections from technologies mentioned in job posts or content
+- **Prioritize app subdomain tech**: Technologies detected on app.*, dashboard.*, etc. reveal their actual product stack
+- **No assumptions**: If information isn't in the data, explicitly state "NOT FOUND IN DATA" rather than making industry-based assumptions
+- **Avoid generic statements**: Don't say "like most SaaS companies" or "typical for their industry"
+- **Every recommendation must have evidence**: Tie each talking point back to specific data
+
+OUTPUT FORMAT:
+
+Structure your research document with these EXACT sections:
+
+## Company Overview
+2-3 sentences summarizing what the company does, their market, and stage based on the provided data.
+
+## Specific Projects & Initiatives
+List concrete, named projects or initiatives found in the data. For each:
+- Project name or description
+- Source of information (quote relevant text if from job posting or blog)
+- Technical requirements or goals mentioned
+If none found, state "No specific projects identified in available data."
+
+## Confirmed Technology Stack
+
+**DETECTED - Product/App Stack:**
+List technologies detected on app subdomains (app.*, dashboard.*, portal.*, etc.) with the specific domain where detected. These reveal their ACTUAL product technology.
+
+**DETECTED - Marketing Site:**
+List technologies detected on main/marketing domains. Note these are often different from product stack.
+
+**INFERRED - From Job Postings & Content:**
+List technologies mentioned in job postings, blogs, or other content. For each, quote the relevant text showing where it was mentioned. Organize into categories:
+- Databases
+- Cloud/Infrastructure  
+- Languages/Frameworks
+- Other Tools
+
+## Technical Hiring Signals
+From job postings in the provided data:
+- Specific role titles being hired
+- Required technologies mentioned (quote relevant text)
+- Problems or projects the roles will address
+- Team names or organizational context
+
+If no job postings in data, state "No job posting data available."
+
+## Stated Business Problems
+List specific problems or challenges the company has publicly acknowledged. For each:
+- The problem statement (quote if possible)
+- Where it was mentioned (source)
+- Business impact if stated
+
+If none found, state "No specific business problems identified in available data."
+
+## Product Fit Analysis
+
+**Competitor Alert:** List any competitors detected in their tech stack or mentioned in their content. This is high-priority intel.
+
+**Pain Point Alignment:** For each problem they've stated that matches what your product solves:
+- Their stated problem
+- How your product addresses it
+- Evidence from the data
+
+**ICP Fit Assessment:**
+- Company size fit (based on your target)
+- Industry fit
+- Persona alignment (are your target job titles present?)
+
+**Overall Fit Rating:** HIGH / MEDIUM / LOW
+Justify with specific evidence. Consider: competitor presence, pain point matches, ICP alignment, and differentiation opportunities.
+
+## Recommended Talking Points
+Create 3-5 talking points that:
+- Reference specific projects, initiatives, or systems BY NAME when available
+- Address confirmed technical challenges from the data
+- Mention specific technologies they're currently using (especially from app subdomains)
+- Propose concrete ways your product addresses their specific needs
+- If they use a competitor, suggest a comparison angle
+- Avoid generic industry assumptions
+
+## Recent News & Press
+If news articles were provided in the data, summarize the most relevant items:
+- Funding announcements, product launches, acquisitions
+- Executive changes or strategic shifts
+- Industry recognition or partnerships
+- Anything that could be a conversation starter
+
+If no news was provided, state "No recent news available."
+
+## Information Gaps
+Explicitly list:
+- What information you could NOT find in the provided data
+- What would need to be discovered through direct conversation
+- What additional research sources would be helpful"""
+
+    def _build_user_prompt(
+        self,
+        company_url: str,
+        scraped: ScrapedContent,
+        tech_by_domain: Optional[dict[str, TechStack]] = None,
+    ) -> str:
+        """Build the user prompt with all scraped research data."""
+        sections = [f"# Research Data for {company_url}\n"]
+
+        if tech_by_domain:
+            sections.append("## VERIFIED Technologies (Detected by Scanning Website Code)")
+            sections.append("The following technologies were detected by scanning their website and app subdomains:")
+            sections.append("")
+            sections.append(format_multi_domain_tech(tech_by_domain))
+            sections.append("")
+            sections.append("(These are confirmed facts - actually present in their code/headers)")
+            sections.append("NOTE: Product/Application subdomains (app.*, dashboard.*, etc.) show their ACTUAL tech stack.")
+            sections.append("Marketing sites often use different tech than the product itself.")
+            sections.append("")
+
+        if scraped.homepage:
+            sections.append("## Homepage Content")
+            sections.append(scraped.homepage[:5000])
+            sections.append("")
+
+        if scraped.about:
+            sections.append("## About Page")
+            sections.append(scraped.about[:3000])
+            sections.append("")
+
+        if scraped.careers:
+            sections.append("## Careers/Jobs Landing Page")
+            sections.append(scraped.careers[:5000])
+            sections.append("")
+
+        if scraped.blog:
+            sections.append("## Blog/Engineering Blog Content")
+            sections.append(scraped.blog[:5000])
+            sections.append("")
+
+        if scraped.job_postings:
+            sections.append("## Detailed Job Postings")
+            sections.append("(From job boards - these contain specific tech requirements)")
+            sections.append(scraped.job_postings[:15000])
+            sections.append("")
+
+        if scraped.additional_pages:
+            sections.append("## Additional Website Pages")
+            sections.append(scraped.additional_pages[:8000])
+            sections.append("")
+
+        if scraped.news:
+            sections.append("## Recent News & Press")
+            sections.append(scraped.news[:5000])
+            sections.append("")
+
+        sections.append("---")
+        sections.append("Please generate the Account Research Document based on the above information.")
+
+        return "\n".join(sections)
+
+    async def generate_research_document(
+        self,
+        company_url: str,
+        scraped: ScrapedContent,
+        product_context: str,
+        tech_by_domain: Optional[dict[str, TechStack]] = None,
+    ) -> ResearchDocument:
+        """Generate the full Account Research Document using Claude."""
+        system_prompt = self._build_system_prompt(product_context)
+        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
+
+        message = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        full_markdown = message.content[0].text
+        sections = self._parse_sections(full_markdown)
+
+        return ResearchDocument(
+            company_url=str(company_url),
+            company_name=self._extract_domain(str(company_url)),
+            created_at=datetime.now(),
+            company_overview=sections.get("company_overview", ""),
+            projects_initiatives=sections.get("projects_initiatives", ""),
+            confirmed_tech_stack=sections.get("confirmed_tech_stack", ""),
+            hiring_signals=sections.get("hiring_signals", ""),
+            business_problems=sections.get("business_problems", ""),
+            product_fit=sections.get("product_fit", ""),
+            talking_points=sections.get("talking_points", ""),
+            recent_news=sections.get("recent_news", ""),
+            information_gaps=sections.get("information_gaps", ""),
+            full_markdown=full_markdown,
+        )
+
+    def _parse_sections(self, markdown: str) -> dict:
+        """Parse markdown into sections by ## headers."""
+        sections = {}
+        header_mapping = {
+            "company overview": "company_overview",
+            "specific projects & initiatives": "projects_initiatives",
+            "specific projects and initiatives": "projects_initiatives",
+            "projects & initiatives": "projects_initiatives",
+            "confirmed technology stack": "confirmed_tech_stack",
+            "technology stack": "confirmed_tech_stack",
+            "technical hiring signals": "hiring_signals",
+            "hiring signals": "hiring_signals",
+            "stated business problems": "business_problems",
+            "business problems": "business_problems",
+            "product fit analysis": "product_fit",
+            "fit analysis": "product_fit",
+            "recommended talking points": "talking_points",
+            "talking points": "talking_points",
+            "recent news & press": "recent_news",
+            "recent news and press": "recent_news",
+            "recent news": "recent_news",
+            "information gaps": "information_gaps",
+        }
+
+        current_section = None
+        current_content = []
+
+        for line in markdown.split("\n"):
+            if line.startswith("## "):
+                if current_section:
+                    sections[current_section] = "\n".join(current_content).strip()
+                header_text = line[3:].strip().lower()
+                # Try exact match first
+                current_section = header_mapping.get(header_text)
+                # If no exact match, check for partial matches (e.g., "X Fit Analysis")
+                if not current_section:
+                    if "fit analysis" in header_text:
+                        current_section = "product_fit"
+                    elif "talking points" in header_text:
+                        current_section = "talking_points"
+                    elif "information gaps" in header_text:
+                        current_section = "information_gaps"
+                current_content = []
+            else:
+                if current_section:
+                    current_content.append(line)
+
+        if current_section:
+            sections[current_section] = "\n".join(current_content).strip()
+
+        return sections
+
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain name from URL."""
+        domain = url.replace("https://", "").replace("http://", "")
+        domain = domain.split("/")[0]
+        return domain.replace("www.", "")

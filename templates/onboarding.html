@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Auggie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xl font-bold text-gray-900">Auggie</span>
+                <div class="flex items-center gap-2">
+                    {% if user.picture %}
+                    <img src="{{ user.picture }}" alt="" class="w-8 h-8 rounded-full">
+                    {% endif %}
+                    <span class="text-sm text-gray-700">{{ user.name or user.email }}</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Welcome! Let's personalize your research.</h1>
+                <p class="text-gray-600">The more we know about your product, the better we can analyze fit with each account.</p>
+            </div>
+
+            <form method="POST" action="/onboarding" class="space-y-8">
+
+                <!-- Section 1: Your Company -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Your Company</h2>
+                    <div>
+                        <label for="company_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            Company Name
+                        </label>
+                        <input
+                            type="text"
+                            id="company_name"
+                            name="company_name"
+                            required
+                            placeholder="e.g., Acme Inc."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                    </div>
+                </div>
+
+                <!-- Section 2: Your Product -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Your Product</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="product_name" class="block text-sm font-medium text-gray-700 mb-1">
+                                Product Name
+                            </label>
+                            <input
+                                type="text"
+                                id="product_name"
+                                name="product_name"
+                                required
+                                placeholder="e.g., Acme CRM, DataSync Pro"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                        </div>
+
+                        <div>
+                            <label for="product_description" class="block text-sm font-medium text-gray-700 mb-1">
+                                What does it do? <span class="text-gray-400 font-normal">(1-2 sentences)</span>
+                            </label>
+                            <textarea
+                                id="product_description"
+                                name="product_description"
+                                required
+                                rows="2"
+                                placeholder="e.g., Cloud-based CRM that helps sales teams close deals faster with AI-powered insights and automated follow-ups."
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            ></textarea>
+                        </div>
+
+                        <div>
+                            <label for="problems_solved" class="block text-sm font-medium text-gray-700 mb-1">
+                                What problems does it solve?
+                            </label>
+                            <textarea
+                                id="problems_solved"
+                                name="problems_solved"
+                                required
+                                rows="3"
+                                placeholder="e.g., Reps waste time on manual data entry. Deals slip through cracks. Managers lack visibility into pipeline health."
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            ></textarea>
+                            <p class="mt-1 text-xs text-gray-500">We'll look for these pain points in each account you research.</p>
+                        </div>
+
+                        <div>
+                            <label for="differentiators" class="block text-sm font-medium text-gray-700 mb-1">
+                                What makes it unique? <span class="text-gray-400 font-normal">(vs competitors)</span>
+                            </label>
+                            <textarea
+                                id="differentiators"
+                                name="differentiators"
+                                rows="2"
+                                placeholder="e.g., Only CRM with native AI coaching. 50% faster implementation than Salesforce. Built for SMB, not enterprise."
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            ></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Ideal Customer Profile -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Ideal Customer Profile</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Company Size
+                            </label>
+                            <div class="flex flex-wrap gap-3">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="SMB (1-100)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">SMB (1-100)</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="Mid-market (100-1000)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Mid-market (100-1000)</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="Enterprise (1000+)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Enterprise (1000+)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="target_industries" class="block text-sm font-medium text-gray-700 mb-1">
+                                Target Industries <span class="text-gray-400 font-normal">(if any)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="target_industries"
+                                name="target_industries"
+                                placeholder="e.g., SaaS, Fintech, Healthcare, E-commerce"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                        </div>
+
+                        <div>
+                            <label for="target_personas" class="block text-sm font-medium text-gray-700 mb-1">
+                                Target Personas <span class="text-gray-400 font-normal">(job titles you sell to)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="target_personas"
+                                name="target_personas"
+                                placeholder="e.g., VP of Sales, CRO, Sales Ops Manager, RevOps"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Competition -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Competition</h2>
+                    <div>
+                        <label for="competitors" class="block text-sm font-medium text-gray-700 mb-1">
+                            Main Competitors
+                        </label>
+                        <input
+                            type="text"
+                            id="competitors"
+                            name="competitors"
+                            placeholder="e.g., Salesforce, HubSpot, Pipedrive"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                        <p class="mt-1 text-xs text-gray-500">We'll flag when accounts are using these in their tech stack.</p>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition"
+                >
+                    Start Researching
+                </button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

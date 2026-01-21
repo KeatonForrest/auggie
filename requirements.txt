@@ -1,0 +1,44 @@
+# FastAPI - the web framework
+fastapi==0.115.0
+
+# Uvicorn - ASGI server to run FastAPI
+uvicorn==0.30.0
+
+# Httpx - async HTTP client (like requests, but async)
+httpx==0.27.0
+
+# Pydantic settings - for loading environment variables
+pydantic-settings==2.2.0
+
+# Anthropic - Claude API client
+anthropic==0.39.0
+
+# Python-dotenv - load .env files
+python-dotenv==1.0.1
+
+# Jinja2 - templating for HTML output
+jinja2==3.1.4
+
+# WeasyPrint - PDF generation
+weasyprint==62.0
+
+# Asyncpg - async PostgreSQL driver
+asyncpg==0.30.0
+
+# Wappalyzer - technology detection (with auto-update support)
+python-Wappalyzer==0.3.1
+
+# Stripe - payments
+stripe==8.0.0
+
+# Auth - Google OAuth
+authlib==1.3.0
+itsdangerous==2.1.2
+httpx==0.27.0
+PyJWT==2.8.0
+starlette[full]==0.36.3
+
+# Testing
+pytest==8.3.0
+pytest-asyncio==0.24.0
+pytest-mock==3.14.0
