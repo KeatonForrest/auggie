@@ -12,10 +12,12 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 - [x] Markdown export
 - [x] Google OAuth authentication
 - [x] PostgreSQL database (Railway)
-- [x] User onboarding (company name, product context, industry)
+- [x] Enhanced onboarding (product info, ICP, competitors)
 - [x] User-scoped documents
 - [x] Usage tracking (searches per month)
 - [x] Stripe subscription ($18/mo for 50 searches)
+- [x] News integration via SerpAPI (recent company news)
+- [x] Deployed to Railway (auggie.tools)
 
 ---
 
@@ -45,15 +47,15 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 ## Phase 2: Production Ready
 
 ### 2.1 Deployment
-- [ ] Deploy to Railway
-- [ ] Set up environment variables in production
-- [ ] Configure custom domain
-- [ ] Update Google OAuth redirect URIs for production
-- [ ] Switch Stripe to live mode
+- [x] Deploy to Railway
+- [x] Set up environment variables in production
+- [x] Configure custom domain (auggie.tools)
+- [x] Update Google OAuth redirect URIs for production
+- [ ] Switch Stripe to live mode (when ready to accept real payments)
 
 ### 2.2 Stripe Webhooks
-- [ ] Set up webhook endpoint in Stripe Dashboard
-- [ ] Add `STRIPE_WEBHOOK_SECRET` to production env
+- [x] Set up webhook endpoint in Stripe Dashboard
+- [x] Add `STRIPE_WEBHOOK_SECRET` to production env
 - [ ] Test subscription renewal flow
 - [ ] Test cancellation flow
 
@@ -71,11 +73,11 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 - [ ] Adjustable research depth (quick vs. deep)
 - [ ] Custom prompt templates
 
-### 3.2 News API Integration
-- [ ] Integrate NewsAPI.org (or Serper.dev) for recent company news
-- [ ] Search by company name + recent articles
-- [ ] Feed news into Claude as "Recent News & Press" data source
-- [ ] Surface funding announcements, product launches, exec changes as talking points
+### 3.2 News API Integration ✅
+- [x] Integrate SerpAPI for recent company news
+- [x] Search by company name + recent articles
+- [x] Feed news into Claude as "Recent News & Press" data source
+- [x] Surface funding announcements, product launches, exec changes as talking points
 
 ### 3.3 Additional Data Sources (Future)
 - [ ] LinkedIn company pages (if API available)
