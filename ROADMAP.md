@@ -15,7 +15,7 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 - [x] Enhanced onboarding (product info, ICP, competitors)
 - [x] User-scoped documents
 - [x] Usage tracking (searches per month)
-- [x] Stripe subscription ($18/mo for 50 searches)
+- [x] Stripe subscription ($9.99/mo for 25 searches)
 - [x] News integration via SerpAPI (recent company news)
 - [x] Deployed to Railway (auggie.tools)
 
@@ -51,7 +51,7 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 - [x] Set up environment variables in production
 - [x] Configure custom domain (auggie.tools)
 - [x] Update Google OAuth redirect URIs for production
-- [ ] Switch Stripe to live mode (when ready to accept real payments)
+- [x] Switch Stripe to live mode
 
 ### 2.2 Stripe Webhooks
 - [x] Set up webhook endpoint in Stripe Dashboard
@@ -136,13 +136,13 @@ Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users 
 | Stripe | 2.9% + $0.30 | Per transaction |
 
 **Break-Even Analysis:**
-At $18/month for 50 searches:
+At $9.99/month for 25 searches:
 - Cost per research: ~$0.25
-- Max cost if fully used: $12.50
-- Gross margin: ~$5.50 (31%)
-- At 30% usage (15 searches): ~$14.25 margin (79%)
+- Max cost if fully used: $6.25
+- Gross margin: ~$3.74 (37%)
+- At 30% usage (8 searches): ~$7.99 margin (80%)
 
-SDRs will use heavily, AEs won't - blended usage model makes this profitable.
+Lower price point = easier conversion. SDRs will use heavily, AEs won't - blended usage model makes this profitable.
 
 ---
 
@@ -152,7 +152,7 @@ SDRs will use heavily, AEs won't - blended usage model makes this profitable.
 - [x] Authentication working
 - [x] Billing working
 - [x] Usage limits enforced
-- [ ] Production deployment stable
+- [x] Production deployment stable
 - [ ] Error monitoring (Sentry)
 
 ### Marketing
@@ -172,7 +172,7 @@ SDRs will use heavily, AEs won't - blended usage model makes this profitable.
 
 2. ~~**Database**: MongoDB vs Postgres~~ → **PostgreSQL on Railway** (relational fits better)
 
-3. ~~**Pricing**: $49 for 100 vs $18 for 50~~ → **$18/mo for 50 searches** (SDR/AE blended usage model)
+3. ~~**Pricing**: $49 for 100 vs $18 for 50~~ → **$9.99/mo for 25 searches** (lower price = easier conversion)
 
 ---
 
