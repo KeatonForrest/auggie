@@ -48,33 +48,40 @@ YOUR PRODUCT CONTEXT (the product you are selling):
 {product_context}
 """
 
-        # Add materials section if available
+        # Add materials section if available - this is now the PRIMARY source for product details
         if retrieved_materials:
             base_prompt += f"""
-RELEVANT MATERIALS FROM YOUR COMPANY:
+YOUR SALES MATERIALS (PRIMARY SOURCE FOR PRODUCT DETAILS):
 
-The following excerpts from your sales materials are relevant to this prospect. Use them to:
-- Reference specific case studies with similar companies or industries
-- Pull relevant proof points, metrics, and ROI data
-- Identify competitive insights if the prospect uses a competitor
-- Suggest specific product capabilities that match their stated needs
-- Use customer quotes or testimonials where relevant
+The following excerpts from your company's sales materials are highly relevant to this prospect.
+These materials contain your product details, differentiators, competitor positioning, and proof points.
+PRIORITIZE this information when crafting recommendations.
 
 {retrieved_materials}
 
-When using these materials:
-- Cite the source (e.g., "According to your Acme Corp case study...")
-- Prioritize data points and metrics over general claims
-- Match case study industries/company sizes to the prospect when possible
+How to use these materials:
+- **Product capabilities**: Extract what your product does from these materials
+- **Differentiators**: Identify what makes you unique vs competitors mentioned
+- **Case studies**: Reference specific customer wins, metrics, and quotes
+- **Competitor intel**: If battle cards mention competitors the prospect uses, highlight this
+- **Proof points**: Use specific metrics, ROI data, and testimonials
+
+Always cite your source (e.g., "According to your Acme Corp case study..." or "Per your battle card...")
+"""
+        else:
+            base_prompt += """
+NOTE: No sales materials have been uploaded yet. Focus on identifying pain point matches
+based on the problems your product solves. Recommend uploading case studies and battle cards
+for more personalized recommendations in future research.
 """
 
         base_prompt += """
 When analyzing the prospect, specifically look for:
 - **Pain point matches**: Does the prospect have problems that align with what your product solves?
-- **Competitor presence**: Are they using any of your competitors? Flag this prominently.
+- **Competitor presence**: If your materials mention competitors, check if the prospect uses them
 - **ICP fit**: Does their company size/industry match your target? Note fit or misfit.
 - **Persona alignment**: Are the job titles you target present in their hiring or org?
-- **Differentiation opportunities**: Where could your unique differentiators matter to them?
+- **Opportunity signals**: Look for initiatives, projects, or challenges where your product could help
 
 ANALYSIS APPROACH:
 
@@ -143,11 +150,11 @@ If none found, state "No specific business problems identified in available data
 
 ## Product Fit Analysis
 
-**Competitor Alert:** List any competitors detected in their tech stack or mentioned in their content. This is high-priority intel.
+**Competitor Alert:** If your sales materials mention competitors, check if the prospect uses any of them in their tech stack or content. This is high-priority intel for displacement opportunities.
 
 **Pain Point Alignment:** For each problem they've stated that matches what your product solves:
 - Their stated problem
-- How your product addresses it
+- How your product addresses it (reference your materials if available)
 - Evidence from the data
 
 **ICP Fit Assessment:**
@@ -156,15 +163,15 @@ If none found, state "No specific business problems identified in available data
 - Persona alignment (are your target job titles present?)
 
 **Overall Fit Rating:** HIGH / MEDIUM / LOW
-Justify with specific evidence. Consider: competitor presence, pain point matches, ICP alignment, and differentiation opportunities.
+Justify with specific evidence. Consider: pain point matches, ICP alignment, and any competitor/differentiation opportunities from your materials.
 
 ## Recommended Talking Points
 Create 3-5 talking points that:
 - Reference specific projects, initiatives, or systems BY NAME when available
 - Address confirmed technical challenges from the data
 - Mention specific technologies they're currently using (especially from app subdomains)
-- Propose concrete ways your product addresses their specific needs
-- If they use a competitor, suggest a comparison angle
+- Connect their needs to your product capabilities (cite case studies if available in your materials)
+- If they use a competitor mentioned in your materials, suggest a comparison angle
 - Avoid generic industry assumptions
 
 ## Recent News & Press
