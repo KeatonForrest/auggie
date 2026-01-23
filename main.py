@@ -449,6 +449,11 @@ async def upload_material(
             filename=file.filename,
             material_type=material_type
         )
+        # Convert datetime to string for JSON serialization
+        if material.get("created_at"):
+            material["created_at"] = material["created_at"].isoformat()
+        if material.get("updated_at"):
+            material["updated_at"] = material["updated_at"].isoformat()
         return JSONResponse({"success": True, "material": material})
     except ValueError as e:
         return JSONResponse({"success": False, "error": str(e)})
