@@ -17,9 +17,27 @@ except ImportError:
 class WappalyzerService:
     """Service for detecting technologies on websites."""
 
-    COMMON_APP_SUBDOMAINS = [
+    # B2B SaaS subdomains
+    B2B_SUBDOMAINS = [
         "app", "dashboard", "portal", "console", "platform",
-        "admin", "my", "account", "api", "web",
+        "admin", "my", "account", "api", "web", "cloud",
+        "login", "sso", "auth", "id", "secure",
+    ]
+
+    # B2C / Retail subdomains
+    B2C_SUBDOMAINS = [
+        "shop", "store", "checkout", "cart", "orders",
+        "member", "members", "rewards", "m", "mobile",
+        "www2", "secure", "pay", "payments",
+    ]
+
+    # Combined list
+    COMMON_APP_SUBDOMAINS = list(set(B2B_SUBDOMAINS + B2C_SUBDOMAINS))
+
+    # Common authenticated paths to check on main domain
+    COMMON_APP_PATHS = [
+        "/app", "/dashboard", "/portal", "/login", "/signin", "/sign-in",
+        "/account", "/member", "/membership", "/my-account", "/profile",
     ]
 
     def __init__(self):
@@ -100,12 +118,25 @@ class WappalyzerService:
             print(f"Wappalyzer HTML error for {url}: {e}")
             return TechStack(technologies=[], scan_url=url)
 
-    async def _check_subdomain_exists(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
-        """Check if a subdomain exists via HEAD request."""
+    async def _check_url_exists(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        """Check if a URL exists via GET request (more reliable than HEAD)."""
         try:
-            response = await client.head(url, follow_redirects=True, timeout=5.0)
+            # Use GET with limited content - some sites block HEAD requests
+            response = await client.get(
+                url,
+                follow_redirects=True,
+                timeout=8.0,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"}
+            )
+            # Check for success and that we didn't get redirected to main site
             if response.status_code < 400:
-                return url
+                # Avoid false positives from redirects to homepage
+                final_url = str(response.url)
+                if not final_url.rstrip('/').endswith(('.com', '.org', '.net', '.io', '.co')):
+                    return url
+                # If it's a subdomain that stayed on subdomain, it's valid
+                if url.split('/')[2] == final_url.split('/')[2]:
+                    return url
         except (httpx.TimeoutException, httpx.ConnectError, httpx.ConnectTimeout):
             pass
         except Exception:
@@ -122,7 +153,7 @@ class WappalyzerService:
         print(f"Checking {len(urls_to_check)} potential app subdomains...")
 
         async with httpx.AsyncClient() as client:
-            tasks = [self._check_subdomain_exists(client, url) for url in urls_to_check]
+            tasks = [self._check_url_exists(client, url) for url in urls_to_check]
             results = await asyncio.gather(*tasks)
 
         found = [url for url in results if url is not None]
@@ -134,16 +165,38 @@ class WappalyzerService:
 
         return found
 
+    async def discover_app_paths(self, base_url: str) -> list[str]:
+        """Discover which app paths exist on the main domain."""
+        if not base_url.startswith("http"):
+            base_url = f"https://{base_url}"
+        base_url = base_url.rstrip("/")
+
+        urls_to_check = [f"{base_url}{path}" for path in self.COMMON_APP_PATHS]
+
+        print(f"Checking {len(urls_to_check)} potential app paths...")
+
+        async with httpx.AsyncClient() as client:
+            tasks = [self._check_url_exists(client, url) for url in urls_to_check]
+            results = await asyncio.gather(*tasks)
+
+        found = [url for url in results if url is not None]
+
+        if found:
+            print(f"Found {len(found)} app paths: {found}")
+
+        return found
+
     async def analyze_multiple_domains(
         self,
         main_url: str,
         main_html: Optional[str] = None,
     ) -> dict[str, TechStack]:
-        """Analyze main domain plus discovered app subdomains."""
+        """Analyze main domain plus discovered app subdomains and paths."""
         results = {}
 
         parsed = urlparse(main_url if main_url.startswith("http") else f"https://{main_url}")
         base_domain = parsed.netloc.replace("www.", "")
+        full_main_url = f"https://{base_domain}"
 
         print(f"Analyzing main domain: {base_domain}")
         if main_html:
@@ -154,8 +207,13 @@ class WappalyzerService:
         if main_tech.technologies:
             results[base_domain] = main_tech
 
-        subdomains = await self.discover_subdomains(base_domain)
+        # Discover and analyze subdomains and paths in parallel
+        subdomains, app_paths = await asyncio.gather(
+            self.discover_subdomains(base_domain),
+            self.discover_app_paths(full_main_url)
+        )
 
+        # Analyze discovered subdomains
         if subdomains:
             print(f"Analyzing {len(subdomains)} subdomains...")
             tasks = [self.analyze_url(url) for url in subdomains]
@@ -168,5 +226,25 @@ class WappalyzerService:
                 if tech.technologies:
                     subdomain_name = urlparse(url).netloc
                     results[subdomain_name] = tech
+
+        # Analyze discovered app paths (can reveal different tech than homepage)
+        if app_paths:
+            print(f"Analyzing {len(app_paths)} app paths...")
+            tasks = [self.analyze_url(url) for url in app_paths]
+            path_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for url, tech in zip(app_paths, path_results):
+                if isinstance(tech, Exception):
+                    print(f"Error analyzing {url}: {tech}")
+                    continue
+                if tech.technologies:
+                    # Use path as key, e.g., "rei.com/account"
+                    parsed_url = urlparse(url)
+                    path_key = f"{parsed_url.netloc}{parsed_url.path}"
+                    # Only add if it has different/additional tech than main domain
+                    main_tech_names = {t.name for t in results.get(base_domain, TechStack(technologies=[])).technologies}
+                    new_tech = [t for t in tech.technologies if t.name not in main_tech_names]
+                    if new_tech:
+                        results[path_key] = TechStack(technologies=new_tech, scan_url=url)
 
         return results
