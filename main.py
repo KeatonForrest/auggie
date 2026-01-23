@@ -9,8 +9,8 @@ Docs: http://localhost:8000/docs
 from contextlib import asynccontextmanager
 from io import BytesIO
 
-from fastapi import FastAPI, HTTPException, Request, Form, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request, Form, Depends, UploadFile, File
+from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -20,10 +20,12 @@ from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
 from services.news import NewsService
+from services.materials import MaterialsService
+from services.retrieval import RetrievalService
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, increment_user_searches,
-    get_user_usage,
+    get_user_usage, get_user_materials,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -82,6 +84,24 @@ firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
 news_service = NewsService()
+
+# v2 Materials services (lazy init to avoid errors if not configured)
+materials_service = None
+retrieval_service = None
+
+def get_materials_service():
+    """Get or create materials service (lazy init)."""
+    global materials_service
+    if materials_service is None and settings.materials_enabled:
+        materials_service = MaterialsService()
+    return materials_service
+
+def get_retrieval_service():
+    """Get or create retrieval service (lazy init)."""
+    global retrieval_service
+    if retrieval_service is None and settings.materials_enabled:
+        retrieval_service = RetrievalService()
+    return retrieval_service
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -203,12 +223,29 @@ async def create_research(
         else:
             print("No recent news found")
 
+        # v2: Retrieve relevant materials if enabled
+        retrieved_materials = ""
+        retrieval = get_retrieval_service()
+        if retrieval:
+            try:
+                print("Searching for relevant sales materials...")
+                retrieved_materials = await retrieval.get_relevant_context(
+                    user_id=user["id"],
+                    company_name=company_name,
+                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
+                )
+                if retrieved_materials:
+                    print(f"Found relevant materials to enhance research")
+            except Exception as e:
+                print(f"Materials retrieval failed (non-fatal): {e}")
+
         print("Generating research document...")
         document = await claude_service.generate_research_document(
             company_url=company_url,
             scraped=scraped_content,
             product_context=user["product_context"],  # From user profile!
             tech_by_domain=tech_by_domain,
+            retrieved_materials=retrieved_materials,  # v2: Include materials
         )
 
         # Save document and increment usage
@@ -323,11 +360,25 @@ async def api_create_research(
         if news_content:
             scraped_content.news = news_content
 
+        # v2: Retrieve relevant materials if enabled
+        retrieved_materials = ""
+        retrieval = get_retrieval_service()
+        if retrieval:
+            try:
+                retrieved_materials = await retrieval.get_relevant_context(
+                    user_id=user["id"],
+                    company_name=company_name,
+                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
+                )
+            except Exception:
+                pass  # Non-fatal
+
         document = await claude_service.generate_research_document(
             company_url=company_url,
             scraped=scraped_content,
             product_context=user["product_context"],
             tech_by_domain=tech_by_domain,
+            retrieved_materials=retrieved_materials,
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
@@ -342,6 +393,104 @@ async def api_create_research(
 async def api_list_documents(user: dict = Depends(require_auth)):
     """List all saved research documents for the current user."""
     return await get_all_documents(user_id=user["id"])
+
+
+# =============================================================================
+# Materials Endpoints (v2)
+# =============================================================================
+
+@app.get("/materials", response_class=HTMLResponse)
+async def materials_page(request: Request, user: dict = Depends(require_auth)):
+    """Materials management page."""
+    if not settings.materials_enabled:
+        raise HTTPException(status_code=404, detail="Materials feature not enabled")
+
+    materials = await get_user_materials(user["id"])
+    usage = await get_user_usage(user["id"])
+
+    return templates.TemplateResponse(
+        "materials.html",
+        {
+            "request": request,
+            "user": user,
+            "materials": materials,
+            "searches_used": usage["searches_used"],
+            "search_limit": get_search_limit(user),
+        }
+    )
+
+
+@app.post("/materials/upload")
+async def upload_material(
+    file: UploadFile = File(...),
+    material_type: str = Form("other"),
+    user: dict = Depends(require_auth),
+):
+    """Upload a new material file."""
+    if not settings.materials_enabled:
+        return JSONResponse({"success": False, "error": "Materials feature not enabled"})
+
+    service = get_materials_service()
+    if not service:
+        return JSONResponse({"success": False, "error": "Materials service not configured"})
+
+    try:
+        material = await service.upload_material(
+            user_id=user["id"],
+            file=file.file,
+            filename=file.filename,
+            material_type=material_type
+        )
+        return JSONResponse({"success": True, "material": material})
+    except ValueError as e:
+        return JSONResponse({"success": False, "error": str(e)})
+    except Exception as e:
+        print(f"Material upload error: {e}")
+        return JSONResponse({"success": False, "error": "Upload failed. Please try again."})
+
+
+@app.delete("/materials/{material_id}")
+async def delete_material(
+    material_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Delete a material and its chunks."""
+    if not settings.materials_enabled:
+        return JSONResponse({"success": False, "error": "Materials feature not enabled"})
+
+    service = get_materials_service()
+    if not service:
+        return JSONResponse({"success": False, "error": "Materials service not configured"})
+
+    deleted = await service.delete_material(material_id, user["id"])
+    return JSONResponse({"success": deleted})
+
+
+@app.post("/materials/{material_id}/reprocess")
+async def reprocess_material(
+    material_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Reprocess a failed material."""
+    if not settings.materials_enabled:
+        return JSONResponse({"success": False, "error": "Materials feature not enabled"})
+
+    service = get_materials_service()
+    if not service:
+        return JSONResponse({"success": False, "error": "Materials service not configured"})
+
+    success = await service.reprocess_material(material_id, user["id"])
+    return JSONResponse({"success": success})
+
+
+@app.get("/api/materials")
+async def api_list_materials(user: dict = Depends(require_auth)):
+    """API: List user's materials."""
+    if not settings.materials_enabled:
+        return {"materials": [], "enabled": False}
+
+    materials = await get_user_materials(user["id"])
+    return {"materials": materials, "enabled": True}
 
 
 if __name__ == "__main__":

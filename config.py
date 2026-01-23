@@ -28,6 +28,23 @@ class Settings(BaseSettings):
     # SerpAPI (for Google News)
     serp_api_key: str = ""
 
+    # OpenAI (for embeddings in v2 materials feature)
+    openai_api_key: str = ""
+
+    # Cloudflare R2 (for materials file storage in v2)
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = "auggie-materials"
+
+    # Feature flags
+    materials_enabled: bool = False
+
+    @property
+    def r2_endpoint_url(self) -> str:
+        """Get the R2 S3-compatible endpoint URL."""
+        return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

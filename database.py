@@ -24,6 +24,8 @@ async def init_database():
     )
 
     async with _pool.acquire() as conn:
+        # Enable pgvector extension for materials feature
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         # Create users table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -128,6 +130,86 @@ async def init_database():
             ON users(stripe_customer_id)
             WHERE stripe_customer_id IS NOT NULL
         """)
+
+        # =================================================================
+        # Materials tables (v2 - for uploaded sales materials)
+        # =================================================================
+
+        # Materials metadata table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS materials (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+                -- File info
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                file_size INTEGER,
+                storage_key TEXT NOT NULL,
+
+                -- Classification
+                material_type TEXT DEFAULT 'other',
+
+                -- Processing status
+                status TEXT DEFAULT 'pending',
+                chunk_count INTEGER DEFAULT 0,
+                error_message TEXT,
+
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_materials_user
+            ON materials(user_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_materials_status
+            ON materials(user_id, status)
+        """)
+
+        # Material chunks with vector embeddings
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS material_chunks (
+                id BIGSERIAL PRIMARY KEY,
+                material_id BIGINT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                embedding vector(1536),
+
+                -- Metadata for context
+                section_title TEXT,
+                material_type TEXT,
+
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chunks_user
+            ON material_chunks(user_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chunks_material
+            ON material_chunks(material_id)
+        """)
+
+        # Vector similarity search index (IVFFlat)
+        # Note: This index requires data to exist first, so we create it separately
+        # and handle the case where it might fail on empty table
+        try:
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunks_embedding
+                ON material_chunks USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100)
+            """)
+        except Exception:
+            # IVFFlat index creation may fail on empty table, which is fine
+            # It will be created when data is added, or use HNSW instead
+            pass
 
 
 async def close_database():
@@ -436,3 +518,146 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         information_gaps=row["information_gaps"] or "",
         full_markdown=row["full_markdown"] or "",
     )
+
+
+# =============================================================================
+# Materials Operations (v2)
+# =============================================================================
+
+async def create_material(
+    user_id: int,
+    filename: str,
+    file_type: str,
+    file_size: int,
+    storage_key: str,
+    material_type: str = "other"
+) -> dict:
+    """Create a new material record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO materials (user_id, filename, file_type, file_size, storage_key, material_type)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            """,
+            user_id, filename, file_type, file_size, storage_key, material_type
+        )
+        return dict(row)
+
+
+async def update_material_status(
+    material_id: int,
+    status: str,
+    chunk_count: int = 0,
+    error_message: str = None
+) -> None:
+    """Update material processing status."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE materials
+            SET status = $2, chunk_count = $3, error_message = $4, updated_at = NOW()
+            WHERE id = $1
+            """,
+            material_id, status, chunk_count, error_message
+        )
+
+
+async def get_user_materials(user_id: int) -> list[dict]:
+    """Get all materials for a user."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, filename, file_type, file_size, material_type, status, chunk_count, error_message, created_at
+            FROM materials
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            """,
+            user_id
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_material(material_id: int, user_id: int) -> Optional[dict]:
+    """Get a material by ID (scoped to user)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM materials WHERE id = $1 AND user_id = $2",
+            material_id, user_id
+        )
+        return dict(row) if row else None
+
+
+async def delete_material(material_id: int, user_id: int) -> Optional[str]:
+    """Delete a material and return its storage key for R2 cleanup."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM materials WHERE id = $1 AND user_id = $2 RETURNING storage_key",
+            material_id, user_id
+        )
+        return row['storage_key'] if row else None
+
+
+# =============================================================================
+# Chunk Operations (v2)
+# =============================================================================
+
+async def save_chunks(
+    material_id: int,
+    user_id: int,
+    chunks: list[dict],
+) -> int:
+    """Save chunks with embeddings. Returns count saved."""
+    async with _pool.acquire() as conn:
+        for i, chunk in enumerate(chunks):
+            # Convert embedding list to pgvector format
+            embedding = chunk['embedding']
+            embedding_str = '[' + ','.join(str(x) for x in embedding) + ']'
+
+            await conn.execute(
+                """
+                INSERT INTO material_chunks (material_id, user_id, chunk_index, content, embedding, section_title, material_type)
+                VALUES ($1, $2, $3, $4, $5::vector, $6, $7)
+                """,
+                material_id, user_id, i, chunk['content'], embedding_str,
+                chunk.get('section_title'), chunk.get('material_type')
+            )
+
+        return len(chunks)
+
+
+async def vector_search(
+    user_id: int,
+    query_embedding: list[float],
+    limit: int = 5
+) -> list[dict]:
+    """Search for similar chunks using vector similarity."""
+    async with _pool.acquire() as conn:
+        # Convert Python list to pgvector format
+        embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
+
+        rows = await conn.fetch(
+            """
+            SELECT
+                content,
+                section_title,
+                material_type,
+                1 - (embedding <=> $2::vector) as similarity
+            FROM material_chunks
+            WHERE user_id = $1
+            ORDER BY embedding <=> $2::vector
+            LIMIT $3
+            """,
+            user_id, embedding_str, limit
+        )
+
+        return [dict(row) for row in rows]
+
+
+async def delete_chunks_for_material(material_id: int) -> None:
+    """Delete all chunks for a material."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM material_chunks WHERE material_id = $1",
+            material_id
+        )

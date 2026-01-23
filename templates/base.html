@@ -25,6 +25,8 @@
                 <a href="/" class="text-xl font-bold text-gray-900">Auggie</a>
                 {% if user %}
                 <div class="flex items-center gap-4">
+                    <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Research</a>
+                    <a href="/materials" class="text-sm text-gray-600 hover:text-gray-900">Materials</a>
                     {% if searches_used is defined %}
                     <span class="text-sm text-gray-500">
                         {{ searches_used }}/{{ search_limit }} searches

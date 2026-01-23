@@ -15,9 +15,9 @@ class ClaudeService:
         self.settings = get_settings()
         self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
 
-    def _build_system_prompt(self, product_context: str) -> str:
+    def _build_system_prompt(self, product_context: str, retrieved_materials: str = "") -> str:
         """Build the system prompt defining Claude's research analyst role."""
-        return f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
+        base_prompt = f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
 
 Here is the data about the company you are researching:
 
@@ -46,7 +46,29 @@ The company data contains several types of information with different reliabilit
 YOUR PRODUCT CONTEXT (the product you are selling):
 
 {product_context}
+"""
 
+        # Add materials section if available
+        if retrieved_materials:
+            base_prompt += f"""
+RELEVANT MATERIALS FROM YOUR COMPANY:
+
+The following excerpts from your sales materials are relevant to this prospect. Use them to:
+- Reference specific case studies with similar companies or industries
+- Pull relevant proof points, metrics, and ROI data
+- Identify competitive insights if the prospect uses a competitor
+- Suggest specific product capabilities that match their stated needs
+- Use customer quotes or testimonials where relevant
+
+{retrieved_materials}
+
+When using these materials:
+- Cite the source (e.g., "According to your Acme Corp case study...")
+- Prioritize data points and metrics over general claims
+- Match case study industries/company sizes to the prospect when possible
+"""
+
+        base_prompt += """
 When analyzing the prospect, specifically look for:
 - **Pain point matches**: Does the prospect have problems that align with what your product solves?
 - **Competitor presence**: Are they using any of your competitors? Flag this prominently.
@@ -160,6 +182,8 @@ Explicitly list:
 - What would need to be discovered through direct conversation
 - What additional research sources would be helpful"""
 
+        return base_prompt
+
     def _build_user_prompt(
         self,
         company_url: str,
@@ -227,9 +251,10 @@ Explicitly list:
         scraped: ScrapedContent,
         product_context: str,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
+        retrieved_materials: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
-        system_prompt = self._build_system_prompt(product_context)
+        system_prompt = self._build_system_prompt(product_context, retrieved_materials)
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         message = self.client.messages.create(
