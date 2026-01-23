@@ -1,179 +1,148 @@
-# Auggie - SaaS Roadmap
+# Auggie Product Roadmap
 
-## Current State
-
-Multi-user SaaS with Google OAuth, Postgres database, and Stripe billing. Users can sign up, complete onboarding with their product context, and generate personalized research documents.
-
-**Completed Features:**
-- [x] Web scraping via Firecrawl (15+ pages per research)
-- [x] Technology detection via Wappalyzer (main site + app subdomains)
-- [x] AI research generation via Claude (personalized to user's product)
-- [x] Web UI for input and viewing documents
-- [x] Markdown export
-- [x] Google OAuth authentication
-- [x] PostgreSQL database (Railway)
-- [x] Enhanced onboarding (product info, ICP, competitors)
-- [x] User-scoped documents
-- [x] Usage tracking (searches per month)
-- [x] Stripe subscription ($9.99/mo for 25 searches)
-- [x] News integration via SerpAPI (recent company news)
-- [x] Deployed to Railway (auggie.tools)
+## Current Status: v2 on Staging
+- Core research generation working
+- Materials upload & RAG working
+- Ready for production deployment
 
 ---
 
-## Phase 1: Prompt Engineering
+## Phase 1: Production Launch
+**Status:** Ready to deploy
 
-### 1.1 Research Quality
-- [x] Review and tune Claude prompts for better output
-- [x] Improve company summary extraction
-- [x] Better tech stack analysis and relevance scoring
-- [x] More actionable sales angles and talking points
-- [x] Reduce generic/filler content
+- [x] Core research generation
+- [x] Materials upload (PDF, DOCX, PPTX)
+- [x] RAG retrieval into research
+- [x] Tech stack detection (B2B + B2C)
+- [x] Job board scraping (Greenhouse, Lever, Workday, Ashby, etc.)
+- [x] User auth (Google OAuth)
+- [x] Stripe billing (Free tier + Pro $9.99/mo)
+- [x] Simplified onboarding
+- [x] Materials prompt modal
 
-### 1.2 Product Fit Analysis
-- [ ] Better mapping of prospect needs to user's product
-- [ ] Industry-specific insights
-- [ ] Competitive positioning suggestions
-- [ ] Objection handling prep
-
-### 1.3 Output Format
-- [ ] Tune markdown structure for readability
-- [ ] Add executive summary section
-- [ ] Prioritize most valuable insights at top
-- [ ] Consider different output lengths (quick vs. deep)
+**To deploy:**
+1. Merge v2 → main
+2. Add env vars to production (Neon, R2, OpenAI)
+3. Set MATERIALS_ENABLED=true
 
 ---
 
-## Phase 2: Production Ready
+## Phase 2: Writing Workflow
+**Status:** Next up
 
-### 2.1 Deployment
-- [x] Deploy to Railway
-- [x] Set up environment variables in production
-- [x] Configure custom domain (auggie.tools)
-- [x] Update Google OAuth redirect URIs for production
-- [x] Switch Stripe to live mode
+Add AI-powered outreach generation after research is created.
 
-### 2.2 Stripe Webhooks
-- [x] Set up webhook endpoint in Stripe Dashboard
-- [x] Add `STRIPE_WEBHOOK_SECRET` to production env
-- [ ] Test subscription renewal flow
-- [ ] Test cancellation flow
+### Features
+- [ ] "Write Outreach" button on research document
+- [ ] Template types:
+  - Cold Email
+  - LinkedIn Message
+  - Follow-up Email
+  - Call Script
+  - Custom prompt
+- [ ] Uses research context + user materials
+- [ ] Tone/style preferences
+- [ ] Regenerate, copy, save drafts
 
-### 2.3 Error Handling & Monitoring
-- [ ] Add Sentry for error tracking
-- [ ] Add logging for production debugging
-- [ ] Handle edge cases (scraping failures, API timeouts)
+### Database
+```sql
+CREATE TABLE outreach_drafts (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    document_id BIGINT REFERENCES documents(id),
+    template_type TEXT,
+    content TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE outreach_templates (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    name TEXT,
+    prompt TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Files to Create/Modify
+- [ ] services/writing.py - Outreach generation service
+- [ ] templates/document.html - Add "Write Outreach" UI
+- [ ] templates/outreach_modal.html - Draft editing modal
+- [ ] main.py - Add /outreach endpoints
+- [ ] database.py - Add outreach tables and functions
 
 ---
 
-## Phase 3: Product Enhancements
+## Phase 3: Team Accounts
+**Status:** Planned
 
-### 3.1 Customization
-- [ ] Custom product context profiles (save multiple products)
-- [ ] Adjustable research depth (quick vs. deep)
-- [ ] Custom prompt templates
+Enable businesses to have multiple users under one organization.
 
-### 3.2 News API Integration ✅
-- [x] Integrate SerpAPI for recent company news
-- [x] Search by company name + recent articles
-- [x] Feed news into Claude as "Recent News & Press" data source
-- [x] Surface funding announcements, product launches, exec changes as talking points
+- [ ] Org/team data model
+- [ ] Invite team members
+- [ ] Role-based access (Admin, Member, Viewer)
+- [ ] Centralized billing (one bill per org)
+- [ ] Shared materials library
+- [ ] Usage dashboard (who researched what)
 
-### 3.3 Additional Data Sources (Future)
-- [ ] LinkedIn company pages (if API available)
-- [ ] Crunchbase integration (funding, investors)
-- [ ] G2/Capterra reviews
+---
 
-### 3.4 Export & Integrations
-- [ ] PDF export (styled with WeasyPrint)
-- [ ] Notion export
-- [ ] Google Docs export
-- [ ] Salesforce integration
+## Phase 4: Enterprise Auth & Security
+**Status:** Planned
+
+Required for enterprise sales.
+
+- [ ] SSO (SAML/OIDC) - Okta, Azure AD, Google Workspace
+- [ ] SCIM user provisioning
+- [ ] Audit logs
+- [ ] Data retention controls
+- [ ] SOC 2 compliance prep
+
+---
+
+## Phase 5: Integrations
+**Status:** Planned
+
+Connect Auggie to sales team workflows.
+
+- [ ] Salesforce integration (push research to accounts)
 - [ ] HubSpot integration
+- [ ] Slack notifications
+- [ ] API access for customers
+- [ ] Chrome extension
+- [ ] Zapier/Make connectors
 
 ---
 
-## Phase 4: Scale & Optimize
+## Phase 6: Advanced Features
+**Status:** Future
 
-### 4.1 Performance
-- [ ] Caching layer (Redis) for repeat domains
-- [ ] Background job queue for research generation
-- [ ] Webhook notifications when research complete
-
-### 4.2 Analytics
-- [ ] User activity tracking
-- [ ] Popular companies researched
-- [ ] Feature usage metrics
-
-### 4.3 API Access (Future)
-- [ ] Public API for programmatic access
-- [ ] API key management
-- [ ] Rate limiting
+- [ ] Bulk research (CSV upload → 100 companies)
+- [ ] Saved research templates
+- [ ] Competitor tracking over time
+- [ ] Contact enrichment (LinkedIn, Apollo)
+- [ ] AI chat follow-up on research
+- [ ] PDF export
 
 ---
 
-## Pricing
+## Pricing Tiers (Suggested)
 
-| Tier | Price | Searches |
-|------|-------|----------|
-| Free | $0 | 5 total (no reset) |
-| Pro | $9.99/mo | 25/month (resets on payment) |
-
-### Cost Structure
-
-**Per-Research Costs:**
-| Service | Cost | Notes |
-|---------|------|-------|
-| Firecrawl | ~$0.15-0.25 | 15 pages @ $0.01-0.02/page |
-| Claude API | ~$0.02-0.05 | ~10k tokens |
-| Wappalyzer | $0 | Open source, runs locally |
-| **Total** | **~$0.20-0.30** | Per research |
-
-**Monthly Infrastructure:**
-| Service | Cost | Notes |
-|---------|------|-------|
-| Railway | $5-20 | Hosting + Postgres |
-| Stripe | 2.9% + $0.30 | Per transaction |
-
-**Break-Even Analysis:**
-At $9.99/month for 25 searches:
-- Cost per research: ~$0.25
-- Max cost if fully used: $6.25
-- Gross margin: ~$3.74 (37%)
-- At 30% usage (8 searches): ~$7.99 margin (80%)
-
-Lower price point = easier conversion. SDRs will use heavily, AEs won't - blended usage model makes this profitable.
+| Tier | Price | Searches | Materials | Features |
+|------|-------|----------|-----------|----------|
+| Free | $0 | 5 total | 3 | Basic research |
+| Pro | $9.99/mo | 25/mo | Unlimited | + Writing workflow |
+| Team | $29/user/mo | 50/user/mo | Shared | + Team features |
+| Enterprise | Custom | Unlimited | Shared | + SSO, API, SLA |
 
 ---
 
-## Launch Checklist
+## Priority Timeline
 
-### Pre-Launch
-- [x] Authentication working
-- [x] Billing working
-- [x] Usage limits enforced
-- [x] Production deployment stable
-- [ ] Error monitoring (Sentry)
-
-### Marketing
-- [ ] Landing page with value prop
-- [ ] Demo video
-- [ ] 3 case study examples
-
-### Legal
-- [ ] Terms of Service
-- [ ] Privacy Policy
-
----
-
-## Open Questions (Resolved)
-
-1. ~~**Auth**: Clerk vs direct OAuth~~ → **Google OAuth directly** (free, low friction)
-
-2. ~~**Database**: MongoDB vs Postgres~~ → **PostgreSQL on Railway** (relational fits better)
-
-3. ~~**Pricing**: $49 for 100 vs $18 for 50~~ → **$9.99/mo for 25 searches** (lower price = easier conversion)
-
----
-
-*Last updated: January 2026*
+| Timeframe | Phase | Goal |
+|-----------|-------|------|
+| This week | Phase 1 | Production launch, first paying users |
+| Next 1-2 weeks | Phase 2 | Writing workflow |
+| Month 2 | Phase 3 | Team accounts |
+| Month 2-3 | Phase 5 | CRM integrations |
+| Month 3+ | Phase 4 | Enterprise security |
