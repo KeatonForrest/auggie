@@ -324,8 +324,15 @@ def build_product_context(
     target_personas: str,
     competitors: str,
 ) -> str:
-    """Build a rich product context string for Claude from onboarding data."""
-    parts = [f"**Product:** {product_name}"]
+    """Build a rich product context string for Claude from onboarding data.
+
+    Note: In v2, many fields may be empty as they're extracted from uploaded
+    materials instead. The core required field is problems_solved.
+    """
+    parts = []
+
+    if product_name:
+        parts.append(f"**Product:** {product_name}")
 
     if product_description:
         parts.append(f"**What it does:** {product_description}")
@@ -347,6 +354,10 @@ def build_product_context(
 
     if competitors:
         parts.append(f"**Competitors:** {competitors}")
+
+    # Ensure we always return something
+    if not parts:
+        parts.append("(Product details to be extracted from uploaded materials)")
 
     return "\n".join(parts)
 

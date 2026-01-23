@@ -161,14 +161,14 @@ async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
 async def complete_onboarding(
     request: Request,
     company_name: str = Form(...),
-    product_name: str = Form(...),
-    product_description: str = Form(...),
+    product_name: str = Form(""),  # Now optional - extracted from materials
+    product_description: str = Form(""),  # Now optional - extracted from materials
     problems_solved: str = Form(...),
-    differentiators: str = Form(""),
+    differentiators: str = Form(""),  # Now optional - extracted from materials
     target_company_size: list[str] = Form([]),
     target_industries: str = Form(""),
     target_personas: str = Form(""),
-    competitors: str = Form(""),
+    competitors: str = Form(""),  # Now optional - extracted from materials
     user: dict = Depends(require_auth),
 ):
     """Save onboarding data and redirect to dashboard."""
