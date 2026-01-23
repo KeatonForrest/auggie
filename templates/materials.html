@@ -309,7 +309,7 @@ async function reprocessMaterial(id) {
 
 // Auto-refresh if any materials are processing
 {% if materials %}
-const hasProcessing = {{ materials | selectattr('status', 'equalto', 'processing') | list | length > 0 | tojson }};
+const hasProcessing = {{ (materials | selectattr('status', 'equalto', 'processing') | list | length > 0) | tojson }};
 if (hasProcessing) {
     setTimeout(() => window.location.reload(), 5000);
 }
