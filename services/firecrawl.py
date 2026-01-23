@@ -301,9 +301,9 @@ class FirecrawlService:
     async def _parallel_search(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
         """Run multiple searches in parallel and combine results."""
         search_queries = [
-            f"{company_name} company overview what does {company_name} do",
-            f"{company_name} engineering blog tech",
-            f"{company_name} tech stack technology infrastructure",
+            f"{company_name} engineering blog",  # Original - was working
+            f"{company_name} tech stack technology",  # Original - was working
+            f"{company_name} company overview about",  # Added for company overview
         ]
 
         tasks = [self._web_search(client, query, num_results=3) for query in search_queries]
