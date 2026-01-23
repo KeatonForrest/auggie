@@ -113,31 +113,72 @@ class FirecrawlService:
         company_name: str,
         domain: str
     ) -> Optional[str]:
-        """Scrape job postings from common job boards (Greenhouse, Lever)."""
+        """Scrape job postings from common job boards and ATS platforms."""
+        company_slug = company_name.lower().replace(' ', '').replace('-', '').replace('_', '')
+        domain_slug = domain.split('.')[0].lower()
+
+        # Comprehensive list of job board URLs to check
         job_board_urls = [
-            f"https://boards.greenhouse.io/{company_name.lower().replace(' ', '')}",
-            f"https://boards.greenhouse.io/{domain.split('.')[0]}",
-            f"https://jobs.lever.co/{company_name.lower().replace(' ', '')}",
-            f"https://jobs.lever.co/{domain.split('.')[0]}",
+            # Greenhouse
+            f"https://boards.greenhouse.io/{company_slug}",
+            f"https://boards.greenhouse.io/{domain_slug}",
+            # Lever
+            f"https://jobs.lever.co/{company_slug}",
+            f"https://jobs.lever.co/{domain_slug}",
+            # Ashby (newer ATS, popular with tech companies)
+            f"https://jobs.ashbyhq.com/{company_slug}",
+            f"https://jobs.ashbyhq.com/{domain_slug}",
+            # Workday (common for enterprise/retail)
+            f"https://{company_slug}.wd5.myworkdayjobs.com",
+            f"https://{domain_slug}.wd5.myworkdayjobs.com",
+            f"https://{company_slug}.wd1.myworkdayjobs.com",
+            # Company career pages
             f"https://{domain}/careers",
             f"https://{domain}/jobs",
+            f"https://{domain}/careers/search",
+            f"https://{domain}/about/careers",
             f"https://careers.{domain}",
             f"https://jobs.{domain}",
+            # BambooHR
+            f"https://{company_slug}.bamboohr.com/jobs",
+            # SmartRecruiters
+            f"https://careers.smartrecruiters.com/{company_slug}",
         ]
 
-        job_content = []
-        for url in job_board_urls:
-            try:
-                content = await self._scrape_url(client, url)
-                if content and len(content) > 500:
-                    job_content.append(f"## Jobs from {url}\n\n{content}")
-                    if "greenhouse.io" in url or "lever.co" in url:
-                        break
-            except Exception as e:
-                print(f"Error scraping job board {url}: {e}")
-                continue
+        print(f"Checking {len(job_board_urls)} job board URLs...")
 
-        return "\n\n---\n\n".join(job_content) if job_content else None
+        # Check all URLs in parallel for speed
+        tasks = [self._scrape_url(client, url) for url in job_board_urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        job_content = []
+        seen_content = set()  # Avoid duplicates
+
+        for url, content in zip(job_board_urls, results):
+            if isinstance(content, Exception) or not content:
+                continue
+            if len(content) > 500:
+                # Simple dedup based on first 200 chars
+                content_sig = content[:200]
+                if content_sig not in seen_content:
+                    seen_content.add(content_sig)
+                    job_content.append(f"## Jobs from {url}\n\n{content[:8000]}")
+                    print(f"Found job content at {url}")
+                    # Limit to 3 sources to avoid token bloat
+                    if len(job_content) >= 3:
+                        break
+
+        if job_content:
+            return "\n\n---\n\n".join(job_content)
+
+        # Fallback: web search for jobs if direct scraping failed
+        print(f"No direct job boards found, searching web for {company_name} jobs...")
+        search_result = await self._web_search(
+            client,
+            f"{company_name} careers jobs hiring",
+            num_results=3
+        )
+        return search_result
 
     async def _web_search(
         self,
@@ -260,12 +301,13 @@ class FirecrawlService:
     async def _parallel_search(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
         """Run multiple searches in parallel and combine results."""
         search_queries = [
-            f"{company_name} engineering blog",
-            f"{company_name} tech stack technology",
+            f"{company_name} company overview what does {company_name} do",
+            f"{company_name} engineering blog tech",
+            f"{company_name} tech stack technology infrastructure",
         ]
 
         tasks = [self._web_search(client, query, num_results=3) for query in search_queries]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        news_parts = [r for r in results if isinstance(r, str) and r]
-        return "\n\n---\n\n".join(news_parts) if news_parts else None
+        content_parts = [r for r in results if isinstance(r, str) and r]
+        return "\n\n---\n\n".join(content_parts) if content_parts else None
