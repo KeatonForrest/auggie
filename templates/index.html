@@ -9,6 +9,56 @@ It extends base.html and fills in the 'content' block.
 {% block title %}Generate Research - Auggie{% endblock %}
 
 {% block content %}
+<!-- Materials Prompt Modal -->
+{% if show_materials_prompt %}
+<div id="materialsPromptModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-2xl">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Supercharge Your Research</h2>
+            <p class="text-gray-600">
+                Upload your sales materials and we'll automatically reference them in every research document.
+            </p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <h3 class="font-medium text-gray-900 mb-2">What to upload:</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                <li class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    Case studies with metrics and quotes
+                </li>
+                <li class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    Competitor battle cards
+                </li>
+                <li class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    Product documentation
+                </li>
+                <li class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    Sales decks
+                </li>
+            </ul>
+        </div>
+
+        <div class="flex gap-3">
+            <button onclick="dismissMaterialsPrompt()" class="flex-1 px-4 py-3 text-gray-700 font-medium hover:bg-gray-100 rounded-lg transition">
+                Skip for now
+            </button>
+            <a href="/materials" class="flex-1 px-4 py-3 bg-indigo-600 text-white font-medium text-center rounded-lg hover:bg-indigo-700 transition">
+                Upload Materials
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="bg-white rounded-lg shadow p-6">
     <h1 class="text-2xl font-bold text-gray-900 mb-2">
         Generate Account Research
@@ -158,6 +208,25 @@ It extends base.html and fills in the 'content' block.
         btn.disabled = true;
         btnText.classList.add('hidden');
         btnLoading.classList.remove('hidden');
+    });
+
+    // Materials prompt modal
+    function dismissMaterialsPrompt() {
+        const modal = document.getElementById('materialsPromptModal');
+        if (modal) {
+            modal.remove();
+            // Store dismissal in localStorage so we don't show again this session
+            localStorage.setItem('materialsPromptDismissed', 'true');
+        }
+    }
+
+    // Check if already dismissed this session
+    document.addEventListener('DOMContentLoaded', function() {
+        const dismissed = localStorage.getItem('materialsPromptDismissed');
+        const modal = document.getElementById('materialsPromptModal');
+        if (dismissed && modal) {
+            modal.remove();
+        }
     });
 </script>
 {% endblock %}

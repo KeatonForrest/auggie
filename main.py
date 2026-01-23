@@ -124,6 +124,12 @@ async def home(request: Request):
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
 
+    # Check if user has materials (for prompt)
+    show_materials_prompt = False
+    if settings.materials_enabled:
+        materials = await get_user_materials(user["id"])
+        show_materials_prompt = len(materials) == 0
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -132,6 +138,8 @@ async def home(request: Request):
             "recent_docs": recent_docs,
             "searches_used": usage["searches_used"],
             "search_limit": get_search_limit(user),
+            "show_materials_prompt": show_materials_prompt,
+            "materials_enabled": settings.materials_enabled,
         }
     )
 
