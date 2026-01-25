@@ -27,22 +27,54 @@
 
 ---
 
-## Phase 2: Writing Workflow
-**Status:** Next up
+## Phase 2: Contact Enrichment (Apollo)
+**Status:** Next up (tomorrow - build first)
+
+Add key contacts to research output using Apollo.io API.
+
+### Features
+- [ ] Query Apollo API for contacts at target domain
+- [ ] Filter by user's target personas (from onboarding)
+- [ ] Display in research: name, title, email, LinkedIn URL
+- [ ] Pro-tier only (adds API cost per search)
+
+### Output Example
+```
+## Key Contacts
+
+**Sarah Chen** - VP of Sales
+sarah.chen@company.com | [LinkedIn](url)
+
+**Mike Johnson** - Director of Sales Ops
+mike.johnson@company.com | [LinkedIn](url)
+```
+
+### Files to Create/Modify
+- [ ] services/apollo.py - Apollo API integration
+- [ ] config.py - Add APOLLO_API_KEY
+- [ ] main.py - Integrate into research flow
+- [ ] services/claude.py - Add contacts to prompt/output
+- [ ] models.py - Add Contact model
+
+### Environment Variables
+```
+APOLLO_API_KEY=your_key
+```
+
+---
+
+## Phase 3: Writing Workflow
+**Status:** Next up (tomorrow - build second)
 
 Add AI-powered outreach generation after research is created.
 
 ### Features
 - [ ] "Write Outreach" button on research document
 - [ ] Template types:
-  - Cold Email
+  - 3-Email Sequence (initial, follow-up, break-up)
   - LinkedIn Message
-  - Follow-up Email
-  - Call Script
-  - Custom prompt
-- [ ] Uses research context + user materials
-- [ ] Tone/style preferences
-- [ ] Regenerate, copy, save drafts
+- [ ] Uses research context + materials + contacts
+- [ ] Regenerate, copy functionality
 
 ### Database
 ```sql
@@ -54,26 +86,17 @@ CREATE TABLE outreach_drafts (
     content TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-CREATE TABLE outreach_templates (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id),
-    name TEXT,
-    prompt TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 ```
 
 ### Files to Create/Modify
 - [ ] services/writing.py - Outreach generation service
 - [ ] templates/document.html - Add "Write Outreach" UI
-- [ ] templates/outreach_modal.html - Draft editing modal
 - [ ] main.py - Add /outreach endpoints
-- [ ] database.py - Add outreach tables and functions
+- [ ] database.py - Add outreach table
 
 ---
 
-## Phase 3: Team Accounts
+## Phase 4: Team Accounts
 **Status:** Planned
 
 Enable businesses to have multiple users under one organization.
@@ -87,7 +110,7 @@ Enable businesses to have multiple users under one organization.
 
 ---
 
-## Phase 4: Enterprise Auth & Security
+## Phase 5: Enterprise Auth & Security
 **Status:** Planned
 
 Required for enterprise sales.
@@ -100,7 +123,7 @@ Required for enterprise sales.
 
 ---
 
-## Phase 5: Integrations
+## Phase 6: Integrations
 **Status:** Planned
 
 Connect Auggie to sales team workflows.
@@ -114,13 +137,12 @@ Connect Auggie to sales team workflows.
 
 ---
 
-## Phase 6: Advanced Features
+## Phase 7: Advanced Features
 **Status:** Future
 
 - [ ] Bulk research (CSV upload → 100 companies)
 - [ ] Saved research templates
 - [ ] Competitor tracking over time
-- [ ] Contact enrichment (LinkedIn, Apollo)
 - [ ] AI chat follow-up on research
 - [ ] PDF export
 
@@ -131,7 +153,7 @@ Connect Auggie to sales team workflows.
 | Tier | Price | Searches | Materials | Features |
 |------|-------|----------|-----------|----------|
 | Free | $0 | 5 total | 3 | Basic research |
-| Pro | $9.99/mo | 25/mo | Unlimited | + Writing workflow |
+| Pro | $9.99/mo | 25/mo | Unlimited | + Contacts, Writing workflow |
 | Team | $29/user/mo | 50/user/mo | Shared | + Team features |
 | Enterprise | Custom | Unlimited | Shared | + SSO, API, SLA |
 
@@ -141,8 +163,8 @@ Connect Auggie to sales team workflows.
 
 | Timeframe | Phase | Goal |
 |-----------|-------|------|
-| This week | Phase 1 | Production launch, first paying users |
-| Next 1-2 weeks | Phase 2 | Writing workflow |
-| Month 2 | Phase 3 | Team accounts |
-| Month 2-3 | Phase 5 | CRM integrations |
-| Month 3+ | Phase 4 | Enterprise security |
+| Tomorrow | Phase 2 + 3 | Apollo contacts + Writing workflow |
+| Tomorrow | Phase 1 | Production launch with full v2 |
+| Month 2 | Phase 4 | Team accounts |
+| Month 2-3 | Phase 6 | CRM integrations |
+| Month 3+ | Phase 5 | Enterprise security |
