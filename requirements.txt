@@ -26,6 +26,7 @@ weasyprint==62.0
 asyncpg==0.30.0
 
 # Wappalyzer - technology detection (with auto-update support)
+setuptools>=69.0.0  # Required for pkg_resources used by Wappalyzer
 python-Wappalyzer==0.3.1
 
 # Stripe - payments
