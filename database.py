@@ -152,81 +152,82 @@ async def init_database():
 
         # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
+        # Only create if materials feature is enabled (requires pgvector)
         # =================================================================
-
-        # Materials metadata table
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS materials (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-
-                -- File info
-                filename TEXT NOT NULL,
-                file_type TEXT NOT NULL,
-                file_size INTEGER,
-                storage_key TEXT NOT NULL,
-
-                -- Classification
-                material_type TEXT DEFAULT 'other',
-
-                -- Processing status
-                status TEXT DEFAULT 'pending',
-                chunk_count INTEGER DEFAULT 0,
-                error_message TEXT,
-
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_materials_user
-            ON materials(user_id)
-        """)
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_materials_status
-            ON materials(user_id, status)
-        """)
-
-        # Material chunks with vector embeddings
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS material_chunks (
-                id BIGSERIAL PRIMARY KEY,
-                material_id BIGINT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
-                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-
-                chunk_index INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                embedding vector(1536),
-
-                -- Metadata for context
-                section_title TEXT,
-                material_type TEXT,
-
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chunks_user
-            ON material_chunks(user_id)
-        """)
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chunks_material
-            ON material_chunks(material_id)
-        """)
-
-        # Vector similarity search index (IVFFlat)
-        # Note: This index requires data to exist first, so we create it separately
-        # and handle the case where it might fail on empty table
-        try:
+        if settings.materials_enabled:
+            # Materials metadata table
             await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_chunks_embedding
-                ON material_chunks USING ivfflat (embedding vector_cosine_ops)
-                WITH (lists = 100)
+                CREATE TABLE IF NOT EXISTS materials (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+                    -- File info
+                    filename TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    file_size INTEGER,
+                    storage_key TEXT NOT NULL,
+
+                    -- Classification
+                    material_type TEXT DEFAULT 'other',
+
+                    -- Processing status
+                    status TEXT DEFAULT 'pending',
+                    chunk_count INTEGER DEFAULT 0,
+                    error_message TEXT,
+
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
             """)
-        except Exception:
-            # IVFFlat index creation may fail on empty table, which is fine
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_materials_user
+                ON materials(user_id)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_materials_status
+                ON materials(user_id, status)
+            """)
+
+            # Material chunks with vector embeddings
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS material_chunks (
+                    id BIGSERIAL PRIMARY KEY,
+                    material_id BIGINT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    embedding vector(1536),
+
+                    -- Metadata for context
+                    section_title TEXT,
+                    material_type TEXT,
+
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunks_user
+                ON material_chunks(user_id)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunks_material
+                ON material_chunks(material_id)
+            """)
+
+            # Vector similarity search index (IVFFlat)
+            # Note: This index requires data to exist first, so we create it separately
+            # and handle the case where it might fail on empty table
+            try:
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_chunks_embedding
+                    ON material_chunks USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100)
+                """)
+            except Exception:
+                # IVFFlat index creation may fail on empty table, which is fine
             # It will be created when data is added, or use HNSW instead
             pass
 
