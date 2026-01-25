@@ -41,7 +41,13 @@ The company data contains several types of information with different reliabilit
    - Problems they're trying to solve
    - Technical requirements
 
-4. **Firmographic Data** - Company size, industry, funding, contacts
+4. **Investor Relations** (public companies only) - From investor.company.com:
+   - Strategic priorities and initiatives from leadership
+   - Financial performance and business outlook
+   - Press releases about major projects, partnerships, acquisitions
+   - Digital transformation and technology investment mentions
+
+5. **Firmographic Data** - Company size, industry, funding, contacts
 
 YOUR PRODUCT CONTEXT (the product you are selling):
 
@@ -254,6 +260,12 @@ Explicitly list:
         if scraped.news:
             sections.append("## Recent News & Press")
             sections.append(scraped.news[:5000])
+            sections.append("")
+
+        if scraped.investor_relations:
+            sections.append("## Investor Relations (Public Company)")
+            sections.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
+            sections.append(scraped.investor_relations[:8000])
             sections.append("")
 
         if apollo_data:

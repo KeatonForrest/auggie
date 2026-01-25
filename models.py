@@ -21,6 +21,7 @@ class ScrapedContent(BaseModel):
     job_postings: Optional[str] = None
     additional_pages: Optional[str] = None
     news: Optional[str] = None
+    investor_relations: Optional[str] = None
 
 
 class DetectedTechnology(BaseModel):

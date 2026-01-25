@@ -252,12 +252,14 @@ class FirecrawlService:
             other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
             job_task = self._scrape_job_board(client, company_name, domain)
             search_task = self._parallel_search(client, company_name)
+            investor_task = self._scrape_investor_relations(client, domain)
 
             results = await asyncio.gather(
                 homepage_task,
                 *other_tasks.values(),
                 job_task,
                 search_task,
+                investor_task,
                 return_exceptions=True
             )
 
@@ -274,8 +276,9 @@ class FirecrawlService:
                 if not isinstance(result, Exception):
                     core_results[name] = result
 
-            job_postings = results[-2] if not isinstance(results[-2], Exception) else None
-            news_content = results[-1] if not isinstance(results[-1], Exception) else None
+            job_postings = results[-3] if not isinstance(results[-3], Exception) else None
+            news_content = results[-2] if not isinstance(results[-2], Exception) else None
+            investor_content = results[-1] if not isinstance(results[-1], Exception) else None
 
             extra_pages = []
             for key in ["products", "solutions", "platform", "engineering"]:
@@ -296,6 +299,7 @@ class FirecrawlService:
             job_postings=job_postings,
             additional_pages=additional_content,
             news=news_content,
+            investor_relations=investor_content,
         )
 
     async def _parallel_search(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
@@ -311,3 +315,79 @@ class FirecrawlService:
 
         content_parts = [r for r in results if isinstance(r, str) and r]
         return "\n\n---\n\n".join(content_parts) if content_parts else None
+
+    async def _check_subdomain_exists(
+        self,
+        client: httpx.AsyncClient,
+        url: str
+    ) -> bool:
+        """Check if a subdomain exists with a quick HEAD/GET request."""
+        try:
+            response = await client.head(
+                url,
+                follow_redirects=True,
+                timeout=5.0,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"}
+            )
+            # Check if we got a successful response and didn't redirect to main domain
+            if response.status_code < 400:
+                final_url = str(response.url)
+                # Make sure we didn't get redirected to the main site
+                if url.split('/')[2] in final_url:
+                    return True
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.ConnectTimeout):
+            pass
+        except Exception:
+            pass
+        return False
+
+    async def _scrape_investor_relations(
+        self,
+        client: httpx.AsyncClient,
+        domain: str
+    ) -> Optional[str]:
+        """Check for and scrape investor relations subdomains (public companies only)."""
+        # Common investor relations subdomains
+        ir_subdomains = [
+            f"https://investor.{domain}",
+            f"https://investors.{domain}",
+            f"https://ir.{domain}",
+        ]
+
+        # Check which subdomains exist
+        check_tasks = [self._check_subdomain_exists(client, url) for url in ir_subdomains]
+        exists_results = await asyncio.gather(*check_tasks)
+
+        existing_ir_urls = [url for url, exists in zip(ir_subdomains, exists_results) if exists]
+
+        if not existing_ir_urls:
+            print(f"No investor relations subdomain found for {domain}")
+            return None
+
+        print(f"Found investor relations subdomain: {existing_ir_urls[0]}")
+
+        # Scrape the first existing IR subdomain
+        ir_url = existing_ir_urls[0]
+
+        # Try to get key pages from the IR site
+        ir_pages = [
+            ir_url,  # Main IR page
+            f"{ir_url}/news",
+            f"{ir_url}/press-releases",
+            f"{ir_url}/corporate-governance",
+        ]
+
+        scrape_tasks = [self._scrape_url(client, url) for url in ir_pages]
+        results = await asyncio.gather(*scrape_tasks, return_exceptions=True)
+
+        content_parts = []
+        for url, content in zip(ir_pages, results):
+            if isinstance(content, str) and content and len(content) > 300:
+                # Truncate each page to avoid token bloat
+                content_parts.append(f"### {url}\n\n{content[:4000]}")
+                print(f"Scraped IR content from {url}")
+
+        if content_parts:
+            return "\n\n---\n\n".join(content_parts)
+
+        return None
