@@ -23,6 +23,7 @@ from services.news import NewsService
 from services.materials import MaterialsService
 from services.retrieval import RetrievalService
 from services.apollo import ApolloService
+from services.writing import WritingService
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, increment_user_searches,
@@ -86,6 +87,7 @@ claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
 news_service = NewsService()
 apollo_service = ApolloService()
+writing_service = WritingService()
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
@@ -351,6 +353,38 @@ async def get_pdf(doc_id: int, user: dict = Depends(require_auth)):
         media_type="text/markdown",
         headers={"Content-Disposition": f"attachment; filename={document.company_name}_research.md"}
     )
+
+
+# =============================================================================
+# Outreach Writing Endpoints
+# =============================================================================
+
+@app.post("/document/{doc_id}/outreach")
+async def generate_outreach(
+    doc_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Generate a 3-email outreach sequence from a research document."""
+    document = await get_document(doc_id, user_id=user["id"])
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    try:
+        emails = await writing_service.generate_email_sequence(
+            document=document,
+            product_context=user.get("product_context", ""),
+        )
+        return JSONResponse({
+            "success": True,
+            "emails": emails,
+            "markdown": writing_service.format_emails_markdown(emails),
+        })
+    except Exception as e:
+        print(f"Error generating outreach: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+        }, status_code=500)
 
 
 # =============================================================================

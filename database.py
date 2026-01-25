@@ -21,6 +21,7 @@ async def init_database():
         settings.database_url,
         min_size=2,
         max_size=10,
+        statement_cache_size=0,  # Disable cache to handle schema changes
     )
 
     async with _pool.acquire() as conn:

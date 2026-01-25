@@ -31,6 +31,14 @@ This template displays a generated research document with:
 
             <!-- Export Buttons -->
             <div class="flex gap-2">
+                <button onclick="generateOutreach()"
+                        id="outreach-btn"
+                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    Write Outreach
+                </button>
                 <a href="/document/{{ document.id }}/markdown"
                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,6 +134,59 @@ This template displays a generated research document with:
 
 <!-- Hidden textarea for copy functionality -->
 <textarea id="markdown-content" class="hidden">{{ document.full_markdown }}</textarea>
+
+<!-- Outreach Modal -->
+<div id="outreach-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOutreachModal()"></div>
+
+        <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Email Sequence for {{ document.company_name }}</h3>
+                <button onclick="closeOutreachModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 overflow-y-auto max-h-[60vh]">
+                <div id="outreach-loading" class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                    <p class="mt-2 text-gray-600">Generating email sequence...</p>
+                </div>
+                <div id="outreach-content" class="hidden prose max-w-none">
+                    <!-- Emails will be inserted here -->
+                </div>
+                <div id="outreach-error" class="hidden text-center py-8 text-red-600">
+                    <!-- Error message will be shown here -->
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-between">
+                <button onclick="regenerateOutreach()"
+                        id="regenerate-btn"
+                        class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Regenerate
+                </button>
+                <button onclick="copyOutreach()"
+                        id="copy-outreach-btn"
+                        class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Copy All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -145,5 +206,76 @@ This template displays a generated research document with:
             console.error('Failed to copy:', err);
         });
     }
+
+    // Outreach Modal Functions
+    let outreachMarkdown = '';
+
+    function generateOutreach() {
+        // Show modal
+        document.getElementById('outreach-modal').classList.remove('hidden');
+        document.getElementById('outreach-loading').classList.remove('hidden');
+        document.getElementById('outreach-content').classList.add('hidden');
+        document.getElementById('outreach-error').classList.add('hidden');
+        document.getElementById('regenerate-btn').classList.add('hidden');
+        document.getElementById('copy-outreach-btn').classList.add('hidden');
+
+        // Disable button while generating
+        const btn = document.getElementById('outreach-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...';
+
+        // Call API
+        fetch('/document/{{ document.id }}/outreach', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Write Outreach';
+
+            if (data.success) {
+                outreachMarkdown = data.markdown;
+                document.getElementById('outreach-loading').classList.add('hidden');
+                document.getElementById('outreach-content').classList.remove('hidden');
+                document.getElementById('outreach-content').innerHTML = marked.parse(data.markdown);
+                document.getElementById('regenerate-btn').classList.remove('hidden');
+                document.getElementById('copy-outreach-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('outreach-loading').classList.add('hidden');
+                document.getElementById('outreach-error').classList.remove('hidden');
+                document.getElementById('outreach-error').textContent = data.error || 'Failed to generate outreach';
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Write Outreach';
+            document.getElementById('outreach-loading').classList.add('hidden');
+            document.getElementById('outreach-error').classList.remove('hidden');
+            document.getElementById('outreach-error').textContent = 'Network error: ' + err.message;
+        });
+    }
+
+    function regenerateOutreach() {
+        generateOutreach();
+    }
+
+    function closeOutreachModal() {
+        document.getElementById('outreach-modal').classList.add('hidden');
+    }
+
+    function copyOutreach() {
+        navigator.clipboard.writeText(outreachMarkdown).then(() => {
+            const btn = document.getElementById('copy-outreach-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+            setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+        });
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeOutreachModal();
+    });
 </script>
 {% endblock %}
