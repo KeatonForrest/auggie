@@ -117,32 +117,18 @@ class FirecrawlService:
         company_slug = company_name.lower().replace(' ', '').replace('-', '').replace('_', '')
         domain_slug = domain.split('.')[0].lower()
 
-        # Comprehensive list of job board URLs to check
+        # Top 6 most common job board URLs
         job_board_urls = [
             # Greenhouse
             f"https://boards.greenhouse.io/{company_slug}",
-            f"https://boards.greenhouse.io/{domain_slug}",
             # Lever
             f"https://jobs.lever.co/{company_slug}",
-            f"https://jobs.lever.co/{domain_slug}",
-            # Ashby (newer ATS, popular with tech companies)
+            # Ashby (popular with tech companies)
             f"https://jobs.ashbyhq.com/{company_slug}",
-            f"https://jobs.ashbyhq.com/{domain_slug}",
-            # Workday (common for enterprise/retail)
-            f"https://{company_slug}.wd5.myworkdayjobs.com",
-            f"https://{domain_slug}.wd5.myworkdayjobs.com",
-            f"https://{company_slug}.wd1.myworkdayjobs.com",
             # Company career pages
             f"https://{domain}/careers",
             f"https://{domain}/jobs",
-            f"https://{domain}/careers/search",
-            f"https://{domain}/about/careers",
             f"https://careers.{domain}",
-            f"https://jobs.{domain}",
-            # BambooHR
-            f"https://{company_slug}.bamboohr.com/jobs",
-            # SmartRecruiters
-            f"https://careers.smartrecruiters.com/{company_slug}",
         ]
 
         print(f"Checking {len(job_board_urls)} job board URLs...")
@@ -303,18 +289,9 @@ class FirecrawlService:
         )
 
     async def _parallel_search(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
-        """Run multiple searches in parallel and combine results."""
-        search_queries = [
-            f"{company_name} engineering blog",  # Original - was working
-            f"{company_name} tech stack technology",  # Original - was working
-            f"{company_name} company overview about",  # Added for company overview
-        ]
-
-        tasks = [self._web_search(client, query, num_results=3) for query in search_queries]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        content_parts = [r for r in results if isinstance(r, str) and r]
-        return "\n\n---\n\n".join(content_parts) if content_parts else None
+        """Search for additional company context."""
+        # Single search to reduce API costs
+        return await self._web_search(client, f"{company_name} company overview news", num_results=3)
 
     async def _check_subdomain_exists(
         self,
