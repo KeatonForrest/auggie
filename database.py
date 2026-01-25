@@ -228,8 +228,8 @@ async def init_database():
                 """)
             except Exception:
                 # IVFFlat index creation may fail on empty table, which is fine
-            # It will be created when data is added, or use HNSW instead
-            pass
+                # It will be created when data is added, or use HNSW instead
+                pass
 
 
 async def close_database():
