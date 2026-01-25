@@ -199,13 +199,11 @@ class WappalyzerService:
         full_main_url = f"https://{base_domain}"
 
         print(f"Analyzing main domain: {base_domain}")
-        if main_html:
-            main_tech = await self.analyze_html(main_html, main_url)
-        else:
-            main_tech = await self.analyze_url(main_url)
+        # Always fetch fresh for main domain - Firecrawl HTML may be stripped
+        main_tech = await self.analyze_url(full_main_url)
 
-        if main_tech.technologies:
-            results[base_domain] = main_tech
+        # Always include main domain in results (even if empty)
+        results[base_domain] = main_tech
 
         # Discover and analyze subdomains and paths in parallel
         subdomains, app_paths = await asyncio.gather(
