@@ -42,10 +42,15 @@ class WappalyzerService:
 
     def __init__(self):
         if not WAPPALYZER_AVAILABLE:
-            print("Warning: python-Wappalyzer not installed. Tech detection disabled.")
+            print("WARNING: python-Wappalyzer not installed. Tech detection disabled.")
             self.wappalyzer = None
         else:
-            self.wappalyzer = Wappalyzer.latest()
+            try:
+                self.wappalyzer = Wappalyzer.latest()
+                print("Wappalyzer initialized successfully")
+            except Exception as e:
+                print(f"ERROR: Failed to initialize Wappalyzer: {e}")
+                self.wappalyzer = None
 
     def _parse_technologies(self, results: dict, url: str) -> TechStack:
         """Parse wappalyzer results into TechStack model."""
@@ -82,11 +87,15 @@ class WappalyzerService:
     def _sync_analyze_url(self, url: str) -> TechStack:
         """Synchronous URL analysis (runs in thread pool)."""
         try:
+            print(f"Wappalyzer: Fetching {url}...")
             webpage = WebPage.new_from_url(url)
+            print(f"Wappalyzer: Analyzing {url}...")
             results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
+            tech_count = len(results) if results else 0
+            print(f"Wappalyzer: Found {tech_count} technologies on {url}")
             return self._parse_technologies(results, url)
         except Exception as e:
-            print(f"Wappalyzer error for {url}: {e}")
+            print(f"Wappalyzer ERROR for {url}: {e}")
             return TechStack(technologies=[], scan_url=url)
 
     async def analyze_html(
@@ -194,13 +203,18 @@ class WappalyzerService:
         """Analyze main domain plus discovered app subdomains and paths."""
         results = {}
 
+        if not self.wappalyzer:
+            print("Wappalyzer: SKIPPING - wappalyzer not initialized")
+            return results
+
         parsed = urlparse(main_url if main_url.startswith("http") else f"https://{main_url}")
         base_domain = parsed.netloc.replace("www.", "")
         full_main_url = f"https://{base_domain}"
 
-        print(f"Analyzing main domain: {base_domain}")
+        print(f"Wappalyzer: Analyzing main domain: {full_main_url}")
         # Always fetch fresh for main domain - Firecrawl HTML may be stripped
         main_tech = await self.analyze_url(full_main_url)
+        print(f"Wappalyzer: Main domain result - {len(main_tech.technologies)} technologies")
 
         # Always include main domain in results (even if empty)
         results[base_domain] = main_tech
