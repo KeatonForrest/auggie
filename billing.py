@@ -13,7 +13,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 settings = get_settings()
 stripe.api_key = settings.stripe_secret_key
 
-# Price: $9.99/month for 25 searches
+# Price: $24.99/month for 25 searches (~1 account per workday)
 PRICE_ID = None  # Will be set after creating the product
 
 
@@ -42,7 +42,7 @@ async def get_or_create_price():
 
     price = stripe.Price.create(
         product=product.id,
-        unit_amount=999,  # $9.99 in cents
+        unit_amount=2499,  # $24.99 in cents
         currency="usd",
         recurring={"interval": "month"},
     )
