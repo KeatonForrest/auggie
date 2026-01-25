@@ -265,7 +265,7 @@ Explicitly list:
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         message = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-opus-4-20250514",
             max_tokens=4000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
