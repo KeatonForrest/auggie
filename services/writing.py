@@ -98,11 +98,12 @@ Follow these guidelines for each email:
 - Include a compelling subject line
 
 **General Guidelines for All Emails:**
-- Use a conversational yet professional tone
+- Use a formal yet approachable professional tone
 - Incorporate emotional triggers to create a connection with the reader
 - Break up text into short paragraphs for easy readability
 - Use bullet points or numbered lists where appropriate
 - Maintain consistency across all three emails while progressively building on the information and emotional engagement
+- NEVER use emdashes (—) in any of the emails - use commas, periods, or separate sentences instead
 
 Present your final output in the following format:
 
