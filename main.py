@@ -27,7 +27,7 @@ from services.writing import WritingService
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, increment_user_searches,
-    get_user_usage, get_user_materials,
+    get_user_usage, get_user_materials, use_bonus_credit,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -142,6 +142,7 @@ async def home(request: Request):
             "recent_docs": recent_docs,
             "searches_used": usage["searches_used"],
             "search_limit": get_search_limit(user),
+            "bonus_credits": usage.get("bonus_credits", 0),
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
         }
@@ -207,11 +208,17 @@ async def create_research(
     # Check usage limit
     usage = await get_user_usage(user["id"])
     search_limit = get_search_limit(user)
+    using_bonus_credit = False
+
     if usage["searches_used"] >= search_limit:
-        raise HTTPException(
-            status_code=402,
-            detail="Search limit reached. Please upgrade to continue."
-        )
+        # Try to use a bonus credit
+        if usage.get("bonus_credits", 0) > 0:
+            using_bonus_credit = True
+        else:
+            raise HTTPException(
+                status_code=402,
+                detail="Search limit reached. Please upgrade or buy more credits."
+            )
 
     try:
         print(f"[{user['email']}] Scraping {company_url}...")
@@ -272,10 +279,14 @@ async def create_research(
             apollo_data=contact_data,  # Contact enrichment from PDL
         )
 
-        # Save document and increment usage
+        # Save document and update usage
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        await increment_user_searches(user["id"])
+
+        if using_bonus_credit:
+            await use_bonus_credit(user["id"])
+        else:
+            await increment_user_searches(user["id"])
 
         recent_docs = await get_all_documents(user_id=user["id"], limit=10)
         usage = await get_user_usage(user["id"])

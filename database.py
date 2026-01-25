@@ -65,6 +65,7 @@ async def init_database():
 
                 -- Usage
                 searches_used INTEGER DEFAULT 0,
+                bonus_credits INTEGER DEFAULT 0,
                 billing_period_start TIMESTAMPTZ DEFAULT NOW(),
 
                 created_at TIMESTAMPTZ DEFAULT NOW()
@@ -87,6 +88,12 @@ async def init_database():
                 await conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except asyncpg.exceptions.DuplicateColumnError:
                 pass  # Column already exists
+
+        # Add bonus_credits column if it doesn't exist
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN bonus_credits INTEGER DEFAULT 0")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
 
         # Create research_documents table
         await conn.execute("""
@@ -424,12 +431,42 @@ async def get_user_usage(user_id: int) -> dict:
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT searches_used, billing_period_start, subscription_status
+            SELECT searches_used, bonus_credits, billing_period_start, subscription_status
             FROM users WHERE id = $1
             """,
             user_id
         )
         return dict(row) if row else None
+
+
+async def add_bonus_credits(user_id: int, credits: int) -> int:
+    """Add bonus credits to a user. Returns new total."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE users
+            SET bonus_credits = bonus_credits + $2
+            WHERE id = $1
+            RETURNING bonus_credits
+            """,
+            user_id, credits
+        )
+        return row['bonus_credits']
+
+
+async def use_bonus_credit(user_id: int) -> bool:
+    """Use one bonus credit. Returns True if successful, False if no credits."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE users
+            SET bonus_credits = bonus_credits - 1
+            WHERE id = $1 AND bonus_credits > 0
+            RETURNING bonus_credits
+            """,
+            user_id
+        )
+        return row is not None
 
 
 # =============================================================================
