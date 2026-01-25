@@ -25,8 +25,13 @@ async def init_database():
     )
 
     async with _pool.acquire() as conn:
-        # Enable pgvector extension for materials feature
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        # Enable pgvector extension for materials feature (only if enabled)
+        if settings.materials_enabled:
+            try:
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            except asyncpg.exceptions.FeatureNotSupportedError:
+                print("WARNING: pgvector extension not available. Materials feature will not work.")
+                print("To enable materials, install pgvector on your PostgreSQL server.")
         # Create users table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
