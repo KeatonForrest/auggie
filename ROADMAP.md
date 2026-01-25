@@ -1,9 +1,12 @@
 # Auggie Product Roadmap
 
-## Current Status: v2 on Staging
+## Current Status: v2 LIVE IN PRODUCTION
 - Core research generation working
 - Materials upload & RAG working
-- Ready for production deployment
+- Apollo contact enrichment working
+- Writing workflow (email sequences) working
+- Stripe billing ($24.99/mo + credit packs) working
+- Live at https://auggie.tools
 
 ---
 
@@ -151,14 +154,19 @@ Connect Auggie to sales team workflows.
 
 ---
 
-## Pricing Tiers (Suggested)
+## Pricing Tiers (Current)
 
-| Tier | Price | Searches | Materials | Features |
-|------|-------|----------|-----------|----------|
-| Free | $0 | 5 total | 3 | Basic research |
-| Pro | $9.99/mo | 25/mo | Unlimited | + Contacts, Writing workflow |
-| Team | $29/user/mo | 50/user/mo | Shared | + Team features |
-| Enterprise | Custom | Unlimited | Shared | + SSO, API, SLA |
+| Tier | Price | Searches | Features |
+|------|-------|----------|----------|
+| Free | $0 | 5 total | Full research |
+| Pro | $24.99/mo | 25/mo | Full research + Credits option |
+| Credit Pack | $10 one-time | +10 searches | For Pro users who need more |
+
+### Future Tiers (Not Yet Built)
+| Tier | Price | Searches | Features |
+|------|-------|----------|----------|
+| Team | $29/user/mo | 50/user/mo | Shared materials, team dashboard |
+| Enterprise | Custom | Unlimited | SSO, API, SLA |
 
 ---
 
@@ -171,3 +179,36 @@ Connect Auggie to sales team workflows.
 | Month 2 | Phase 4 | Team accounts |
 | Month 2-3 | Phase 6 | CRM integrations |
 | Month 3+ | Phase 5 | Enterprise security |
+
+---
+
+## Future Consideration: Free Tier Monetization
+
+Ideas to monetize free users without converting them to paid:
+
+### 1. Watermarked Exports
+- [ ] Add "Powered by Auggie - auggie.tools" to free user research docs
+- [ ] Remove watermark for Pro users
+- Every shared doc = free marketing
+
+### 2. Affiliate Revenue
+- [ ] Partner with CRMs (HubSpot, Salesforce)
+- [ ] Partner with sales tools (Apollo, Outreach, Salesloft)
+- [ ] Add affiliate links to recommended tools in research output
+- Earn commission when free users sign up
+
+### 3. Gated Features (Recommended)
+- [ ] Free tier: Basic research only
+- [ ] Gate contacts behind Pro ("Upgrade to see key contacts")
+- [ ] Gate email sequence behind Pro ("Upgrade to generate outreach")
+- Research hooks them, premium features convert them
+
+### 4. Lead Intelligence (Proceed with caution)
+- [ ] Anonymized/aggregated data on companies being researched
+- [ ] Sell to sales intelligence platforms
+- Privacy-sensitive - requires careful consideration
+
+### 5. API / White-label
+- [ ] Let other sales tools embed Auggie research
+- [ ] Charge per API call or rev share
+- [ ] "Powered by Auggie" in partner products
