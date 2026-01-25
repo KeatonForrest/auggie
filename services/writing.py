@@ -185,12 +185,15 @@ Your goal is to create a compelling narrative that explains the problem, builds 
 
     def format_emails_markdown(self, emails: list[dict]) -> str:
         """Format emails as markdown for display."""
-        sections = ["# Email Sequence\n"]
+        sections = ["# Email Sequence"]
 
         for email in emails:
-            sections.append(f"## Email {email['email_number']}")
-            sections.append(f"**Subject:** {email['subject']}\n")
-            sections.append(email['body'])
-            sections.append("\n---\n")
+            # Convert single newlines in body to double newlines for proper paragraph spacing
+            body_with_spacing = email['body'].replace('\n', '\n\n')
 
-        return "\n".join(sections)
+            sections.append(f"## Email {email['email_number']}")
+            sections.append(f"**Subject:** {email['subject']}")
+            sections.append(body_with_spacing)
+            sections.append("---")
+
+        return "\n\n".join(sections)
