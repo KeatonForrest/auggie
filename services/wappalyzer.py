@@ -10,8 +10,10 @@ from models import TechStack, DetectedTechnology
 try:
     from Wappalyzer import Wappalyzer, WebPage
     WAPPALYZER_AVAILABLE = True
-except ImportError:
+    print("Wappalyzer module imported successfully")
+except ImportError as e:
     WAPPALYZER_AVAILABLE = False
+    print(f"Wappalyzer import failed: {e}")
 
 
 class WappalyzerService:
@@ -49,7 +51,9 @@ class WappalyzerService:
                 self.wappalyzer = Wappalyzer.latest()
                 print("Wappalyzer initialized successfully")
             except Exception as e:
+                import traceback
                 print(f"ERROR: Failed to initialize Wappalyzer: {e}")
+                print(f"Traceback: {traceback.format_exc()}")
                 self.wappalyzer = None
 
     def _parse_technologies(self, results: dict, url: str) -> TechStack:
