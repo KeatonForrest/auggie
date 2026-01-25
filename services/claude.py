@@ -183,6 +183,14 @@ If news articles were provided in the data, summarize the most relevant items:
 
 If no news was provided, state "No recent news available."
 
+## Key Contacts
+If contact data is provided from Apollo.io, highlight the most relevant contacts for outreach:
+- Name, title, and why they're a good target
+- Suggested approach based on their role
+- Any connections to your product's value prop
+
+If no contact data is available, state "No contact data available. Consider using Apollo.io or LinkedIn for contact research."
+
 ## Information Gaps
 Explicitly list:
 - What information you could NOT find in the provided data
@@ -196,6 +204,7 @@ Explicitly list:
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
+        apollo_data: str = "",
     ) -> str:
         """Build the user prompt with all scraped research data."""
         sections = [f"# Research Data for {company_url}\n"]
@@ -247,6 +256,10 @@ Explicitly list:
             sections.append(scraped.news[:5000])
             sections.append("")
 
+        if apollo_data:
+            sections.append(apollo_data)
+            sections.append("")
+
         sections.append("---")
         sections.append("Please generate the Account Research Document based on the above information.")
 
@@ -259,10 +272,11 @@ Explicitly list:
         product_context: str,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
         retrieved_materials: str = "",
+        apollo_data: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(product_context, retrieved_materials)
-        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
+        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain, apollo_data)
 
         message = self.client.messages.create(
             model="claude-opus-4-20250514",
@@ -286,6 +300,7 @@ Explicitly list:
             product_fit=sections.get("product_fit", ""),
             talking_points=sections.get("talking_points", ""),
             recent_news=sections.get("recent_news", ""),
+            key_contacts=sections.get("key_contacts", ""),
             information_gaps=sections.get("information_gaps", ""),
             full_markdown=full_markdown,
         )
@@ -311,6 +326,8 @@ Explicitly list:
             "recent news & press": "recent_news",
             "recent news and press": "recent_news",
             "recent news": "recent_news",
+            "key contacts": "key_contacts",
+            "contacts": "key_contacts",
             "information gaps": "information_gaps",
         }
 

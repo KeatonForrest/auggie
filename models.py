@@ -94,6 +94,7 @@ class ResearchDocument(BaseModel):
     product_fit: str
     talking_points: str
     recent_news: str = ""
+    key_contacts: str = ""
     information_gaps: str
 
     full_markdown: str

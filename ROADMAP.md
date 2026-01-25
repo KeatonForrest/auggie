@@ -28,38 +28,41 @@
 ---
 
 ## Phase 2: Contact Enrichment (Apollo)
-**Status:** Next up (tomorrow - build first)
+**Status:** COMPLETE
 
 Add key contacts to research output using Apollo.io API.
 
 ### Features
-- [ ] Query Apollo API for contacts at target domain
-- [ ] Filter by user's target personas (from onboarding)
-- [ ] Display in research: name, title, email, LinkedIn URL
-- [ ] Pro-tier only (adds API cost per search)
+- [x] Query Apollo API for contacts at target domain
+- [x] Filter by user's target personas (from onboarding)
+- [x] Display in research: name, title, email status
+- [ ] Pro-tier only gate (currently enabled for all)
 
-### Output Example
-```
-## Key Contacts
+### Output
+Returns top 5 ICP-matched contacts with:
+- Name (partially masked by Apollo)
+- Title
+- Email availability indicator
+- Seniority/Department when available
 
-**Sarah Chen** - VP of Sales
-sarah.chen@company.com | [LinkedIn](url)
-
-**Mike Johnson** - Director of Sales Ops
-mike.johnson@company.com | [LinkedIn](url)
-```
-
-### Files to Create/Modify
-- [ ] services/apollo.py - Apollo API integration
-- [ ] config.py - Add APOLLO_API_KEY
-- [ ] main.py - Integrate into research flow
-- [ ] services/claude.py - Add contacts to prompt/output
-- [ ] models.py - Add Contact model
+### Files Created/Modified
+- [x] services/apollo.py - Apollo API integration
+- [x] config.py - Added APOLLO_API_KEY
+- [x] main.py - Integrated into research flow
+- [x] services/claude.py - Added contacts to prompt/output
+- [x] models.py - Added key_contacts field
+- [x] database.py - Added key_contacts column
+- [x] templates/document.html - Added Key Contacts section
 
 ### Environment Variables
 ```
 APOLLO_API_KEY=your_key
 ```
+
+### Notes
+- Uses `mixed_people/api_search` and `mixed_companies/search` endpoints
+- Requires Apollo Basic plan ($49/mo) for API access
+- Full contact details (email, phone) require Apollo credits to reveal
 
 ---
 

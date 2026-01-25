@@ -1,0 +1,261 @@
+"""apollo.py - Contact enrichment service using Apollo.io API."""
+
+import httpx
+from typing import Optional
+from config import get_settings
+
+
+class ApolloContact:
+    """A contact from Apollo.io."""
+    def __init__(
+        self,
+        name: str,
+        title: str,
+        email: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        phone: Optional[str] = None,
+        seniority: Optional[str] = None,
+        department: Optional[str] = None,
+    ):
+        self.name = name
+        self.title = title
+        self.email = email
+        self.linkedin_url = linkedin_url
+        self.phone = phone
+        self.seniority = seniority
+        self.department = department
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "title": self.title,
+            "email": self.email,
+            "linkedin_url": self.linkedin_url,
+            "phone": self.phone,
+            "seniority": self.seniority,
+            "department": self.department,
+        }
+
+
+class ApolloService:
+    """Service for enriching company contacts using Apollo.io API."""
+
+    def __init__(self):
+        self.settings = get_settings()
+        self.base_url = "https://api.apollo.io/v1"
+        self.headers = {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Api-Key": self.settings.apollo_api_key,
+        }
+
+    async def _search_organization(
+        self,
+        client: httpx.AsyncClient,
+        domain: str,
+    ) -> Optional[dict]:
+        """Search for an organization by domain using Apollo's company search."""
+        try:
+            # Use mixed_companies/search with q_organization_domains
+            response = await client.post(
+                f"{self.base_url}/mixed_companies/search",
+                headers=self.headers,
+                json={
+                    "q_organization_domains": domain,
+                    "page": 1,
+                    "per_page": 1,
+                },
+                timeout=30.0
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                orgs = data.get("organizations", []) or data.get("accounts", [])
+                if orgs:
+                    return orgs[0]
+            else:
+                print(f"Apollo company search error: {response.status_code} - {response.text[:200]}")
+            return None
+
+        except Exception as e:
+            print(f"Error searching Apollo organization: {e}")
+            return None
+
+    async def _search_contacts(
+        self,
+        client: httpx.AsyncClient,
+        domain: str,
+        target_personas: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[ApolloContact]:
+        """Search for contacts at a company by domain using Apollo's people search."""
+        try:
+            # Build person titles filter from target personas
+            person_titles = []
+            if target_personas:
+                # Parse comma-separated personas into title keywords
+                personas = [p.strip().lower() for p in target_personas.split(",")]
+                for persona in personas:
+                    # Add common title variations
+                    if "engineer" in persona or "engineering" in persona:
+                        person_titles.extend(["Engineering Manager", "VP Engineering", "CTO", "Head of Engineering", "Director of Engineering"])
+                    if "product" in persona:
+                        person_titles.extend(["Product Manager", "VP Product", "Head of Product", "CPO", "Director of Product"])
+                    if "data" in persona:
+                        person_titles.extend(["Data Engineer", "Head of Data", "VP Data", "Chief Data Officer"])
+                    if "devops" in persona or "infrastructure" in persona or "platform" in persona:
+                        person_titles.extend(["DevOps", "Platform Engineer", "Infrastructure", "SRE"])
+                    if "security" in persona:
+                        person_titles.extend(["Security", "CISO", "Head of Security"])
+                    if "it" in persona or "operations" in persona:
+                        person_titles.extend(["IT Manager", "VP IT", "CIO", "IT Director"])
+                    if "cto" in persona or "technical" in persona:
+                        person_titles.extend(["CTO", "VP Engineering", "Technical"])
+                    if "ceo" in persona or "founder" in persona or "executive" in persona:
+                        person_titles.extend(["CEO", "Founder", "Co-Founder", "President"])
+
+            # Build the search request for mixed_people/api_search
+            search_params = {
+                "q_organization_domains": domain,
+                "page": 1,
+                "per_page": limit,
+            }
+
+            # Add title filter if we have target personas
+            if person_titles:
+                search_params["person_titles"] = list(set(person_titles))  # Dedupe
+
+            response = await client.post(
+                f"{self.base_url}/mixed_people/api_search",
+                headers=self.headers,
+                json=search_params,
+                timeout=30.0
+            )
+
+            if response.status_code != 200:
+                print(f"Apollo people search error: {response.status_code} - {response.text[:200]}")
+                return []
+
+            data = response.json()
+            contacts_data = data.get("people", [])
+
+            contacts = []
+            for c in contacts_data:
+                # Handle name - API may return obfuscated last name
+                first_name = c.get("first_name", "")
+                last_name = c.get("last_name") or c.get("last_name_obfuscated", "")
+                name = f"{first_name} {last_name}".strip() or c.get("name", "Unknown")
+
+                # Handle email/LinkedIn - may need credits to reveal
+                email = c.get("email")
+                if not email and c.get("has_email"):
+                    email = "(available with credits)"
+
+                linkedin = c.get("linkedin_url")
+                if not linkedin and c.get("linkedin_url"):
+                    linkedin = c.get("linkedin_url")
+
+                # Get organization name for context
+                org = c.get("organization", {})
+                org_name = org.get("name", "")
+
+                contact = ApolloContact(
+                    name=name,
+                    title=c.get("title", ""),
+                    email=email,
+                    linkedin_url=linkedin,
+                    phone=None,  # Usually requires credits
+                    seniority=c.get("seniority"),
+                    department=c.get("departments", [""])[0] if c.get("departments") else c.get("department"),
+                )
+                contacts.append(contact)
+
+            return contacts
+
+        except Exception as e:
+            print(f"Error searching Apollo contacts: {e}")
+            return []
+
+    async def get_company_contacts(
+        self,
+        domain: str,
+        target_personas: Optional[str] = None,
+        limit: int = 10,
+    ) -> tuple[Optional[dict], list[ApolloContact]]:
+        """
+        Get company info and contacts from Apollo.
+
+        Returns:
+            tuple of (organization_info, list of contacts)
+        """
+        if not self.settings.apollo_api_key:
+            print("Apollo API key not configured")
+            return None, []
+
+        # Clean domain
+        domain = domain.replace("https://", "").replace("http://", "")
+        domain = domain.split("/")[0].replace("www.", "")
+
+        async with httpx.AsyncClient() as client:
+            # Get org info and contacts in parallel
+            import asyncio
+            org_task = self._search_organization(client, domain)
+            contacts_task = self._search_contacts(client, domain, target_personas, limit)
+
+            org_info, contacts = await asyncio.gather(org_task, contacts_task)
+
+            if org_info:
+                print(f"Found Apollo org: {org_info.get('name', domain)}")
+            print(f"Found {len(contacts)} contacts from Apollo")
+
+            return org_info, contacts
+
+    def format_contacts_for_prompt(
+        self,
+        org_info: Optional[dict],
+        contacts: list[ApolloContact],
+    ) -> str:
+        """Format Apollo data for inclusion in Claude's prompt."""
+        sections = []
+
+        if org_info:
+            sections.append("## Company Information (from Apollo.io)")
+            sections.append(f"**Company:** {org_info.get('name', 'Unknown')}")
+            if org_info.get('short_description'):
+                sections.append(f"**Description:** {org_info.get('short_description')}")
+            if org_info.get('industry'):
+                sections.append(f"**Industry:** {org_info.get('industry')}")
+            if org_info.get('estimated_num_employees'):
+                sections.append(f"**Employees:** {org_info.get('estimated_num_employees')}")
+            if org_info.get('annual_revenue_printed'):
+                sections.append(f"**Revenue:** {org_info.get('annual_revenue_printed')}")
+            if org_info.get('founded_year'):
+                sections.append(f"**Founded:** {org_info.get('founded_year')}")
+            if org_info.get('linkedin_url'):
+                sections.append(f"**LinkedIn:** {org_info.get('linkedin_url')}")
+            sections.append("")
+
+        if contacts:
+            sections.append("## Key Contacts (from Apollo.io)")
+            sections.append("These contacts match the target personas for your product:")
+            sections.append("")
+
+            for i, contact in enumerate(contacts, 1):
+                sections.append(f"### {i}. {contact.name}")
+                sections.append(f"- **Title:** {contact.title}")
+                if contact.seniority:
+                    sections.append(f"- **Seniority:** {contact.seniority}")
+                if contact.department:
+                    sections.append(f"- **Department:** {contact.department}")
+                if contact.email:
+                    sections.append(f"- **Email:** {contact.email}")
+                if contact.linkedin_url:
+                    sections.append(f"- **LinkedIn:** {contact.linkedin_url}")
+                if contact.phone:
+                    sections.append(f"- **Phone:** {contact.phone}")
+                sections.append("")
+
+        if not org_info and not contacts:
+            return ""
+
+        return "\n".join(sections)

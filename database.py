@@ -116,6 +116,12 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Add key_contacts column if it doesn't exist (for existing databases)
+        try:
+            await conn.execute("ALTER TABLE research_documents ADD COLUMN key_contacts TEXT")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
         # Create indexes (IF NOT EXISTS for indexes requires a different approach)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_documents_user_created
@@ -438,8 +444,8 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 user_id, company_url, company_name, created_at,
                 company_overview, projects_initiatives, confirmed_tech_stack,
                 hiring_signals, business_problems, product_fit,
-                talking_points, recent_news, information_gaps, full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                talking_points, recent_news, key_contacts, information_gaps, full_markdown
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING id
             """,
             user_id,
@@ -454,6 +460,7 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.product_fit,
             doc.talking_points,
             doc.recent_news,
+            doc.key_contacts,
             doc.information_gaps,
             doc.full_markdown,
         )
@@ -526,6 +533,7 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",
+        key_contacts=row.get("key_contacts") or "",
         information_gaps=row["information_gaps"] or "",
         full_markdown=row["full_markdown"] or "",
     )

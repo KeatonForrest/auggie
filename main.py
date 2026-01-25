@@ -22,6 +22,7 @@ from services.wappalyzer import WappalyzerService
 from services.news import NewsService
 from services.materials import MaterialsService
 from services.retrieval import RetrievalService
+from services.apollo import ApolloService
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, increment_user_searches,
@@ -84,6 +85,7 @@ firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
 news_service = NewsService()
+apollo_service = ApolloService()
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
@@ -231,6 +233,17 @@ async def create_research(
         else:
             print("No recent news found")
 
+        # Fetch contacts from Apollo.io
+        contact_data = ""
+        if settings.apollo_api_key:
+            print(f"Fetching contacts from Apollo.io...")
+            company_info, contacts = await apollo_service.get_company_contacts(
+                domain=company_name,
+                target_personas=user.get("target_personas"),
+                limit=5,
+            )
+            contact_data = apollo_service.format_contacts_for_prompt(company_info, contacts)
+
         # v2: Retrieve relevant materials if enabled
         retrieved_materials = ""
         retrieval = get_retrieval_service()
@@ -254,6 +267,7 @@ async def create_research(
             product_context=user["product_context"],  # From user profile!
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,  # v2: Include materials
+            apollo_data=contact_data,  # Contact enrichment from PDL
         )
 
         # Save document and increment usage
@@ -381,12 +395,23 @@ async def api_create_research(
             except Exception:
                 pass  # Non-fatal
 
+        # Fetch contacts from Apollo.io
+        contact_data = ""
+        if settings.apollo_api_key:
+            company_info, contacts = await apollo_service.get_company_contacts(
+                domain=company_name,
+                target_personas=user.get("target_personas"),
+                limit=10,
+            )
+            contact_data = apollo_service.format_contacts_for_prompt(company_info, contacts)
+
         document = await claude_service.generate_research_document(
             company_url=company_url,
             scraped=scraped_content,
             product_context=user["product_context"],
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,
+            apollo_data=contact_data,
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
