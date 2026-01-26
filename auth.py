@@ -10,7 +10,13 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from authlib.integrations.starlette_client import OAuth
 
 from config import get_settings
-from database import get_user_by_google_id, create_user, get_user_by_id
+from database import (
+    get_user_by_google_id,
+    get_user_by_microsoft_id,
+    create_user,
+    create_user_microsoft,
+    get_user_by_id,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,6 +31,24 @@ oauth.register(
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
+
+# Microsoft OAuth (optional - for MSP customers using Azure/M365)
+# Note: We configure endpoints manually to avoid ID token issuer validation issues
+# with the multi-tenant /common/ endpoint
+if settings.microsoft_client_id:
+    oauth.register(
+        name="microsoft",
+        client_id=settings.microsoft_client_id,
+        client_secret=settings.microsoft_client_secret,
+        authorize_url="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        access_token_url="https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        jwks_uri="https://login.microsoftonline.com/common/discovery/v2.0/keys",
+        userinfo_endpoint="https://graph.microsoft.com/oidc/userinfo",
+        client_kwargs={
+            "scope": "openid email profile",
+            "token_endpoint_auth_method": "client_secret_post",
+        },
+    )
 
 # JWT settings
 JWT_SECRET = settings.session_secret
@@ -132,6 +156,139 @@ async def callback(request: Request):
         print(f"Existing user logged in: {email}")
     
     # Store user_id in session (managed by SessionMiddleware)
+    request.session["user_id"] = user["id"]
+    print(f"Stored user_id {user['id']} in session")
+
+    # Redirect based on onboarding status
+    if user.get("product_context"):
+        redirect_url = "/"
+    else:
+        redirect_url = "/onboarding"
+
+    print(f"Redirecting to {redirect_url}")
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+
+@router.get("/microsoft")
+async def login_microsoft(request: Request):
+    """Redirect to Microsoft OAuth - manual implementation."""
+    import secrets
+
+    if not settings.microsoft_client_id:
+        raise HTTPException(status_code=404, detail="Microsoft sign-in not available")
+
+    # Generate and store state for CSRF protection
+    state = secrets.token_urlsafe(24)
+    request.session["_microsoft_authlib_state_"] = state
+
+    redirect_uri = f"{settings.app_url}/auth/microsoft/callback"
+    auth_url = (
+        f"https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+        f"?client_id={settings.microsoft_client_id}"
+        f"&response_type=code"
+        f"&redirect_uri={redirect_uri}"
+        f"&scope=openid%20email%20profile"
+        f"&state={state}"
+        f"&response_mode=query"
+    )
+
+    return RedirectResponse(url=auth_url, status_code=302)
+
+
+@router.get("/microsoft/callback")
+async def microsoft_callback(request: Request):
+    """Handle Microsoft OAuth callback - manual implementation to avoid authlib issuer validation."""
+    import httpx
+
+    if not settings.microsoft_client_id:
+        raise HTTPException(status_code=404, detail="Microsoft sign-in not available")
+
+    # Get the authorization code and state from the callback
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code:
+        raise HTTPException(status_code=400, detail="No authorization code received")
+
+    # Verify state matches session (CSRF protection)
+    session_state = request.session.get("_microsoft_authlib_state_")
+    if state != session_state:
+        print(f"State mismatch: expected {session_state}, got {state}")
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
+
+    # Exchange code for tokens
+    token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    redirect_uri = f"{settings.app_url}/auth/microsoft/callback"
+
+    async with httpx.AsyncClient() as client:
+        # Get access token
+        token_response = await client.post(
+            token_url,
+            data={
+                "client_id": settings.microsoft_client_id,
+                "client_secret": settings.microsoft_client_secret,
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+                "scope": "openid email profile",
+            },
+        )
+
+        if token_response.status_code != 200:
+            print(f"Token exchange failed: {token_response.text}")
+            raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+
+        if not access_token:
+            raise HTTPException(status_code=400, detail="No access token received")
+
+        # Get user info from Microsoft Graph
+        userinfo_response = await client.get(
+            "https://graph.microsoft.com/oidc/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        if userinfo_response.status_code != 200:
+            print(f"Userinfo fetch failed: {userinfo_response.text}")
+            # Fallback: decode id_token
+            id_token = token_data.get("id_token")
+            if id_token:
+                import jwt as pyjwt
+                user_info = pyjwt.decode(id_token, options={"verify_signature": False})
+            else:
+                raise HTTPException(status_code=400, detail="Failed to get user info")
+        else:
+            user_info = userinfo_response.json()
+
+    print(f"Microsoft user_info: {user_info}")
+
+    # Microsoft uses 'sub' as unique identifier in userinfo, 'oid' in id_token
+    microsoft_id = user_info.get("sub") or user_info.get("oid")
+    email = user_info.get("email") or user_info.get("preferred_username")
+    name = user_info.get("name", "")
+    picture = user_info.get("picture", "")
+
+    if not microsoft_id:
+        raise HTTPException(status_code=400, detail="Microsoft ID not provided")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email not provided by Microsoft")
+
+    # Get or create user
+    user = await get_user_by_microsoft_id(microsoft_id)
+    if not user:
+        user = await create_user_microsoft(
+            email=email,
+            name=name,
+            picture=picture,
+            microsoft_id=microsoft_id,
+        )
+        print(f"Created new user (Microsoft): {email}")
+    else:
+        print(f"Existing user logged in (Microsoft): {email}")
+
+    # Store user_id in session
     request.session["user_id"] = user["id"]
     print(f"Stored user_id {user['id']} in session")
 

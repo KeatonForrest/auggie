@@ -102,6 +102,44 @@ CREATE TABLE outreach_drafts (
 
 ---
 
+## Phase 3.5: Microsoft OAuth
+**Status:** In Progress
+
+Add Microsoft sign-in for MSP customers using Azure/M365.
+
+### Why
+- MSPs live in Microsoft ecosystem (Azure AD, M365, Intune)
+- Google OAuth is friction for Microsoft-first organizations
+- Opens new customer segment without enterprise SSO complexity
+
+### Features
+- [ ] Microsoft OAuth provider (alongside Google)
+- [ ] "Sign in with Microsoft" button on landing page
+- [ ] Support for personal Microsoft accounts + work/school accounts
+- [ ] Store microsoft_id in users table (similar to google_id)
+
+### Files to Modify
+- [ ] config.py - Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
+- [ ] auth.py - Register Microsoft OAuth provider, add /auth/microsoft routes
+- [ ] database.py - Add microsoft_id column, update create_user/get_user functions
+- [ ] templates/landing.html - Add Microsoft sign-in button
+
+### Azure Portal Setup
+1. Go to Azure Portal → App registrations → New registration
+2. Name: "Auggie"
+3. Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"
+4. Redirect URI: https://auggie.tools/auth/microsoft/callback
+5. Copy Application (client) ID → MICROSOFT_CLIENT_ID
+6. Create client secret → MICROSOFT_CLIENT_SECRET
+
+### Environment Variables
+```
+MICROSOFT_CLIENT_ID=your_app_id
+MICROSOFT_CLIENT_SECRET=your_secret
+```
+
+---
+
 ## Phase 4: Team Accounts
 **Status:** Planned
 
@@ -174,8 +212,10 @@ Connect Auggie to sales team workflows.
 
 | Timeframe | Phase | Goal |
 |-----------|-------|------|
-| Tomorrow | Phase 2 + 3 | Apollo contacts + Writing workflow |
-| Tomorrow | Phase 1 | Production launch with full v2 |
+| ✅ Done | Phase 1 | Production launch with full v2 |
+| ✅ Done | Phase 2 | Apollo contacts |
+| ✅ Done | Phase 3 | Writing workflow |
+| Next | Phase 3.5 | Microsoft OAuth for MSPs |
 | Month 2 | Phase 4 | Team accounts |
 | Month 2-3 | Phase 6 | CRM integrations |
 | Month 3+ | Phase 5 | Enterprise security |

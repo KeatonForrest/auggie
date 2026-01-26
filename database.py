@@ -41,7 +41,8 @@ async def init_database():
                 email TEXT UNIQUE NOT NULL,
                 name TEXT,
                 picture TEXT,
-                google_id TEXT UNIQUE NOT NULL,
+                google_id TEXT UNIQUE,
+                microsoft_id TEXT UNIQUE,
 
                 -- Profile (legacy - kept for backwards compatibility)
                 company_name TEXT,
@@ -99,6 +100,18 @@ async def init_database():
             await conn.execute("ALTER TABLE users ADD COLUMN bonus_credits INTEGER DEFAULT 0")
         except asyncpg.exceptions.DuplicateColumnError:
             pass
+
+        # Add microsoft_id column for Microsoft OAuth (MSP customers)
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN microsoft_id TEXT UNIQUE")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
+        # Make google_id nullable (for users who sign up with Microsoft only)
+        try:
+            await conn.execute("ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL")
+        except Exception:
+            pass  # Already nullable or column doesn't exist
 
         # Create research_documents table
         await conn.execute("""
@@ -261,6 +274,16 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
         return dict(row) if row else None
 
 
+async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
+    """Get a user by their Microsoft ID."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM users WHERE microsoft_id = $1",
+            microsoft_id
+        )
+        return dict(row) if row else None
+
+
 async def get_user_by_id(user_id: int) -> Optional[dict]:
     """Get a user by their ID."""
     async with _pool.acquire() as conn:
@@ -281,6 +304,20 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
             RETURNING *
             """,
             email, name, picture, google_id
+        )
+        return dict(row)
+
+
+async def create_user_microsoft(email: str, name: str, picture: str, microsoft_id: str) -> dict:
+    """Create a new user from Microsoft OAuth data."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO users (email, name, picture, microsoft_id)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *
+            """,
+            email, name, picture, microsoft_id
         )
         return dict(row)
 

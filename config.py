@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     google_client_id: str
     google_client_secret: str
 
+    # Microsoft OAuth (for MSP customers using Azure/M365)
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
+
     # Session secret (generate with: openssl rand -hex 32)
     session_secret: str = "dev-secret-change-in-production"
 
