@@ -70,17 +70,16 @@ APOLLO_API_KEY=your_key
 ---
 
 ## Phase 3: Writing Workflow
-**Status:** Next up (tomorrow - build second)
+**Status:** COMPLETE
 
 Add AI-powered outreach generation after research is created.
 
 ### Features
-- [ ] "Write Outreach" button on research document
-- [ ] Template types:
+- [x] "Write Outreach" button on research document
+- [x] Template types:
   - 3-Email Sequence (initial, follow-up, break-up)
-  - LinkedIn Message
-- [ ] Uses research context + materials + contacts
-- [ ] Regenerate, copy functionality
+- [x] Uses research context + materials + contacts
+- [x] Regenerate, copy functionality
 
 ### Database
 ```sql
@@ -103,7 +102,7 @@ CREATE TABLE outreach_drafts (
 ---
 
 ## Phase 3.5: Microsoft OAuth
-**Status:** In Progress
+**Status:** COMPLETE
 
 Add Microsoft sign-in for MSP customers using Azure/M365.
 
@@ -113,16 +112,16 @@ Add Microsoft sign-in for MSP customers using Azure/M365.
 - Opens new customer segment without enterprise SSO complexity
 
 ### Features
-- [ ] Microsoft OAuth provider (alongside Google)
-- [ ] "Sign in with Microsoft" button on landing page
-- [ ] Support for personal Microsoft accounts + work/school accounts
-- [ ] Store microsoft_id in users table (similar to google_id)
+- [x] Microsoft OAuth provider (alongside Google)
+- [x] "Sign in with Microsoft" button on landing page
+- [x] Support for personal Microsoft accounts + work/school accounts
+- [x] Store microsoft_id in users table (similar to google_id)
 
-### Files to Modify
-- [ ] config.py - Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
-- [ ] auth.py - Register Microsoft OAuth provider, add /auth/microsoft routes
-- [ ] database.py - Add microsoft_id column, update create_user/get_user functions
-- [ ] templates/landing.html - Add Microsoft sign-in button
+### Files Modified
+- [x] config.py - Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
+- [x] auth.py - Register Microsoft OAuth provider, add /auth/microsoft routes
+- [x] database.py - Add microsoft_id column, update create_user/get_user functions
+- [x] templates/landing.html - Add Microsoft sign-in button
 
 ### Azure Portal Setup
 1. Go to Azure Portal → App registrations → New registration
@@ -215,8 +214,8 @@ Connect Auggie to sales team workflows.
 | ✅ Done | Phase 1 | Production launch with full v2 |
 | ✅ Done | Phase 2 | Apollo contacts |
 | ✅ Done | Phase 3 | Writing workflow |
-| Next | Phase 3.5 | Microsoft OAuth for MSPs |
-| Month 2 | Phase 4 | Team accounts |
+| ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
+| Next | Phase 4 | Team accounts |
 | Month 2-3 | Phase 6 | CRM integrations |
 | Month 3+ | Phase 5 | Enterprise security |
 
