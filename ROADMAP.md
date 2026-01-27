@@ -1,11 +1,11 @@
 # Auggie Product Roadmap
 
 ## Current Status: v2 LIVE IN PRODUCTION
-- Core research generation working
+- Core research generation working (Claude Opus 4)
 - Materials upload & RAG working
-- Apollo contact enrichment working
 - Writing workflow (PVP email sequences) working
 - Consumption pricing (3 free, $10 for 10 credits) working
+- Admin accounts (unlimited usage for internal users)
 - Live at https://auggie.tools
 
 ---
@@ -31,41 +31,20 @@
 ---
 
 ## Phase 2: Contact Enrichment (Apollo)
-**Status:** COMPLETE
+**Status:** REMOVED (margin optimization)
 
-Add key contacts to research output using Apollo.io API.
+Was adding key contacts via Apollo.io API, but removed to improve unit economics.
 
-### Features
-- [x] Query Apollo API for contacts at target domain
-- [x] Filter by user's target personas (from onboarding)
-- [x] Display in research: name, title, email status
-- [ ] Pro-tier only gate (currently enabled for all)
+### Why Removed
+- Added $0.10-0.50 per research in API costs
+- Most users already have their own contact tools (LinkedIn Sales Nav, ZoomInfo, Apollo)
+- Core value is research quality, not contact data
+- Code remains in services/apollo.py if needed later
 
-### Output
-Returns top 5 ICP-matched contacts with:
-- Name (partially masked by Apollo)
-- Title
-- Email availability indicator
-- Seniority/Department when available
-
-### Files Created/Modified
-- [x] services/apollo.py - Apollo API integration
-- [x] config.py - Added APOLLO_API_KEY
-- [x] main.py - Integrated into research flow
-- [x] services/claude.py - Added contacts to prompt/output
-- [x] models.py - Added key_contacts field
-- [x] database.py - Added key_contacts column
-- [x] templates/document.html - Added Key Contacts section
-
-### Environment Variables
-```
-APOLLO_API_KEY=your_key
-```
-
-### Notes
-- Uses `mixed_people/api_search` and `mixed_companies/search` endpoints
-- Requires Apollo Basic plan ($49/mo) for API access
-- Full contact details (email, phone) require Apollo credits to reveal
+### Original Features (archived)
+- Query Apollo API for contacts at target domain
+- Filter by user's target personas
+- Display in research: name, title, email status
 
 ---
 
@@ -200,6 +179,25 @@ Connect Auggie to sales team workflows.
 
 Simple consumption model - no subscriptions, no monthly limits. Users buy credits when they need them.
 
+### Admin Accounts
+Internal users can be granted unlimited free usage:
+```sql
+UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
+```
+
+### Unit Economics (per research)
+| Cost Component | Estimate |
+|----------------|----------|
+| Firecrawl (scraping) | $0.10-0.15 |
+| Claude Opus 4 (research) | $0.45-0.60 |
+| Claude Sonnet 4 (emails) | $0.06 |
+| OpenAI embeddings | $0.01 |
+| **Total COGS** | **$0.62-0.82** |
+| **Revenue** | **$1.00** |
+| **Gross Margin** | **18-38%** |
+
+Free tier cost: ~$2/user (3 researches). Break-even at ~20% conversion rate.
+
 ### Future Tiers (Not Yet Built)
 | Tier | Price | Credits | Features |
 |------|-------|---------|----------|
@@ -213,9 +211,10 @@ Simple consumption model - no subscriptions, no monthly limits. Users buy credit
 | Timeframe | Phase | Goal |
 |-----------|-------|------|
 | ✅ Done | Phase 1 | Production launch with full v2 |
-| ✅ Done | Phase 2 | Apollo contacts |
+| ~~Done~~ | Phase 2 | Apollo contacts (removed for margins) |
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
+| ✅ Done | - | Admin accounts, unit economics optimization |
 | Next | Phase 4 | Team accounts |
 | Month 2-3 | Phase 6 | CRM integrations |
 | Month 3+ | Phase 5 | Enterprise security |
