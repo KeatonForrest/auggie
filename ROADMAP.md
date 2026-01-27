@@ -162,11 +162,54 @@ Connect Auggie to sales team workflows.
 ## Phase 7: Advanced Features
 **Status:** Future
 
-- [ ] Bulk research (CSV upload → 100 companies)
+- [ ] Bulk research API (see sketch below)
 - [ ] Saved research templates
 - [ ] Competitor tracking over time
 - [ ] AI chat follow-up on research
 - [ ] PDF export
+
+### Bulk Research API (Sketched)
+
+Upload CSV of 100 companies → get research docs for all of them.
+
+**API:**
+```
+POST /api/bulk-research
+{ "companies": ["acme.com", "globex.com", ...] }
+→ { "batch_id": "batch_abc123", "status": "queued" }
+
+GET /api/bulk-research/batch_abc123
+→ { "status": "processing", "completed": 47, "total": 100 }
+
+GET /api/bulk-research/batch_abc123/download
+→ ZIP file with all markdown research docs
+```
+
+**Database:**
+```sql
+CREATE TABLE bulk_batches (
+  id TEXT PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id),
+  status TEXT DEFAULT 'queued',
+  total INTEGER,
+  completed INTEGER DEFAULT 0,
+  failed INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE bulk_batch_items (
+  id BIGSERIAL PRIMARY KEY,
+  batch_id TEXT REFERENCES bulk_batches(id),
+  company_url TEXT,
+  document_id BIGINT REFERENCES research_documents(id),
+  status TEXT DEFAULT 'pending',
+  error TEXT
+);
+```
+
+**Pricing:** 1 credit per company (or bulk discount: 100 = 80 credits)
+
+**Effort:** ~1 day for v1 (API only, sequential processing, email on completion)
 
 ---
 
