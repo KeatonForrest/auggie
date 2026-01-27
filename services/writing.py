@@ -62,9 +62,9 @@ class WritingService:
 
     def _build_prompt(self, report: str) -> str:
         """Build the full prompt with the report inserted."""
-        return f"""You are an expert at converting research into a series of informative and emotionally engaging emails.
+        return f"""You are an expert at crafting Personalized Value Propositions (PVPs) - messages so valuable that prospects would pay to receive them, even if they never buy your product.
 
-Your task is to take research content and transform it into three separate emails that can be sent over multiple touches. The purpose of these emails is to explain what problem is being solved and how it is fixed.
+A PVP uses publicly available data to deliver insights that directly impact the prospect's business. Unlike traditional feature-focused outreach, a PVP leads with concrete, actionable intelligence that demonstrates you understand their specific situation.
 
 Here is the research content you will be working with:
 
@@ -72,38 +72,44 @@ Here is the research content you will be working with:
 {report}
 </report>
 
-Your goal is to create three distinct emails based on this research. Each email should focus on a different aspect of the problem and solution, while maintaining a cohesive narrative across all three.
+Your goal is to create three distinct PVP emails based on this research. Each email should deliver genuine, standalone value - not just a clever way to pitch a product.
 
-Follow these guidelines for each email:
+**Types of Value to Deliver (use the research to identify which applies):**
+- **Cost savings opportunity**: "We noticed X technology in your stack typically costs Y% more than Z alternative"
+- **Risk mitigation**: "Your job posting mentions using [deprecated technology] - here's the migration timeline before support ends"
+- **Revenue opportunity**: "Companies with your tech stack typically see X% improvement when they address [specific gap]"
+- **Competitive intelligence**: "Three of your competitors recently adopted X - here's what they're doing differently"
+- **Efficiency gains**: "Your team is hiring for X role to solve Y problem - here's a faster approach"
+- **Market timing**: "Based on your tech stack and hiring, you're likely hitting Z scaling challenge right now"
 
-**First Email:**
-- Introduce the problem and create emotional resonance
-- Highlight the pain points and challenges faced by the audience
-- Hint at the solution without fully revealing it
+**First Email - Lead with a Specific Insight:**
+- Open with a concrete observation from their tech stack, hiring, or public data
+- Deliver one actionable insight they can use immediately
+- The insight should be valuable even if they ignore your product entirely
 - Keep it concise, around 100 words
-- Include a compelling subject line
+- Include a subject line that hints at the specific insight
 
-**Second Email:**
-- Dive deeper into the problem and its implications
-- Begin to introduce the solution and its benefits
-- Use storytelling elements to maintain engagement
+**Second Email - Deepen the Value:**
+- Build on the first insight with additional context or data
+- Reference patterns from similar companies (industry, stage, tech stack)
+- Provide a framework, checklist, or specific recommendation they can act on
 - Aim for 100 words
-- Include a compelling subject line
+- Include a subject line that promises concrete value
 
-**Third Email:**
-- Fully explain the solution and how it addresses the problem
-- Emphasize the unique value proposition
-- Include a clear call-to-action
+**Third Email - Connect Value to Conversation:**
+- Summarize the insights you've shared
+- Now (and only now) briefly mention how your product relates to what you've discussed
+- Include a soft call-to-action focused on continuing the conversation, not closing a sale
 - Keep it impactful, around 75 words
-- Include a compelling subject line
+- Include a subject line
 
-**General Guidelines for All Emails:**
-- Use a formal yet approachable professional tone
-- Incorporate emotional triggers to create a connection with the reader
-- Break up text into short paragraphs for easy readability
-- Use bullet points or numbered lists where appropriate
-- Maintain consistency across all three emails while progressively building on the information and emotional engagement
+**Critical Guidelines:**
+- The prospect should thank you for these emails even if they never become a customer
+- Use specific details from the research (tech stack, job postings, company stage, industry)
+- Avoid generic statements - every sentence should reference something specific to this company
+- Write as a knowledgeable peer sharing useful information, not a salesperson pitching
 - NEVER use emdashes (—) in any of the emails - use commas, periods, or separate sentences instead
+- Break up text into short paragraphs for easy readability
 
 Present your final output in the following format:
 
@@ -127,7 +133,7 @@ Subject: [Insert subject line]
 </email3>
 </email_series>
 
-Your goal is to create a compelling narrative that explains the problem, builds anticipation for the solution, and ultimately convinces the reader of its value."""
+Remember: If your message is just a clever way to pitch your product, it's not a true PVP. Lead with genuine value."""
 
     def _parse_emails(self, response: str) -> list[dict]:
         """Parse the email series from the response."""
