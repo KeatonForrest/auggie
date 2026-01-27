@@ -4,8 +4,8 @@
 - Core research generation working
 - Materials upload & RAG working
 - Apollo contact enrichment working
-- Writing workflow (email sequences) working
-- Stripe billing ($24.99/mo + credit packs) working
+- Writing workflow (PVP email sequences) working
+- Consumption pricing (3 free, $10 for 10 credits) working
 - Live at https://auggie.tools
 
 ---
@@ -191,19 +191,20 @@ Connect Auggie to sales team workflows.
 
 ---
 
-## Pricing Tiers (Current)
+## Pricing (Current - Consumption Model)
 
-| Tier | Price | Searches | Features |
-|------|-------|----------|----------|
-| Free | $0 | 5 total | Full research |
-| Pro | $24.99/mo | 25/mo | Full research + Credits option |
-| Credit Pack | $10 one-time | +10 searches | For Pro users who need more |
+| Tier | Price | Credits | Features |
+|------|-------|---------|----------|
+| Free | $0 | 3 credits | Full research, PVP emails |
+| Credits | $10 | 10 credits | Same features, pay as you go |
+
+Simple consumption model - no subscriptions, no monthly limits. Users buy credits when they need them.
 
 ### Future Tiers (Not Yet Built)
-| Tier | Price | Searches | Features |
-|------|-------|----------|----------|
-| Team | $29/user/mo | 50/user/mo | Shared materials, team dashboard |
-| Enterprise | Custom | Unlimited | SSO, API, SLA |
+| Tier | Price | Credits | Features |
+|------|-------|---------|----------|
+| Team | TBD | Shared pool | Shared materials, team dashboard |
+| Enterprise | Custom | Volume pricing | SSO, API, SLA |
 
 ---
 
