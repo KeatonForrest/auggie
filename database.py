@@ -312,7 +312,7 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
         row = await conn.fetchrow(
             """
             INSERT INTO users (email, name, picture, google_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 3)
+            VALUES ($1, $2, $3, $4, 1)
             RETURNING *
             """,
             email, name, picture, google_id
@@ -326,7 +326,7 @@ async def create_user_microsoft(email: str, name: str, picture: str, microsoft_i
         row = await conn.fetchrow(
             """
             INSERT INTO users (email, name, picture, microsoft_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 3)
+            VALUES ($1, $2, $3, $4, 1)
             RETURNING *
             """,
             email, name, picture, microsoft_id

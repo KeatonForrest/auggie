@@ -174,7 +174,7 @@ Connect Auggie to sales team workflows.
 
 | Tier | Price | Credits | Features |
 |------|-------|---------|----------|
-| Free | $0 | 3 credits | Full research, PVP emails |
+| Free | $0 | 1 credit | Full research, PVP emails |
 | Credits | $10 | 10 credits | Same features, pay as you go |
 
 Simple consumption model - no subscriptions, no monthly limits. Users buy credits when they need them.
@@ -196,7 +196,7 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 | **Revenue** | **$1.00** |
 | **Gross Margin** | **18-38%** |
 
-Free tier cost: ~$2/user (3 researches). Break-even at ~20% conversion rate.
+Free tier cost: ~$0.65/user (1 research). Break-even at ~10% conversion rate.
 
 ### Future Tiers (Not Yet Built)
 | Tier | Price | Credits | Features |
