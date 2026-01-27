@@ -117,7 +117,7 @@ class FirecrawlService:
         company_slug = company_name.lower().replace(' ', '').replace('-', '').replace('_', '')
         domain_slug = domain.split('.')[0].lower()
 
-        # Top 6 most common job board URLs
+        # Top 3 most common job board URLs (reduced for cost optimization)
         job_board_urls = [
             # Greenhouse
             f"https://boards.greenhouse.io/{company_slug}",
@@ -125,10 +125,6 @@ class FirecrawlService:
             f"https://jobs.lever.co/{company_slug}",
             # Ashby (popular with tech companies)
             f"https://jobs.ashbyhq.com/{company_slug}",
-            # Company career pages
-            f"https://{domain}/careers",
-            f"https://{domain}/jobs",
-            f"https://careers.{domain}",
         ]
 
         print(f"Checking {len(job_board_urls)} job board URLs...")
@@ -227,9 +223,6 @@ class FirecrawlService:
                 "about": urljoin(base_url, "/about"),
                 "careers": urljoin(base_url, "/careers"),
                 "blog": urljoin(base_url, "/blog"),
-                "products": urljoin(base_url, "/products"),
-                "solutions": urljoin(base_url, "/solutions"),
-                "platform": urljoin(base_url, "/platform"),
                 "engineering": urljoin(base_url, "/engineering"),
             }
 
@@ -266,13 +259,9 @@ class FirecrawlService:
             news_content = results[-2] if not isinstance(results[-2], Exception) else None
             investor_content = results[-1] if not isinstance(results[-1], Exception) else None
 
-            extra_pages = []
-            for key in ["products", "solutions", "platform", "engineering"]:
-                content = core_results.get(key)
-                if content and len(content) > 200:
-                    extra_pages.append(content)
-
-            additional_content = "\n\n---\n\n".join(extra_pages) if extra_pages else None
+            # Engineering blog content goes into additional pages
+            engineering_content = core_results.get("engineering")
+            additional_content = engineering_content if engineering_content and len(engineering_content) > 200 else None
 
         print("Scraping complete!")
 
