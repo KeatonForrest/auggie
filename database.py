@@ -148,6 +148,12 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Add existential_data_points column if it doesn't exist (for existing databases)
+        try:
+            await conn.execute("ALTER TABLE research_documents ADD COLUMN existential_data_points TEXT")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
         # Create indexes (IF NOT EXISTS for indexes requires a different approach)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_documents_user_created
@@ -524,9 +530,9 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             INSERT INTO research_documents (
                 user_id, company_url, company_name, created_at,
                 company_overview, projects_initiatives, confirmed_tech_stack,
-                hiring_signals, business_problems, product_fit,
+                hiring_signals, business_problems, existential_data_points, product_fit,
                 talking_points, recent_news, key_contacts, information_gaps, full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING id
             """,
             user_id,
@@ -538,6 +544,7 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.confirmed_tech_stack,
             doc.hiring_signals,
             doc.business_problems,
+            doc.existential_data_points,
             doc.product_fit,
             doc.talking_points,
             doc.recent_news,
@@ -611,6 +618,7 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         confirmed_tech_stack=row["confirmed_tech_stack"] or "",
         hiring_signals=row["hiring_signals"] or "",
         business_problems=row["business_problems"] or "",
+        existential_data_points=row.get("existential_data_points") or "",
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",

@@ -30,6 +30,11 @@ class WritingService:
             sections.append(document.business_problems)
             sections.append("")
 
+        if document.existential_data_points:
+            sections.append("## Existential Data Points (Urgency Signals)")
+            sections.append(document.existential_data_points)
+            sections.append("")
+
         if document.projects_initiatives:
             sections.append("## Current Projects & Initiatives")
             sections.append(document.projects_initiatives)

@@ -89,6 +89,47 @@ When analyzing the prospect, specifically look for:
 - **Persona alignment**: Are the job titles you target present in their hiring or org?
 - **Opportunity signals**: Look for initiatives, projects, or challenges where your product could help
 
+EXISTENTIAL DATA POINTS - CRITICAL:
+
+An existential data point is the business equivalent of chest pain - you don't ignore it, you don't comparison shop, and you don't wait six months to address it. You act now.
+
+Hunt aggressively for these urgency signals:
+
+**Growth Pressure Signals:**
+- Recent funding round (investors expect ROI, clock is ticking)
+- Aggressive hiring in a specific function (scaling pain they're throwing bodies at)
+- Job posts describing symptoms not solutions ("manage our growing infrastructure complexity")
+- IPO preparation or acquisition activity
+
+**Cost/Survival Pressure:**
+- Layoffs + still hiring for specific roles (cutting everywhere except this critical problem)
+- Job posts mentioning "cost optimization," "efficiency," or "consolidation"
+- Using expensive enterprise tools at a stage where cheaper alternatives exist
+- Runway concerns (late-stage without new funding, public company with declining revenue)
+
+**Technical Debt Bombs:**
+- Deprecated tech in their stack with known EOL dates (research actual deprecation timelines)
+- Job posts mentioning "migration," "legacy systems," "technical debt," "replatforming"
+- Hiring senior engineers to fix what was built during hypergrowth
+- Security vulnerabilities in detected tech versions
+
+**Competitive Urgency:**
+- Competitors just raised funding or launched competing features
+- Industry consolidation (they may need to move fast or be acquired/left behind)
+- Market timing windows (seasonal business, regulatory deadlines)
+- Loss of market share signals
+
+**Organizational Pain:**
+- Executive turnover in relevant functions (new leader = new priorities and budget)
+- Restructuring or team changes mentioned in job posts
+- Hiring for a role that typically indicates a specific problem (e.g., "Database Reliability Engineer" = database scaling issues)
+
+For each existential data point found, note:
+1. The specific signal and where you found it
+2. The implied timeline or deadline (real or organizational)
+3. The business impact if not addressed
+4. How urgent this makes their need (IMMEDIATE / NEAR-TERM / EMERGING)
+
 ANALYSIS APPROACH:
 
 Before writing your research document, use a scratchpad to:
@@ -153,6 +194,24 @@ List specific problems or challenges the company has publicly acknowledged. For 
 - Business impact if stated
 
 If none found, state "No specific business problems identified in available data."
+
+## Existential Data Points
+Identify signals that create genuine urgency - problems they cannot ignore or delay. For each signal found:
+
+| Signal | Source | Implied Timeline | Business Impact | Urgency Level |
+|--------|--------|------------------|-----------------|---------------|
+| [Specific observation] | [Where found] | [Deadline or timeline] | [What happens if ignored] | IMMEDIATE/NEAR-TERM/EMERGING |
+
+**Categories to analyze:**
+- **Growth Pressure**: Recent funding, aggressive hiring, scaling symptoms in job posts
+- **Cost/Survival**: Layoffs + targeted hiring, efficiency mentions, expensive tools at wrong stage
+- **Technical Debt Bombs**: Deprecated tech with EOL dates, migration mentions, legacy system references
+- **Competitive Urgency**: Competitor moves, market consolidation, regulatory deadlines
+- **Organizational Pain**: Executive turnover, restructuring, problem-indicating role hires
+
+**Summary**: [1-2 sentences on the most pressing existential pressure this company faces, if any]
+
+If no existential signals found, state "No immediate urgency signals identified - this may be a longer sales cycle."
 
 ## Product Fit Analysis
 
@@ -309,6 +368,7 @@ Explicitly list:
             confirmed_tech_stack=sections.get("confirmed_tech_stack", ""),
             hiring_signals=sections.get("hiring_signals", ""),
             business_problems=sections.get("business_problems", ""),
+            existential_data_points=sections.get("existential_data_points", ""),
             product_fit=sections.get("product_fit", ""),
             talking_points=sections.get("talking_points", ""),
             recent_news=sections.get("recent_news", ""),
@@ -331,6 +391,7 @@ Explicitly list:
             "hiring signals": "hiring_signals",
             "stated business problems": "business_problems",
             "business problems": "business_problems",
+            "existential data points": "existential_data_points",
             "product fit analysis": "product_fit",
             "fit analysis": "product_fit",
             "recommended talking points": "talking_points",

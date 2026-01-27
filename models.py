@@ -92,6 +92,7 @@ class ResearchDocument(BaseModel):
     confirmed_tech_stack: str
     hiring_signals: str
     business_problems: str
+    existential_data_points: str = ""
     product_fit: str
     talking_points: str
     recent_news: str = ""
