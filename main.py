@@ -171,14 +171,24 @@ async def complete_onboarding(
     problems_solved: str = Form(...),
     differentiators: str = Form(""),  # Now optional - extracted from materials
     target_company_size: list[str] = Form([]),
-    target_industries: str = Form(""),
-    target_personas: str = Form(""),
-    competitors: str = Form(""),  # Now optional - extracted from materials
+    target_industries: list[str] = Form([]),
+    target_level: list[str] = Form([]),
+    target_function: list[str] = Form([]),
     user: dict = Depends(require_auth),
 ):
     """Save onboarding data and redirect to dashboard."""
-    # Join checkbox values into comma-separated string
+    # Join checkbox values into comma-separated strings
     target_size_str = ", ".join(target_company_size) if target_company_size else ""
+    target_industries_str = ", ".join(target_industries) if target_industries else ""
+
+    # Combine level + function into personas string
+    # e.g., "Levels: VP, Director | Functions: Sales / Revenue, Marketing"
+    personas_parts = []
+    if target_level:
+        personas_parts.append(f"Levels: {', '.join(target_level)}")
+    if target_function:
+        personas_parts.append(f"Functions: {', '.join(target_function)}")
+    target_personas_str = " | ".join(personas_parts) if personas_parts else ""
 
     await update_user_profile(
         user_id=user["id"],
@@ -188,9 +198,9 @@ async def complete_onboarding(
         problems_solved=problems_solved,
         differentiators=differentiators,
         target_company_size=target_size_str,
-        target_industries=target_industries,
-        target_personas=target_personas,
-        competitors=competitors,
+        target_industries=target_industries_str,
+        target_personas=target_personas_str,
+        competitors="",  # No longer collected in onboarding
     )
     return RedirectResponse(url="/", status_code=302)
 

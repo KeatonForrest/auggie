@@ -70,7 +70,8 @@
                 <!-- Section 3: Ideal Customer Profile -->
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Ideal Customer Profile</h2>
-                    <div class="space-y-4">
+                    <div class="space-y-6">
+                        <!-- Company Size -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Target Company Size
@@ -91,30 +92,155 @@
                             </div>
                         </div>
 
+                        <!-- Industries -->
                         <div>
-                            <label for="target_industries" class="block text-sm font-medium text-gray-700 mb-1">
-                                Target Industries <span class="text-gray-400 font-normal">(if any)</span>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Industries <span class="text-gray-400 font-normal">(select all that apply)</span>
                             </label>
-                            <input
-                                type="text"
-                                id="target_industries"
-                                name="target_industries"
-                                placeholder="e.g., SaaS, Fintech, Healthcare, E-commerce"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="SaaS / Software" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">SaaS / Software</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Fintech / Financial Services" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Fintech / Financial Services</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Healthcare / Life Sciences" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Healthcare / Life Sciences</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="E-commerce / Retail" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">E-commerce / Retail</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Manufacturing" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Manufacturing</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Professional Services" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Professional Services</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Media / Entertainment" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Media / Entertainment</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Education / EdTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Education / EdTech</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Real Estate / PropTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Real Estate / PropTech</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Logistics / Supply Chain" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Logistics / Supply Chain</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Energy / Utilities" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Energy / Utilities</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Telecommunications" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Telecommunications</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Cybersecurity" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Cybersecurity</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Insurance" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Insurance</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Construction" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Construction</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Travel / Hospitality" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Travel / Hospitality</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="Government / Public Sector" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Government / Public Sector</span>
+                                </label>
+                            </div>
                         </div>
 
+                        <!-- Target Personas - Level -->
                         <div>
-                            <label for="target_personas" class="block text-sm font-medium text-gray-700 mb-1">
-                                Target Personas <span class="text-gray-400 font-normal">(job titles you sell to)</span>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Level in Org
                             </label>
-                            <input
-                                type="text"
-                                id="target_personas"
-                                name="target_personas"
-                                placeholder="e.g., VP of Sales, CRO, Sales Ops Manager, RevOps"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
+                            <div class="flex flex-wrap gap-3">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="C-Suite" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">C-Suite</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="VP" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">VP</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="Director" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Director</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="Manager" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Manager</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="Individual Contributor" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Individual Contributor</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Target Personas - Function -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Function
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Sales / Revenue" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Sales / Revenue</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Marketing" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Marketing</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Engineering / Product" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Engineering / Product</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Finance / Accounting" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Finance / Accounting</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Operations" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Operations</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="IT / Security" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">IT / Security</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="HR / People" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">HR / People</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Customer Success" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Customer Success</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="Legal" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Legal</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
