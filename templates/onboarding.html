@@ -97,7 +97,13 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Target Industries <span class="text-gray-400 font-normal">(select all that apply)</span>
                             </label>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="mb-3">
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="select-all-industries" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm font-medium text-blue-600">Select All (Horizontal Solution)</span>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2" id="industries-grid">
                                 <label class="inline-flex items-center">
                                     <input type="checkbox" name="target_industries" value="SaaS / Software" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                                     <span class="ml-2 text-sm text-gray-700">SaaS / Software</span>
@@ -254,5 +260,22 @@
             </form>
         </div>
     </main>
+
+    <script>
+        // Select All Industries toggle
+        const selectAllCheckbox = document.getElementById('select-all-industries');
+        const industryCheckboxes = document.querySelectorAll('input[name="target_industries"]');
+
+        selectAllCheckbox.addEventListener('change', function() {
+            industryCheckboxes.forEach(cb => cb.checked = this.checked);
+        });
+
+        // Update "Select All" state when individual checkboxes change
+        industryCheckboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                selectAllCheckbox.checked = Array.from(industryCheckboxes).every(c => c.checked);
+            });
+        });
+    </script>
 </body>
 </html>
