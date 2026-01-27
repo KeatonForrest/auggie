@@ -107,6 +107,12 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Add is_admin column for unlimited usage
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
         # Make google_id nullable (for users who sign up with Microsoft only)
         try:
             await conn.execute("ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL")
@@ -480,7 +486,7 @@ async def get_user_usage(user_id: int) -> dict:
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT searches_used, bonus_credits, billing_period_start, subscription_status
+            SELECT searches_used, bonus_credits, billing_period_start, subscription_status, is_admin
             FROM users WHERE id = $1
             """,
             user_id
@@ -516,6 +522,20 @@ async def use_credit(user_id: int) -> bool:
             user_id
         )
         return row is not None
+
+
+async def set_admin(email: str, is_admin: bool = True) -> bool:
+    """Set admin status for a user by email. Returns True if updated."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            UPDATE users
+            SET is_admin = $2
+            WHERE email = $1
+            """,
+            email, is_admin
+        )
+        return result == "UPDATE 1"
 
 
 # =============================================================================

@@ -131,6 +131,7 @@ async def home(request: Request):
             "user": user,
             "recent_docs": recent_docs,
             "credits": usage.get("bonus_credits", 0),
+            "is_admin": usage.get("is_admin", False),
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
         }
@@ -286,9 +287,10 @@ async def create_research(
     # Normalize URL (add https:// if missing)
     company_url = normalize_url(company_url)
 
-    # Check credits
+    # Check credits (admins have unlimited)
     usage = await get_user_usage(user["id"])
-    if usage.get("bonus_credits", 0) <= 0:
+    is_admin = usage.get("is_admin", False)
+    if not is_admin and usage.get("bonus_credits", 0) <= 0:
         raise HTTPException(
             status_code=402,
             detail="No credits remaining. Buy more credits to continue researching."
@@ -353,10 +355,11 @@ async def create_research(
             apollo_data=contact_data,  # Contact enrichment from PDL
         )
 
-        # Save document and deduct credit
+        # Save document and deduct credit (skip for admins)
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        await use_credit(user["id"])
+        if not is_admin:
+            await use_credit(user["id"])
 
         recent_docs = await get_all_documents(user_id=user["id"], limit=10)
         usage = await get_user_usage(user["id"])
@@ -369,6 +372,7 @@ async def create_research(
                 "document": document,
                 "recent_docs": recent_docs,
                 "credits": usage.get("bonus_credits", 0),
+                "is_admin": usage.get("is_admin", False),
             }
         )
 
@@ -401,6 +405,7 @@ async def view_document(
             "document": document,
             "recent_docs": recent_docs,
             "credits": usage.get("bonus_credits", 0),
+            "is_admin": usage.get("is_admin", False),
         }
     )
 
@@ -479,7 +484,8 @@ async def api_create_research(
     company_url = normalize_url(str(request.company_url))
 
     usage = await get_user_usage(user["id"])
-    if usage.get("bonus_credits", 0) <= 0:
+    is_admin = usage.get("is_admin", False)
+    if not is_admin and usage.get("bonus_credits", 0) <= 0:
         return ResearchResponse(success=False, error="No credits remaining")
 
     try:
@@ -528,7 +534,8 @@ async def api_create_research(
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        await use_credit(user["id"])
+        if not is_admin:
+            await use_credit(user["id"])
         return ResearchResponse(success=True, document=document)
 
     except Exception as e:
@@ -561,6 +568,7 @@ async def materials_page(request: Request, user: dict = Depends(require_auth)):
             "user": user,
             "materials": materials,
             "credits": usage.get("bonus_credits", 0),
+            "is_admin": usage.get("is_admin", False),
         }
     )
 
