@@ -4,7 +4,7 @@
 - Core research generation working (Claude Opus 4)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
-- Consumption pricing (3 free, $10 for 10 credits) working
+- Consumption pricing (1 free, $10 for 10 credits) working
 - Admin accounts (unlimited usage for internal users)
 - Live at https://auggie.tools
 
