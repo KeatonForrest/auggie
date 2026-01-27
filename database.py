@@ -305,8 +305,8 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO users (email, name, picture, google_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO users (email, name, picture, google_id, bonus_credits)
+            VALUES ($1, $2, $3, $4, 3)
             RETURNING *
             """,
             email, name, picture, google_id
@@ -319,8 +319,8 @@ async def create_user_microsoft(email: str, name: str, picture: str, microsoft_i
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO users (email, name, picture, microsoft_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO users (email, name, picture, microsoft_id, bonus_credits)
+            VALUES ($1, $2, $3, $4, 3)
             RETURNING *
             """,
             email, name, picture, microsoft_id
@@ -488,8 +488,8 @@ async def get_user_usage(user_id: int) -> dict:
         return dict(row) if row else None
 
 
-async def add_bonus_credits(user_id: int, credits: int) -> int:
-    """Add bonus credits to a user. Returns new total."""
+async def add_credits(user_id: int, credits: int) -> int:
+    """Add credits to a user. Returns new total."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -503,8 +503,8 @@ async def add_bonus_credits(user_id: int, credits: int) -> int:
         return row['bonus_credits']
 
 
-async def use_bonus_credit(user_id: int) -> bool:
-    """Use one bonus credit. Returns True if successful, False if no credits."""
+async def use_credit(user_id: int) -> bool:
+    """Use one credit. Returns True if successful, False if no credits."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """

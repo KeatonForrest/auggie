@@ -26,23 +26,13 @@ from services.apollo import ApolloService
 from services.writing import WritingService
 from database import (
     init_database, close_database, save_document, get_document,
-    get_all_documents, update_user_profile, increment_user_searches,
-    get_user_usage, get_user_materials, use_bonus_credit,
+    get_all_documents, update_user_profile, get_user_usage,
+    get_user_materials, use_credit,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
 
 settings = get_settings()
-
-FREE_SEARCH_LIMIT = 5   # Free tier: 5 searches total, no reset
-PRO_SEARCH_LIMIT = 25   # Pro tier: 25 searches/month, resets on payment
-
-
-def get_search_limit(user: dict) -> int:
-    """Return search limit based on subscription status."""
-    if user.get("subscription_status") == "active":
-        return PRO_SEARCH_LIMIT
-    return FREE_SEARCH_LIMIT
 
 
 def normalize_url(url: str) -> str:
@@ -140,9 +130,7 @@ async def home(request: Request):
             "request": request,
             "user": user,
             "recent_docs": recent_docs,
-            "searches_used": usage["searches_used"],
-            "search_limit": get_search_limit(user),
-            "bonus_credits": usage.get("bonus_credits", 0),
+            "credits": usage.get("bonus_credits", 0),
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
         }
@@ -298,20 +286,13 @@ async def create_research(
     # Normalize URL (add https:// if missing)
     company_url = normalize_url(company_url)
 
-    # Check usage limit
+    # Check credits
     usage = await get_user_usage(user["id"])
-    search_limit = get_search_limit(user)
-    using_bonus_credit = False
-
-    if usage["searches_used"] >= search_limit:
-        # Try to use a bonus credit
-        if usage.get("bonus_credits", 0) > 0:
-            using_bonus_credit = True
-        else:
-            raise HTTPException(
-                status_code=402,
-                detail="Search limit reached. Please upgrade or buy more credits."
-            )
+    if usage.get("bonus_credits", 0) <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail="No credits remaining. Buy more credits to continue researching."
+        )
 
     try:
         print(f"[{user['email']}] Scraping {company_url}...")
@@ -372,14 +353,10 @@ async def create_research(
             apollo_data=contact_data,  # Contact enrichment from PDL
         )
 
-        # Save document and update usage
+        # Save document and deduct credit
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-
-        if using_bonus_credit:
-            await use_bonus_credit(user["id"])
-        else:
-            await increment_user_searches(user["id"])
+        await use_credit(user["id"])
 
         recent_docs = await get_all_documents(user_id=user["id"], limit=10)
         usage = await get_user_usage(user["id"])
@@ -391,8 +368,7 @@ async def create_research(
                 "user": user,
                 "document": document,
                 "recent_docs": recent_docs,
-                "searches_used": usage["searches_used"],
-                "search_limit": search_limit,
+                "credits": usage.get("bonus_credits", 0),
             }
         )
 
@@ -424,8 +400,7 @@ async def view_document(
             "user": user,
             "document": document,
             "recent_docs": recent_docs,
-            "searches_used": usage["searches_used"],
-            "search_limit": get_search_limit(user),
+            "credits": usage.get("bonus_credits", 0),
         }
     )
 
@@ -504,8 +479,8 @@ async def api_create_research(
     company_url = normalize_url(str(request.company_url))
 
     usage = await get_user_usage(user["id"])
-    if usage["searches_used"] >= get_search_limit(user):
-        return ResearchResponse(success=False, error="Search limit reached")
+    if usage.get("bonus_credits", 0) <= 0:
+        return ResearchResponse(success=False, error="No credits remaining")
 
     try:
         scraped_content = await firecrawl_service.scrape_company(company_url)
@@ -553,7 +528,7 @@ async def api_create_research(
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        await increment_user_searches(user["id"])
+        await use_credit(user["id"])
         return ResearchResponse(success=True, document=document)
 
     except Exception as e:
@@ -585,8 +560,7 @@ async def materials_page(request: Request, user: dict = Depends(require_auth)):
             "request": request,
             "user": user,
             "materials": materials,
-            "searches_used": usage["searches_used"],
-            "search_limit": get_search_limit(user),
+            "credits": usage.get("bonus_credits", 0),
         }
     )
 

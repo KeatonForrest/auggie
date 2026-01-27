@@ -28,10 +28,15 @@
                     <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Research</a>
                     <a href="/materials" class="text-sm text-gray-600 hover:text-gray-900">Materials</a>
                     <a href="/settings" class="text-sm text-gray-600 hover:text-gray-900">Settings</a>
-                    {% if searches_used is defined %}
-                    <span class="text-sm text-gray-500">
-                        {{ searches_used }}/{{ search_limit }} searches
-                    </span>
+                    {% if credits is defined %}
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm {% if credits > 0 %}text-gray-600{% else %}text-red-600{% endif %}">
+                            {{ credits }} credit{% if credits != 1 %}s{% endif %}
+                        </span>
+                        <a href="/billing/buy-credits" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">
+                            Buy 10 for $10
+                        </a>
+                    </div>
                     {% endif %}
                     <div class="flex items-center gap-2">
                         {% if user.picture %}
