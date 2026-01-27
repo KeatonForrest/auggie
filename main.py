@@ -205,6 +205,89 @@ async def complete_onboarding(
     return RedirectResponse(url="/", status_code=302)
 
 
+def parse_personas_string(personas_str: str) -> tuple[list[str], list[str]]:
+    """Parse stored personas string back into levels and functions lists."""
+    levels = []
+    functions = []
+    if not personas_str:
+        return levels, functions
+
+    # Format: "Levels: VP, Director | Functions: Sales / Revenue, Marketing"
+    parts = personas_str.split(" | ")
+    for part in parts:
+        if part.startswith("Levels: "):
+            levels = [l.strip() for l in part[8:].split(", ")]
+        elif part.startswith("Functions: "):
+            functions = [f.strip() for f in part[11:].split(", ")]
+
+    return levels, functions
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(
+    request: Request,
+    saved: bool = False,
+    user: dict = Depends(require_onboarding),
+):
+    """Settings page to edit profile."""
+    # Parse stored values back into lists for checkbox state
+    selected_sizes = [s.strip() for s in (user.get("target_company_size") or "").split(", ") if s.strip()]
+    selected_industries = [i.strip() for i in (user.get("target_industries") or "").split(", ") if i.strip()]
+    selected_levels, selected_functions = parse_personas_string(user.get("target_personas") or "")
+
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "user": user,
+            "saved": saved,
+            "selected_sizes": selected_sizes,
+            "selected_industries": selected_industries,
+            "selected_levels": selected_levels,
+            "selected_functions": selected_functions,
+        }
+    )
+
+
+@app.post("/settings")
+async def save_settings(
+    request: Request,
+    company_name: str = Form(...),
+    problems_solved: str = Form(...),
+    target_company_size: list[str] = Form([]),
+    target_industries: list[str] = Form([]),
+    target_level: list[str] = Form([]),
+    target_function: list[str] = Form([]),
+    user: dict = Depends(require_onboarding),
+):
+    """Save updated profile settings."""
+    # Join checkbox values into comma-separated strings
+    target_size_str = ", ".join(target_company_size) if target_company_size else ""
+    target_industries_str = ", ".join(target_industries) if target_industries else ""
+
+    # Combine level + function into personas string
+    personas_parts = []
+    if target_level:
+        personas_parts.append(f"Levels: {', '.join(target_level)}")
+    if target_function:
+        personas_parts.append(f"Functions: {', '.join(target_function)}")
+    target_personas_str = " | ".join(personas_parts) if personas_parts else ""
+
+    await update_user_profile(
+        user_id=user["id"],
+        company_name=company_name,
+        product_name=user.get("product_name") or "",
+        product_description=user.get("product_description") or "",
+        problems_solved=problems_solved,
+        differentiators=user.get("differentiators") or "",
+        target_company_size=target_size_str,
+        target_industries=target_industries_str,
+        target_personas=target_personas_str,
+        competitors="",
+    )
+    return RedirectResponse(url="/settings?saved=true", status_code=302)
+
+
 @app.post("/research", response_class=HTMLResponse)
 async def create_research(
     request: Request,

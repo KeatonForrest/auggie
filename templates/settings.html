@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Auggie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <a href="/" class="text-xl font-bold text-gray-900 hover:text-gray-700">Auggie</a>
+                <div class="flex items-center gap-4">
+                    <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Back to Dashboard</a>
+                    <div class="flex items-center gap-2">
+                        {% if user.picture %}
+                        <img src="{{ user.picture }}" alt="" class="w-8 h-8 rounded-full">
+                        {% endif %}
+                        <span class="text-sm text-gray-700">{{ user.name or user.email }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
+                <p class="text-gray-600">Update your profile to improve research relevance.</p>
+            </div>
+
+            {% if saved %}
+            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p class="text-green-800 text-sm">Settings saved successfully.</p>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/settings" class="space-y-8">
+
+                <!-- Section 1: Your Company -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Your Company</h2>
+                    <div>
+                        <label for="company_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            Company Name
+                        </label>
+                        <input
+                            type="text"
+                            id="company_name"
+                            name="company_name"
+                            required
+                            value="{{ user.company_name or '' }}"
+                            placeholder="e.g., Acme Inc."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                    </div>
+                </div>
+
+                <!-- Section 2: What You Sell -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">What You Sell</h2>
+                    <div>
+                        <label for="problems_solved" class="block text-sm font-medium text-gray-700 mb-1">
+                            What problems does your product solve?
+                        </label>
+                        <textarea
+                            id="problems_solved"
+                            name="problems_solved"
+                            required
+                            rows="3"
+                            placeholder="e.g., Reps waste time on manual data entry. Deals slip through cracks. Managers lack visibility into pipeline health."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >{{ user.problems_solved or '' }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">We'll look for these pain points in each account you research.</p>
+                    </div>
+                </div>
+
+                <!-- Section 3: Ideal Customer Profile -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Ideal Customer Profile</h2>
+                    <div class="space-y-6">
+                        <!-- Company Size -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Company Size
+                            </label>
+                            <div class="flex flex-wrap gap-3">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="SMB (1-100)"
+                                        {% if 'SMB (1-100)' in selected_sizes %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">SMB (1-100)</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="Mid-market (100-1000)"
+                                        {% if 'Mid-market (100-1000)' in selected_sizes %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Mid-market (100-1000)</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_company_size" value="Enterprise (1000+)"
+                                        {% if 'Enterprise (1000+)' in selected_sizes %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Enterprise (1000+)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Industries -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Industries <span class="text-gray-400 font-normal">(select all that apply)</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                {% set industries = [
+                                    'SaaS / Software',
+                                    'Fintech / Financial Services',
+                                    'Healthcare / Life Sciences',
+                                    'E-commerce / Retail',
+                                    'Manufacturing',
+                                    'Professional Services',
+                                    'Media / Entertainment',
+                                    'Education / EdTech',
+                                    'Real Estate / PropTech',
+                                    'Logistics / Supply Chain',
+                                    'Energy / Utilities',
+                                    'Telecommunications',
+                                    'Cybersecurity',
+                                    'Insurance',
+                                    'Construction',
+                                    'Travel / Hospitality',
+                                    'Government / Public Sector'
+                                ] %}
+                                {% for industry in industries %}
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_industries" value="{{ industry }}"
+                                        {% if industry in selected_industries %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">{{ industry }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Target Personas - Level -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Level in Org
+                            </label>
+                            <div class="flex flex-wrap gap-3">
+                                {% set levels = ['C-Suite', 'VP', 'Director', 'Manager', 'Individual Contributor'] %}
+                                {% for level in levels %}
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_level" value="{{ level }}"
+                                        {% if level in selected_levels %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">{{ level }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Target Personas - Function -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Target Function
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                {% set functions = [
+                                    'Sales / Revenue',
+                                    'Marketing',
+                                    'Engineering / Product',
+                                    'Finance / Accounting',
+                                    'Operations',
+                                    'IT / Security',
+                                    'HR / People',
+                                    'Customer Success',
+                                    'Legal'
+                                ] %}
+                                {% for func in functions %}
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="target_function" value="{{ func }}"
+                                        {% if func in selected_functions %}checked{% endif %}
+                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">{{ func }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition"
+                >
+                    Save Settings
+                </button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
