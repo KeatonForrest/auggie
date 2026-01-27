@@ -230,7 +230,6 @@ class FirecrawlService:
             homepage_task = self._scrape_url(client, base_url, include_html=True)
             other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
             job_task = self._scrape_job_board(client, company_name, domain)
-            search_task = self._parallel_search(client, company_name)
             investor_task = self._scrape_investor_relations(client, domain)
             engineering_task = self._scrape_engineering_blog(client, domain)
 
@@ -238,7 +237,6 @@ class FirecrawlService:
                 homepage_task,
                 *other_tasks.values(),
                 job_task,
-                search_task,
                 investor_task,
                 engineering_task,
                 return_exceptions=True
@@ -257,8 +255,7 @@ class FirecrawlService:
                 if not isinstance(result, Exception):
                     core_results[name] = result
 
-            job_postings = results[-4] if not isinstance(results[-4], Exception) else None
-            news_content = results[-3] if not isinstance(results[-3], Exception) else None
+            job_postings = results[-3] if not isinstance(results[-3], Exception) else None
             investor_content = results[-2] if not isinstance(results[-2], Exception) else None
             engineering_subdomain = results[-1] if not isinstance(results[-1], Exception) else None
 
@@ -281,14 +278,9 @@ class FirecrawlService:
             blog=core_results.get("blog"),
             job_postings=job_postings,
             additional_pages=additional_content,
-            news=news_content,
+            news=None,  # Populated by NewsService in main.py
             investor_relations=investor_content,
         )
-
-    async def _parallel_search(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
-        """Search for additional company context."""
-        # Single search to reduce API costs
-        return await self._web_search(client, f"{company_name} company overview news", num_results=3)
 
     async def _check_subdomain_exists(
         self,
@@ -376,12 +368,10 @@ class FirecrawlService:
         # Scrape the first existing IR subdomain
         ir_url = existing_ir_urls[0]
 
-        # Try to get key pages from the IR site
+        # Try to get key pages from the IR site (reduced for cost optimization)
         ir_pages = [
             ir_url,  # Main IR page
             f"{ir_url}/news",
-            f"{ir_url}/press-releases",
-            f"{ir_url}/corporate-governance",
         ]
 
         scrape_tasks = [self._scrape_url(client, url) for url in ir_pages]
