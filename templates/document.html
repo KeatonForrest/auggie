@@ -101,14 +101,6 @@ This template displays a generated research document with:
             <div class="mt-3 text-gray-700 markdown-content">{{ document.talking_points }}</div>
         </section>
 
-        <!-- Key Contacts -->
-        {% if document.key_contacts %}
-        <section class="mb-8">
-            <h2 class="text-xl font-semibold text-gray-900 border-b pb-2 text-blue-700">Key Contacts</h2>
-            <div class="mt-3 text-gray-700 markdown-content bg-blue-50 p-4 rounded">{{ document.key_contacts }}</div>
-        </section>
-        {% endif %}
-
         <!-- Recent News & Press -->
         {% if document.recent_news %}
         <section class="mb-8">

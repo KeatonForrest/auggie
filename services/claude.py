@@ -269,7 +269,6 @@ Explicitly list:
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
-        apollo_data: str = "",
     ) -> str:
         """Build the user prompt with all scraped research data."""
         sections = [f"# Research Data for {company_url}\n"]
@@ -327,10 +326,6 @@ Explicitly list:
             sections.append(scraped.investor_relations[:8000])
             sections.append("")
 
-        if apollo_data:
-            sections.append(apollo_data)
-            sections.append("")
-
         sections.append("---")
         sections.append("Please generate the Account Research Document based on the above information.")
 
@@ -343,11 +338,10 @@ Explicitly list:
         product_context: str,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
         retrieved_materials: str = "",
-        apollo_data: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(product_context, retrieved_materials)
-        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain, apollo_data)
+        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         message = self.client.messages.create(
             model="claude-opus-4-20250514",
