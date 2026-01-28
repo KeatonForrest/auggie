@@ -210,6 +210,20 @@ async def init_database():
             WHERE NOT revoked
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_usage (
+                id BIGSERIAL PRIMARY KEY,
+                api_key_id BIGINT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                endpoint TEXT NOT NULL,
+                credits_used INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_api_usage_key
+            ON api_usage(api_key_id, created_at DESC)
+        """)
+
         # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
@@ -760,6 +774,15 @@ async def revoke_api_key(key_id: int, user_id: int) -> bool:
             key_id, user_id
         )
         return result == "UPDATE 1"
+
+
+async def record_api_usage(api_key_id: int, endpoint: str, credits_used: int = 1):
+    """Log an API call for usage tracking."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO api_usage (api_key_id, endpoint, credits_used) VALUES ($1, $2, $3)",
+            api_key_id, endpoint, credits_used
+        )
 
 
 # =============================================================================

@@ -27,6 +27,7 @@ from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, get_user_usage,
     get_user_materials, use_credit,
+    create_api_key_record, list_api_keys, revoke_api_key,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -525,6 +526,44 @@ async def api_create_research(
 async def api_list_documents(user: dict = Depends(require_auth)):
     """List all saved research documents for the current user."""
     return await get_all_documents(user_id=user["id"])
+
+
+# =============================================================================
+# API Keys Management (UI)
+# =============================================================================
+
+@app.get("/api-keys", response_class=HTMLResponse)
+async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
+    """API keys management page."""
+    keys = await list_api_keys(user["id"])
+    usage = await get_user_usage(user["id"])
+    return templates.TemplateResponse(
+        "api_keys.html",
+        {
+            "request": request,
+            "user": user,
+            "api_keys": keys,
+            "credits": usage.get("bonus_credits", 0),
+            "is_admin": usage.get("is_admin", False),
+            "new_key": request.query_params.get("new_key"),
+        }
+    )
+
+
+@app.post("/api-keys/create")
+async def create_api_key_route(request: Request, name: str = Form("Default"), user: dict = Depends(require_auth)):
+    """Create a new API key."""
+    from api.keys import generate_api_key
+    raw_key, key_hash, prefix = generate_api_key()
+    await create_api_key_record(user["id"], key_hash, prefix, name)
+    return RedirectResponse(url=f"/api-keys?new_key={raw_key}", status_code=303)
+
+
+@app.post("/api-keys/{key_id}/revoke")
+async def revoke_api_key_route(key_id: int, user: dict = Depends(require_auth)):
+    """Revoke an API key."""
+    await revoke_api_key(key_id, user["id"])
+    return RedirectResponse(url="/api-keys", status_code=303)
 
 
 # =============================================================================
