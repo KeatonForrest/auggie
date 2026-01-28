@@ -101,6 +101,16 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Migrate bonus_credits to cents (1 credit = 100 cents)
+        # Only runs once: if any user has credits between 1-999, they're still in old format
+        try:
+            await conn.execute("""
+                UPDATE users SET bonus_credits = bonus_credits * 100
+                WHERE bonus_credits > 0 AND bonus_credits < 100
+            """)
+        except Exception:
+            pass
+
         # Add microsoft_id column for Microsoft OAuth (MSP customers)
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN microsoft_id TEXT UNIQUE")
@@ -383,7 +393,7 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
         row = await conn.fetchrow(
             """
             INSERT INTO users (email, name, picture, google_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 1)
+            VALUES ($1, $2, $3, $4, 100)
             RETURNING *
             """,
             email, name, picture, google_id
@@ -397,7 +407,7 @@ async def create_user_microsoft(email: str, name: str, picture: str, microsoft_i
         row = await conn.fetchrow(
             """
             INSERT INTO users (email, name, picture, microsoft_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 1)
+            VALUES ($1, $2, $3, $4, 100)
             RETURNING *
             """,
             email, name, picture, microsoft_id
@@ -566,7 +576,9 @@ async def get_user_usage(user_id: int) -> dict:
 
 
 async def add_credits(user_id: int, credits: int) -> int:
-    """Add credits to a user. Returns new total."""
+    """Add credits to a user. Credits are in whole units (1 credit = 100 cents internally).
+    Returns new total in cents."""
+    cents = credits * 100
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -575,22 +587,23 @@ async def add_credits(user_id: int, credits: int) -> int:
             WHERE id = $1
             RETURNING bonus_credits
             """,
-            user_id, credits
+            user_id, cents
         )
         return row['bonus_credits']
 
 
-async def use_credit(user_id: int) -> bool:
-    """Use one credit. Returns True if successful, False if no credits."""
+async def use_credit(user_id: int, cents: int = 100) -> bool:
+    """Use credits. Default 100 cents (1 credit). Enrichment = 50 cents.
+    Returns True if successful, False if insufficient credits."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE users
-            SET bonus_credits = bonus_credits - 1
-            WHERE id = $1 AND bonus_credits > 0
+            SET bonus_credits = bonus_credits - $2
+            WHERE id = $1 AND bonus_credits >= $2
             RETURNING bonus_credits
             """,
-            user_id
+            user_id, cents
         )
         return row is not None
 

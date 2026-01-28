@@ -201,11 +201,11 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
             cached=True,
         )
 
-    # Check credits
+    # Check credits (enrichment = 50 cents = 0.5 credits)
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
-    if not is_admin and usage.get("bonus_credits", 0) <= 0:
-        return EnrichResponse(success=False, error="No credits remaining")
+    if not is_admin and usage.get("bonus_credits", 0) < 50:
+        return EnrichResponse(success=False, error="Insufficient credits (enrichment costs 0.5 credits)")
 
     # Use custom titles or fall back to user's ICP
     titles = body.titles
@@ -224,7 +224,7 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
         if contacts:
             await save_enriched_contacts(body.document_id, user["id"], contacts)
             if not is_admin:
-                await use_credit(user["id"])
+                await use_credit(user["id"], cents=50)
 
         await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
 
