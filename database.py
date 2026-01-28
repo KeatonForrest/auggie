@@ -894,6 +894,24 @@ async def record_api_usage(api_key_id: int, endpoint: str, credits_used: int = 1
         )
 
 
+async def get_api_key_usage_stats(user_id: int) -> dict[int, dict]:
+    """Get per-key usage stats (request count, credits used) for a user's active keys."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ak.id AS key_id,
+                   COALESCE(COUNT(au.id), 0) AS request_count,
+                   COALESCE(SUM(au.credits_used), 0) AS credits_used
+            FROM api_keys ak
+            LEFT JOIN api_usage au ON au.api_key_id = ak.id
+            WHERE ak.user_id = $1 AND NOT ak.revoked
+            GROUP BY ak.id
+            """,
+            user_id
+        )
+        return {row["key_id"]: {"requests": row["request_count"], "credits": row["credits_used"]} for row in rows}
+
+
 # =============================================================================
 # Enriched Contacts Operations
 # =============================================================================
