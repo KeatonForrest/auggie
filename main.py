@@ -66,6 +66,7 @@ app = FastAPI(
     description="AI-powered account research for sales teams",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/openapi-docs",
 )
 
 # Session middleware for OAuth state
@@ -142,6 +143,16 @@ async def home(request: Request):
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
         }
+    )
+
+
+@app.get("/docs", response_class=HTMLResponse)
+async def docs_page(request: Request):
+    """Public API documentation page."""
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "docs.html",
+        {"request": request, "user": user}
     )
 
 

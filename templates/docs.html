@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}API Documentation — Auggie{% endblock %}
+
+{% block layout %}
+<div class="flex gap-8">
+    <!-- Sticky TOC Sidebar -->
+    <aside class="w-56 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-6 space-y-1 text-sm">
+            <a href="#getting-started" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Getting Started</a>
+            <a href="#authentication" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Authentication</a>
+            <a href="#research" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Research</a>
+            <a href="#sequences" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Sequences</a>
+            <a href="#webhooks" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Webhooks</a>
+            <a href="#error-codes" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Error Codes</a>
+            <a href="#rate-limits" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Rate Limits</a>
+        </nav>
+    </aside>
+
+    <!-- Docs Content -->
+    <main class="flex-1 min-w-0">
+        <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">API Documentation</h1>
+                <p class="mt-2 text-gray-600">Programmatic access to Auggie's AI-powered account research.</p>
+            </div>
+
+            <!-- Getting Started -->
+            <section id="getting-started">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Getting Started</h2>
+                <p class="text-gray-700 mb-3">Base URL for all API requests:</p>
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>https://auggie.app/v1</code></pre>
+                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-2">How it works</h3>
+                <ol class="list-decimal list-inside text-gray-700 space-y-2">
+                    <li><strong>Create an API key</strong> at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>.</li>
+                    <li><strong>Submit a company URL</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/research</code>. This returns a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">job_id</code> immediately.</li>
+                    <li><strong>Poll for results</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/research/{job_id}</code>, or register a <a href="#webhooks" class="text-blue-600 hover:underline">webhook</a> to be notified when the job completes.</li>
+                    <li><strong>Generate outreach</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/research/{doc_id}/sequence</code> using the completed document.</li>
+                </ol>
+            </section>
+
+            <!-- Authentication -->
+            <section id="authentication">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Authentication</h2>
+                <p class="text-gray-700 mb-3">All API requests require a Bearer token. Create API keys at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>.</p>
+                <p class="text-gray-700 mb-3">Include the key in the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code> header:</p>
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>Authorization: Bearer aug_your_api_key_here</code></pre>
+                <p class="text-gray-500 text-sm mt-3">Keys are shown once on creation. Store them securely — they cannot be retrieved later.</p>
+            </section>
+
+            <!-- Research -->
+            <section id="research">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Research</h2>
+
+                <!-- POST /v1/research -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Start an async research job. Returns immediately with a job ID. Costs 1 credit.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "company_url": "https://example.com"
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "job_id": 42,
+  "status": "processing"
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"company_url": "https://example.com"}'</code></pre>
+                </div>
+
+                <!-- GET /v1/research/{job_id} -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research/{job_id}</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Poll for job status. Returns the full research document when completed.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — processing</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "job_id": 42,
+  "status": "processing",
+  "company_url": "https://example.com",
+  "created_at": "2026-01-28T12:00:00",
+  "completed_at": null
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — completed</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "job_id": 42,
+  "status": "completed",
+  "company_url": "https://example.com",
+  "created_at": "2026-01-28T12:00:00",
+  "completed_at": "2026-01-28T12:01:30",
+  "document_id": 15,
+  "company_name": "Example Inc",
+  "scores": {
+    "composite": 78,
+    "pain": 85,
+    "fit": 72,
+    "timing": 80,
+    "summary": "Strong fit with active pain points."
+  },
+  "sections": {
+    "company_overview": "...",
+    "projects_initiatives": "...",
+    "confirmed_tech_stack": "...",
+    "hiring_signals": "...",
+    "business_problems": "...",
+    "existential_data_points": "...",
+    "product_fit": "...",
+    "talking_points": "...",
+    "recent_news": "...",
+    "key_contacts": "...",
+    "information_gaps": "..."
+  }
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/42 \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+
+                <!-- GET /v1/research -->
+                <div class="border rounded-lg p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">List your recent research jobs.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "jobs": [
+    {
+      "job_id": 42,
+      "company_url": "https://example.com",
+      "status": "completed",
+      "document_id": 15,
+      "error": null,
+      "created_at": "2026-01-28T12:00:00",
+      "completed_at": "2026-01-28T12:01:30"
+    }
+  ]
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+            </section>
+
+            <!-- Sequences -->
+            <section id="sequences">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Sequences</h2>
+
+                <div class="border rounded-lg p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research/{doc_id}/sequence</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Generate a 3-email outreach sequence from a completed research document. Requires a completed document ID.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "success": true,
+  "document_id": 15,
+  "emails": [
+    {
+      "email_number": 1,
+      "subject": "Quick question about your stack",
+      "body": "Hi ..."
+    },
+    {
+      "email_number": 2,
+      "subject": "Following up",
+      "body": "Hi ..."
+    },
+    {
+      "email_number": 3,
+      "subject": "Last note",
+      "body": "Hi ..."
+    }
+  ]
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research/15/sequence \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+            </section>
+
+            <!-- Webhooks -->
+            <section id="webhooks">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Webhooks</h2>
+                <p class="text-gray-700 mb-4">Register a webhook URL to receive notifications when research jobs complete, instead of polling.</p>
+
+                <!-- POST /v1/webhooks/register -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/webhooks/register</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Register or update your webhook URL. Returns a secret for HMAC signature verification.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "url": "https://yourserver.com/webhook"
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "url": "https://yourserver.com/webhook",
+  "secret": "a1b2c3...hex...",
+  "active": true
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/webhooks/register \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://yourserver.com/webhook"}'</code></pre>
+                </div>
+
+                <!-- GET /v1/webhooks -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/webhooks</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Get your current webhook configuration.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "url": "https://yourserver.com/webhook",
+  "active": true
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/webhooks \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+
+                <!-- DELETE /v1/webhooks -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded">DELETE</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/webhooks</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Remove your webhook. Returns 204 on success.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X DELETE https://auggie.app/v1/webhooks \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+
+                <!-- HMAC Verification -->
+                <div class="border rounded-lg p-5">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Verifying webhook signatures</h3>
+                    <p class="text-gray-700 mb-3">Each webhook delivery includes an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">X-Auggie-Signature</code> header containing an HMAC-SHA256 hex digest. Verify it using the secret returned at registration:</p>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>import hashlib, hmac, json
+
+def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
+    """Verify an Auggie webhook signature."""
+    body = json.dumps(
+        json.loads(payload),
+        separators=(",", ":"),
+        sort_keys=True
+    ).encode()
+    expected = hmac.new(
+        secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)</code></pre>
+                </div>
+            </section>
+
+            <!-- Error Codes -->
+            <section id="error-codes">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Error Codes</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold text-gray-700">Status</th>
+                                <th class="px-4 py-3 font-semibold text-gray-700">Meaning</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-gray-800">401</td>
+                                <td class="px-4 py-3 text-gray-700">Missing or invalid API key.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-gray-800">402</td>
+                                <td class="px-4 py-3 text-gray-700">No credits remaining. Purchase more at <a href="/billing/buy-credits" class="text-blue-600 hover:underline">/billing/buy-credits</a>.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-gray-800">404</td>
+                                <td class="px-4 py-3 text-gray-700">Resource not found (job, document, or webhook).</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-gray-800">422</td>
+                                <td class="px-4 py-3 text-gray-700">Invalid request body or company URL (e.g., private IP, malformed URL).</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-gray-800">429</td>
+                                <td class="px-4 py-3 text-gray-700">Rate limit exceeded. Check the <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Retry-After</code> header.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Rate Limits -->
+            <section id="rate-limits">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Rate Limits</h2>
+                <p class="text-gray-700 mb-4">Limits are per API key, using a sliding window. Exceeding a limit returns <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">429</code> with a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Retry-After</code> header.</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold text-gray-700">Endpoint Group</th>
+                                <th class="px-4 py-3 font-semibold text-gray-700">Limit</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-3 text-gray-800"><code class="text-xs">POST /v1/research</code>, <code class="text-xs">POST /v1/enrich</code></td>
+                                <td class="px-4 py-3 text-gray-700">10 requests / 60 seconds</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 text-gray-800"><code class="text-xs">POST /v1/research/{id}/sequence</code></td>
+                                <td class="px-4 py-3 text-gray-700">20 requests / 60 seconds</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 text-gray-800">All other endpoints (<code class="text-xs">GET /v1/research</code>, <code class="text-xs">GET /v1/ping</code>, webhooks)</td>
+                                <td class="px-4 py-3 text-gray-700">60 requests / 60 seconds</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+{% endblock %}
