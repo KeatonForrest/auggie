@@ -184,6 +184,17 @@ MongoDB handles the mixed workload pattern your AI agents need. Worth a short co
 
 ---
 
+**SUBJECT LINE**
+
+Write one subject line for the entire sequence. Emails 2 and 3 will appear as replies in the same thread.
+
+Subject should:
+- Hint at a specific insight, not generic
+- Under 50 characters
+- No clickbait
+
+---
+
 **BEFORE YOU SUBMIT**
 
 Count the words in each email body. If any email exceeds its limit, rewrite shorter.
@@ -193,21 +204,17 @@ Count the words in each email body. If any email exceeds its limit, rewrite shor
 Present your final output in this format:
 
 <email_series>
-<email1>
-Subject: [subject line]
+<subject>[subject line for entire sequence]</subject>
 
+<email1>
 [body]
 </email1>
 
 <email2>
-Subject: [subject line]
-
 [body]
 </email2>
 
 <email3>
-Subject: [subject line]
-
 [body]
 </email3>
 </email_series>
@@ -217,20 +224,17 @@ Subject: [subject line]
         """Parse the email series from the response."""
         emails = []
 
+        # Extract the single subject line for the sequence
+        subject_match = re.search(r"<subject>(.*?)</subject>", response, re.DOTALL)
+        subject = subject_match.group(1).strip() if subject_match else "Following up"
+
         # Extract each email block
         for i in range(1, 4):
             pattern = f"<email{i}>(.*?)</email{i}>"
             match = re.search(pattern, response, re.DOTALL)
 
             if match:
-                content = match.group(1).strip()
-
-                # Extract subject line
-                subject_match = re.search(r"Subject:\s*(.+?)(?:\n|$)", content)
-                subject = subject_match.group(1).strip() if subject_match else f"Email {i}"
-
-                # Extract body (everything after subject line)
-                body = re.sub(r"Subject:\s*.+?\n", "", content, count=1).strip()
+                body = match.group(1).strip()
 
                 emails.append({
                     "email_number": i,
