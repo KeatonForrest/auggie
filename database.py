@@ -322,6 +322,55 @@ async def init_database():
         """)
 
         # =================================================================
+        # Bulk Jobs tables
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS bulk_jobs (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                api_key_id BIGINT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                name TEXT,
+                status TEXT NOT NULL DEFAULT 'processing'
+                    CHECK (status IN ('processing', 'completed', 'partial_failure', 'failed')),
+                total_items INTEGER NOT NULL,
+                completed_items INTEGER NOT NULL DEFAULT 0,
+                failed_items INTEGER NOT NULL DEFAULT 0,
+                credits_reserved INTEGER NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                completed_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_bulk_jobs_user
+            ON bulk_jobs(user_id, created_at DESC)
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS bulk_job_items (
+                id BIGSERIAL PRIMARY KEY,
+                bulk_job_id BIGINT NOT NULL REFERENCES bulk_jobs(id) ON DELETE CASCADE,
+                research_job_id BIGINT REFERENCES research_jobs(id) ON DELETE SET NULL,
+                company_url TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+                document_id BIGINT REFERENCES research_documents(id) ON DELETE SET NULL,
+                error_message TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                completed_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_bulk_job_items_bulk
+            ON bulk_job_items(bulk_job_id)
+        """)
+
+        # Mark stale bulk jobs as failed
+        await conn.execute("""
+            UPDATE bulk_jobs SET status = 'failed', completed_at = NOW()
+            WHERE status = 'processing' AND created_at < NOW() - INTERVAL '30 minutes'
+        """)
+
+        # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
         # =================================================================
@@ -1223,3 +1272,146 @@ async def update_delivery_status(
             """,
             delivery_id, status, http_status, error_message
         )
+
+
+# =============================================================================
+# Bulk Job Operations
+# =============================================================================
+
+async def create_bulk_job(user_id: int, api_key_id: int, name: str | None, total_items: int, credits_reserved: int) -> dict:
+    """Create a new bulk job. Returns the job record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO bulk_jobs (user_id, api_key_id, name, total_items, credits_reserved)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            """,
+            user_id, api_key_id, name, total_items, credits_reserved
+        )
+        return dict(row)
+
+
+async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
+    """Get a bulk job by ID (scoped to user)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM bulk_jobs WHERE id = $1 AND user_id = $2",
+            bulk_job_id, user_id
+        )
+        return dict(row) if row else None
+
+
+async def list_bulk_jobs(user_id: int, limit: int = 20) -> list[dict]:
+    """List recent bulk jobs for a user."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, name, status, total_items, completed_items, failed_items,
+                   credits_reserved, created_at, completed_at
+            FROM bulk_jobs
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            user_id, limit
+        )
+        return [dict(row) for row in rows]
+
+
+async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]:
+    """Batch-insert items for a bulk job. Returns list of item records."""
+    async with _pool.acquire() as conn:
+        rows = []
+        for url in urls:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO bulk_job_items (bulk_job_id, company_url)
+                VALUES ($1, $2)
+                RETURNING *
+                """,
+                bulk_job_id, url
+            )
+            rows.append(dict(row))
+        return rows
+
+
+async def get_bulk_job_items(bulk_job_id: int) -> list[dict]:
+    """Get all items for a bulk job."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, bulk_job_id, research_job_id, company_url, status,
+                   document_id, error_message, created_at, completed_at
+            FROM bulk_job_items
+            WHERE bulk_job_id = $1
+            ORDER BY id
+            """,
+            bulk_job_id
+        )
+        return [dict(row) for row in rows]
+
+
+async def update_bulk_job_item(
+    item_id: int,
+    status: str,
+    research_job_id: int | None = None,
+    document_id: int | None = None,
+    error_message: str | None = None,
+) -> None:
+    """Update a bulk job item and atomically increment parent counters."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            # Update the item
+            await conn.execute(
+                """
+                UPDATE bulk_job_items
+                SET status = $2, research_job_id = $3, document_id = $4,
+                    error_message = $5,
+                    completed_at = CASE WHEN $2 IN ('completed', 'failed') THEN NOW() ELSE completed_at END
+                WHERE id = $1
+                """,
+                item_id, status, research_job_id, document_id, error_message
+            )
+            # Increment parent counters
+            if status == 'completed':
+                await conn.execute(
+                    """
+                    UPDATE bulk_jobs SET completed_items = completed_items + 1
+                    WHERE id = (SELECT bulk_job_id FROM bulk_job_items WHERE id = $1)
+                    """,
+                    item_id
+                )
+            elif status == 'failed':
+                await conn.execute(
+                    """
+                    UPDATE bulk_jobs SET failed_items = failed_items + 1
+                    WHERE id = (SELECT bulk_job_id FROM bulk_job_items WHERE id = $1)
+                    """,
+                    item_id
+                )
+
+
+async def finalize_bulk_job(bulk_job_id: int) -> dict:
+    """Set final status and completed_at on a bulk job. Returns updated record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT total_items, completed_items, failed_items FROM bulk_jobs WHERE id = $1",
+            bulk_job_id
+        )
+        if row["failed_items"] == row["total_items"]:
+            final_status = "failed"
+        elif row["failed_items"] > 0:
+            final_status = "partial_failure"
+        else:
+            final_status = "completed"
+
+        updated = await conn.fetchrow(
+            """
+            UPDATE bulk_jobs SET status = $2, completed_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            """,
+            bulk_job_id, final_status
+        )
+        return dict(updated)

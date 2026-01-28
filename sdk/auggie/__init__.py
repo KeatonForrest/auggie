@@ -104,6 +104,25 @@ class AuggieClient:
         return self._request("GET", "/v1/research")
 
     # ------------------------------------------------------------------
+    # Bulk Research
+    # ------------------------------------------------------------------
+
+    def bulk_research(self, company_urls: list[str], name: str | None = None) -> dict:
+        """Submit a bulk research job. Returns ``{"bulk_job_id": ..., "status": "processing", "total_items": N}``."""
+        payload: dict = {"company_urls": company_urls}
+        if name is not None:
+            payload["name"] = name
+        return self._request("POST", "/v1/research/bulk", json=payload)
+
+    def get_bulk_job(self, bulk_job_id: int) -> dict:
+        """Get bulk job progress and items."""
+        return self._request("GET", f"/v1/research/bulk/{bulk_job_id}")
+
+    def list_bulk_jobs(self) -> dict:
+        """List recent bulk jobs."""
+        return self._request("GET", "/v1/research/bulk")
+
+    # ------------------------------------------------------------------
     # Sequences
     # ------------------------------------------------------------------
 
