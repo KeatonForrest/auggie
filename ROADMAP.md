@@ -245,6 +245,46 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 
 ---
 
+## Phase 6a.1: Clay Marketplace
+**Status:** Planned (start when API is stable, ~week 5)
+**Timeline:** 30-60 day onboarding process (runs in background)
+
+Become an official enrichment provider in Clay's marketplace. This is the primary distribution channel for API adoption.
+
+### Why Clay First
+- 150+ enrichment providers, but none do pain-based scoring
+- Clay users are exactly our ICP: RevOps teams building outbound workflows
+- Marketplace listing = free distribution to Clay's entire customer base
+- Co-marketing starts after integration is live
+
+### Steps
+- [ ] Build API (Phase 6a prerequisite)
+- [ ] Contact Clay Data Partnerships Team
+- [ ] Join shared Slack channel with Clay engineer
+- [ ] Build Clay-compatible enrichment endpoint
+- [ ] Test integration end-to-end
+- [ ] Publish to Clay marketplace (site, docs, product search)
+- [ ] Create Clay workflow template: "Pain-Based Outbound"
+
+### Auggie as a Clay Column
+```
+Clay Table:
+┌──────────┬─────────────┬───────────────┬─────────────┬──────────────┐
+│ Domain   │ Auggie Pain │ Auggie Why    │ LeadMagic   │ Auggie       │
+│          │ Score       │               │ Contact     │ Sequence     │
+├──────────┼─────────────┼───────────────┼─────────────┼──────────────┤
+│ acme.com │ 9           │ Scaling + 4mo │ mike@acme   │ Mike - saw...│
+│          │             │ backend role  │             │              │
+└──────────┴─────────────┴───────────────┴─────────────┴──────────────┘
+```
+
+### Success Criteria
+- Listed in Clay marketplace
+- 20+ Clay users using Auggie enrichment within 60 days of listing
+- Clay workflow template published and discoverable
+
+---
+
 ## Phase 6b: Intelligence Orchestration (Enterprise)
 **Status:** Planned (after 6a)
 
@@ -445,6 +485,7 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 | Week 3 | Phase 6a | Sequences + webhooks |
 | Week 4 | Phase 6a | Bulk lists |
 | Week 5 | Phase 6a | Docs + Clay integration guide |
+| Week 5 | Phase 6a.1 | Apply to Clay Marketplace (30-60 day onboarding) |
 | Month 2 | Phase 6b | Ingest integrations (Clay, CSV) |
 | Month 2 | Phase 7 | Bulk workflows UI |
 | Month 2-3 | Phase 6b | Execute integrations (Instantly) |
