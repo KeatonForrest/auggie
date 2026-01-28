@@ -339,6 +339,7 @@ async def create_research(
             product_context=user["product_context"],  # From user profile!
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,  # v2: Include materials
+            seller_company=user.get("company_name", ""),  # For competitor detection
         )
 
         # Save document and deduct credit (skip for admins)
@@ -506,6 +507,7 @@ async def api_create_research(
             product_context=user["product_context"],
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,
+            seller_company=user.get("company_name", ""),
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id

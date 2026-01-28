@@ -15,7 +15,7 @@ class ClaudeService:
         self.settings = get_settings()
         self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
 
-    def _build_system_prompt(self, product_context: str, retrieved_materials: str = "") -> str:
+    def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "") -> str:
         """Build the system prompt defining Claude's research analyst role."""
         base_prompt = f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
 
@@ -48,9 +48,28 @@ The company data contains several types of information with different reliabilit
 
 5. **Firmographic Data** - Company size, industry, funding, contacts
 
+YOUR COMPANY: {seller_company}
+
 YOUR PRODUCT CONTEXT (the product you are selling):
 
 {product_context}
+"""
+
+        # Add background knowledge constraints if seller company is provided
+        if seller_company:
+            base_prompt += f"""
+BACKGROUND KNOWLEDGE ABOUT {seller_company.upper()}:
+
+You may use your background knowledge about {seller_company} ONLY for:
+- Identifying competitors in the prospect's tech stack (flag technologies that compete with {seller_company})
+- Understanding general product positioning and problem space
+
+Do NOT use background knowledge for:
+- Specific features or capabilities (use only what is stated in product context or materials)
+- Case studies or customer names (use only what is in uploaded materials)
+- Metrics, pricing, or ROI claims
+
+When you identify a competitor in their stack, note it as: "**Competitor detected:** [technology] - competes with {seller_company}"
 """
 
         # Add materials section if available - this is now the PRIMARY source for product details
@@ -336,9 +355,10 @@ Remember: The goal is to arm the salesperson with insights so specific that the 
         product_context: str,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
         retrieved_materials: str = "",
+        seller_company: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
-        system_prompt = self._build_system_prompt(product_context, retrieved_materials)
+        system_prompt = self._build_system_prompt(product_context, retrieved_materials, seller_company)
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         message = self.client.messages.create(
