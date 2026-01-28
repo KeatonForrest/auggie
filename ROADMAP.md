@@ -231,11 +231,20 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 
 ### Key API Outputs
 
+**Free / Credits:**
+
 | Endpoint | Returns |
 |----------|---------|
-| `/v1/research` | pain_score, pain_summary, research, talking_points |
-| `/v1/research/{id}/sequence` | 3-email sequence personalized to contact |
-| `/v1/lists/{id}/accounts` | All accounts sorted by pain score |
+| `/v1/research` | Research document, talking points |
+| `/v1/research/{id}/sequence` | 3-email sequence (BYOC) |
+
+**Pro+ (Opportunity Score unlocked):**
+
+| Endpoint | Returns |
+|----------|---------|
+| `/v1/research` | Opportunity score (pain + fit + timing), research, talking points |
+| `/v1/research/{id}/sequence` | 3-email sequence with contact (via LeadMagic) |
+| `/v1/lists/{id}/accounts` | All accounts sorted by opportunity score |
 
 ### Success Criteria
 - 10 API customers in 90 days
@@ -339,9 +348,61 @@ Upload list → Analyze all → Enrich high-pain → Write sequences → Push to
 6. EXECUTE: Push 87 sequences + contacts to Instantly
 ```
 
-### Pain Scoring
-- [ ] Numeric pain score (1-10) based on existential data points
-- [ ] Pain categories (scaling, cost, technical debt, competitive, organizational)
+### Opportunity Scoring (Pro+ only)
+
+Composite score built from data Auggie actually has. Not available on Free/Credits tiers.
+
+**Three factors:**
+
+**Pain (40%) - "Are they hurting?"**
+Data: Tech stack, job postings, news, website content
+- Existential data points (Data Cocktail combinations)
+- Roles open 4+ months
+- Competitor detected in stack
+- Scaling/performance signals
+- Deprecated tech detected
+
+**Fit (35%) - "Should we be selling to them?"**
+Data: User's onboarding ICP context + scraped company data
+- Industry matches ICP
+- Company size matches target
+- Target persona titles in job postings
+- Tech stack overlaps with product use case
+- Stated problems match what seller solves
+
+**Timing (25%) - "Should we call now or later?"**
+Data: News, job postings, investor relations
+- Funding announced in last 6 months
+- Hiring spike (5+ relevant roles)
+- Leadership change / reorg signals
+- Active vendor evaluation signals
+- Role age (new = building, old = struggling)
+
+**Composite formula:**
+```
+Opportunity Score = (Pain × 0.40) + (Fit × 0.35) + (Timing × 0.25)
+```
+
+**Output format:**
+```
+OPPORTUNITY SCORE: 8.1 / 10
+
+Pain:    9/10  (PostgreSQL scaling + 4mo backend role)
+Fit:     8/10  (mid-market SaaS, target personas present)
+Timing:  7/10  (Series B announced, hiring spike)
+
+Summary: Strong pain signals with high ICP fit.
+Recent Series B creates urgency.
+```
+
+**Implementation:**
+- [ ] Add scoring criteria to Claude research prompt
+- [ ] Parse structured score from research output
+- [ ] Add pain_score, fit_score, timing_score, opportunity_score to models
+- [ ] Add scoring columns to database
+- [ ] Display score on research document (Pro+ only)
+- [ ] Gate scoring behind tier check
+- [ ] Make weights configurable per customer (future)
 - [ ] Prioritized list: "Call these 47 first"
 
 ### API
@@ -408,13 +469,13 @@ Where you work (auggie.tools vs Clay) shouldn't change what you pay.
 
 ### Tier Structure
 
-| Tier | Price | Volume | Enrichment | Access | Features |
-|------|-------|--------|------------|--------|----------|
-| Free | $0 | 1 research | None | UI only | Try it out |
-| Credits | $10/10 | Pay as you go | None (BYOC) | UI + API | Individual users |
-| Pro | $99/mo | 100/mo | LeadMagic included | UI + API | Full orchestration |
-| Team | $299/mo | 500/mo | LeadMagic included | UI + API | 10 seats, shared materials |
-| Enterprise | Custom | Unlimited | Everything included | UI + API | SSO, bulk, SLA |
+| Tier | Price | Volume | Scoring | Enrichment | Access |
+|------|-------|--------|---------|------------|--------|
+| Free | $0 | 1 research | Research only | None | UI only |
+| Credits | $10/10 | Pay as you go | Research only | None (BYOC) | UI + API |
+| Pro | $99/mo | 100/mo | Opportunity Score | LeadMagic included | UI + API |
+| Team | $299/mo | 500/mo | Opportunity Score | LeadMagic included | UI + API |
+| Enterprise | Custom | Unlimited | Opportunity Score (custom weights) | Everything included | UI + API |
 
 **BYOC** = Bring Your Own Contact (customer provides contact info for sequences)
 
@@ -423,16 +484,22 @@ Where you work (auggie.tools vs Clay) shouldn't change what you pay.
 **Free / Credits (BYOC)**
 ```
 You provide: Domain
-Auggie returns: Pain score, research, talking points
-You provide: Contact info
-Auggie returns: Personalized sequence
+Auggie returns: Research, talking points, sequences
+No scoring. No prioritization. One account at a time.
 ```
 
 **Pro and above (Full Orchestration)**
 ```
-You provide: Domain
-Auggie returns: Pain score, research, contact (via LeadMagic), sequence - all in one
+You provide: Domain (or list of 500)
+Auggie returns:
+  - Opportunity Score (Pain + Fit + Timing)
+  - Research document
+  - Contact via LeadMagic
+  - Personalized sequence
+  - Prioritized list: "Call these 87 first"
 ```
+
+**The gate:** Free/Credits users get the research. Pro+ users get the *intelligence* - scoring, prioritization, and enrichment. The research hooks them, the scoring converts them.
 
 ### Unit Economics
 
