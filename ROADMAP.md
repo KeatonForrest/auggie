@@ -359,50 +359,75 @@ CREATE TABLE list_accounts (
 
 ---
 
-## Pricing (Current - Consumption Model)
+## Pricing
 
-| Tier | Price | Credits | Features |
-|------|-------|---------|----------|
-| Free | $0 | 1 credit | Full research, PVP emails |
-| Credits | $10 | 10 credits | Same features, pay as you go |
+### Philosophy: One Product, Two Interfaces
 
-Simple consumption model - no subscriptions, no monthly limits. Users buy credits when they need them.
+UI and API are the same product. Same features at each tier, different access method.
+Where you work (auggie.tools vs Clay) shouldn't change what you pay.
+
+### Tier Structure
+
+| Tier | Price | Volume | Enrichment | Access | Features |
+|------|-------|--------|------------|--------|----------|
+| Free | $0 | 1 research | None | UI only | Try it out |
+| Credits | $10/10 | Pay as you go | None (BYOC) | UI + API | Individual users |
+| Pro | $99/mo | 100/mo | LeadMagic included | UI + API | Full orchestration |
+| Team | $299/mo | 500/mo | LeadMagic included | UI + API | 10 seats, shared materials |
+| Enterprise | Custom | Unlimited | Everything included | UI + API | SSO, bulk, SLA |
+
+**BYOC** = Bring Your Own Contact (customer provides contact info for sequences)
+
+### What Each Tier Unlocks
+
+**Free / Credits (BYOC)**
+```
+You provide: Domain
+Auggie returns: Pain score, research, talking points
+You provide: Contact info
+Auggie returns: Personalized sequence
+```
+
+**Pro and above (Full Orchestration)**
+```
+You provide: Domain
+Auggie returns: Pain score, research, contact (via LeadMagic), sequence - all in one
+```
+
+### Unit Economics
+
+**Base research (all tiers):**
+| Cost Component | Estimate |
+|----------------|----------|
+| Firecrawl (scraping) | $0.10-0.15 |
+| Claude Opus 4 (research) | $0.45-0.60 |
+| SerpAPI (news) | $0.01 |
+| Claude Sonnet 4 (sequence) | $0.06 |
+| **COGS (BYOC)** | **$0.62-0.82** |
+
+**With enrichment (Pro+):**
+| Cost Component | Estimate |
+|----------------|----------|
+| Base COGS | $0.62-0.82 |
+| LeadMagic (contact) | $0.10-0.20 |
+| **COGS (Full)** | **$0.72-1.02** |
+
+**Margin by tier:**
+| Tier | Revenue/research | COGS | Margin |
+|------|------------------|------|--------|
+| Credits | $1.00 | $0.62-0.82 | 18-38% |
+| Pro ($99/100) | $0.99 | $0.72-1.02 | Break-even to 27% |
+| Team ($299/500) | $0.60 | $0.72-1.02 | Negative at full usage |
+| Enterprise | Custom | $0.72-1.02 | Price for margin |
+
+**Note:** Team/Enterprise margins work because most customers don't use full allocation.
+At 60% utilization, Team margin is healthy. Enterprise priced per deal.
 
 ### Admin Accounts
 Internal users can be granted unlimited free usage:
 ```sql
 UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 ```
-
-### Unit Economics (per research)
-| Cost Component | Estimate |
-|----------------|----------|
-| Firecrawl (scraping) | $0.10-0.15 |
-| Claude Opus 4 (research) | $0.45-0.60 |
-| SerpAPI (news) | $0.01 |
-| **Base COGS** | **$0.56-0.76** |
-
-| Optional | Estimate |
-|----------|----------|
-| Claude Sonnet 4 (emails) | $0.06 |
-| OpenAI embeddings (materials) | $0.01 |
-
-| Metric | Value |
-|--------|-------|
-| **Revenue** | **$1.00** |
-| **Gross Margin** | **24-44%** |
-
-Free tier cost: ~$0.60/user (1 research). Break-even at ~8% conversion rate.
-
-### Future Tiers (Enterprise Orchestration)
-| Tier | Price | Model | Features |
-|------|-------|-------|----------|
-| Pro | $49/mo | 50 researches/mo | Individual user, all integrations |
-| Team | $199/mo | 250 researches/mo | 5 seats, shared materials, team dashboard |
-| Enterprise | Custom | Volume pricing | Unlimited seats, SSO, API, bulk workflows, SLA |
-
-**Enterprise value prop:** Not paying per research - paying for orchestration.
-Flat fee for the intelligence layer, regardless of volume.
 
 ---
 
