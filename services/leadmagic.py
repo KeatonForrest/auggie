@@ -37,8 +37,10 @@ class LeadMagicService:
                         "job_title": job_title,
                     },
                 )
+                print(f"[LeadMagic] role-finder for '{job_title}' at '{company_domain}': status={resp.status_code}")
                 if resp.status_code == 200:
                     data = resp.json()
+                    print(f"[LeadMagic] response: {data}")
                     if data.get("message") == "Role Found" and data.get("name"):
                         return {
                             "name": data.get("name", ""),
@@ -48,6 +50,8 @@ class LeadMagicService:
                             "profile_url": data.get("profile_url", ""),
                             "company_name": data.get("company_name", ""),
                         }
+                else:
+                    print(f"[LeadMagic] error response: {resp.text}")
                 return None
             except Exception as e:
                 print(f"LeadMagic role-finder error: {e}")
