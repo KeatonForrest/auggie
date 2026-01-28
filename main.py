@@ -527,12 +527,8 @@ async def enrich_document_contacts(
 
 def _build_target_titles(user: dict) -> list[str]:
     """Build a list of target job titles from user's ICP settings."""
-    # Combine user's target level + function into reasonable titles
-    levels = (user.get("target_level") or "").split(",")
-    functions = (user.get("target_function") or "").split(",")
-
-    levels = [l.strip() for l in levels if l.strip()]
-    functions = [f.strip() for f in functions if f.strip()]
+    # Parse from stored personas string: "Levels: VP, Director | Functions: Engineering / Product"
+    levels, functions = parse_personas_string(user.get("target_personas") or "")
 
     # Map to common job titles
     title_map = {
