@@ -50,18 +50,19 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 
 ---
 
-## Current Status: v2 LIVE IN PRODUCTION
+## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API COMPLETE
 - Core research generation working (Claude Opus 4)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
 - Consumption pricing (1 free, $10 for 10 credits) working
 - Admin accounts (unlimited usage for internal users)
+- Public API with async jobs, webhooks, rate limiting, sequence generation
 - Live at https://auggie.tools
 
 ---
 
 ## Phase 1: Production Launch
-**Status:** Ready to deploy
+**Status:** COMPLETE
 
 - [x] Core research generation
 - [x] Materials upload (PDF, DOCX, PPTX)
@@ -81,7 +82,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 ---
 
 ## Phase 2: Contact Enrichment
-**Status:** DISABLED (evaluating providers)
+**Status:** DISABLED (evaluating providers, code in place)
 
 Built LeadMagic integration (role-finder + email-finder) but disabled after testing showed stale/inaccurate contact data (wrong titles, people who left companies, incorrect role matches).
 
@@ -132,7 +133,7 @@ CREATE TABLE outreach_drafts (
 
 ---
 
-## Phase 3.5: Microsoft OAuth
+## Phase 4: Microsoft OAuth
 **Status:** COMPLETE
 
 Add Microsoft sign-in for MSP customers using Azure/M365.
@@ -170,69 +171,28 @@ MICROSOFT_CLIENT_SECRET=your_secret
 
 ---
 
-## Phase 4: Team Accounts
-**Status:** Planned
-
-Enable businesses to have multiple users under one organization.
-
-- [ ] Org/team data model
-- [ ] Invite team members
-- [ ] Role-based access (Admin, Member, Viewer)
-- [ ] Centralized billing (one bill per org)
-- [ ] Shared materials library
-- [ ] Usage dashboard (who researched what)
-
----
-
-## Phase 5: Enterprise Auth & Security
-**Status:** Planned
-
-Required for enterprise sales.
-
-- [ ] SSO (SAML/OIDC) - Okta, Azure AD, Google Workspace
-- [ ] SCIM user provisioning
-- [ ] Audit logs
-- [ ] Data retention controls
-- [ ] SOC 2 compliance prep
-
----
-
-## Phase 6a: Public API
-**Status:** IN PROGRESS
+## Phase 5: Public API
+**Status:** COMPLETE
 **PRD:** [PRD_API.md](./PRD_API.md)
 
 The API is the foundation for enterprise. Without it, no Clay integration, no bulk workflows, no "intelligence layer" positioning.
 
-### Core Deliverables
-
-**Week 1-2: Core API**
+### What's Built
 - [x] API key generation + management (bcrypt hashed, sk_live_ prefix)
-- [x] `POST /v1/research` - Create research, get opportunity score
+- [x] `POST /v1/research` - Async research (returns job_id, HTTP 202)
+- [x] `GET /v1/research/{job_id}` - Poll for job status + full results
+- [x] `GET /v1/research` - List user's recent jobs
+- [x] `POST /v1/research/{id}/sequence` - Generate 3-email PVP sequence
 - [x] `POST /v1/enrich` - Contact enrichment (disabled, see Phase 2)
 - [x] `GET /v1/ping` - Health check
 - [x] Opportunity scoring (Pain 40%, Fit 35%, Timing 25%)
 - [x] SSRF protection on all research endpoints
-- [x] Credit deduction (cents-based fractional credits)
-- [ ] Rate limiting
-- [ ] `GET /v1/research/{id}` - Retrieve existing research
-
-**Week 3: Sequences + Webhooks**
-- [ ] `POST /v1/research/{id}/sequence` - Generate sequence
-- [ ] Webhook delivery system
-- [ ] Async research option
-
-**Week 4: Bulk/Lists**
-- [ ] `POST /v1/lists` - Create list from domains
-- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores
-- [ ] Background job processing
-- [ ] Progress webhooks
-
-**Week 5: Polish + Docs**
-- [ ] API documentation (Mintlify)
-- [ ] Python SDK (basic)
-- [ ] Clay integration guide
-- [ ] Dashboard: API key management
-- [ ] Dashboard: Usage tracking
+- [x] Credit deduction (cents-based fractional credits) with upfront reservation + refund on failure
+- [x] Rate limiting (in-memory sliding window per API key)
+- [x] Webhook registration (`POST /v1/webhooks/register`, `GET /v1/webhooks`, `DELETE /v1/webhooks`)
+- [x] Webhook delivery with HMAC-SHA256 signing on job completion
+- [x] Stale job cleanup on app startup (marks processing jobs >10min as failed)
+- [x] Dashboard: API key management
 
 ### Key API Outputs
 
@@ -259,8 +219,27 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 
 ---
 
-## Phase 6a.1: Clay Marketplace
-**Status:** Planned (start when API is stable, ~week 5)
+## Phase 6: Bulk Lists + Docs + SDK
+**Status:** NEXT
+
+Build bulk processing and developer documentation.
+
+### Bulk/Lists
+- [ ] `POST /v1/lists` - Create list from domains
+- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores
+- [ ] Background job processing (reuses async job infrastructure)
+- [ ] Progress webhooks
+
+### Docs + SDK
+- [ ] API documentation (Mintlify)
+- [ ] Python SDK (basic)
+- [ ] Clay integration guide
+- [ ] Dashboard: Usage tracking
+
+---
+
+## Phase 7: Clay Marketplace
+**Status:** Planned
 **Timeline:** 30-60 day onboarding process (runs in background)
 
 Become an official enrichment provider in Clay's marketplace. This is the primary distribution channel for API adoption.
@@ -272,7 +251,7 @@ Become an official enrichment provider in Clay's marketplace. This is the primar
 - Co-marketing starts after integration is live
 
 ### Steps
-- [ ] Build API (Phase 6a prerequisite)
+- [x] Build API (Phase 5 prerequisite)
 - [ ] Contact Clay Data Partnerships Team
 - [ ] Join shared Slack channel with Clay engineer
 - [ ] Build Clay-compatible enrichment endpoint
@@ -299,8 +278,8 @@ Clay Table:
 
 ---
 
-## Phase 6b: Intelligence Orchestration (Enterprise)
-**Status:** Planned (after 6a)
+## Phase 8: Intelligence Orchestration (Enterprise)
+**Status:** Planned
 
 Transform Auggie into the orchestration layer for sales intelligence.
 
@@ -331,7 +310,7 @@ Transform Auggie into the orchestration layer for sales intelligence.
 
 ---
 
-## Phase 7: Bulk Workflows & Lists
+## Phase 9: Bulk Workflows & Lists UI
 **Status:** Future (core to enterprise)
 
 ### List Management UI
@@ -465,6 +444,33 @@ CREATE TABLE list_accounts (
 
 ---
 
+## Phase 10: Team Accounts
+**Status:** Planned
+
+Enable businesses to have multiple users under one organization.
+
+- [ ] Org/team data model
+- [ ] Invite team members
+- [ ] Role-based access (Admin, Member, Viewer)
+- [ ] Centralized billing (one bill per org)
+- [ ] Shared materials library
+- [ ] Usage dashboard (who researched what)
+
+---
+
+## Phase 11: Enterprise Auth & Security
+**Status:** Planned
+
+Required for enterprise sales.
+
+- [ ] SSO (SAML/OIDC) - Okta, Azure AD, Google Workspace
+- [ ] SCIM user provisioning
+- [ ] Audit logs
+- [ ] Data retention controls
+- [ ] SOC 2 compliance prep
+
+---
+
 ## Pricing
 
 ### Philosophy: Consumption Model
@@ -552,23 +558,17 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 
 | Timeframe | Phase | Goal |
 |-----------|-------|------|
-| ✅ Done | Phase 1 | Production launch with full v2 |
-| ~~Done~~ | Phase 2 | Apollo contacts (removed for margins) |
+| ✅ Done | Phase 1 | Production launch |
+| ✅ Done | Phase 2 | Contact enrichment (disabled — bad data quality) |
 | ✅ Done | Phase 3 | Writing workflow |
-| ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
-| ✅ Done | - | Admin accounts, unit economics optimization |
-| **NEXT** | **Phase 6a** | **Public API (foundation for everything)** |
-| Week 1-2 | Phase 6a | Core API + pain score |
-| Week 3 | Phase 6a | Sequences + webhooks |
-| Week 4 | Phase 6a | Bulk lists |
-| Week 5 | Phase 6a | Docs + Clay integration guide |
-| Week 5 | Phase 6a.1 | Apply to Clay Marketplace (30-60 day onboarding) |
-| Month 2 | Phase 6b | Ingest integrations (Clay, CSV) |
-| Month 2 | Phase 7 | Bulk workflows UI |
-| Month 2-3 | Phase 6b | Execute integrations (Instantly) |
-| Month 3 | Phase 4 | Team accounts |
-| Month 3+ | Phase 6b | Enrich integrations (LeadMagic) |
-| Month 4+ | Phase 5 | Enterprise security (SSO, SCIM)
+| ✅ Done | Phase 4 | Microsoft OAuth |
+| ✅ Done | Phase 5 | Public API (async jobs, webhooks, sequences, rate limiting) |
+| **NEXT** | **Phase 6** | **Bulk lists + API docs + Python SDK** |
+| Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
+| After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
+| After | Phase 9 | Bulk workflows UI |
+| Later | Phase 10 | Team accounts |
+| Later | Phase 11 | Enterprise security (SSO, SCIM, audit logs)
 
 ---
 
