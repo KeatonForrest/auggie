@@ -77,44 +77,93 @@ Here is the research content you will be working with:
 {report}
 </report>
 
-Your goal is to create three distinct PVP emails based on this research. Each email should deliver genuine, standalone value - not just a clever way to pitch a product.
+Your goal is to create a PVP email sequence based on this research. Each email should deliver genuine, standalone value, not just a clever way to pitch a product.
 
-**Types of Value to Deliver (use the research to identify which applies):**
+---
+
+**CORE CONCEPTS**
+
+**The PVP Litmus Test:**
+"Would they pay for this information even if they never buy from me?" If no, it is a pitch, not a PVP.
+
+**Data Cocktail:**
+Combine 2-3 public data sources to create insights no one else has. Single-source insights feel generic. Combined sources feel like real research.
+
+Sources to combine: tech stack (BuiltWith/Stackshare), job postings, funding announcements, API response times, secondary market data, regulatory filings, app reviews, social sentiment, hiring velocity, customer reviews.
+
+**Two-Sided Questions:**
+End emails with a two-sided question that names two plausible causes for their pain. Both causes should be problems your product solves. This feels consultative, not salesy.
+
+Formula: [Observable data point] + [Two plausible causes] + "Which is closer?"
+
+Example: "Your /transactions endpoint is 3x slower than /accounts. That usually means either joins are compounding or you are hitting index limits. Which is closer to what you are seeing?"
+
+---
+
+**TYPES OF VALUE TO DELIVER**
+
+Use the research to identify which applies:
+
 - **Cost savings opportunity**: "We noticed X technology in your stack typically costs Y% more than Z alternative"
-- **Risk mitigation**: "Your job posting mentions using [deprecated technology] - here's the migration timeline before support ends"
+- **Risk mitigation**: "Your job posting mentions using [deprecated technology]. Here is the migration timeline before support ends"
 - **Revenue opportunity**: "Companies with your tech stack typically see X% improvement when they address [specific gap]"
-- **Competitive intelligence**: "Three of your competitors recently adopted X - here's what they're doing differently"
-- **Efficiency gains**: "Your team is hiring for X role to solve Y problem - here's a faster approach"
-- **Market timing**: "Based on your tech stack and hiring, you're likely hitting Z scaling challenge right now"
+- **Competitive intelligence**: "Three of your competitors recently adopted X. Here is what they are doing differently"
+- **Efficiency gains**: "Your team is hiring for X role to solve Y problem. Here is a faster approach"
+- **Market timing**: "Based on your tech stack and hiring, you are likely hitting Z scaling challenge right now"
 
-**First Email - Lead with a Specific Insight:**
-- Open with a concrete observation from their tech stack, hiring, or public data
-- Deliver one actionable insight they can use immediately
-- The insight should be valuable even if they ignore your product entirely
-- Keep it concise, around 100 words
-- Include a subject line that hints at the specific insight
+---
 
-**Second Email - Deepen the Value:**
-- Build on the first insight with additional context or data
-- Reference patterns from similar companies (industry, stage, tech stack)
-- Provide a framework, checklist, or specific recommendation they can act on
-- Aim for 100 words
-- Include a subject line that promises concrete value
+**EMAIL STRUCTURE (PEA FRAMEWORK)**
 
-**Third Email - Connect Value to Conversation:**
-- Summarize the insights you've shared
-- Now (and only now) briefly mention how your product relates to what you've discussed
-- Include a soft call-to-action focused on continuing the conversation, not closing a sale
-- Keep it impactful, around 75 words
-- Include a subject line
+**Email 1 - PREVIEW** (Earn the open)
+- First 120 characters must hook with specific data they will recognize as true
+- Deliver one concrete insight from their public data
+- End with a two-sided question, not a pitch
+- Around 85 words
+- Subject line should hint at the specific insight
 
-**Critical Guidelines:**
-- The prospect should thank you for these emails even if they never become a customer
-- Use specific details from the research (tech stack, job postings, company stage, industry)
-- Avoid generic statements - every sentence should reference something specific to this company
+**Email 2 - ENGAGE** (Prove expertise, create curiosity)
+- Build on email 1 with social proof from similar companies
+- Name the mechanism behind their problem (the "why" behind the pain)
+- Include a quantified outcome but do not explain how it was achieved
+- Around 100 words
+- Subject line should promise concrete value
+
+**Email 3 - ASK** (Low friction, offers value)
+- Offer to do something valuable for them before they commit (audit, analysis, checklist)
+- The ask itself should be a mini-PVP
+- Only now mention your product, and keep it brief
+- Soft call-to-action focused on continuing the conversation, not closing a sale
+- Around 75 words
+- Subject line should be direct
+
+---
+
+**WRITING STYLE**
+
+- 7th grade reading level
+- No emdashes. Use commas, periods, or separate sentences instead
+- No product name until Email 3
+- Each sentence does one job
+- Short paragraphs, 2-3 sentences max
 - Write as a knowledgeable peer sharing useful information, not a salesperson pitching
-- NEVER use emdashes (—) in any of the emails - use commas, periods, or separate sentences instead
-- Break up text into short paragraphs for easy readability
+- Avoid generic statements. Every sentence should reference something specific to this company
+- Never say "just checking in" or "circling back"
+
+---
+
+**EXAMPLES OF STRONG PVP + TWO-SIDED QUESTIONS**
+
+Example 1 (FinTech / Database):
+"You announced 3x user growth last quarter but your stack still shows PostgreSQL as primary. At that growth rate, teams usually hit either latency issues on high-volume queries or they burn engineering cycles on manual sharding. Which one is eating more time right now?"
+
+Example 2 (Sports / CDP):
+"Your secondary market data shows strong single-game demand but flat season ticket renewal. That gap usually means either your CRM cannot connect anonymous buyers to known fans, or your nurture sequences are treating first-timers and lapsed holders the same. Which is closer?"
+
+Example 3 (SaaS / Churn):
+"Your renewal rate dropped from 87% to 81% this season while performance improved. That usually means either you are missing early warning signals because engagement data is not unified, or you are seeing the signals but cannot act before the renewal window. Which is it?"
+
+---
 
 Present your final output in the following format:
 
@@ -122,23 +171,25 @@ Present your final output in the following format:
 <email1>
 Subject: [Insert subject line]
 
-[Insert body of first email]
+[Insert body of first email, ending with a two-sided question]
 </email1>
 
 <email2>
 Subject: [Insert subject line]
 
-[Insert body of second email]
+[Insert body of second email with social proof and mechanism]
 </email2>
 
 <email3>
 Subject: [Insert subject line]
 
-[Insert body of third email]
+[Insert body of third email with low-friction ask]
 </email3>
 </email_series>
 
-Remember: If your message is just a clever way to pitch your product, it's not a true PVP. Lead with genuine value."""
+---
+
+Remember: If your message is just a clever way to pitch your product, it is not a true PVP. Lead with genuine value. The prospect should thank you for these emails even if they never become a customer."""
 
     def _parse_emails(self, response: str) -> list[dict]:
         """Parse the email series from the response."""
