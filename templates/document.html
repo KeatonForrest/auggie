@@ -99,6 +99,25 @@ This template displays a generated research document with:
                 {% endif %}
             </div>
         </div>
+
+        <!-- How We Score (expandable) -->
+        <details class="mt-4 border-t pt-4">
+            <summary class="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700">How we score</summary>
+            <div class="mt-3 grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                <div>
+                    <span class="font-semibold text-gray-900">Pain (40%)</span>
+                    <p class="mt-1">Evidence of problems your product solves — hiring gaps, tech debt, stated challenges, and existential data points.</p>
+                </div>
+                <div>
+                    <span class="font-semibold text-gray-900">Fit (35%)</span>
+                    <p class="mt-1">How well they match your ICP — company size, industry, target personas, tech stack alignment, and competitor presence.</p>
+                </div>
+                <div>
+                    <span class="font-semibold text-gray-900">Timing (25%)</span>
+                    <p class="mt-1">Signals that create urgency now — funding events, reorgs, long-open roles, regulatory deadlines, or active evaluation.</p>
+                </div>
+            </div>
+        </details>
     </div>
     {% endif %}
 
