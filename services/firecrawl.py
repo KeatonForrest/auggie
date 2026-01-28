@@ -232,6 +232,7 @@ class FirecrawlService:
             job_task = self._scrape_job_board(client, company_name, domain)
             investor_task = self._scrape_investor_relations(client, domain)
             engineering_task = self._scrape_engineering_blog(client, domain)
+            docs_task = self._scrape_developer_docs(client, domain)
 
             results = await asyncio.gather(
                 homepage_task,
@@ -239,6 +240,7 @@ class FirecrawlService:
                 job_task,
                 investor_task,
                 engineering_task,
+                docs_task,
                 return_exceptions=True
             )
 
@@ -255,18 +257,21 @@ class FirecrawlService:
                 if not isinstance(result, Exception):
                     core_results[name] = result
 
-            job_postings = results[-3] if not isinstance(results[-3], Exception) else None
-            investor_content = results[-2] if not isinstance(results[-2], Exception) else None
-            engineering_subdomain = results[-1] if not isinstance(results[-1], Exception) else None
+            job_postings = results[-4] if not isinstance(results[-4], Exception) else None
+            investor_content = results[-3] if not isinstance(results[-3], Exception) else None
+            engineering_subdomain = results[-2] if not isinstance(results[-2], Exception) else None
+            docs_content = results[-1] if not isinstance(results[-1], Exception) else None
 
-            # Combine engineering content from /engineering path and subdomains
+            # Combine engineering content from /engineering path, subdomains, and docs
             engineering_path = core_results.get("engineering")
-            engineering_parts = []
+            additional_parts = []
             if engineering_path and len(engineering_path) > 200:
-                engineering_parts.append(engineering_path)
+                additional_parts.append(engineering_path)
             if engineering_subdomain and len(engineering_subdomain) > 200:
-                engineering_parts.append(engineering_subdomain)
-            additional_content = "\n\n---\n\n".join(engineering_parts) if engineering_parts else None
+                additional_parts.append(engineering_subdomain)
+            if docs_content and len(docs_content) > 200:
+                additional_parts.append(docs_content)
+            additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
 
         print("Scraping complete!")
 
@@ -337,6 +342,39 @@ class FirecrawlService:
 
         if content and len(content) > 300:
             return content
+
+        return None
+
+    async def _scrape_developer_docs(
+        self,
+        client: httpx.AsyncClient,
+        domain: str
+    ) -> Optional[str]:
+        """Check for and scrape developer documentation subdomains."""
+        # Common docs/developer subdomains
+        doc_subdomains = [
+            f"https://docs.{domain}",
+            f"https://developer.{domain}",
+            f"https://api.{domain}",
+        ]
+
+        # Check which subdomains exist (free HEAD requests)
+        check_tasks = [self._check_subdomain_exists(client, url) for url in doc_subdomains]
+        exists_results = await asyncio.gather(*check_tasks)
+
+        existing_doc_urls = [url for url, exists in zip(doc_subdomains, exists_results) if exists]
+
+        if not existing_doc_urls:
+            return None
+
+        print(f"Found developer docs subdomain: {existing_doc_urls[0]}")
+
+        # Scrape the first existing docs subdomain
+        doc_url = existing_doc_urls[0]
+        content = await self._scrape_url(client, doc_url)
+
+        if content and len(content) > 300:
+            return f"## Developer Documentation ({doc_url})\n\n{content}"
 
         return None
 
