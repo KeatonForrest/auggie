@@ -1,5 +1,55 @@
 # Auggie Product Roadmap
 
+## Vision: Intelligence Orchestration
+
+**Auggie is the intelligence layer between list building and outreach.**
+
+We don't build lists. We don't send emails. We answer: *"Which accounts have active pain, and what do I say?"*
+
+### Philosophy: Target Pain, Not Personas
+
+Traditional prospecting: "I sell to VPs of Engineering at Series B SaaS companies"
+
+Auggie approach: "I sell to companies with database scaling pain - the title doesn't matter, the problem does"
+
+### The Workflow
+
+```
+INGEST → ANALYZE → ENRICH → WRITE → EXECUTE
+
+500 accounts (ingest)
+    → 87 high-pain (analyze)
+        → 87 contacts enriched (enrich)
+            → 87 sequences written (write)
+                → 87 sent (execute)
+```
+
+Each step filters. Don't pay to enrich or write for accounts that aren't ready.
+
+### Integration Points
+
+**Ingest from:**
+- Ocean.io (lookalikes)
+- Clay (tables)
+- Apollo (saved lists)
+- HubSpot (companies)
+- Salesforce (accounts)
+- CSV upload
+
+**Enrich via:**
+- LeadMagic (contacts)
+- Apollo (contacts)
+- Clearbit (firmographics)
+
+**Execute to:**
+- Instantly
+- Outreach
+- Salesloft
+- HubSpot sequences
+- Salesforce
+
+---
+
 ## Current Status: v2 LIVE IN PRODUCTION
 - Core research generation working (Claude Opus 4)
 - Materials upload & RAG working
@@ -145,71 +195,118 @@ Required for enterprise sales.
 
 ---
 
-## Phase 6: Integrations
+## Phase 6: Intelligence Orchestration (Enterprise)
 **Status:** Planned
 
-Connect Auggie to sales team workflows.
+Transform Auggie into the orchestration layer for sales intelligence.
 
-- [ ] Salesforce integration (push research to accounts)
-- [ ] HubSpot integration
-- [ ] Slack notifications
+### Ingest Integrations (list sources)
+- [ ] Ocean.io - Import lookalike audiences
+- [ ] Clay - Import tables
+- [ ] Apollo - Import saved lists
+- [ ] HubSpot - Import companies
+- [ ] Salesforce - Import accounts
+- [ ] CSV upload - Bulk import
+
+### Enrich Integrations (contact data)
+- [ ] LeadMagic - Get contacts for high-pain accounts only
+- [ ] Apollo - Contact enrichment
+- [ ] Clearbit - Firmographic enrichment
+
+### Execute Integrations (sequencers)
+- [ ] Instantly - Push sequences + contacts
+- [ ] Outreach - Push sequences
+- [ ] Salesloft - Push sequences
+- [ ] HubSpot - Push to sequences
+- [ ] Salesforce - Sync research to account records
+
+### Other
+- [ ] Slack notifications (research complete, high-pain alert)
 - [ ] API access for customers
-- [ ] Chrome extension
 - [ ] Zapier/Make connectors
+- [ ] Chrome extension
 
 ---
 
-## Phase 7: Advanced Features
-**Status:** Future
+## Phase 7: Bulk Workflows & Lists
+**Status:** Future (core to enterprise)
 
-- [ ] Bulk research API (see sketch below)
+### List Management UI
+- [ ] "Create New List" with import sources (Ocean, Clay, Apollo, CRMs, CSV)
+- [ ] List view with pain scores and status
+- [ ] Filter/sort by pain score, industry, stage
+- [ ] Bulk actions (research all, enrich all, write all, send all)
+
+### Bulk Processing Pipeline
+Upload list → Analyze all → Enrich high-pain → Write sequences → Push to sequencer
+
+**The full workflow:**
+```
+1. INGEST:  Import 500 accounts from Ocean.io
+2. ANALYZE: Research all, score by pain (async, parallel)
+3. FILTER:  User reviews, selects 87 high-pain accounts
+4. ENRICH:  Call LeadMagic for contacts on 87 accounts
+5. WRITE:   Generate sequences for 87 accounts
+6. EXECUTE: Push 87 sequences + contacts to Instantly
+```
+
+### Pain Scoring
+- [ ] Numeric pain score (1-10) based on existential data points
+- [ ] Pain categories (scaling, cost, technical debt, competitive, organizational)
+- [ ] Prioritized list: "Call these 47 first"
+
+### API
+```
+POST /api/lists
+{ "name": "Q1 Targets", "source": "csv", "companies": [...] }
+→ { "list_id": "list_abc123" }
+
+POST /api/lists/{list_id}/analyze
+→ { "status": "processing", "completed": 47, "total": 500 }
+
+GET /api/lists/{list_id}/accounts?min_pain_score=7
+→ [{ "domain": "acme.com", "pain_score": 9, "research_id": "..." }, ...]
+
+POST /api/lists/{list_id}/enrich
+{ "account_ids": [...], "provider": "leadmagic" }
+
+POST /api/lists/{list_id}/execute
+{ "account_ids": [...], "destination": "instantly" }
+```
+
+### Database
+```sql
+CREATE TABLE lists (
+  id TEXT PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id),
+  name TEXT,
+  source TEXT,
+  status TEXT DEFAULT 'created',
+  total_accounts INTEGER DEFAULT 0,
+  analyzed INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE list_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  list_id TEXT REFERENCES lists(id),
+  company_url TEXT,
+  pain_score INTEGER,
+  pain_categories JSONB,
+  document_id BIGINT REFERENCES research_documents(id),
+  contact_data JSONB,
+  sequence_id BIGINT,
+  status TEXT DEFAULT 'pending',
+  enriched_at TIMESTAMPTZ,
+  executed_at TIMESTAMPTZ
+);
+```
+
+### Other Advanced Features
 - [ ] Saved research templates
 - [ ] Competitor tracking over time
 - [ ] AI chat follow-up on research
 - [ ] PDF export
-
-### Bulk Research API (Sketched)
-
-Upload CSV of 100 companies → get research docs for all of them.
-
-**API:**
-```
-POST /api/bulk-research
-{ "companies": ["acme.com", "globex.com", ...] }
-→ { "batch_id": "batch_abc123", "status": "queued" }
-
-GET /api/bulk-research/batch_abc123
-→ { "status": "processing", "completed": 47, "total": 100 }
-
-GET /api/bulk-research/batch_abc123/download
-→ ZIP file with all markdown research docs
-```
-
-**Database:**
-```sql
-CREATE TABLE bulk_batches (
-  id TEXT PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id),
-  status TEXT DEFAULT 'queued',
-  total INTEGER,
-  completed INTEGER DEFAULT 0,
-  failed INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE bulk_batch_items (
-  id BIGSERIAL PRIMARY KEY,
-  batch_id TEXT REFERENCES bulk_batches(id),
-  company_url TEXT,
-  document_id BIGINT REFERENCES research_documents(id),
-  status TEXT DEFAULT 'pending',
-  error TEXT
-);
-```
-
-**Pricing:** 1 credit per company (or bulk discount: 100 = 80 credits)
-
-**Effort:** ~1 day for v1 (API only, sequential processing, email on completion)
 
 ---
 
@@ -233,19 +330,30 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 |----------------|----------|
 | Firecrawl (scraping) | $0.10-0.15 |
 | Claude Opus 4 (research) | $0.45-0.60 |
+| SerpAPI (news) | $0.01 |
+| **Base COGS** | **$0.56-0.76** |
+
+| Optional | Estimate |
+|----------|----------|
 | Claude Sonnet 4 (emails) | $0.06 |
-| OpenAI embeddings | $0.01 |
-| **Total COGS** | **$0.62-0.82** |
+| OpenAI embeddings (materials) | $0.01 |
+
+| Metric | Value |
+|--------|-------|
 | **Revenue** | **$1.00** |
-| **Gross Margin** | **18-38%** |
+| **Gross Margin** | **24-44%** |
 
-Free tier cost: ~$0.65/user (1 research). Break-even at ~10% conversion rate.
+Free tier cost: ~$0.60/user (1 research). Break-even at ~8% conversion rate.
 
-### Future Tiers (Not Yet Built)
-| Tier | Price | Credits | Features |
-|------|-------|---------|----------|
-| Team | TBD | Shared pool | Shared materials, team dashboard |
-| Enterprise | Custom | Volume pricing | SSO, API, SLA |
+### Future Tiers (Enterprise Orchestration)
+| Tier | Price | Model | Features |
+|------|-------|-------|----------|
+| Pro | $49/mo | 50 researches/mo | Individual user, all integrations |
+| Team | $199/mo | 250 researches/mo | 5 seats, shared materials, team dashboard |
+| Enterprise | Custom | Volume pricing | Unlimited seats, SSO, API, bulk workflows, SLA |
+
+**Enterprise value prop:** Not paying per research - paying for orchestration.
+Flat fee for the intelligence layer, regardless of volume.
 
 ---
 
@@ -258,9 +366,12 @@ Free tier cost: ~$0.65/user (1 research). Break-even at ~10% conversion rate.
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
 | ✅ Done | - | Admin accounts, unit economics optimization |
-| Next | Phase 4 | Team accounts |
-| Month 2-3 | Phase 6 | CRM integrations |
-| Month 3+ | Phase 5 | Enterprise security |
+| Next | Phase 7 | Bulk workflows & lists (foundation for enterprise) |
+| Next | Phase 6 | Ingest integrations (Ocean, Clay, CSV) |
+| Month 2-3 | Phase 6 | Execute integrations (Instantly, sequencers) |
+| Month 2-3 | Phase 4 | Team accounts |
+| Month 3+ | Phase 6 | Enrich integrations (LeadMagic) |
+| Month 3+ | Phase 5 | Enterprise security (SSO, SCIM)
 
 ---
 
