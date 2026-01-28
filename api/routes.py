@@ -15,6 +15,7 @@ from database import (
 )
 from api.validation import validate_company_url
 from api.jobs import run_research_job
+from api.ratelimit import research_limiter, sequence_limiter, default_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -44,12 +45,14 @@ class ResearchResponse(BaseModel):
 @router.get("/ping")
 async def ping(api_user: dict = Depends(require_api_key)):
     """Health check endpoint. Returns 200 if API key is valid."""
+    default_limiter.check(api_user["api_key_id"])
     return {"status": "ok", "user_id": api_user["user_id"]}
 
 
 @router.post("/research", status_code=202)
 async def create_research(body: ResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start an async research job. Returns immediately with a job_id."""
+    research_limiter.check(api_user["api_key_id"])
     user = await get_user_by_id(api_user["user_id"])
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -84,6 +87,7 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
 @router.get("/research/{job_id}")
 async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key)):
     """Poll for job status. Returns full result when completed."""
+    default_limiter.check(api_user["api_key_id"])
     job = await get_research_job(job_id, api_user["user_id"])
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -131,6 +135,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
 @router.get("/research")
 async def list_jobs(api_user: dict = Depends(require_api_key)):
     """List the user's recent research jobs."""
+    default_limiter.check(api_user["api_key_id"])
     jobs = await list_user_jobs(api_user["user_id"])
     return {
         "jobs": [
@@ -174,6 +179,7 @@ class EnrichResponse(BaseModel):
 @router.post("/enrich", response_model=EnrichResponse)
 async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_api_key)):
     """Enrich contacts for an existing research document using LeadMagic."""
+    research_limiter.check(api_user["api_key_id"])
     from services.leadmagic import LeadMagicService
     leadmagic = LeadMagicService()
 
@@ -237,3 +243,53 @@ def _build_default_titles(user: dict) -> list[str]:
     """Build target titles from user ICP or use sensible defaults."""
     # Simple defaults — the UI version in main.py has the full ICP mapping
     return ["CTO", "VP Engineering", "VP Sales", "CEO", "Director of Engineering"][:5]
+
+
+# =============================================================================
+# Sequence Generation
+# =============================================================================
+
+class SequenceEmail(BaseModel):
+    email_number: int
+    subject: str
+    body: str
+
+
+class SequenceResponse(BaseModel):
+    success: bool
+    document_id: int
+    emails: list[SequenceEmail] = []
+    error: str | None = None
+
+
+@router.post("/research/{doc_id}/sequence", response_model=SequenceResponse)
+async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_key)):
+    """Generate a 3-email outreach sequence from a completed research document."""
+    sequence_limiter.check(api_user["api_key_id"])
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    document = await get_document(doc_id, user_id=user["id"])
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    from services.writing import WritingService
+    writing_service = WritingService()
+
+    try:
+        emails = await writing_service.generate_email_sequence(
+            document=document,
+            product_context=user.get("product_context", ""),
+        )
+
+        await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)
+
+        return SequenceResponse(
+            success=True,
+            document_id=doc_id,
+            emails=[SequenceEmail(**e) for e in emails],
+        )
+    except Exception as e:
+        return SequenceResponse(success=False, document_id=doc_id, error=str(e))
