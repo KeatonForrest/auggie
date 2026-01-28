@@ -195,14 +195,64 @@ Required for enterprise sales.
 
 ---
 
-## Phase 6: Intelligence Orchestration (Enterprise)
-**Status:** Planned
+## Phase 6a: Public API
+**Status:** Planned (NEXT)
+**PRD:** [PRD_API.md](./PRD_API.md)
+
+The API is the foundation for enterprise. Without it, no Clay integration, no bulk workflows, no "intelligence layer" positioning.
+
+### Core Deliverables
+
+**Week 1-2: Core API**
+- [ ] API key generation + management
+- [ ] `POST /v1/research` - Create research, get pain score
+- [ ] `GET /v1/research/{id}` - Retrieve research
+- [ ] Pain score synthesis (update Claude prompt)
+- [ ] Rate limiting + error handling
+- [ ] Credit deduction
+
+**Week 3: Sequences + Webhooks**
+- [ ] `POST /v1/research/{id}/sequence` - Generate sequence
+- [ ] Webhook delivery system
+- [ ] Async research option
+
+**Week 4: Bulk/Lists**
+- [ ] `POST /v1/lists` - Create list from domains
+- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores
+- [ ] Background job processing
+- [ ] Progress webhooks
+
+**Week 5: Polish + Docs**
+- [ ] API documentation (Mintlify)
+- [ ] Python SDK (basic)
+- [ ] Clay integration guide
+- [ ] Dashboard: API key management
+- [ ] Dashboard: Usage tracking
+
+### Key API Outputs
+
+| Endpoint | Returns |
+|----------|---------|
+| `/v1/research` | pain_score, pain_summary, research, talking_points |
+| `/v1/research/{id}/sequence` | 3-email sequence personalized to contact |
+| `/v1/lists/{id}/accounts` | All accounts sorted by pain score |
+
+### Success Criteria
+- 10 API customers in 90 days
+- 1,000 API calls/month
+- < 1% error rate
+- P95 latency < 45 seconds
+
+---
+
+## Phase 6b: Intelligence Orchestration (Enterprise)
+**Status:** Planned (after 6a)
 
 Transform Auggie into the orchestration layer for sales intelligence.
 
 ### Ingest Integrations (list sources)
 - [ ] Ocean.io - Import lookalike audiences
-- [ ] Clay - Import tables
+- [ ] Clay - Import tables (uses API)
 - [ ] Apollo - Import saved lists
 - [ ] HubSpot - Import companies
 - [ ] Salesforce - Import accounts
@@ -222,7 +272,6 @@ Transform Auggie into the orchestration layer for sales intelligence.
 
 ### Other
 - [ ] Slack notifications (research complete, high-pain alert)
-- [ ] API access for customers
 - [ ] Zapier/Make connectors
 - [ ] Chrome extension
 
@@ -366,12 +415,17 @@ Flat fee for the intelligence layer, regardless of volume.
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
 | ✅ Done | - | Admin accounts, unit economics optimization |
-| Next | Phase 7 | Bulk workflows & lists (foundation for enterprise) |
-| Next | Phase 6 | Ingest integrations (Ocean, Clay, CSV) |
-| Month 2-3 | Phase 6 | Execute integrations (Instantly, sequencers) |
-| Month 2-3 | Phase 4 | Team accounts |
-| Month 3+ | Phase 6 | Enrich integrations (LeadMagic) |
-| Month 3+ | Phase 5 | Enterprise security (SSO, SCIM)
+| **NEXT** | **Phase 6a** | **Public API (foundation for everything)** |
+| Week 1-2 | Phase 6a | Core API + pain score |
+| Week 3 | Phase 6a | Sequences + webhooks |
+| Week 4 | Phase 6a | Bulk lists |
+| Week 5 | Phase 6a | Docs + Clay integration guide |
+| Month 2 | Phase 6b | Ingest integrations (Clay, CSV) |
+| Month 2 | Phase 7 | Bulk workflows UI |
+| Month 2-3 | Phase 6b | Execute integrations (Instantly) |
+| Month 3 | Phase 4 | Team accounts |
+| Month 3+ | Phase 6b | Enrich integrations (LeadMagic) |
+| Month 4+ | Phase 5 | Enterprise security (SSO, SCIM)
 
 ---
 
