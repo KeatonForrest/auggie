@@ -500,13 +500,12 @@ Auggie returns:
 **The gate:** Basic users see the research and a locked Opportunity Score.
 $0.50 more unlocks scoring, contact, and full personalization.
 
-### Bulk Discounts
+### Volume Pricing
 
 | Volume | Basic | Full |
 |--------|-------|------|
-| 1-10 | $1.00 | $1.50 |
-| 50+ | $0.85 | $1.25 |
-| 100+ | $0.75 | $1.10 |
+| 1-99 | $1.00 | $1.50 |
+| 100+ | $0.85 | $1.25 |
 | Enterprise | Custom | Custom |
 
 ### Unit Economics
