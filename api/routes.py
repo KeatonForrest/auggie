@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from api.auth import require_api_key
 from database import (
     get_user_by_id, get_user_usage, save_document, use_credit,
-    record_api_usage,
+    record_api_usage, get_document, save_enriched_contacts, get_enriched_contacts,
 )
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
@@ -150,3 +150,94 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
 
     except Exception as e:
         return ResearchResponse(success=False, error=str(e))
+
+
+class EnrichRequest(BaseModel):
+    document_id: int
+    titles: list[str] | None = None  # Optional custom titles; defaults to user's ICP
+
+
+class EnrichContact(BaseModel):
+    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    title: str | None = None
+    email: str | None = None
+    email_status: str | None = None
+    profile_url: str | None = None
+    company_name: str | None = None
+
+
+class EnrichResponse(BaseModel):
+    success: bool
+    contacts: list[EnrichContact] = []
+    cached: bool = False
+    error: str | None = None
+
+
+@router.post("/enrich", response_model=EnrichResponse)
+async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_api_key)):
+    """Enrich contacts for an existing research document using LeadMagic."""
+    from services.leadmagic import LeadMagicService
+    leadmagic = LeadMagicService()
+
+    if not leadmagic.is_configured():
+        return EnrichResponse(success=False, error="Contact enrichment is not yet configured.")
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    document = await get_document(body.document_id, user_id=user["id"])
+    if not document:
+        return EnrichResponse(success=False, error="Document not found")
+
+    # Check if already enriched
+    existing = await get_enriched_contacts(body.document_id, user["id"])
+    if existing:
+        return EnrichResponse(
+            success=True,
+            contacts=[EnrichContact(**{k: v for k, v in c.items() if k in EnrichContact.model_fields}) for c in existing],
+            cached=True,
+        )
+
+    # Check credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin and usage.get("bonus_credits", 0) <= 0:
+        return EnrichResponse(success=False, error="No credits remaining")
+
+    # Use custom titles or fall back to user's ICP
+    titles = body.titles
+    if not titles:
+        titles = _build_default_titles(user)
+
+    company_domain = document.company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+
+    try:
+        contacts = await leadmagic.enrich_contacts(
+            company_domain=company_domain,
+            company_name=document.company_name,
+            target_titles=titles,
+        )
+
+        if contacts:
+            await save_enriched_contacts(body.document_id, user["id"], contacts)
+            if not is_admin:
+                await use_credit(user["id"])
+
+        await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
+
+        return EnrichResponse(
+            success=True,
+            contacts=[EnrichContact(**c) for c in contacts],
+            cached=False,
+        )
+    except Exception as e:
+        return EnrichResponse(success=False, error=str(e))
+
+
+def _build_default_titles(user: dict) -> list[str]:
+    """Build target titles from user ICP or use sensible defaults."""
+    # Simple defaults — the UI version in main.py has the full ICP mapping
+    return ["CTO", "VP Engineering", "VP Sales", "CEO", "Director of Engineering"][:5]

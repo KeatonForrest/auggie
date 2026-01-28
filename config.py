@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # People Data Labs (for contact enrichment)
     pdl_api_key: str = ""
 
+    # LeadMagic (for contact enrichment)
+    leadmagic_api_key: str = ""
+
     # Feature flags
     materials_enabled: bool = False
 

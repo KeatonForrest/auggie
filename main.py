@@ -28,6 +28,7 @@ from database import (
     get_all_documents, update_user_profile, get_user_usage,
     get_user_materials, use_credit,
     create_api_key_record, list_api_keys, revoke_api_key,
+    save_enriched_contacts, get_enriched_contacts,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -369,6 +370,7 @@ async def create_research(
                 "recent_docs": recent_docs,
                 "credits": usage.get("bonus_credits", 0),
                 "is_admin": usage.get("is_admin", False),
+                "enriched_contacts": [],
             }
         )
 
@@ -392,6 +394,7 @@ async def view_document(
 
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
+    enriched_contacts = await get_enriched_contacts(doc_id, user["id"])
 
     return templates.TemplateResponse(
         "document.html",
@@ -402,6 +405,7 @@ async def view_document(
             "recent_docs": recent_docs,
             "credits": usage.get("bonus_credits", 0),
             "is_admin": usage.get("is_admin", False),
+            "enriched_contacts": enriched_contacts,
         }
     )
 
@@ -465,6 +469,98 @@ async def generate_outreach(
             "success": False,
             "error": str(e),
         }, status_code=500)
+
+
+@app.post("/document/{doc_id}/enrich")
+async def enrich_document_contacts(
+    doc_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Enrich contacts for a research document using LeadMagic."""
+    from services.leadmagic import LeadMagicService
+    leadmagic = LeadMagicService()
+
+    if not leadmagic.is_configured():
+        return JSONResponse({"success": False, "error": "Contact enrichment is not yet configured."})
+
+    document = await get_document(doc_id, user_id=user["id"])
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Check if already enriched
+    existing = await get_enriched_contacts(doc_id, user["id"])
+    if existing:
+        return JSONResponse({"success": True, "contacts": existing, "cached": True})
+
+    # Check credits (enrichment costs 0.5 credits — we'll deduct 1 for simplicity)
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin and usage.get("bonus_credits", 0) <= 0:
+        return JSONResponse({"success": False, "error": "No credits remaining"})
+
+    # Build target titles from user's ICP settings
+    target_titles = _build_target_titles(user)
+
+    company_domain = document.company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+
+    try:
+        contacts = await leadmagic.enrich_contacts(
+            company_domain=company_domain,
+            company_name=document.company_name,
+            target_titles=target_titles,
+        )
+
+        if contacts:
+            await save_enriched_contacts(doc_id, user["id"], contacts)
+            if not is_admin:
+                await use_credit(user["id"])
+
+        return JSONResponse({
+            "success": True,
+            "contacts": contacts,
+            "cached": False,
+        })
+    except Exception as e:
+        print(f"Error enriching contacts: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+def _build_target_titles(user: dict) -> list[str]:
+    """Build a list of target job titles from user's ICP settings."""
+    # Combine user's target level + function into reasonable titles
+    levels = (user.get("target_level") or "").split(",")
+    functions = (user.get("target_function") or "").split(",")
+
+    levels = [l.strip() for l in levels if l.strip()]
+    functions = [f.strip() for f in functions if f.strip()]
+
+    # Map to common job titles
+    title_map = {
+        "C-Suite": {"Sales / Revenue": "CRO", "Marketing": "CMO", "Engineering / Product": "CTO",
+                     "Finance / Accounting": "CFO", "Operations": "COO", "IT / Security": "CISO",
+                     "HR / People": "CHRO", "Customer Success": "CCO", "Legal": "General Counsel"},
+        "VP": {"Sales / Revenue": "VP Sales", "Marketing": "VP Marketing", "Engineering / Product": "VP Engineering",
+               "Finance / Accounting": "VP Finance", "Operations": "VP Operations", "IT / Security": "VP IT",
+               "HR / People": "VP People", "Customer Success": "VP Customer Success", "Legal": "VP Legal"},
+        "Director": {"Sales / Revenue": "Director of Sales", "Marketing": "Director of Marketing",
+                     "Engineering / Product": "Director of Engineering", "Finance / Accounting": "Director of Finance",
+                     "Operations": "Director of Operations", "IT / Security": "Director of IT",
+                     "HR / People": "Director of HR", "Customer Success": "Director of Customer Success"},
+    }
+
+    titles = []
+    for level in levels:
+        if level in title_map:
+            for func in functions:
+                if func in title_map[level]:
+                    titles.append(title_map[level][func])
+
+    # Fallback: if no ICP configured, search common decision-maker titles
+    if not titles:
+        titles = ["CTO", "VP Engineering", "VP Sales", "CEO"]
+
+    # Cap at 5 to control LeadMagic costs
+    return titles[:5]
 
 
 # =============================================================================
