@@ -31,11 +31,7 @@ wappalyzer_service = WappalyzerService()
 news_service = NewsService()
 
 
-def _normalize_url(url: str) -> str:
-    url = url.strip()
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
-    return url
+from api.validation import validate_company_url
 
 
 class ResearchRequest(BaseModel):
@@ -79,7 +75,10 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
     if not is_admin and usage.get("bonus_credits", 0) <= 0:
         return ResearchResponse(success=False, error="No credits remaining")
 
-    company_url = _normalize_url(body.company_url)
+    try:
+        company_url = validate_company_url(body.company_url)
+    except ValueError as e:
+        return ResearchResponse(success=False, error=str(e))
 
     try:
         scraped_content = await firecrawl_service.scrape_company(company_url)

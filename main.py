@@ -36,8 +36,11 @@ from api.routes import router as api_v1_router
 settings = get_settings()
 
 
+from api.validation import validate_company_url
+
+
 def normalize_url(url: str) -> str:
-    """Add https:// if no protocol specified."""
+    """Add https:// if no protocol specified. For non-research URLs."""
     url = url.strip()
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -285,8 +288,11 @@ async def create_research(
     user: dict = Depends(require_onboarding),
 ):
     """Generate a research document for a company."""
-    # Normalize URL (add https:// if missing)
-    company_url = normalize_url(company_url)
+    # Validate and normalize URL (SSRF protection)
+    try:
+        company_url = validate_company_url(company_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Check credits (admins have unlimited)
     usage = await get_user_usage(user["id"])
@@ -471,7 +477,10 @@ async def api_create_research(
     user: dict = Depends(require_onboarding),
 ):
     """API endpoint for generating research (JSON in/out)."""
-    company_url = normalize_url(str(request.company_url))
+    try:
+        company_url = validate_company_url(str(request.company_url))
+    except ValueError as e:
+        return ResearchResponse(success=False, error=str(e))
 
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
