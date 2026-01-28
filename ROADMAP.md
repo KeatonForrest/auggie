@@ -80,21 +80,23 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 
 ---
 
-## Phase 2: Contact Enrichment (Apollo)
-**Status:** REMOVED (margin optimization)
+## Phase 2: Contact Enrichment
+**Status:** DISABLED (evaluating providers)
 
-Was adding key contacts via Apollo.io API, but removed to improve unit economics.
+Built LeadMagic integration (role-finder + email-finder) but disabled after testing showed stale/inaccurate contact data (wrong titles, people who left companies, incorrect role matches).
 
-### Why Removed
-- Added $0.10-0.50 per research in API costs
-- Most users already have their own contact tools (LinkedIn Sales Nav, ZoomInfo, Apollo)
-- Core value is research quality, not contact data
-- Code remains in services/apollo.py if needed later
+### What's Built (disabled, code in place)
+- `services/leadmagic.py` — role-finder and email-finder API client
+- `POST /v1/enrich` API endpoint (separate from research)
+- `enriched_contacts` DB table
+- UI button + display (commented out in document.html)
+- Fractional credit support ($0.50 per enrichment)
 
-### Original Features (archived)
-- Query Apollo API for contacts at target domain
-- Filter by user's target personas
-- Display in research: name, title, email status
+### Next Steps
+- [ ] Evaluate alternative providers: Apollo, RocketReach, Clearbit, PeopleDataLabs
+- [ ] Key criteria: data freshness, title accuracy, email deliverability rates
+- [ ] Re-enable once a provider meets quality bar
+- [ ] Consider multi-provider fallback strategy
 
 ---
 
@@ -196,7 +198,7 @@ Required for enterprise sales.
 ---
 
 ## Phase 6a: Public API
-**Status:** Planned (NEXT)
+**Status:** IN PROGRESS
 **PRD:** [PRD_API.md](./PRD_API.md)
 
 The API is the foundation for enterprise. Without it, no Clay integration, no bulk workflows, no "intelligence layer" positioning.
@@ -204,12 +206,15 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 ### Core Deliverables
 
 **Week 1-2: Core API**
-- [ ] API key generation + management
-- [ ] `POST /v1/research` - Create research, get pain score
-- [ ] `GET /v1/research/{id}` - Retrieve research
-- [ ] Pain score synthesis (update Claude prompt)
-- [ ] Rate limiting + error handling
-- [ ] Credit deduction
+- [x] API key generation + management (bcrypt hashed, sk_live_ prefix)
+- [x] `POST /v1/research` - Create research, get opportunity score
+- [x] `POST /v1/enrich` - Contact enrichment (disabled, see Phase 2)
+- [x] `GET /v1/ping` - Health check
+- [x] Opportunity scoring (Pain 40%, Fit 35%, Timing 25%)
+- [x] SSRF protection on all research endpoints
+- [x] Credit deduction (cents-based fractional credits)
+- [ ] Rate limiting
+- [ ] `GET /v1/research/{id}` - Retrieve existing research
 
 **Week 3: Sequences + Webhooks**
 - [ ] `POST /v1/research/{id}/sequence` - Generate sequence
