@@ -231,19 +231,19 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 
 ### Key API Outputs
 
-**Free / Credits:**
+**Basic ($1.00/credit):**
 
 | Endpoint | Returns |
 |----------|---------|
 | `/v1/research` | Research document, talking points |
 | `/v1/research/{id}/sequence` | 3-email sequence (BYOC) |
 
-**Pro+ (Opportunity Score unlocked):**
+**Full ($1.50/credit):**
 
 | Endpoint | Returns |
 |----------|---------|
-| `/v1/research` | Opportunity score (pain + fit + timing), research, talking points |
-| `/v1/research/{id}/sequence` | 3-email sequence with contact (via LeadMagic) |
+| `/v1/research` | Opportunity score (pain + fit + timing), research, contact (LeadMagic), talking points |
+| `/v1/research/{id}/sequence` | 3-email sequence personalized to enriched contact |
 | `/v1/lists/{id}/accounts` | All accounts sorted by opportunity score |
 
 ### Success Criteria
@@ -348,7 +348,7 @@ Upload list → Analyze all → Enrich high-pain → Write sequences → Push to
 6. EXECUTE: Push 87 sequences + contacts to Instantly
 ```
 
-### Opportunity Scoring (Pro+ only)
+### Opportunity Scoring (Full tier only)
 
 Composite score built from data Auggie actually has. Not available on Free/Credits tiers.
 
@@ -400,7 +400,7 @@ Recent Series B creates urgency.
 - [ ] Parse structured score from research output
 - [ ] Add pain_score, fit_score, timing_score, opportunity_score to models
 - [ ] Add scoring columns to database
-- [ ] Display score on research document (Pro+ only)
+- [ ] Display score on research document (Full tier only)
 - [ ] Gate scoring behind tier check
 - [ ] Make weights configurable per customer (future)
 - [ ] Prioritized list: "Call these 47 first"
@@ -462,73 +462,79 @@ CREATE TABLE list_accounts (
 
 ## Pricing
 
-### Philosophy: One Product, Two Interfaces
+### Philosophy: Consumption Model
 
-UI and API are the same product. Same features at each tier, different access method.
-Where you work (auggie.tools vs Clay) shouldn't change what you pay.
+Pay per research. No subscriptions. Guaranteed margins on every call.
+UI and API use the same credits. Where you work doesn't change what you pay.
 
-### Tier Structure
+### Two Tiers
 
-| Tier | Price | Volume | Scoring | Enrichment | Access |
-|------|-------|--------|---------|------------|--------|
-| Free | $0 | 1 research | Research only | None | UI only |
-| Credits | $10/10 | Pay as you go | Research only | None (BYOC) | UI + API |
-| Pro | $99/mo | 100/mo | Opportunity Score | LeadMagic included | UI + API |
-| Team | $299/mo | 500/mo | Opportunity Score | LeadMagic included | UI + API |
-| Enterprise | Custom | Unlimited | Opportunity Score (custom weights) | Everything included | UI + API |
+| Tier | Price | Includes | Access |
+|------|-------|----------|--------|
+| **Basic** | $1.00 | Research + sequence (BYOC) | UI + API |
+| **Full** | $1.50 | Research + Opportunity Score + LeadMagic contact + sequence | UI + API |
 
-**BYOC** = Bring Your Own Contact (customer provides contact info for sequences)
+**Free:** 1 Basic research to try it out (no API).
 
-### What Each Tier Unlocks
+**BYOC** = Bring Your Own Contact (you provide contact info for sequence personalization)
 
-**Free / Credits (BYOC)**
+### What Each Tier Returns
+
+**Basic ($1.00)**
 ```
 You provide: Domain
-Auggie returns: Research, talking points, sequences
-No scoring. No prioritization. One account at a time.
+Auggie returns: Research, talking points, sequence
+No scoring. No contact enrichment.
 ```
 
-**Pro and above (Full Orchestration)**
+**Full ($1.50)**
 ```
-You provide: Domain (or list of 500)
+You provide: Domain
 Auggie returns:
   - Opportunity Score (Pain + Fit + Timing)
   - Research document
   - Contact via LeadMagic
   - Personalized sequence
-  - Prioritized list: "Call these 87 first"
 ```
 
-**The gate:** Free/Credits users get the research. Pro+ users get the *intelligence* - scoring, prioritization, and enrichment. The research hooks them, the scoring converts them.
+**The gate:** Basic users see the research and a locked Opportunity Score.
+$0.50 more unlocks scoring, contact, and full personalization.
+
+### Bulk Discounts
+
+| Volume | Basic | Full |
+|--------|-------|------|
+| 1-10 | $1.00 | $1.50 |
+| 50+ | $0.85 | $1.25 |
+| 100+ | $0.75 | $1.10 |
+| Enterprise | Custom | Custom |
 
 ### Unit Economics
 
-**Base research (all tiers):**
+**Basic ($1.00):**
 | Cost Component | Estimate |
 |----------------|----------|
 | Firecrawl (scraping) | $0.10-0.15 |
 | Claude Opus 4 (research) | $0.45-0.60 |
 | SerpAPI (news) | $0.01 |
 | Claude Sonnet 4 (sequence) | $0.06 |
-| **COGS (BYOC)** | **$0.62-0.82** |
+| **COGS** | **$0.62-0.82** |
+| **Revenue** | **$1.00** |
+| **Margin** | **18-38%** |
 
-**With enrichment (Pro+):**
+**Full ($1.50):**
 | Cost Component | Estimate |
 |----------------|----------|
-| Base COGS | $0.62-0.82 |
+| Firecrawl (scraping) | $0.10-0.15 |
+| Claude Opus 4 (research + scoring) | $0.48-0.65 |
+| SerpAPI (news) | $0.01 |
+| Claude Sonnet 4 (sequence) | $0.06 |
 | LeadMagic (contact) | $0.10-0.20 |
-| **COGS (Full)** | **$0.72-1.02** |
+| **COGS** | **$0.75-1.07** |
+| **Revenue** | **$1.50** |
+| **Margin** | **29-50%** |
 
-**Margin by tier:**
-| Tier | Revenue/research | COGS | Margin |
-|------|------------------|------|--------|
-| Credits | $1.00 | $0.62-0.82 | 18-38% |
-| Pro ($99/100) | $0.99 | $0.72-1.02 | Break-even to 27% |
-| Team ($299/500) | $0.60 | $0.72-1.02 | Negative at full usage |
-| Enterprise | Custom | $0.72-1.02 | Price for margin |
-
-**Note:** Team/Enterprise margins work because most customers don't use full allocation.
-At 60% utilization, Team margin is healthy. Enterprise priced per deal.
+Positive margin on every research. No utilization risk. No subscription management.
 
 ### Admin Accounts
 Internal users can be granted unlimited free usage:
