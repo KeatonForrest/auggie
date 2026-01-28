@@ -135,7 +135,7 @@ async def home(request: Request):
             "request": request,
             "user": user,
             "recent_docs": recent_docs,
-            "credits": usage.get("bonus_credits", 0),
+            "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
@@ -368,7 +368,7 @@ async def create_research(
                 "user": user,
                 "document": document,
                 "recent_docs": recent_docs,
-                "credits": usage.get("bonus_credits", 0),
+                "credits": usage.get("bonus_credits", 0) / 100,
                 "is_admin": usage.get("is_admin", False),
                 "enriched_contacts": [],
             }
@@ -403,7 +403,7 @@ async def view_document(
             "user": user,
             "document": document,
             "recent_docs": recent_docs,
-            "credits": usage.get("bonus_credits", 0),
+            "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "enriched_contacts": enriched_contacts,
         }
@@ -492,10 +492,10 @@ async def enrich_document_contacts(
     if existing:
         return JSONResponse({"success": True, "contacts": existing, "cached": True})
 
-    # Check credits (enrichment costs 0.5 credits — we'll deduct 1 for simplicity)
+    # Check credits (enrichment costs 0.5 credits = 50 cents)
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
-    if not is_admin and usage.get("bonus_credits", 0) <= 0:
+    if not is_admin and usage.get("bonus_credits", 0) < 50:
         return JSONResponse({"success": False, "error": "No credits remaining"})
 
     # Build target titles from user's ICP settings
@@ -513,7 +513,7 @@ async def enrich_document_contacts(
         if contacts:
             await save_enriched_contacts(doc_id, user["id"], contacts)
             if not is_admin:
-                await use_credit(user["id"])
+                await use_credit(user["id"], cents=50)
 
         return JSONResponse({
             "success": True,
@@ -648,7 +648,7 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
             "request": request,
             "user": user,
             "api_keys": keys,
-            "credits": usage.get("bonus_credits", 0),
+            "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "new_key": request.query_params.get("new_key"),
         }
@@ -690,7 +690,7 @@ async def materials_page(request: Request, user: dict = Depends(require_auth)):
             "request": request,
             "user": user,
             "materials": materials,
-            "credits": usage.get("bonus_credits", 0),
+            "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
         }
     )
