@@ -30,6 +30,7 @@ from database import (
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
+from api.routes import router as api_v1_router
 
 settings = get_settings()
 
@@ -67,6 +68,7 @@ app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 # Include auth routes
 app.include_router(auth_router)
 app.include_router(billing_router)
+app.include_router(api_v1_router)
 
 templates = Jinja2Templates(directory="templates")
 
