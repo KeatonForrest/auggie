@@ -224,6 +224,28 @@ async def init_database():
             ON api_usage(api_key_id, created_at DESC)
         """)
 
+        # Enriched contacts table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS enriched_contacts (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES research_documents(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                title TEXT,
+                email TEXT,
+                email_status TEXT,
+                profile_url TEXT,
+                company_name TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_enriched_contacts_doc
+            ON enriched_contacts(document_id)
+        """)
+
         # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
@@ -783,6 +805,37 @@ async def record_api_usage(api_key_id: int, endpoint: str, credits_used: int = 1
             "INSERT INTO api_usage (api_key_id, endpoint, credits_used) VALUES ($1, $2, $3)",
             api_key_id, endpoint, credits_used
         )
+
+
+# =============================================================================
+# Enriched Contacts Operations
+# =============================================================================
+
+async def save_enriched_contacts(document_id: int, user_id: int, contacts: list[dict]):
+    """Save enriched contacts for a research document."""
+    async with _pool.acquire() as conn:
+        for c in contacts:
+            await conn.execute(
+                """
+                INSERT INTO enriched_contacts
+                    (document_id, user_id, name, first_name, last_name, title, email, email_status, profile_url, company_name)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                """,
+                document_id, user_id,
+                c.get("name"), c.get("first_name"), c.get("last_name"),
+                c.get("title"), c.get("email"), c.get("email_status"),
+                c.get("profile_url"), c.get("company_name"),
+            )
+
+
+async def get_enriched_contacts(document_id: int, user_id: int) -> list[dict]:
+    """Get enriched contacts for a document (scoped to user)."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM enriched_contacts WHERE document_id = $1 AND user_id = $2 ORDER BY id",
+            document_id, user_id
+        )
+        return [dict(row) for row in rows]
 
 
 # =============================================================================

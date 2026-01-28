@@ -31,6 +31,14 @@ This template displays a generated research document with:
 
             <!-- Export Buttons -->
             <div class="flex gap-2">
+                <button onclick="enrichContacts()"
+                        id="enrich-btn"
+                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Enrich Contacts
+                </button>
                 <button onclick="generateOutreach()"
                         id="outreach-btn"
                         class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
@@ -172,6 +180,33 @@ This template displays a generated research document with:
             <div class="mt-3 text-gray-700 markdown-content">{{ document.recent_news }}</div>
         </section>
         {% endif %}
+
+        <!-- Enriched Contacts -->
+        <section class="mb-8" id="enriched-contacts-section">
+            <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Key Contacts</h2>
+            <div id="enriched-contacts-content" class="mt-3">
+                {% if enriched_contacts %}
+                <div class="space-y-3">
+                    {% for contact in enriched_contacts %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <span class="font-medium text-gray-900">{{ contact.name }}</span>
+                            <span class="text-gray-500 text-sm ml-2">{{ contact.title }}</span>
+                            {% if contact.email %}
+                            <p class="text-sm text-blue-600">{{ contact.email }}</p>
+                            {% endif %}
+                        </div>
+                        {% if contact.profile_url %}
+                        <a href="{{ contact.profile_url }}" target="_blank" class="text-sm text-blue-600 hover:underline">LinkedIn</a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500 mt-2" id="no-contacts-msg">Click "Enrich Contacts" above to find key contacts at this company.</p>
+                {% endif %}
+            </div>
+        </section>
 
         <!-- Information Gaps -->
         <section class="mb-8">
@@ -333,5 +368,51 @@ This template displays a generated research document with:
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeOutreachModal();
     });
+
+    // Enrich Contacts
+    function enrichContacts() {
+        const btn = document.getElementById('enrich-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Enriching...';
+
+        fetch('/document/{{ document.id }}/enrich', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Enrich Contacts';
+
+            if (data.success && data.contacts && data.contacts.length > 0) {
+                const container = document.getElementById('enriched-contacts-content');
+                let html = '<div class="space-y-3">';
+                data.contacts.forEach(c => {
+                    html += `<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <span class="font-medium text-gray-900">${c.name || ''}</span>
+                            <span class="text-gray-500 text-sm ml-2">${c.title || ''}</span>
+                            ${c.email ? `<p class="text-sm text-blue-600">${c.email}</p>` : ''}
+                        </div>
+                        ${c.profile_url ? `<a href="${c.profile_url}" target="_blank" class="text-sm text-blue-600 hover:underline">LinkedIn</a>` : ''}
+                    </div>`;
+                });
+                html += '</div>';
+                if (data.cached) {
+                    html += '<p class="text-xs text-gray-400 mt-2">Previously enriched</p>';
+                }
+                container.innerHTML = html;
+            } else if (data.success && (!data.contacts || data.contacts.length === 0)) {
+                document.getElementById('no-contacts-msg').textContent = 'No contacts found for this company.';
+            } else {
+                document.getElementById('no-contacts-msg').textContent = data.error || 'Failed to enrich contacts.';
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Enrich Contacts';
+            document.getElementById('no-contacts-msg').textContent = 'Network error: ' + err.message;
+        });
+    }
 </script>
 {% endblock %}
