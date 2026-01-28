@@ -160,6 +160,20 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Add opportunity scoring columns
+        score_columns = [
+            ("opportunity_score", "INTEGER"),
+            ("pain_score", "INTEGER"),
+            ("fit_score", "INTEGER"),
+            ("timing_score", "INTEGER"),
+            ("score_summary", "TEXT"),
+        ]
+        for col_name, col_type in score_columns:
+            try:
+                await conn.execute(f"ALTER TABLE research_documents ADD COLUMN {col_name} {col_type}")
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
+
         # Create indexes (IF NOT EXISTS for indexes requires a different approach)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_documents_user_created
@@ -551,8 +565,10 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 user_id, company_url, company_name, created_at,
                 company_overview, projects_initiatives, confirmed_tech_stack,
                 hiring_signals, business_problems, existential_data_points, product_fit,
-                talking_points, recent_news, key_contacts, information_gaps, full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                talking_points, recent_news, key_contacts, information_gaps,
+                opportunity_score, pain_score, fit_score, timing_score, score_summary,
+                full_markdown
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
             RETURNING id
             """,
             user_id,
@@ -570,6 +586,11 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.recent_news,
             doc.key_contacts,
             doc.information_gaps,
+            doc.opportunity_score,
+            doc.pain_score,
+            doc.fit_score,
+            doc.timing_score,
+            doc.score_summary,
             doc.full_markdown,
         )
         return row['id']
@@ -644,6 +665,11 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         recent_news=row["recent_news"] or "",
         key_contacts=row.get("key_contacts") or "",
         information_gaps=row["information_gaps"] or "",
+        opportunity_score=row.get("opportunity_score"),
+        pain_score=row.get("pain_score"),
+        fit_score=row.get("fit_score"),
+        timing_score=row.get("timing_score"),
+        score_summary=row.get("score_summary"),
         full_markdown=row["full_markdown"] or "",
     )
 

@@ -1,5 +1,55 @@
 # Auggie Product Roadmap
 
+## Vision: Intelligence Orchestration
+
+**Auggie is the intelligence layer between list building and outreach.**
+
+We don't build lists. We don't send emails. We answer: *"Which accounts have active pain, and what do I say?"*
+
+### Philosophy: Target Pain, Not Personas
+
+Traditional prospecting: "I sell to VPs of Engineering at Series B SaaS companies"
+
+Auggie approach: "I sell to companies with database scaling pain - the title doesn't matter, the problem does"
+
+### The Workflow
+
+```
+INGEST → ANALYZE → ENRICH → WRITE → EXECUTE
+
+500 accounts (ingest)
+    → 87 high-pain (analyze)
+        → 87 contacts enriched (enrich)
+            → 87 sequences written (write)
+                → 87 sent (execute)
+```
+
+Each step filters. Don't pay to enrich or write for accounts that aren't ready.
+
+### Integration Points
+
+**Ingest from:**
+- Ocean.io (lookalikes)
+- Clay (tables)
+- Apollo (saved lists)
+- HubSpot (companies)
+- Salesforce (accounts)
+- CSV upload
+
+**Enrich via:**
+- LeadMagic (contacts)
+- Apollo (contacts)
+- Clearbit (firmographics)
+
+**Execute to:**
+- Instantly
+- Outreach
+- Salesloft
+- HubSpot sequences
+- Salesforce
+
+---
+
 ## Current Status: v2 LIVE IN PRODUCTION
 - Core research generation working (Claude Opus 4)
 - Materials upload & RAG working
@@ -145,107 +195,351 @@ Required for enterprise sales.
 
 ---
 
-## Phase 6: Integrations
-**Status:** Planned
+## Phase 6a: Public API
+**Status:** Planned (NEXT)
+**PRD:** [PRD_API.md](./PRD_API.md)
 
-Connect Auggie to sales team workflows.
+The API is the foundation for enterprise. Without it, no Clay integration, no bulk workflows, no "intelligence layer" positioning.
 
-- [ ] Salesforce integration (push research to accounts)
-- [ ] HubSpot integration
-- [ ] Slack notifications
-- [ ] API access for customers
-- [ ] Chrome extension
-- [ ] Zapier/Make connectors
+### Core Deliverables
+
+**Week 1-2: Core API**
+- [ ] API key generation + management
+- [ ] `POST /v1/research` - Create research, get pain score
+- [ ] `GET /v1/research/{id}` - Retrieve research
+- [ ] Pain score synthesis (update Claude prompt)
+- [ ] Rate limiting + error handling
+- [ ] Credit deduction
+
+**Week 3: Sequences + Webhooks**
+- [ ] `POST /v1/research/{id}/sequence` - Generate sequence
+- [ ] Webhook delivery system
+- [ ] Async research option
+
+**Week 4: Bulk/Lists**
+- [ ] `POST /v1/lists` - Create list from domains
+- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores
+- [ ] Background job processing
+- [ ] Progress webhooks
+
+**Week 5: Polish + Docs**
+- [ ] API documentation (Mintlify)
+- [ ] Python SDK (basic)
+- [ ] Clay integration guide
+- [ ] Dashboard: API key management
+- [ ] Dashboard: Usage tracking
+
+### Key API Outputs
+
+**Basic ($1.00/credit):**
+
+| Endpoint | Returns |
+|----------|---------|
+| `/v1/research` | Research document, talking points |
+| `/v1/research/{id}/sequence` | 3-email sequence (BYOC) |
+
+**Full ($1.50/credit):**
+
+| Endpoint | Returns |
+|----------|---------|
+| `/v1/research` | Opportunity score (pain + fit + timing), research, contact (LeadMagic), talking points |
+| `/v1/research/{id}/sequence` | 3-email sequence personalized to enriched contact |
+| `/v1/lists/{id}/accounts` | All accounts sorted by opportunity score |
+
+### Success Criteria
+- 10 API customers in 90 days
+- 1,000 API calls/month
+- < 1% error rate
+- P95 latency < 45 seconds
 
 ---
 
-## Phase 7: Advanced Features
-**Status:** Future
+## Phase 6a.1: Clay Marketplace
+**Status:** Planned (start when API is stable, ~week 5)
+**Timeline:** 30-60 day onboarding process (runs in background)
 
-- [ ] Bulk research API (see sketch below)
+Become an official enrichment provider in Clay's marketplace. This is the primary distribution channel for API adoption.
+
+### Why Clay First
+- 150+ enrichment providers, but none do pain-based scoring
+- Clay users are exactly our ICP: RevOps teams building outbound workflows
+- Marketplace listing = free distribution to Clay's entire customer base
+- Co-marketing starts after integration is live
+
+### Steps
+- [ ] Build API (Phase 6a prerequisite)
+- [ ] Contact Clay Data Partnerships Team
+- [ ] Join shared Slack channel with Clay engineer
+- [ ] Build Clay-compatible enrichment endpoint
+- [ ] Test integration end-to-end
+- [ ] Publish to Clay marketplace (site, docs, product search)
+- [ ] Create Clay workflow template: "Pain-Based Outbound"
+
+### Auggie as a Clay Column
+```
+Clay Table:
+┌──────────┬─────────────┬───────────────┬─────────────┬──────────────┐
+│ Domain   │ Auggie Pain │ Auggie Why    │ LeadMagic   │ Auggie       │
+│          │ Score       │               │ Contact     │ Sequence     │
+├──────────┼─────────────┼───────────────┼─────────────┼──────────────┤
+│ acme.com │ 9           │ Scaling + 4mo │ mike@acme   │ Mike - saw...│
+│          │             │ backend role  │             │              │
+└──────────┴─────────────┴───────────────┴─────────────┴──────────────┘
+```
+
+### Success Criteria
+- Listed in Clay marketplace
+- 20+ Clay users using Auggie enrichment within 60 days of listing
+- Clay workflow template published and discoverable
+
+---
+
+## Phase 6b: Intelligence Orchestration (Enterprise)
+**Status:** Planned (after 6a)
+
+Transform Auggie into the orchestration layer for sales intelligence.
+
+### Ingest Integrations (list sources)
+- [ ] Ocean.io - Import lookalike audiences
+- [ ] Clay - Import tables (uses API)
+- [ ] Apollo - Import saved lists
+- [ ] HubSpot - Import companies
+- [ ] Salesforce - Import accounts
+- [ ] CSV upload - Bulk import
+
+### Enrich Integrations (contact data)
+- [ ] LeadMagic - Get contacts for high-pain accounts only
+- [ ] Apollo - Contact enrichment
+- [ ] Clearbit - Firmographic enrichment
+
+### Execute Integrations (sequencers)
+- [ ] Instantly - Push sequences + contacts
+- [ ] Outreach - Push sequences
+- [ ] Salesloft - Push sequences
+- [ ] HubSpot - Push to sequences
+- [ ] Salesforce - Sync research to account records
+
+### Other
+- [ ] Slack notifications (research complete, high-pain alert)
+- [ ] Zapier/Make connectors
+- [ ] Chrome extension
+
+---
+
+## Phase 7: Bulk Workflows & Lists
+**Status:** Future (core to enterprise)
+
+### List Management UI
+- [ ] "Create New List" with import sources (Ocean, Clay, Apollo, CRMs, CSV)
+- [ ] List view with pain scores and status
+- [ ] Filter/sort by pain score, industry, stage
+- [ ] Bulk actions (research all, enrich all, write all, send all)
+
+### Bulk Processing Pipeline
+Upload list → Analyze all → Enrich high-pain → Write sequences → Push to sequencer
+
+**The full workflow:**
+```
+1. INGEST:  Import 500 accounts from Ocean.io
+2. ANALYZE: Research all, score by pain (async, parallel)
+3. FILTER:  User reviews, selects 87 high-pain accounts
+4. ENRICH:  Call LeadMagic for contacts on 87 accounts
+5. WRITE:   Generate sequences for 87 accounts
+6. EXECUTE: Push 87 sequences + contacts to Instantly
+```
+
+### Opportunity Scoring (Full tier only)
+
+Composite score built from data Auggie actually has. Not available on Free/Credits tiers.
+
+**Three factors:**
+
+**Pain (40%) - "Are they hurting?"**
+Data: Tech stack, job postings, news, website content
+- Existential data points (Data Cocktail combinations)
+- Roles open 4+ months
+- Competitor detected in stack
+- Scaling/performance signals
+- Deprecated tech detected
+
+**Fit (35%) - "Should we be selling to them?"**
+Data: User's onboarding ICP context + scraped company data
+- Industry matches ICP
+- Company size matches target
+- Target persona titles in job postings
+- Tech stack overlaps with product use case
+- Stated problems match what seller solves
+
+**Timing (25%) - "Should we call now or later?"**
+Data: News, job postings, investor relations
+- Funding announced in last 6 months
+- Hiring spike (5+ relevant roles)
+- Leadership change / reorg signals
+- Active vendor evaluation signals
+- Role age (new = building, old = struggling)
+
+**Composite formula:**
+```
+Opportunity Score = (Pain × 0.40) + (Fit × 0.35) + (Timing × 0.25)
+```
+
+**Output format:**
+```
+OPPORTUNITY SCORE: 8.1 / 10
+
+Pain:    9/10  (PostgreSQL scaling + 4mo backend role)
+Fit:     8/10  (mid-market SaaS, target personas present)
+Timing:  7/10  (Series B announced, hiring spike)
+
+Summary: Strong pain signals with high ICP fit.
+Recent Series B creates urgency.
+```
+
+**Implementation:**
+- [ ] Add scoring criteria to Claude research prompt
+- [ ] Parse structured score from research output
+- [ ] Add pain_score, fit_score, timing_score, opportunity_score to models
+- [ ] Add scoring columns to database
+- [ ] Display score on research document (Full tier only)
+- [ ] Gate scoring behind tier check
+- [ ] Make weights configurable per customer (future)
+- [ ] Prioritized list: "Call these 47 first"
+
+### API
+```
+POST /api/lists
+{ "name": "Q1 Targets", "source": "csv", "companies": [...] }
+→ { "list_id": "list_abc123" }
+
+POST /api/lists/{list_id}/analyze
+→ { "status": "processing", "completed": 47, "total": 500 }
+
+GET /api/lists/{list_id}/accounts?min_pain_score=7
+→ [{ "domain": "acme.com", "pain_score": 9, "research_id": "..." }, ...]
+
+POST /api/lists/{list_id}/enrich
+{ "account_ids": [...], "provider": "leadmagic" }
+
+POST /api/lists/{list_id}/execute
+{ "account_ids": [...], "destination": "instantly" }
+```
+
+### Database
+```sql
+CREATE TABLE lists (
+  id TEXT PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id),
+  name TEXT,
+  source TEXT,
+  status TEXT DEFAULT 'created',
+  total_accounts INTEGER DEFAULT 0,
+  analyzed INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE list_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  list_id TEXT REFERENCES lists(id),
+  company_url TEXT,
+  pain_score INTEGER,
+  pain_categories JSONB,
+  document_id BIGINT REFERENCES research_documents(id),
+  contact_data JSONB,
+  sequence_id BIGINT,
+  status TEXT DEFAULT 'pending',
+  enriched_at TIMESTAMPTZ,
+  executed_at TIMESTAMPTZ
+);
+```
+
+### Other Advanced Features
 - [ ] Saved research templates
 - [ ] Competitor tracking over time
 - [ ] AI chat follow-up on research
 - [ ] PDF export
 
-### Bulk Research API (Sketched)
-
-Upload CSV of 100 companies → get research docs for all of them.
-
-**API:**
-```
-POST /api/bulk-research
-{ "companies": ["acme.com", "globex.com", ...] }
-→ { "batch_id": "batch_abc123", "status": "queued" }
-
-GET /api/bulk-research/batch_abc123
-→ { "status": "processing", "completed": 47, "total": 100 }
-
-GET /api/bulk-research/batch_abc123/download
-→ ZIP file with all markdown research docs
-```
-
-**Database:**
-```sql
-CREATE TABLE bulk_batches (
-  id TEXT PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id),
-  status TEXT DEFAULT 'queued',
-  total INTEGER,
-  completed INTEGER DEFAULT 0,
-  failed INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE bulk_batch_items (
-  id BIGSERIAL PRIMARY KEY,
-  batch_id TEXT REFERENCES bulk_batches(id),
-  company_url TEXT,
-  document_id BIGINT REFERENCES research_documents(id),
-  status TEXT DEFAULT 'pending',
-  error TEXT
-);
-```
-
-**Pricing:** 1 credit per company (or bulk discount: 100 = 80 credits)
-
-**Effort:** ~1 day for v1 (API only, sequential processing, email on completion)
-
 ---
 
-## Pricing (Current - Consumption Model)
+## Pricing
 
-| Tier | Price | Credits | Features |
-|------|-------|---------|----------|
-| Free | $0 | 1 credit | Full research, PVP emails |
-| Credits | $10 | 10 credits | Same features, pay as you go |
+### Philosophy: Consumption Model
 
-Simple consumption model - no subscriptions, no monthly limits. Users buy credits when they need them.
+Pay per research. No subscriptions. Guaranteed margins on every call.
+UI and API use the same credits. Where you work doesn't change what you pay.
+
+### Two Tiers
+
+| Tier | Price | Includes | Access |
+|------|-------|----------|--------|
+| **Basic** | $1.00 | Research + sequence (BYOC) | UI + API |
+| **Full** | $1.50 | Research + Opportunity Score + LeadMagic contact + sequence | UI + API |
+
+**Free:** 1 Basic research to try it out (no API).
+
+**BYOC** = Bring Your Own Contact (you provide contact info for sequence personalization)
+
+### What Each Tier Returns
+
+**Basic ($1.00)**
+```
+You provide: Domain
+Auggie returns: Research, talking points, sequence
+No scoring. No contact enrichment.
+```
+
+**Full ($1.50)**
+```
+You provide: Domain
+Auggie returns:
+  - Opportunity Score (Pain + Fit + Timing)
+  - Research document
+  - Contact via LeadMagic
+  - Personalized sequence
+```
+
+**The gate:** Basic users see the research and a locked Opportunity Score.
+$0.50 more unlocks scoring, contact, and full personalization.
+
+### Volume Pricing
+
+| Volume | Basic | Full |
+|--------|-------|------|
+| 1-99 | $1.00 | $1.50 |
+| 100+ | $0.85 | $1.25 |
+| Enterprise | Custom | Custom |
+
+### Unit Economics
+
+**Basic ($1.00):**
+| Cost Component | Estimate |
+|----------------|----------|
+| Firecrawl (scraping) | $0.10-0.15 |
+| Claude Opus 4 (research) | $0.45-0.60 |
+| SerpAPI (news) | $0.01 |
+| Claude Sonnet 4 (sequence) | $0.06 |
+| **COGS** | **$0.62-0.82** |
+| **Revenue** | **$1.00** |
+| **Margin** | **18-38%** |
+
+**Full ($1.50):**
+| Cost Component | Estimate |
+|----------------|----------|
+| Firecrawl (scraping) | $0.10-0.15 |
+| Claude Opus 4 (research + scoring) | $0.48-0.65 |
+| SerpAPI (news) | $0.01 |
+| Claude Sonnet 4 (sequence) | $0.06 |
+| LeadMagic (contact) | $0.10-0.20 |
+| **COGS** | **$0.75-1.07** |
+| **Revenue** | **$1.50** |
+| **Margin** | **29-50%** |
+
+Positive margin on every research. No utilization risk. No subscription management.
 
 ### Admin Accounts
 Internal users can be granted unlimited free usage:
 ```sql
 UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 ```
-
-### Unit Economics (per research)
-| Cost Component | Estimate |
-|----------------|----------|
-| Firecrawl (scraping) | $0.10-0.15 |
-| Claude Opus 4 (research) | $0.45-0.60 |
-| Claude Sonnet 4 (emails) | $0.06 |
-| OpenAI embeddings | $0.01 |
-| **Total COGS** | **$0.62-0.82** |
-| **Revenue** | **$1.00** |
-| **Gross Margin** | **18-38%** |
-
-Free tier cost: ~$0.65/user (1 research). Break-even at ~10% conversion rate.
-
-### Future Tiers (Not Yet Built)
-| Tier | Price | Credits | Features |
-|------|-------|---------|----------|
-| Team | TBD | Shared pool | Shared materials, team dashboard |
-| Enterprise | Custom | Volume pricing | SSO, API, SLA |
 
 ---
 
@@ -258,9 +552,18 @@ Free tier cost: ~$0.65/user (1 research). Break-even at ~10% conversion rate.
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 3.5 | Microsoft OAuth for MSPs |
 | ✅ Done | - | Admin accounts, unit economics optimization |
-| Next | Phase 4 | Team accounts |
-| Month 2-3 | Phase 6 | CRM integrations |
-| Month 3+ | Phase 5 | Enterprise security |
+| **NEXT** | **Phase 6a** | **Public API (foundation for everything)** |
+| Week 1-2 | Phase 6a | Core API + pain score |
+| Week 3 | Phase 6a | Sequences + webhooks |
+| Week 4 | Phase 6a | Bulk lists |
+| Week 5 | Phase 6a | Docs + Clay integration guide |
+| Week 5 | Phase 6a.1 | Apply to Clay Marketplace (30-60 day onboarding) |
+| Month 2 | Phase 6b | Ingest integrations (Clay, CSV) |
+| Month 2 | Phase 7 | Bulk workflows UI |
+| Month 2-3 | Phase 6b | Execute integrations (Instantly) |
+| Month 3 | Phase 4 | Team accounts |
+| Month 3+ | Phase 6b | Enrich integrations (LeadMagic) |
+| Month 4+ | Phase 5 | Enterprise security (SSO, SCIM)
 
 ---
 

@@ -1,5 +1,6 @@
 """claude.py - AI research document generation using Claude API."""
 
+import re
 import anthropic
 from typing import Optional
 from datetime import datetime
@@ -277,6 +278,43 @@ Before submitting, verify:
 ---
 
 Remember: The goal is to arm the salesperson with insights so specific that the prospect thinks "How did they know that?" not "They clearly sent this to everyone."
+
+---
+
+OPPORTUNITY SCORING:
+
+After completing the research document, you MUST output a structured opportunity score at the very end.
+
+Score three dimensions (each 0-100):
+
+**Pain Score (40% weight):**
+- How many existential data points did you find? (0 = no pain signals, 100 = multiple urgent, compounding signals)
+- Are the problems ones the seller's product directly addresses?
+- Is there evidence of active suffering (complaints, long-open roles, tech debt)?
+
+**Fit Score (35% weight):**
+- Does their company size/industry match the seller's ICP?
+- Are the right personas (target level + function) present?
+- Is there competitor presence that creates displacement opportunity?
+- Does their tech stack align with integration requirements?
+
+**Timing Score (25% weight):**
+- Is there a funding event, reorg, or leadership change creating urgency?
+- Are there roles open 3+ months suggesting unresolved problems?
+- Is there a regulatory deadline or competitive threat with a timeline?
+- Are they actively evaluating solutions (RFP signals, comparison content)?
+
+Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
+
+Output the scores in this EXACT format at the very end of your response (after all other sections):
+
+## Opportunity Score
+
+SCORE_PAIN: [0-100]
+SCORE_FIT: [0-100]
+SCORE_TIMING: [0-100]
+SCORE_COMPOSITE: [0-100]
+SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 """
 
         return base_prompt
@@ -370,6 +408,7 @@ Remember: The goal is to arm the salesperson with insights so specific that the 
 
         full_markdown = message.content[0].text
         sections = self._parse_sections(full_markdown)
+        scores = self._parse_scores(full_markdown)
 
         return ResearchDocument(
             company_url=str(company_url),
@@ -386,6 +425,11 @@ Remember: The goal is to arm the salesperson with insights so specific that the 
             recent_news=sections.get("recent_news", ""),
             key_contacts=sections.get("key_contacts", ""),
             information_gaps=sections.get("information_gaps", ""),
+            opportunity_score=scores.get("composite"),
+            pain_score=scores.get("pain"),
+            fit_score=scores.get("fit"),
+            timing_score=scores.get("timing"),
+            score_summary=scores.get("summary"),
             full_markdown=full_markdown,
         )
 
@@ -443,6 +487,33 @@ Remember: The goal is to arm the salesperson with insights so specific that the 
             sections[current_section] = "\n".join(current_content).strip()
 
         return sections
+
+    def _parse_scores(self, markdown: str) -> dict:
+        """Extract structured opportunity scores from the end of Claude's output."""
+        scores = {}
+        patterns = {
+            "pain": r"SCORE_PAIN:\s*(\d+)",
+            "fit": r"SCORE_FIT:\s*(\d+)",
+            "timing": r"SCORE_TIMING:\s*(\d+)",
+            "composite": r"SCORE_COMPOSITE:\s*(\d+)",
+        }
+        for key, pattern in patterns.items():
+            match = re.search(pattern, markdown)
+            if match:
+                val = int(match.group(1))
+                scores[key] = max(0, min(100, val))
+
+        summary_match = re.search(r"SCORE_SUMMARY:\s*(.+?)(?:\n|$)", markdown)
+        if summary_match:
+            scores["summary"] = summary_match.group(1).strip()
+
+        # If we got individual scores but no composite, calculate it
+        if "pain" in scores and "fit" in scores and "timing" in scores and "composite" not in scores:
+            scores["composite"] = round(
+                scores["pain"] * 0.4 + scores["fit"] * 0.35 + scores["timing"] * 0.25
+            )
+
+        return scores
 
     def _extract_domain(self, url: str) -> str:
         """Extract domain name from URL."""

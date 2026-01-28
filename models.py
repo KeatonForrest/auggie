@@ -99,6 +99,13 @@ class ResearchDocument(BaseModel):
     key_contacts: str = ""
     information_gaps: str
 
+    # Opportunity Scoring (Full tier only)
+    opportunity_score: Optional[int] = None  # 0-100 composite score
+    pain_score: Optional[int] = None         # 0-100 (40% weight)
+    fit_score: Optional[int] = None          # 0-100 (35% weight)
+    timing_score: Optional[int] = None       # 0-100 (25% weight)
+    score_summary: Optional[str] = None      # Brief justification
+
     full_markdown: str
 
 
