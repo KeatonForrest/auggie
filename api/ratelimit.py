@@ -40,3 +40,4 @@ class RateLimiter:
 research_limiter = RateLimiter(requests=10, window_seconds=60)
 sequence_limiter = RateLimiter(requests=20, window_seconds=60)
 default_limiter = RateLimiter(requests=60, window_seconds=60)
+bulk_limiter = RateLimiter(requests=2, window_seconds=60)

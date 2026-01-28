@@ -9,6 +9,8 @@ from database import (
     get_user_by_id, save_document,
     record_api_usage, update_job_status, get_user_webhook,
     create_webhook_delivery, update_delivery_status, refund_credit,
+    create_research_job, get_bulk_job_items, update_bulk_job_item,
+    finalize_bulk_job,
 )
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
@@ -34,6 +36,52 @@ def _get_retrieval_service():
     return _retrieval_service
 
 
+async def _run_research_pipeline(user_id: int, company_url: str) -> int:
+    """Execute the core research pipeline: scrape, analyze, save.
+
+    Returns the document ID on success. Raises on failure.
+    """
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise RuntimeError("User not found")
+
+    scraped_content = await firecrawl_service.scrape_company(company_url)
+
+    tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
+        main_url=company_url,
+        main_html=scraped_content.homepage_html,
+    )
+
+    company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+    news_content = await news_service.get_company_news(company_name)
+    if news_content:
+        scraped_content.news = news_content
+
+    retrieved_materials = ""
+    retrieval = _get_retrieval_service()
+    if retrieval:
+        try:
+            retrieved_materials = await retrieval.get_relevant_context(
+                user_id=user_id,
+                company_name=company_name,
+                company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
+            )
+        except Exception:
+            pass
+
+    document = await claude_service.generate_research_document(
+        company_url=company_url,
+        scraped=scraped_content,
+        product_context=user.get("product_context", ""),
+        tech_by_domain=tech_by_domain,
+        retrieved_materials=retrieved_materials,
+        seller_company=user.get("company_name", ""),
+    )
+
+    doc_id = await save_document(document, user_id=user_id)
+    return doc_id
+
+
 async def run_research_job(job_id: int, user_id: int, api_key_id: int, company_url: str, *, is_admin: bool = False):
     """Execute the research pipeline in the background and update job status.
 
@@ -41,47 +89,7 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int, company_u
     users get their credit refunded.
     """
     try:
-        user = await get_user_by_id(user_id)
-        if not user:
-            if not is_admin:
-                await refund_credit(user_id)
-            await update_job_status(job_id, "failed", error_message="User not found")
-            return
-
-        scraped_content = await firecrawl_service.scrape_company(company_url)
-
-        tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
-            main_url=company_url,
-            main_html=scraped_content.homepage_html,
-        )
-
-        company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        news_content = await news_service.get_company_news(company_name)
-        if news_content:
-            scraped_content.news = news_content
-
-        retrieved_materials = ""
-        retrieval = _get_retrieval_service()
-        if retrieval:
-            try:
-                retrieved_materials = await retrieval.get_relevant_context(
-                    user_id=user_id,
-                    company_name=company_name,
-                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                )
-            except Exception:
-                pass
-
-        document = await claude_service.generate_research_document(
-            company_url=company_url,
-            scraped=scraped_content,
-            product_context=user.get("product_context", ""),
-            tech_by_domain=tech_by_domain,
-            retrieved_materials=retrieved_materials,
-            seller_company=user.get("company_name", ""),
-        )
-
-        doc_id = await save_document(document, user_id=user_id)
+        doc_id = await _run_research_pipeline(user_id, company_url)
 
         await record_api_usage(api_key_id, "/v1/research", 1)
         await update_job_status(job_id, "completed", document_id=doc_id)
@@ -96,6 +104,45 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int, company_u
         error_msg = str(e)[:500]
         await update_job_status(job_id, "failed", error_message=error_msg)
         await _deliver_webhook(user_id, job_id, "failed", None, error_msg)
+
+
+async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin: bool = False):
+    """Process all items in a bulk job with bounded concurrency."""
+    items = await get_bulk_job_items(bulk_job_id)
+    semaphore = asyncio.Semaphore(5)
+
+    async def process_item(item: dict):
+        async with semaphore:
+            item_id = item["id"]
+            company_url = item["company_url"]
+
+            # Create a research job for tracking
+            job = await create_research_job(user_id, api_key_id, company_url)
+            await update_bulk_job_item(item_id, "processing", research_job_id=job["id"])
+
+            try:
+                doc_id = await _run_research_pipeline(user_id, company_url)
+
+                await record_api_usage(api_key_id, "/v1/research", 1)
+                await update_job_status(job["id"], "completed", document_id=doc_id)
+                await update_bulk_job_item(item_id, "completed", research_job_id=job["id"], document_id=doc_id)
+
+            except Exception as e:
+                logger.exception("Bulk item %s failed for %s", item_id, company_url)
+                error_msg = str(e)[:500]
+                await update_job_status(job["id"], "failed", error_message=error_msg)
+                await update_bulk_job_item(item_id, "failed", research_job_id=job["id"], error_message=error_msg)
+
+    await asyncio.gather(*(process_item(item) for item in items), return_exceptions=True)
+
+    # Finalize and refund failed credits
+    final = await finalize_bulk_job(bulk_job_id)
+    failed_count = final["failed_items"]
+    if failed_count > 0 and not is_admin:
+        await refund_credit(user_id, cents=failed_count * 100)
+
+    # Fire webhook for bulk completion
+    await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
 
 
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):

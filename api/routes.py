@@ -12,10 +12,12 @@ from database import (
     save_enriched_contacts, get_enriched_contacts,
     create_research_job, get_research_job, list_user_jobs,
     use_credit, refund_credit, record_api_usage,
+    create_bulk_job, get_bulk_job, list_bulk_jobs,
+    create_bulk_job_items, get_bulk_job_items,
 )
 from api.validation import validate_company_url
-from api.jobs import run_research_job
-from api.ratelimit import research_limiter, sequence_limiter, default_limiter
+from api.jobs import run_research_job, run_bulk_job
+from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -293,3 +295,114 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
         )
     except Exception as e:
         return SequenceResponse(success=False, document_id=doc_id, error=str(e))
+
+
+# =============================================================================
+# Bulk Research
+# =============================================================================
+
+class BulkResearchRequest(BaseModel):
+    company_urls: list[str]
+    name: str | None = None
+
+
+@router.post("/research/bulk", status_code=202)
+async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depends(require_api_key)):
+    """Start a bulk research job. Accepts up to 100 URLs."""
+    bulk_limiter.check(api_user["api_key_id"])
+
+    if not body.company_urls:
+        raise HTTPException(status_code=422, detail="company_urls must not be empty")
+    if len(body.company_urls) > 100:
+        raise HTTPException(status_code=422, detail="Maximum 100 URLs per bulk job")
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Validate all URLs upfront
+    validated_urls = []
+    for url in body.company_urls:
+        try:
+            validated_urls.append(validate_company_url(url))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
+
+    # Reserve credits upfront
+    n = len(validated_urls)
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        credits_needed = n * 100  # cents
+        if usage.get("bonus_credits", 0) < credits_needed:
+            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+        reserved = await use_credit(user["id"], cents=credits_needed)
+        if not reserved:
+            raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    bulk_job = await create_bulk_job(user["id"], api_user["api_key_id"], body.name, n, n * 100)
+    await create_bulk_job_items(bulk_job["id"], validated_urls)
+
+    asyncio.create_task(
+        run_bulk_job(bulk_job["id"], user["id"], api_user["api_key_id"], is_admin=is_admin)
+    )
+
+    return {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
+
+
+@router.get("/research/bulk/{bulk_job_id}")
+async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require_api_key)):
+    """Get bulk job progress and all items."""
+    default_limiter.check(api_user["api_key_id"])
+    job = await get_bulk_job(bulk_job_id, api_user["user_id"])
+    if not job:
+        raise HTTPException(status_code=404, detail="Bulk job not found")
+
+    items = await get_bulk_job_items(bulk_job_id)
+
+    return {
+        "bulk_job_id": job["id"],
+        "name": job["name"],
+        "status": job["status"],
+        "total_items": job["total_items"],
+        "completed_items": job["completed_items"],
+        "failed_items": job["failed_items"],
+        "credits_reserved": job["credits_reserved"],
+        "created_at": job["created_at"].isoformat(),
+        "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,
+        "items": [
+            {
+                "id": item["id"],
+                "company_url": item["company_url"],
+                "status": item["status"],
+                "research_job_id": item["research_job_id"],
+                "document_id": item["document_id"],
+                "error": item["error_message"],
+                "created_at": item["created_at"].isoformat(),
+                "completed_at": item["completed_at"].isoformat() if item["completed_at"] else None,
+            }
+            for item in items
+        ],
+    }
+
+
+@router.get("/research/bulk")
+async def list_bulk_jobs_endpoint(api_user: dict = Depends(require_api_key)):
+    """List recent bulk jobs (summaries only)."""
+    default_limiter.check(api_user["api_key_id"])
+    jobs = await list_bulk_jobs(api_user["user_id"])
+    return {
+        "bulk_jobs": [
+            {
+                "bulk_job_id": j["id"],
+                "name": j["name"],
+                "status": j["status"],
+                "total_items": j["total_items"],
+                "completed_items": j["completed_items"],
+                "failed_items": j["failed_items"],
+                "created_at": j["created_at"].isoformat(),
+                "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
+            }
+            for j in jobs
+        ]
+    }

@@ -10,6 +10,7 @@
             <a href="#authentication" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Authentication</a>
             <a href="#research" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Research</a>
             <a href="#sequences" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Sequences</a>
+            <a href="#bulk-research" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Bulk Research</a>
             <a href="#webhooks" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Webhooks</a>
             <a href="#clay-integration" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Clay Integration</a>
             <a href="#error-codes" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Error Codes</a>
@@ -197,6 +198,111 @@
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
                     <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research/15/sequence \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+            </section>
+
+            <!-- Bulk Research -->
+            <section id="bulk-research">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Bulk Research</h2>
+                <p class="text-gray-700 mb-4">Research multiple companies in a single request. Up to 100 URLs per batch, processed concurrently. Credits are reserved upfront and refunded for any failures.</p>
+
+                <!-- POST /v1/research/bulk -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research/bulk</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Start a bulk research job. Returns immediately with a bulk job ID. Costs 1 credit per URL.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "company_urls": [
+    "https://example.com",
+    "https://acme.com",
+    "https://widgets.io"
+  ],
+  "name": "Q1 prospects"
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "bulk_job_id": 7,
+  "status": "processing",
+  "total_items": 3
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research/bulk \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"company_urls": ["https://example.com", "https://acme.com"], "name": "Q1 prospects"}'</code></pre>
+                </div>
+
+                <!-- GET /v1/research/bulk/{id} -->
+                <div class="border rounded-lg p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research/bulk/{bulk_job_id}</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">Get bulk job progress and all items with their status.</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "bulk_job_id": 7,
+  "name": "Q1 prospects",
+  "status": "completed",
+  "total_items": 3,
+  "completed_items": 2,
+  "failed_items": 1,
+  "credits_reserved": 300,
+  "created_at": "2026-01-28T12:00:00",
+  "completed_at": "2026-01-28T12:05:00",
+  "items": [
+    {
+      "id": 1,
+      "company_url": "https://example.com",
+      "status": "completed",
+      "research_job_id": 50,
+      "document_id": 20,
+      "error": null,
+      "created_at": "2026-01-28T12:00:00",
+      "completed_at": "2026-01-28T12:01:30"
+    }
+  ]
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/bulk/7 \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+                </div>
+
+                <!-- GET /v1/research/bulk -->
+                <div class="border rounded-lg p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+                        <code class="text-sm font-mono text-gray-800">/v1/research/bulk</code>
+                    </div>
+                    <p class="text-gray-700 mb-3">List your recent bulk jobs (summaries only, no items).</p>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+  "bulk_jobs": [
+    {
+      "bulk_job_id": 7,
+      "name": "Q1 prospects",
+      "status": "completed",
+      "total_items": 3,
+      "completed_items": 2,
+      "failed_items": 1,
+      "created_at": "2026-01-28T12:00:00",
+      "completed_at": "2026-01-28T12:05:00"
+    }
+  ]
+}</code></pre>
+
+                    <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/bulk \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
             </section>
@@ -420,6 +526,10 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <tr>
                                 <td class="px-4 py-3 text-gray-800"><code class="text-xs">POST /v1/research</code>, <code class="text-xs">POST /v1/enrich</code></td>
                                 <td class="px-4 py-3 text-gray-700">10 requests / 60 seconds</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 text-gray-800"><code class="text-xs">POST /v1/research/bulk</code></td>
+                                <td class="px-4 py-3 text-gray-700">2 requests / 60 seconds</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-3 text-gray-800"><code class="text-xs">POST /v1/research/{id}/sequence</code></td>
