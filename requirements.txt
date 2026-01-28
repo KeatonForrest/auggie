@@ -37,6 +37,9 @@ authlib==1.3.0
 itsdangerous==2.1.2
 PyJWT==2.8.0
 
+# API key hashing
+bcrypt==4.2.0
+
 # Form handling
 python-multipart==0.0.9
 
