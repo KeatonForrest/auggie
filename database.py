@@ -257,6 +257,71 @@ async def init_database():
         """)
 
         # =================================================================
+        # Research Jobs table (async API)
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS research_jobs (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                api_key_id BIGINT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                company_url TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'processing'
+                    CHECK (status IN ('processing', 'completed', 'failed')),
+                document_id BIGINT REFERENCES research_documents(id) ON DELETE SET NULL,
+                error_message TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                completed_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_research_jobs_user
+            ON research_jobs(user_id, created_at DESC)
+        """)
+
+        # =================================================================
+        # Webhooks table (one per user)
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhooks (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                url TEXT NOT NULL,
+                secret TEXT NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id)
+            )
+        """)
+
+        # =================================================================
+        # Webhook Deliveries table (audit log)
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                id BIGSERIAL PRIMARY KEY,
+                webhook_id BIGINT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+                job_id BIGINT NOT NULL REFERENCES research_jobs(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'success', 'failed')),
+                http_status INTEGER,
+                error_message TEXT,
+                attempts INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_job
+            ON webhook_deliveries(job_id)
+        """)
+
+        # Mark stale processing jobs as failed (covers Railway redeploys)
+        await conn.execute("""
+            UPDATE research_jobs
+            SET status = 'failed', error_message = 'Server restarted during processing', completed_at = NOW()
+            WHERE status = 'processing' AND created_at < NOW() - INTERVAL '10 minutes'
+        """)
+
+        # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
         # =================================================================
@@ -606,6 +671,15 @@ async def use_credit(user_id: int, cents: int = 100) -> bool:
             user_id, cents
         )
         return row is not None
+
+
+async def refund_credit(user_id: int, cents: int = 100) -> None:
+    """Refund credits (e.g. when a reserved job fails)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+            user_id, cents
+        )
 
 
 async def set_admin(email: str, is_admin: bool = True) -> bool:
@@ -991,4 +1065,143 @@ async def delete_chunks_for_material(material_id: int) -> None:
         await conn.execute(
             "DELETE FROM material_chunks WHERE material_id = $1",
             material_id
+        )
+
+
+# =============================================================================
+# Research Jobs Operations
+# =============================================================================
+
+async def create_research_job(user_id: int, api_key_id: int, company_url: str) -> dict:
+    """Create a new research job. Returns the job record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO research_jobs (user_id, api_key_id, company_url)
+            VALUES ($1, $2, $3)
+            RETURNING *
+            """,
+            user_id, api_key_id, company_url
+        )
+        return dict(row)
+
+
+async def get_research_job(job_id: int, user_id: int) -> Optional[dict]:
+    """Get a research job by ID (scoped to user)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM research_jobs WHERE id = $1 AND user_id = $2",
+            job_id, user_id
+        )
+        return dict(row) if row else None
+
+
+async def update_job_status(
+    job_id: int,
+    status: str,
+    document_id: int = None,
+    error_message: str = None,
+) -> None:
+    """Update a job's status and optional result fields."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE research_jobs
+            SET status = $2, document_id = $3, error_message = $4,
+                completed_at = CASE WHEN $2 IN ('completed', 'failed') THEN NOW() ELSE completed_at END
+            WHERE id = $1
+            """,
+            job_id, status, document_id, error_message
+        )
+
+
+async def list_user_jobs(user_id: int, limit: int = 20) -> list[dict]:
+    """List recent research jobs for a user."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, company_url, status, document_id, error_message, created_at, completed_at
+            FROM research_jobs
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            user_id, limit
+        )
+        return [dict(row) for row in rows]
+
+
+# =============================================================================
+# Webhook Operations
+# =============================================================================
+
+async def upsert_webhook(user_id: int, url: str, secret: str) -> dict:
+    """Create or update user's webhook. Returns the webhook record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO webhooks (user_id, url, secret)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE
+            SET url = EXCLUDED.url, secret = EXCLUDED.secret, active = TRUE
+            RETURNING *
+            """,
+            user_id, url, secret
+        )
+        return dict(row)
+
+
+async def get_user_webhook(user_id: int) -> Optional[dict]:
+    """Get a user's active webhook config."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM webhooks WHERE user_id = $1 AND active = TRUE",
+            user_id
+        )
+        return dict(row) if row else None
+
+
+async def delete_user_webhook(user_id: int) -> bool:
+    """Deactivate user's webhook. Returns True if found."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE webhooks SET active = FALSE WHERE user_id = $1 AND active = TRUE",
+            user_id
+        )
+        return result == "UPDATE 1"
+
+
+# =============================================================================
+# Webhook Delivery Operations
+# =============================================================================
+
+async def create_webhook_delivery(webhook_id: int, job_id: int) -> dict:
+    """Create a delivery record. Returns the record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO webhook_deliveries (webhook_id, job_id)
+            VALUES ($1, $2)
+            RETURNING *
+            """,
+            webhook_id, job_id
+        )
+        return dict(row)
+
+
+async def update_delivery_status(
+    delivery_id: int,
+    status: str,
+    http_status: int = None,
+    error_message: str = None,
+) -> None:
+    """Update a webhook delivery result."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE webhook_deliveries
+            SET status = $2, http_status = $3, error_message = $4, attempts = attempts + 1
+            WHERE id = $1
+            """,
+            delivery_id, status, http_status, error_message
         )
