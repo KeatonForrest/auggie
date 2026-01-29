@@ -331,17 +331,17 @@ _Deferred — EDGAR already provides financials for public companies, and the ex
 ---
 
 ## Phase 8: Intelligence Orchestration
-**Status:** Next — starting with CSV Upload
+**Status:** Stage 1 Complete
 
 Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
 **Build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
 
-### Stage 1: CSV Upload (foundation) ← NEXT
-- [ ] Build CSV upload UI — accept a file of company domains
-- [ ] Parse CSV, validate URLs, create a list automatically
-- [ ] Trigger bulk analysis on upload (reuse existing list analysis pipeline)
-- [ ] Display results in a list view with score sorting/filtering
+### Stage 1: CSV Upload (foundation) ✅
+- [x] Build CSV upload UI — accept a file of company domains
+- [x] Parse CSV, validate URLs, create a list automatically
+- [x] Trigger bulk analysis on upload (reuse existing list analysis pipeline)
+- [x] Display results in a list view with score sorting/filtering
 
 ### Stage 2: CRM Ingest — HubSpot
 - [ ] Register Auggie as a HubSpot app (OAuth)
@@ -386,6 +386,38 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [ ] LeadMagic — contacts for high-pain accounts only (re-enable after data quality improves)
 - [ ] Apollo — contact enrichment
 - [ ] Clearbit — firmographic enrichment
+
+---
+
+## Phase 8.5: UX Polish
+**Status:** Next
+
+Fix friction points that hurt activation, retention, and daily usability. Grouped by impact.
+
+### P0 — Conversion blockers
+
+- [ ] **Research progress indicator** — Replace spinner-only loading with multi-step progress (Scraping → Tech Detection → Enrichment → Analysis → Writing). Research takes 30-60s; users need to know it's working.
+- [ ] **Friendly error pages** — Replace raw `HTTPException` text with styled error pages that explain what happened, confirm credit refund, and offer next steps.
+- [ ] **Low-credit warning banner** — Show persistent banner when credits < 3 ("You have 2 credits remaining"). Prevents surprise 402 errors.
+- [ ] **Payment success confirmation** — Handle `?payment=success` query param on index page with a toast/banner confirming purchase.
+- [ ] **Duplicate research warning** — Before starting research, check if company was researched in last 7 days. Show "You researched acme.com 3 days ago — view existing or research again?"
+
+### P1 — Daily friction
+
+- [ ] **CSV export from list view** — "Export to CSV" button that downloads all list accounts with scores, status, and company names. Critical for the bulk workflow.
+- [ ] **Document search** — Add search bar to sidebar/documents page. At 50+ documents, the 10-item recent list is unusable.
+- [ ] **Remove or implement PDF export** — Current button returns markdown. Either implement real PDF (WeasyPrint) or remove the button.
+- [ ] **Inline email editing** — Let users edit generated outreach emails in the modal before copying. Currently must copy → edit externally.
+- [ ] **Retry failed list items** — Add per-item "Retry" button on failed list accounts instead of requiring full CSV re-upload.
+
+### P2 — Quality of life
+
+- [ ] **Toast/flash notification system** — Add a reusable toast component to `base.html` for success/error messages across all actions (settings saved, upload complete, credit refunded, etc.)
+- [ ] **Onboarding validation** — Client-side validation requiring at least one selection per checkbox group. Add tooltips explaining how each field affects research quality.
+- [ ] **Webhook config UI** — Webhooks exist in the API but can only be configured via API calls. Add a simple form in Settings or API Keys page.
+- [ ] **Mobile-responsive tables** — List view and API keys tables (7 columns each) overflow on mobile. Collapse to card layout or hide non-critical columns.
+- [ ] **Bulk list actions** — Checkboxes + toolbar for selecting multiple list accounts to export, delete, or retry.
+- [ ] **Materials search & preview** — Add search bar and "View" button showing extracted text. Users can't find or inspect materials at scale.
 
 ---
 
@@ -717,9 +749,9 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 7 | Clay Marketplace (technical integration) |
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
-| **Next** | **Phase 8** | **Intelligence orchestration — CSV Upload first** |
+| **Next** | **Phase 8.5** | **UX polish — progress indicator, errors, export, search** |
 | Background | Phase 9 | Clay Marketplace onboarding (external process) |
-| After | Phase 10 | Bulk workflows UI |
+| After | Phase 10 | Bulk workflows UI + remaining integrations |
 | Later | Phase 11 | Team accounts |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
