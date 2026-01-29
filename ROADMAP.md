@@ -291,35 +291,62 @@ Clay Table:
 
 ---
 
-## Phase 8: Intelligence Orchestration (Enterprise)
+## Phase 8: Intelligence Orchestration
 **Status:** Planned
 
-Transform Auggie into the orchestration layer for sales intelligence.
+Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
-### Ingest Integrations (list sources)
-- [ ] Ocean.io - Import lookalike audiences
-- [ ] Clay - Import tables (uses API)
-- [ ] Apollo - Import saved lists
-- [ ] HubSpot - Import companies
-- [ ] Salesforce - Import accounts
-- [ ] CSV upload - Bulk import
+**Recommended build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
 
-### Enrich Integrations (contact data)
-- [ ] LeadMagic - Get contacts for high-pain accounts only
-- [ ] Apollo - Contact enrichment
-- [ ] Clearbit - Firmographic enrichment
+### Stage 1: CSV Upload (foundation)
+- [ ] Build CSV upload UI — accept a file of company domains
+- [ ] Parse CSV, validate URLs, create a list automatically
+- [ ] Trigger bulk analysis on upload (reuse existing list analysis pipeline)
+- [ ] Display results in a list view with score sorting/filtering
 
-### Execute Integrations (sequencers)
-- [ ] Instantly - Push sequences + contacts
-- [ ] Outreach - Push sequences
-- [ ] Salesloft - Push sequences
-- [ ] HubSpot - Push to sequences
-- [ ] Salesforce - Sync research to account records
+### Stage 2: CRM Ingest — HubSpot
+- [ ] Register Auggie as a HubSpot app (OAuth)
+- [ ] Build HubSpot OAuth flow (connect account)
+- [ ] Pull companies from HubSpot via API
+- [ ] Let user select which companies/lists to import
+- [ ] Create Auggie list from imported companies, trigger analysis
+- [ ] Write scores back to HubSpot company records (custom properties)
 
-### Other
-- [ ] Slack notifications (research complete, high-pain alert)
-- [ ] Zapier/Make connectors
-- [ ] Chrome extension
+### Stage 3: CRM Ingest — Salesforce
+- [ ] Register Auggie as a Salesforce Connected App
+- [ ] Build Salesforce OAuth flow
+- [ ] Pull accounts from Salesforce
+- [ ] Import flow (same pattern as HubSpot)
+- [ ] Write scores back to Salesforce account records
+
+### Stage 4: Prospecting Tool Ingest
+- [ ] Apollo API integration — import saved lists
+- [ ] Ocean.io API integration — import lookalike audiences
+
+### Stage 5: Execute — First Sequencer
+- [ ] Pick sequencer (Instantly likely first — simple API, popular with ICP)
+- [ ] Build OAuth or API key connection flow
+- [ ] Push contacts + sequences to the sequencer from a completed list
+- [ ] UI: "Send to Instantly" button on filtered list view
+
+### Stage 6: Notifications
+- [ ] Slack integration — webhook notifications (research complete, high-pain alert)
+- [ ] Zapier/Make webhook triggers (covers long tail without custom integrations)
+
+### Stage 7: Chrome Extension
+- [ ] Chrome extension — research any company from their website
+- [ ] Show scores + talking points in a sidebar popup
+
+### Future Execute Integrations
+- [ ] Outreach — push sequences
+- [ ] Salesloft — push sequences
+- [ ] HubSpot — push to sequences
+- [ ] Salesforce — sync research to account records
+
+### Future Enrich Integrations
+- [ ] LeadMagic — contacts for high-pain accounts only (re-enable after data quality improves)
+- [ ] Apollo — contact enrichment
+- [ ] Clearbit — firmographic enrichment
 
 ---
 
