@@ -437,13 +437,17 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # Validate all URLs upfront
+    # Validate and deduplicate URLs upfront
     validated_urls = []
+    seen = set()
     for url in body.company_urls:
         try:
-            validated_urls.append(validate_company_url(url))
+            v = validate_company_url(url)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
+        if v not in seen:
+            seen.add(v)
+            validated_urls.append(v)
 
     n = len(validated_urls)
     usage = await get_user_usage(user["id"])
@@ -463,6 +467,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
 
     if body.analyze:
         await update_list_credits(lst["id"], n * 100)
+        await update_list_status(lst["id"], "analyzing")
         asyncio.create_task(
             run_list_analysis(lst["id"], user["id"], api_user["api_key_id"], is_admin=is_admin)
         )
