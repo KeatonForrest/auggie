@@ -124,7 +124,7 @@ async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin
     await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
 
 
-async def run_list_analysis(list_id: int, user_id: int, api_key_id: int, is_admin: bool = False):
+async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None = None, is_admin: bool = False):
     """Process all pending accounts in a list with bounded concurrency."""
     await update_list_status(list_id, "analyzing")
     accounts = await get_pending_list_accounts(list_id)
@@ -141,7 +141,8 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int, is_admi
             try:
                 doc_id = await _run_research_pipeline(user_id, company_url)
 
-                await record_api_usage(api_key_id, "/v1/research", 1)
+                if api_key_id is not None:
+                    await record_api_usage(api_key_id, "/v1/research", 1)
                 await update_job_status(job["id"], "completed", document_id=doc_id)
 
                 # Extract scores from the saved document
