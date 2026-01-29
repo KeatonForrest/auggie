@@ -220,7 +220,7 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 ---
 
 ## Phase 6: Bulk Lists + Docs + SDK
-**Status:** MOSTLY COMPLETE
+**Status:** COMPLETE
 
 Build bulk processing and developer documentation.
 
@@ -233,9 +233,12 @@ Build bulk processing and developer documentation.
 - [x] Rate limiting (2 bulk requests / 60s)
 - [x] Webhook notification on bulk completion
 
-### Lists (not yet built)
-- [ ] `POST /v1/lists` - Create persistent list from domains
-- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores, filtering/sorting
+### Lists
+- [x] `POST /v1/lists` - Create persistent list from domains (with optional immediate analysis)
+- [x] `POST /v1/lists/{id}/analyze` - Trigger analysis on pending accounts
+- [x] `GET /v1/lists/{id}` - Get accounts with pain scores, filtering/sorting
+- [x] `GET /v1/lists` - List recent lists
+- [x] `DELETE /v1/lists/{id}` - Delete list and accounts
 
 ### Docs + SDK
 - [x] API documentation page (`/docs`)
@@ -571,7 +574,7 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 4 | Microsoft OAuth |
 | ✅ Done | Phase 5 | Public API (async jobs, webhooks, sequences, rate limiting) |
-| **In Progress** | **Phase 6** | **Bulk research done, docs done, lists API remaining** |
+| ✅ Done | Phase 6 | Bulk research, lists API, docs, SDK |
 | Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
 | After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
 | After | Phase 9 | Bulk workflows UI |

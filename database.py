@@ -371,6 +371,58 @@ async def init_database():
         """)
 
         # =================================================================
+        # Lists tables
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS lists (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+                api_key_id BIGINT,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'created',
+                total_accounts INTEGER DEFAULT 0,
+                analyzed_accounts INTEGER DEFAULT 0,
+                failed_accounts INTEGER DEFAULT 0,
+                credits_reserved INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_lists_user
+            ON lists(user_id, created_at DESC)
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS list_accounts (
+                id BIGSERIAL PRIMARY KEY,
+                list_id BIGINT REFERENCES lists(id) ON DELETE CASCADE,
+                company_url TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                document_id BIGINT REFERENCES research_documents(id) ON DELETE SET NULL,
+                research_job_id BIGINT REFERENCES research_jobs(id) ON DELETE SET NULL,
+                pain_score INTEGER,
+                fit_score INTEGER,
+                timing_score INTEGER,
+                composite_score INTEGER,
+                company_name TEXT,
+                error_message TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                analyzed_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_list_accounts_list
+            ON list_accounts(list_id)
+        """)
+
+        # Mark stale analyzing lists as failed
+        await conn.execute("""
+            UPDATE lists SET status = 'failed', updated_at = NOW()
+            WHERE status = 'analyzing' AND created_at < NOW() - INTERVAL '30 minutes'
+        """)
+
+        # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
         # =================================================================
@@ -1415,3 +1467,225 @@ async def finalize_bulk_job(bulk_job_id: int) -> dict:
             bulk_job_id, final_status
         )
         return dict(updated)
+
+
+# =============================================================================
+# List Operations
+# =============================================================================
+
+async def create_list(user_id: int, api_key_id: int, name: str) -> dict:
+    """Create a new list. Returns the list record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO lists (user_id, api_key_id, name)
+            VALUES ($1, $2, $3)
+            RETURNING *
+            """,
+            user_id, api_key_id, name
+        )
+        return dict(row)
+
+
+async def get_list(list_id: int, user_id: int) -> dict | None:
+    """Get a list by ID (scoped to user)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM lists WHERE id = $1 AND user_id = $2",
+            list_id, user_id
+        )
+        return dict(row) if row else None
+
+
+async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
+    """List recent lists for a user (summaries)."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, name, status, total_accounts, analyzed_accounts,
+                   failed_accounts, credits_reserved, created_at, updated_at
+            FROM lists
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            user_id, limit
+        )
+        return [dict(row) for row in rows]
+
+
+async def delete_list(list_id: int, user_id: int) -> bool:
+    """Delete a list and all its accounts (scoped to user). Returns True if deleted."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM lists WHERE id = $1 AND user_id = $2",
+            list_id, user_id
+        )
+        return result == "DELETE 1"
+
+
+async def add_list_accounts(list_id: int, company_urls: list[str]) -> list[dict]:
+    """Batch-insert accounts for a list. Updates total_accounts on parent. Returns account records."""
+    async with _pool.acquire() as conn:
+        rows = []
+        for url in company_urls:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO list_accounts (list_id, company_url)
+                VALUES ($1, $2)
+                RETURNING *
+                """,
+                list_id, url
+            )
+            rows.append(dict(row))
+        await conn.execute(
+            "UPDATE lists SET total_accounts = $2, updated_at = NOW() WHERE id = $1",
+            list_id, len(company_urls)
+        )
+        return rows
+
+
+async def get_list_accounts(
+    list_id: int,
+    min_pain: int | None = None,
+    min_composite: int | None = None,
+    sort_by: str = "composite_score",
+    order: str = "desc",
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """Get accounts for a list with optional filtering and sorting."""
+    allowed_sorts = {"pain_score", "composite_score", "fit_score", "timing_score", "company_name"}
+    if sort_by not in allowed_sorts:
+        sort_by = "composite_score"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
+    conditions = ["list_id = $1"]
+    params: list = [list_id]
+    idx = 2
+
+    if min_pain is not None:
+        conditions.append(f"pain_score >= ${idx}")
+        params.append(min_pain)
+        idx += 1
+    if min_composite is not None:
+        conditions.append(f"composite_score >= ${idx}")
+        params.append(min_composite)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    # Use NULLS LAST so un-analyzed accounts sort to the end
+    query = f"""
+        SELECT id, list_id, company_url, status, document_id, research_job_id,
+               pain_score, fit_score, timing_score, composite_score,
+               company_name, error_message, created_at, analyzed_at
+        FROM list_accounts
+        WHERE {where}
+        ORDER BY {sort_by} {order} NULLS LAST
+        LIMIT ${idx} OFFSET ${idx + 1}
+    """
+    params.extend([limit, offset])
+
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+        return [dict(row) for row in rows]
+
+
+async def update_list_account(
+    account_id: int,
+    status: str,
+    document_id: int | None = None,
+    research_job_id: int | None = None,
+    pain_score: int | None = None,
+    fit_score: int | None = None,
+    timing_score: int | None = None,
+    composite_score: int | None = None,
+    company_name: str | None = None,
+    error_message: str | None = None,
+) -> None:
+    """Update a list account and atomically increment parent counters."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE list_accounts
+                SET status = $2, document_id = $3, research_job_id = $4,
+                    pain_score = $5, fit_score = $6, timing_score = $7, composite_score = $8,
+                    company_name = $9, error_message = $10,
+                    analyzed_at = CASE WHEN $2 IN ('completed', 'failed') THEN NOW() ELSE analyzed_at END
+                WHERE id = $1
+                """,
+                account_id, status, document_id, research_job_id,
+                pain_score, fit_score, timing_score, composite_score,
+                company_name, error_message
+            )
+            if status == 'completed':
+                await conn.execute(
+                    """
+                    UPDATE lists SET analyzed_accounts = analyzed_accounts + 1, updated_at = NOW()
+                    WHERE id = (SELECT list_id FROM list_accounts WHERE id = $1)
+                    """,
+                    account_id
+                )
+            elif status == 'failed':
+                await conn.execute(
+                    """
+                    UPDATE lists SET failed_accounts = failed_accounts + 1, updated_at = NOW()
+                    WHERE id = (SELECT list_id FROM list_accounts WHERE id = $1)
+                    """,
+                    account_id
+                )
+
+
+async def finalize_list(list_id: int) -> dict:
+    """Set final status on a list. Returns updated record."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT total_accounts, analyzed_accounts, failed_accounts FROM lists WHERE id = $1",
+            list_id
+        )
+        if row["failed_accounts"] == row["total_accounts"]:
+            final_status = "failed"
+        elif row["failed_accounts"] > 0:
+            final_status = "partial_failure"
+        else:
+            final_status = "completed"
+
+        updated = await conn.fetchrow(
+            """
+            UPDATE lists SET status = $2, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            """,
+            list_id, final_status
+        )
+        return dict(updated)
+
+
+async def update_list_status(list_id: int, status: str) -> None:
+    """Update the status of a list."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE lists SET status = $2, updated_at = NOW() WHERE id = $1",
+            list_id, status
+        )
+
+
+async def update_list_credits(list_id: int, credits_reserved: int) -> None:
+    """Update credits reserved on a list."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE lists SET credits_reserved = $2, updated_at = NOW() WHERE id = $1",
+            list_id, credits_reserved
+        )
+
+
+async def get_pending_list_accounts(list_id: int) -> list[dict]:
+    """Get all pending accounts for a list."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM list_accounts WHERE list_id = $1 AND status = 'pending' ORDER BY id",
+            list_id
+        )
+        return [dict(row) for row in rows]
