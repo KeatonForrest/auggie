@@ -6,6 +6,7 @@ Open: http://localhost:8000
 Docs: http://localhost:8000/docs
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from io import BytesIO
 
@@ -391,75 +392,82 @@ async def create_research(
         total_tech = sum(len(t.technologies) for t in tech_by_domain.values())
         print(f"Detected {total_tech} technologies across {len(tech_by_domain)} domains")
 
-        # Fetch recent news about the company
+        # Parallel data collection — news, EDGAR+FedReg, reviews, materials
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        print(f"Fetching news for {company_name}...")
-        news_content = await news_service.get_company_news(company_name)
-        if news_content:
-            scraped_content.news = news_content
-            print(f"Found recent news articles")
-        else:
-            print("No recent news found")
-
-        # Fetch SEC EDGAR filings for public companies
         settings = get_settings()
-        if settings.edgar_enabled:
-            try:
-                print(f"Checking SEC EDGAR for {company_name}...")
-                edgar_content = await edgar_service.get_company_filings(company_name)
-                if edgar_content:
-                    scraped_content.edgar_filings = edgar_content
-                    print("Found SEC EDGAR filings")
-                else:
-                    print("Not a public company or no EDGAR data found")
-            except Exception as e:
-                print(f"EDGAR lookup failed (non-fatal): {e}")
 
-        # Fetch G2/Capterra reviews
-        if settings.reviews_enabled:
+        async def _fetch_news():
             try:
-                print(f"Checking G2/Capterra for {company_name}...")
-                reviews_content = await reviews_service.get_reviews(company_name)
-                if reviews_content:
-                    scraped_content.reviews = reviews_content
-                    print("Found review data")
-                else:
-                    print("No G2/Capterra reviews found")
+                return await news_service.get_company_news(company_name)
+            except Exception as e:
+                print(f"News fetch failed (non-fatal): {e}")
+                return None
+
+        async def _fetch_edgar_and_fedreg():
+            """EDGAR then Federal Register (FedReg needs SIC code from EDGAR)."""
+            edgar_content = None
+            fed_content = None
+            if settings.edgar_enabled:
+                try:
+                    edgar_content = await edgar_service.get_company_filings(company_name)
+                except Exception as e:
+                    print(f"EDGAR lookup failed (non-fatal): {e}")
+            if settings.federal_register_enabled:
+                try:
+                    fed_content = await federal_register_service.get_upcoming_regulations(
+                        company_name=company_name,
+                        sic_code=edgar_service._last_sic_code,
+                    )
+                except Exception as e:
+                    print(f"Federal Register lookup failed (non-fatal): {e}")
+            return edgar_content, fed_content
+
+        async def _fetch_reviews():
+            if not settings.reviews_enabled:
+                return None
+            try:
+                return await reviews_service.get_reviews(company_name)
             except Exception as e:
                 print(f"Reviews scraping failed (non-fatal): {e}")
+                return None
 
-        # Fetch upcoming regulations from Federal Register
-        if settings.federal_register_enabled:
+        async def _fetch_materials():
+            retrieval = get_retrieval_service()
+            if not retrieval:
+                return ""
             try:
-                sic_code = edgar_service._last_sic_code
-                print(f"Checking Federal Register for {company_name}...")
-                fed_content = await federal_register_service.get_upcoming_regulations(
-                    company_name=company_name,
-                    sic_code=sic_code,
-                )
-                if fed_content:
-                    scraped_content.federal_regulations = fed_content
-                    print("Found relevant regulations")
-                else:
-                    print("No relevant upcoming regulations found")
-            except Exception as e:
-                print(f"Federal Register lookup failed (non-fatal): {e}")
-
-        # v2: Retrieve relevant materials if enabled
-        retrieved_materials = ""
-        retrieval = get_retrieval_service()
-        if retrieval:
-            try:
-                print("Searching for relevant sales materials...")
-                retrieved_materials = await retrieval.get_relevant_context(
+                return await retrieval.get_relevant_context(
                     user_id=user["id"],
                     company_name=company_name,
                     company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                )
-                if retrieved_materials:
-                    print(f"Found relevant materials to enhance research")
+                ) or ""
             except Exception as e:
                 print(f"Materials retrieval failed (non-fatal): {e}")
+                return ""
+
+        print(f"Fetching enrichment data for {company_name} (parallel)...")
+        news_result, edgar_fedreg_result, reviews_result, materials_result = await asyncio.gather(
+            _fetch_news(),
+            _fetch_edgar_and_fedreg(),
+            _fetch_reviews(),
+            _fetch_materials(),
+        )
+
+        # Assign results to scraped content
+        if news_result:
+            scraped_content.news = news_result
+            print("Found recent news articles")
+        edgar_content, fed_content = edgar_fedreg_result
+        if edgar_content:
+            scraped_content.edgar_filings = edgar_content
+            print("Found SEC EDGAR filings")
+        if fed_content:
+            scraped_content.federal_regulations = fed_content
+            print("Found relevant regulations")
+        if reviews_result:
+            scraped_content.reviews = reviews_result
+            print("Found review data")
+        retrieved_materials = materials_result
 
         print("Generating research document...")
         document = await claude_service.generate_research_document(
@@ -705,55 +713,42 @@ async def api_create_research(
             main_html=scraped_content.homepage_html
         )
 
-        # Fetch recent news
+        # Parallel data collection
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        news_content = await news_service.get_company_news(company_name)
-        if news_content:
-            scraped_content.news = news_content
-
-        # Fetch SEC EDGAR filings for public companies
         settings = get_settings()
-        if settings.edgar_enabled:
-            try:
-                edgar_content = await edgar_service.get_company_filings(company_name)
-                if edgar_content:
-                    scraped_content.edgar_filings = edgar_content
-            except Exception:
-                pass
 
-        # Fetch G2/Capterra reviews
-        if settings.reviews_enabled:
-            try:
-                reviews_content = await reviews_service.get_reviews(company_name)
-                if reviews_content:
-                    scraped_content.reviews = reviews_content
-            except Exception:
-                pass
+        async def _news():
+            try: return await news_service.get_company_news(company_name)
+            except Exception: return None
 
-        # Fetch upcoming regulations
-        if settings.federal_register_enabled:
-            try:
-                fed_content = await federal_register_service.get_upcoming_regulations(
-                    company_name=company_name,
-                    sic_code=edgar_service._last_sic_code,
-                )
-                if fed_content:
-                    scraped_content.federal_regulations = fed_content
-            except Exception:
-                pass
+        async def _edgar_fedreg():
+            ec, fc = None, None
+            if settings.edgar_enabled:
+                try: ec = await edgar_service.get_company_filings(company_name)
+                except Exception: pass
+            if settings.federal_register_enabled:
+                try: fc = await federal_register_service.get_upcoming_regulations(company_name=company_name, sic_code=edgar_service._last_sic_code)
+                except Exception: pass
+            return ec, fc
 
-        # v2: Retrieve relevant materials if enabled
-        retrieved_materials = ""
-        retrieval = get_retrieval_service()
-        if retrieval:
-            try:
-                retrieved_materials = await retrieval.get_relevant_context(
-                    user_id=user["id"],
-                    company_name=company_name,
-                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                )
-            except Exception:
-                pass  # Non-fatal
+        async def _reviews():
+            if not settings.reviews_enabled: return None
+            try: return await reviews_service.get_reviews(company_name)
+            except Exception: return None
+
+        async def _materials():
+            retrieval = get_retrieval_service()
+            if not retrieval: return ""
+            try: return await retrieval.get_relevant_context(user_id=user["id"], company_name=company_name, company_description=scraped_content.homepage[:500] if scraped_content.homepage else "") or ""
+            except Exception: return ""
+
+        news_r, ef_r, rev_r, mat_r = await asyncio.gather(_news(), _edgar_fedreg(), _reviews(), _materials())
+        if news_r: scraped_content.news = news_r
+        ec, fc = ef_r
+        if ec: scraped_content.edgar_filings = ec
+        if fc: scraped_content.federal_regulations = fc
+        if rev_r: scraped_content.reviews = rev_r
+        retrieved_materials = mat_r
 
         document = await claude_service.generate_research_document(
             company_url=company_url,
