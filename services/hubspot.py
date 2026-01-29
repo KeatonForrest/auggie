@@ -16,7 +16,7 @@ HUBSPOT_AUTH_URL = "https://app.hubspot.com/oauth/authorize"
 HUBSPOT_TOKEN_URL = "https://api.hubapi.com/oauth/v1/token"
 HUBSPOT_API_BASE = "https://api.hubapi.com"
 
-SCOPES = "crm.objects.companies.read crm.objects.companies.write crm.schemas.companies.write"
+SCOPES = "oauth crm.objects.companies.read crm.objects.companies.write crm.schemas.companies.write"
 
 
 def get_authorize_url(state: str) -> str:
