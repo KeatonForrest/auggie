@@ -1,8 +1,13 @@
-"""apollo.py - Contact enrichment service using Apollo.io API."""
+"""apollo.py - Apollo.io: contact enrichment + integration (API key, saved list import)."""
+
+import logging
 
 import httpx
 from typing import Optional
 from config import get_settings
+from database import get_integration
+
+logger = logging.getLogger(__name__)
 
 
 class ApolloContact:
@@ -316,3 +321,64 @@ class ApolloService:
             lines.append("(This is CONFIRMED firmographic data — use it to validate or override inferred company size/industry for Fit scoring. With confirmed firmographics, the Fit score cap of 65 can be removed.)")
 
             return "\n".join(lines)
+
+
+# =============================================================================
+# Integration functions (API key connect, saved list import)
+# =============================================================================
+
+APOLLO_API_BASE = "https://api.apollo.io/v1"
+
+
+async def validate_integration_api_key(api_key: str) -> bool:
+    """Validate an Apollo API key by making a test call."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{APOLLO_API_BASE}/auth/health",
+            headers={"Content-Type": "application/json"},
+            json={"api_key": api_key},
+        )
+        return resp.status_code == 200
+
+
+async def _get_integration_api_key(user_id: int) -> str:
+    """Get a user's Apollo integration API key from integrations table."""
+    integration = await get_integration(user_id, "apollo")
+    if not integration:
+        raise RuntimeError("Apollo not connected")
+    return integration["access_token"]
+
+
+async def list_saved_lists(user_id: int) -> list[dict]:
+    """List saved organization lists from Apollo."""
+    api_key = await _get_integration_api_key(user_id)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{APOLLO_API_BASE}/labels",
+            headers={"Content-Type": "application/json"},
+            json={"api_key": api_key},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("labels", [])
+
+
+async def fetch_list_companies(user_id: int, list_id: str, page: int = 1) -> dict:
+    """Fetch companies from a saved Apollo list.
+
+    Returns {"organizations": [...], "pagination": {...}}.
+    """
+    api_key = await _get_integration_api_key(user_id)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{APOLLO_API_BASE}/mixed_companies/search",
+            headers={"Content-Type": "application/json"},
+            json={
+                "api_key": api_key,
+                "label_ids": [list_id],
+                "page": page,
+                "per_page": 100,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()

@@ -71,6 +71,27 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, co
             await record_api_usage(api_key_id, "/v1/research", 1)
         await update_job_status(job_id, "completed", document_id=doc_id)
 
+        # Slack notification
+        try:
+            from services.notifications import send_slack_notification
+            from database import get_integration as _get_integ
+            slack = await _get_integ(user_id, "slack")
+            if slack:
+                doc = await get_document(doc_id, user_id)
+                settings = get_settings()
+                notify_data = {
+                    "company_name": doc.company_name if doc else company_url,
+                    "company_url": company_url,
+                    "pain_score": doc.pain_score if doc else None,
+                    "composite_score": doc.opportunity_score if doc else None,
+                    "doc_url": f"{settings.app_url}/document/{doc_id}",
+                }
+                await send_slack_notification(slack["access_token"], "research_complete", notify_data)
+                if doc and doc.pain_score is not None and doc.pain_score >= 80:
+                    await send_slack_notification(slack["access_token"], "high_pain_alert", notify_data)
+        except Exception:
+            logger.exception("Slack notification failed for job %s", job_id)
+
         # Fire webhook
         await _deliver_webhook(user_id, job_id, "completed", doc_id, None)
 
@@ -197,6 +218,35 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
             logger.info("HubSpot writeback: updated %d companies for list %d", updated, list_id)
     except Exception:
         logger.exception("HubSpot writeback failed for list %d", list_id)
+
+    # Salesforce writeback: if list was imported from Salesforce, push scores back
+    try:
+        if not source:
+            source = await get_list_source(list_id)
+        if source and source.get("provider") == "salesforce":
+            from services.salesforce import write_list_scores_to_salesforce
+            all_accounts = await get_list_accounts(list_id)
+            updated = await write_list_scores_to_salesforce(user_id, source, all_accounts)
+            logger.info("Salesforce writeback: updated %d accounts for list %d", updated, list_id)
+    except Exception:
+        logger.exception("Salesforce writeback failed for list %d", list_id)
+
+    # Slack notification for list completion
+    try:
+        from services.notifications import send_slack_notification
+        from database import get_integration as _get_integ
+        slack = await _get_integ(user_id, "slack")
+        if slack:
+            settings = get_settings()
+            await send_slack_notification(slack["access_token"], "list_complete", {
+                "list_name": final.get("name", f"List {list_id}"),
+                "total_accounts": final.get("total_accounts", 0),
+                "completed_accounts": final.get("completed_accounts", 0),
+                "failed_accounts": failed_count,
+                "list_url": f"{settings.app_url}/lists/{list_id}",
+            })
+    except Exception:
+        logger.exception("Slack notification failed for list %d", list_id)
 
     # Fire webhook for list completion
     await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)

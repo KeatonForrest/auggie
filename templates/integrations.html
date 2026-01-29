@@ -79,6 +79,167 @@
         {% endif %}
     </div>
 
+    <!-- Salesforce -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.1 3.5c-.8 0-1.5.2-2.2.5C12.2 3 11.1 2.5 10 2.5c-2.2 0-4 1.8-4 4 0 .3 0 .5.1.8C4.3 7.9 3 9.5 3 11.5c0 2.5 2 4.5 4.5 4.5h.3c.5 1.2 1.7 2 3.2 2 1.2 0 2.3-.7 2.9-1.7.5.1 1 .2 1.6.2 2.5 0 4.5-2 4.5-4.5 0-1-.3-1.9-.9-2.7.2-.5.4-1.1.4-1.8 0-2.2-1.8-4-4.4-4z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Salesforce</h2>
+                    <p class="text-sm text-gray-500">Import accounts and write scores back to CRM</p>
+                </div>
+            </div>
+            {% if integrations.get('salesforce') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('salesforce') %}
+        <div class="flex items-center gap-3">
+            <button onclick="openSalesforceImport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                Import Accounts
+            </button>
+            <form method="post" action="/integrations/salesforce/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <a href="/integrations/salesforce/connect" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+            Connect Salesforce
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Apollo -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Apollo</h2>
+                    <p class="text-sm text-gray-500">Import saved company lists from Apollo.io</p>
+                </div>
+            </div>
+            {% if integrations.get('apollo') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('apollo') %}
+        <div class="flex items-center gap-3">
+            <button onclick="openApolloImport()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                Import from List
+            </button>
+            <form method="post" action="/integrations/apollo/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div id="apollo-form">
+            <div class="flex gap-3">
+                <input type="text" id="apollo-key" placeholder="Enter your Apollo API key"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                <button onclick="connectApollo()" id="apollo-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                    Connect
+                </button>
+            </div>
+            <p id="apollo-error" class="mt-2 text-sm text-red-600 hidden"></p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Ocean.io -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Ocean.io</h2>
+                    <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
+                </div>
+            </div>
+            {% if integrations.get('ocean') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('ocean') %}
+        <div class="flex items-center gap-3">
+            <button onclick="openOceanImport()" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                Import Audience
+            </button>
+            <form method="post" action="/integrations/ocean/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div id="ocean-form">
+            <div class="flex gap-3">
+                <input type="text" id="ocean-key" placeholder="Enter your Ocean.io API key"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                <button onclick="connectOcean()" id="ocean-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                    Connect
+                </button>
+            </div>
+            <p id="ocean-error" class="mt-2 text-sm text-red-600 hidden"></p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Slack -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.124 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120 8.834a2.528 2.528 0 01-2.521 2.521h-2.521V8.834zm-1.272 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521V2.522A2.528 2.528 0 0111.165 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.124a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521v-2.521h2.521zm0-1.272a2.528 2.528 0 01-2.521-2.521 2.528 2.528 0 012.521-2.521h6.313A2.528 2.528 0 0124 11.165a2.528 2.528 0 01-2.522 2.521h-6.313z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Slack</h2>
+                    <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
+                </div>
+            </div>
+            {% if integrations.get('slack') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('slack') %}
+        <div class="flex items-center gap-3">
+            <button onclick="testSlack()" id="slack-test-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                Send Test Message
+            </button>
+            <form method="post" action="/integrations/slack/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div id="slack-form">
+            <div class="flex gap-3">
+                <input type="text" id="slack-url" placeholder="https://hooks.slack.com/services/..."
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500 outline-none">
+                <button onclick="connectSlack()" id="slack-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                    Connect
+                </button>
+            </div>
+            <p id="slack-error" class="mt-2 text-sm text-red-600 hidden"></p>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- Clay (existing) -->
     <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center gap-3 mb-4">
@@ -122,6 +283,79 @@
                     Import & Analyze
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+<!-- Salesforce Import Modal -->
+<div id="salesforce-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from Salesforce</h2>
+            <button onclick="closeSalesforceImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div id="sf-loading" class="text-center py-8 text-gray-500">Loading accounts...</div>
+            <div id="sf-accounts" class="hidden">
+                <div class="mb-4">
+                    <input type="text" id="sf-search" placeholder="Search accounts..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div id="sf-list" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
+                <div id="sf-load-more" class="hidden mt-4 text-center">
+                    <button onclick="loadMoreSfAccounts()" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Load More</button>
+                </div>
+            </div>
+            <div id="sf-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-between items-center">
+            <span id="sf-selected-count" class="text-sm text-gray-500">0 selected</span>
+            <div class="flex gap-3">
+                <input type="text" id="sf-list-name" placeholder="List name" value="Salesforce Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
+                <button onclick="importSfSelected()" id="sf-import-btn" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50" disabled>
+                    Import & Analyze
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Apollo Import Modal -->
+<div id="apollo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from Apollo</h2>
+            <button onclick="closeApolloImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div id="ap-loading" class="text-center py-8 text-gray-500">Loading saved lists...</div>
+            <div id="ap-lists" class="hidden space-y-2"></div>
+            <div id="ap-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-end">
+            <input type="text" id="ap-list-name" placeholder="List name" value="Apollo Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
+            <button onclick="importApolloList()" id="ap-import-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50" disabled>
+                Import & Analyze
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Ocean.io Import Modal -->
+<div id="ocean-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from Ocean.io</h2>
+            <button onclick="closeOceanImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div id="oc-loading" class="text-center py-8 text-gray-500">Loading audiences...</div>
+            <div id="oc-audiences" class="hidden space-y-2"></div>
+            <div id="oc-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-end">
+            <input type="text" id="oc-list-name" placeholder="List name" value="Ocean.io Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
+            <button onclick="importOceanAudience()" id="oc-import-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50" disabled>
+                Import & Analyze
+            </button>
         </div>
     </div>
 </div>
@@ -245,6 +479,302 @@ function importSelected() {
     });
 }
 
+// === Salesforce ===
+var sfAccounts = [];
+var sfSelected = new Set();
+var sfOffset = 0;
+
+function openSalesforceImport() {
+    document.getElementById('salesforce-modal').classList.remove('hidden');
+    loadSfAccounts();
+}
+
+function closeSalesforceImport() {
+    document.getElementById('salesforce-modal').classList.add('hidden');
+}
+
+function loadSfAccounts(offset) {
+    offset = offset || 0;
+    var url = '/integrations/salesforce/accounts?offset=' + offset;
+    document.getElementById('sf-loading').classList.remove('hidden');
+    document.getElementById('sf-error').classList.add('hidden');
+
+    fetch(url)
+        .then(function(r) { if (!r.ok) throw new Error('Failed to load'); return r.json(); })
+        .then(function(data) {
+            document.getElementById('sf-loading').classList.add('hidden');
+            document.getElementById('sf-accounts').classList.remove('hidden');
+
+            var records = data.records || [];
+            records.forEach(function(a) { sfAccounts.push(a); });
+            renderSfAccounts();
+
+            if (!data.done && records.length > 0) {
+                sfOffset = sfAccounts.length;
+                document.getElementById('sf-load-more').classList.remove('hidden');
+            } else {
+                document.getElementById('sf-load-more').classList.add('hidden');
+            }
+        })
+        .catch(function() {
+            document.getElementById('sf-loading').classList.add('hidden');
+            document.getElementById('sf-error').classList.remove('hidden');
+            document.getElementById('sf-error').textContent = 'Failed to load accounts from Salesforce.';
+        });
+}
+
+function loadMoreSfAccounts() { loadSfAccounts(sfOffset); }
+
+function renderSfAccounts() {
+    var container = document.getElementById('sf-list');
+    var search = (document.getElementById('sf-search').value || '').toLowerCase();
+    container.innerHTML = '';
+
+    sfAccounts.forEach(function(a) {
+        var name = a.Name || 'Unknown';
+        var website = a.Website || '';
+        if (search && name.toLowerCase().indexOf(search) === -1 && website.toLowerCase().indexOf(search) === -1) return;
+
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (sfSelected.has(a.Id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50');
+        div.innerHTML = '<input type="checkbox" ' + (sfSelected.has(a.Id) ? 'checked' : '') + ' class="rounded border-gray-300 text-blue-600">'
+            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + name + '</div>'
+            + '<div class="text-xs text-gray-500">' + website + '</div></div>';
+        div.querySelector('input').addEventListener('change', function(e) {
+            if (e.target.checked) sfSelected.add(a.Id);
+            else sfSelected.delete(a.Id);
+            document.getElementById('sf-selected-count').textContent = sfSelected.size + ' selected';
+            document.getElementById('sf-import-btn').disabled = sfSelected.size === 0;
+            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (sfSelected.has(a.Id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50');
+        });
+        container.appendChild(div);
+    });
+}
+
+document.getElementById('sf-search') && document.getElementById('sf-search').addEventListener('input', renderSfAccounts);
+
+function importSfSelected() {
+    var btn = document.getElementById('sf-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    var accounts = sfAccounts.filter(function(a) { return sfSelected.has(a.Id); }).map(function(a) {
+        return { id: a.Id, website: a.Website || '' };
+    });
+
+    fetch('/integrations/salesforce/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accounts: accounts, name: document.getElementById('sf-list-name').value || 'Salesforce Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { window.location.href = '/lists/' + data.list_id; }
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+// === Apollo ===
+var apSelectedListId = null;
+
+function openApolloImport() {
+    document.getElementById('apollo-modal').classList.remove('hidden');
+    loadApolloLists();
+}
+
+function closeApolloImport() {
+    document.getElementById('apollo-modal').classList.add('hidden');
+}
+
+function loadApolloLists() {
+    document.getElementById('ap-loading').classList.remove('hidden');
+    document.getElementById('ap-error').classList.add('hidden');
+    fetch('/integrations/apollo/lists')
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(lists) {
+            document.getElementById('ap-loading').classList.add('hidden');
+            var container = document.getElementById('ap-lists');
+            container.classList.remove('hidden');
+            container.innerHTML = '';
+            lists.forEach(function(l) {
+                var div = document.createElement('div');
+                div.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer';
+                div.textContent = l.name || l.id;
+                div.onclick = function() {
+                    container.querySelectorAll('div').forEach(function(d) { d.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer'; });
+                    div.className = 'p-3 rounded-lg border border-indigo-500 bg-indigo-50 cursor-pointer';
+                    apSelectedListId = l.id;
+                    document.getElementById('ap-import-btn').disabled = false;
+                };
+                container.appendChild(div);
+            });
+            if (lists.length === 0) container.innerHTML = '<p class="text-gray-500 text-sm">No saved lists found.</p>';
+        })
+        .catch(function() {
+            document.getElementById('ap-loading').classList.add('hidden');
+            document.getElementById('ap-error').classList.remove('hidden');
+            document.getElementById('ap-error').textContent = 'Failed to load lists from Apollo.';
+        });
+}
+
+function importApolloList() {
+    if (!apSelectedListId) return;
+    var btn = document.getElementById('ap-import-btn');
+    btn.disabled = true; btn.textContent = 'Importing...';
+    fetch('/integrations/apollo/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: apSelectedListId, name: document.getElementById('ap-list-name').value || 'Apollo Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) window.location.href = '/lists/' + data.list_id;
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+// === Ocean.io ===
+var ocSelectedAudienceId = null;
+
+function openOceanImport() {
+    document.getElementById('ocean-modal').classList.remove('hidden');
+    loadOceanAudiences();
+}
+
+function closeOceanImport() {
+    document.getElementById('ocean-modal').classList.add('hidden');
+}
+
+function loadOceanAudiences() {
+    document.getElementById('oc-loading').classList.remove('hidden');
+    document.getElementById('oc-error').classList.add('hidden');
+    fetch('/integrations/ocean/audiences')
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(audiences) {
+            document.getElementById('oc-loading').classList.add('hidden');
+            var container = document.getElementById('oc-audiences');
+            container.classList.remove('hidden');
+            container.innerHTML = '';
+            audiences.forEach(function(a) {
+                var div = document.createElement('div');
+                div.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer';
+                div.textContent = a.name || a.id;
+                div.onclick = function() {
+                    container.querySelectorAll('div').forEach(function(d) { d.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer'; });
+                    div.className = 'p-3 rounded-lg border border-cyan-500 bg-cyan-50 cursor-pointer';
+                    ocSelectedAudienceId = a.id;
+                    document.getElementById('oc-import-btn').disabled = false;
+                };
+                container.appendChild(div);
+            });
+            if (audiences.length === 0) container.innerHTML = '<p class="text-gray-500 text-sm">No audiences found.</p>';
+        })
+        .catch(function() {
+            document.getElementById('oc-loading').classList.add('hidden');
+            document.getElementById('oc-error').classList.remove('hidden');
+            document.getElementById('oc-error').textContent = 'Failed to load audiences from Ocean.io.';
+        });
+}
+
+function importOceanAudience() {
+    if (!ocSelectedAudienceId) return;
+    var btn = document.getElementById('oc-import-btn');
+    btn.disabled = true; btn.textContent = 'Importing...';
+    fetch('/integrations/ocean/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience_id: ocSelectedAudienceId, name: document.getElementById('oc-list-name').value || 'Ocean.io Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) window.location.href = '/lists/' + data.list_id;
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+// === Slack ===
+function connectSlack() {
+    var btn = document.getElementById('slack-btn');
+    var url = document.getElementById('slack-url').value.trim();
+    var errEl = document.getElementById('slack-error');
+    errEl.classList.add('hidden');
+
+    if (!url) { errEl.textContent = 'Please enter a webhook URL'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/slack/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: url })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid webhook URL'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+function testSlack() {
+    var btn = document.getElementById('slack-test-btn');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    fetch('/integrations/slack/test', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.textContent = data.success ? 'Sent!' : 'Failed';
+            setTimeout(function() { btn.disabled = false; btn.textContent = 'Send Test Message'; }, 2000);
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Send Test Message'; });
+}
+
+// === Apollo API key connect ===
+function connectApollo() {
+    var btn = document.getElementById('apollo-btn');
+    var key = document.getElementById('apollo-key').value.trim();
+    var errEl = document.getElementById('apollo-error');
+    errEl.classList.add('hidden');
+
+    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/apollo/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+// === Ocean.io API key connect ===
+function connectOcean() {
+    var btn = document.getElementById('ocean-btn');
+    var key = document.getElementById('ocean-key').value.trim();
+    var errEl = document.getElementById('ocean-error');
+    errEl.classList.add('hidden');
+
+    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/ocean/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+// === Instantly ===
 function connectInstantly() {
     var btn = document.getElementById('instantly-btn');
     var key = document.getElementById('instantly-key').value.trim();

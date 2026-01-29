@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     hubspot_client_id: str = ""
     hubspot_client_secret: str = ""
 
+    # Salesforce (CRM integration)
+    salesforce_client_id: str = ""
+    salesforce_client_secret: str = ""
+
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 

@@ -541,6 +541,404 @@ async def push_to_instantly(
     return JSONResponse(result)
 
 
+# --- Salesforce (OAuth) ---
+
+@app.get("/integrations/salesforce/connect")
+async def salesforce_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to Salesforce OAuth."""
+    import secrets
+    from services.salesforce import get_authorize_url
+    state = secrets.token_urlsafe(24)
+    request.session["_salesforce_state_"] = state
+    url = get_authorize_url(state)
+    return RedirectResponse(url=url)
+
+
+@app.get("/integrations/salesforce/callback")
+async def salesforce_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle Salesforce OAuth callback."""
+    from datetime import datetime as dt, timezone, timedelta
+    from services.salesforce import exchange_code
+    from database import upsert_integration
+
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get("_salesforce_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    request.session.pop("_salesforce_state_", None)
+
+    token_data = await exchange_code(code)
+    expires_at = dt.now(timezone.utc) + timedelta(seconds=7200)
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="salesforce",
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+        metadata={
+            "instance_url": token_data.get("instance_url", ""),
+            "id": token_data.get("id", ""),
+        },
+    )
+
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+@app.post("/integrations/salesforce/disconnect")
+async def salesforce_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Salesforce integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "salesforce")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/salesforce/accounts")
+async def salesforce_accounts(request: Request, user: dict = Depends(require_onboarding)):
+    """Fetch accounts from Salesforce for import selection."""
+    from services.salesforce import fetch_accounts
+    offset = int(request.query_params.get("offset", "0"))
+    try:
+        data = await fetch_accounts(user["id"], limit=100, offset=offset)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Salesforce API error: {str(e)[:200]}")
+    return JSONResponse(data)
+
+
+@app.post("/integrations/salesforce/import")
+async def salesforce_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import selected Salesforce accounts into an Auggie list."""
+    from api.jobs import run_list_analysis
+    from database import set_list_source
+
+    body = await request.json()
+    accounts = body.get("accounts", [])
+    list_name = body.get("name", "Salesforce Import")
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts selected")
+
+    valid_urls = []
+    sf_map = {}
+    seen = set()
+    for a in accounts:
+        website = a.get("website", "").strip()
+        sf_id = str(a.get("id", ""))
+        if not website or website in seen:
+            continue
+        url = normalize_url(website)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        seen.add(website)
+        valid_urls.append(url)
+        sf_map[url] = sf_id
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in selected accounts")
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    lst = await create_list(user["id"], api_key_id=None, name=list_name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+    await set_list_source(lst["id"], {
+        "provider": "salesforce",
+        "salesforce_account_map": sf_map,
+    })
+
+    create_tracked_task(
+        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+        name=f"list-{lst['id']}",
+    )
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
+
+
+# --- Apollo (API key) ---
+
+@app.post("/integrations/apollo/connect")
+async def apollo_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Apollo API key after validation."""
+    from services.apollo import validate_integration_api_key
+    from database import upsert_integration
+
+    body = await request.json()
+    api_key = body.get("api_key", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+
+    valid = await validate_integration_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Apollo API key")
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="apollo",
+        access_token=api_key,
+    )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/integrations/apollo/disconnect")
+async def apollo_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Apollo integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "apollo")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/apollo/lists")
+async def apollo_lists(request: Request, user: dict = Depends(require_onboarding)):
+    """List saved Apollo lists."""
+    from services.apollo import list_saved_lists
+    try:
+        lists = await list_saved_lists(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Apollo API error: {str(e)[:200]}")
+    return JSONResponse(lists)
+
+
+@app.post("/integrations/apollo/import")
+async def apollo_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import companies from an Apollo saved list into an Auggie list."""
+    from services.apollo import fetch_list_companies
+    from api.jobs import run_list_analysis
+
+    body = await request.json()
+    apollo_list_id = body.get("list_id", "")
+    list_name = body.get("name", "Apollo Import")
+
+    if not apollo_list_id:
+        raise HTTPException(status_code=400, detail="list_id is required")
+
+    data = await fetch_list_companies(user["id"], apollo_list_id)
+    organizations = data.get("organizations", [])
+
+    valid_urls = []
+    seen = set()
+    for org in organizations:
+        domain = (org.get("primary_domain") or org.get("website_url") or "").strip()
+        if not domain or domain in seen:
+            continue
+        url = normalize_url(domain)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        seen.add(domain)
+        valid_urls.append(url)
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in Apollo list")
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    lst = await create_list(user["id"], api_key_id=None, name=list_name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    create_tracked_task(
+        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+        name=f"list-{lst['id']}",
+    )
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
+
+
+# --- Ocean.io (API key) ---
+
+@app.post("/integrations/ocean/connect")
+async def ocean_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Ocean.io API key after validation."""
+    from services.ocean import validate_api_key
+    from database import upsert_integration
+
+    body = await request.json()
+    api_key = body.get("api_key", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+
+    valid = await validate_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Ocean.io API key")
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="ocean",
+        access_token=api_key,
+    )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/integrations/ocean/disconnect")
+async def ocean_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Ocean.io integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "ocean")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/ocean/audiences")
+async def ocean_audiences(request: Request, user: dict = Depends(require_onboarding)):
+    """List Ocean.io audiences."""
+    from services.ocean import list_audiences
+    try:
+        audiences = await list_audiences(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ocean.io API error: {str(e)[:200]}")
+    return JSONResponse(audiences)
+
+
+@app.post("/integrations/ocean/import")
+async def ocean_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import companies from an Ocean.io audience into an Auggie list."""
+    from services.ocean import fetch_audience_companies
+    from api.jobs import run_list_analysis
+
+    body = await request.json()
+    audience_id = body.get("audience_id", "")
+    list_name = body.get("name", "Ocean.io Import")
+
+    if not audience_id:
+        raise HTTPException(status_code=400, detail="audience_id is required")
+
+    data = await fetch_audience_companies(user["id"], audience_id)
+    companies = data.get("companies", data.get("data", []))
+
+    valid_urls = []
+    seen = set()
+    for company in companies:
+        domain = (company.get("domain") or company.get("website") or "").strip()
+        if not domain or domain in seen:
+            continue
+        url = normalize_url(domain)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        seen.add(domain)
+        valid_urls.append(url)
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in Ocean.io audience")
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    lst = await create_list(user["id"], api_key_id=None, name=list_name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    create_tracked_task(
+        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+        name=f"list-{lst['id']}",
+    )
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
+
+
+# --- Slack (webhook URL) ---
+
+@app.post("/integrations/slack/connect")
+async def slack_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Slack webhook URL after validation."""
+    from services.notifications import validate_webhook_url
+    from database import upsert_integration
+
+    body = await request.json()
+    webhook_url = body.get("webhook_url", "").strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Webhook URL is required")
+
+    valid = await validate_webhook_url(webhook_url)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Slack webhook URL — test message failed")
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="slack",
+        access_token=webhook_url,
+    )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/integrations/slack/disconnect")
+async def slack_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Slack integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "slack")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.post("/integrations/slack/test")
+async def slack_test(request: Request, user: dict = Depends(require_auth)):
+    """Send a test Slack notification."""
+    from services.notifications import send_slack_notification
+    from database import get_integration
+
+    integration = await get_integration(user["id"], "slack")
+    if not integration:
+        raise HTTPException(status_code=400, detail="Slack not connected")
+
+    ok = await send_slack_notification(
+        integration["access_token"],
+        "research_complete",
+        {
+            "company_name": "Test Company",
+            "pain_score": 85,
+            "composite_score": 78,
+            "doc_url": f"{settings.app_url}/",
+        },
+    )
+
+    if not ok:
+        raise HTTPException(status_code=502, detail="Failed to send test message")
+
+    return JSONResponse({"success": True})
+
+
 @app.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
     """Onboarding page to collect company info."""
