@@ -6,7 +6,6 @@ Open: http://localhost:8000
 Docs: http://localhost:8000/docs
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from io import BytesIO
 
@@ -20,13 +19,9 @@ from models import ResearchRequest, ResearchResponse, ResearchDocument
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
-from services.news import NewsService
 from services.materials import MaterialsService
-from services.retrieval import RetrievalService
 from services.writing import WritingService
-from services.edgar import EdgarService
-from services.reviews import ReviewsService
-from services.federal_register import FederalRegisterService
+from services.collect import collect_enrichment_data
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, get_user_usage,
@@ -89,15 +84,10 @@ templates = Jinja2Templates(directory="templates")
 firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
-news_service = NewsService()
-edgar_service = EdgarService()
-reviews_service = ReviewsService()
-federal_register_service = FederalRegisterService()
 writing_service = WritingService()
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
-retrieval_service = None
 
 def get_materials_service():
     """Get or create materials service (lazy init)."""
@@ -105,13 +95,6 @@ def get_materials_service():
     if materials_service is None and settings.materials_enabled:
         materials_service = MaterialsService()
     return materials_service
-
-def get_retrieval_service():
-    """Get or create retrieval service (lazy init)."""
-    global retrieval_service
-    if retrieval_service is None and settings.materials_enabled:
-        retrieval_service = RetrievalService()
-    return retrieval_service
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -392,82 +375,11 @@ async def create_research(
         total_tech = sum(len(t.technologies) for t in tech_by_domain.values())
         print(f"Detected {total_tech} technologies across {len(tech_by_domain)} domains")
 
-        # Parallel data collection — news, EDGAR+FedReg, reviews, materials
+        # Parallel data collection
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        settings = get_settings()
-
-        async def _fetch_news():
-            try:
-                return await news_service.get_company_news(company_name)
-            except Exception as e:
-                print(f"News fetch failed (non-fatal): {e}")
-                return None
-
-        async def _fetch_edgar_and_fedreg():
-            """EDGAR then Federal Register (FedReg needs SIC code from EDGAR)."""
-            edgar_content = None
-            fed_content = None
-            if settings.edgar_enabled:
-                try:
-                    edgar_content = await edgar_service.get_company_filings(company_name)
-                except Exception as e:
-                    print(f"EDGAR lookup failed (non-fatal): {e}")
-            if settings.federal_register_enabled:
-                try:
-                    fed_content = await federal_register_service.get_upcoming_regulations(
-                        company_name=company_name,
-                        sic_code=edgar_service._last_sic_code,
-                    )
-                except Exception as e:
-                    print(f"Federal Register lookup failed (non-fatal): {e}")
-            return edgar_content, fed_content
-
-        async def _fetch_reviews():
-            if not settings.reviews_enabled:
-                return None
-            try:
-                return await reviews_service.get_reviews(company_name)
-            except Exception as e:
-                print(f"Reviews scraping failed (non-fatal): {e}")
-                return None
-
-        async def _fetch_materials():
-            retrieval = get_retrieval_service()
-            if not retrieval:
-                return ""
-            try:
-                return await retrieval.get_relevant_context(
-                    user_id=user["id"],
-                    company_name=company_name,
-                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                ) or ""
-            except Exception as e:
-                print(f"Materials retrieval failed (non-fatal): {e}")
-                return ""
-
-        print(f"Fetching enrichment data for {company_name} (parallel)...")
-        news_result, edgar_fedreg_result, reviews_result, materials_result = await asyncio.gather(
-            _fetch_news(),
-            _fetch_edgar_and_fedreg(),
-            _fetch_reviews(),
-            _fetch_materials(),
+        retrieved_materials = await collect_enrichment_data(
+            scraped_content, company_name, user["id"], verbose=True,
         )
-
-        # Assign results to scraped content
-        if news_result:
-            scraped_content.news = news_result
-            print("Found recent news articles")
-        edgar_content, fed_content = edgar_fedreg_result
-        if edgar_content:
-            scraped_content.edgar_filings = edgar_content
-            print("Found SEC EDGAR filings")
-        if fed_content:
-            scraped_content.federal_regulations = fed_content
-            print("Found relevant regulations")
-        if reviews_result:
-            scraped_content.reviews = reviews_result
-            print("Found review data")
-        retrieved_materials = materials_result
 
         print("Generating research document...")
         document = await claude_service.generate_research_document(
@@ -713,42 +625,10 @@ async def api_create_research(
             main_html=scraped_content.homepage_html
         )
 
-        # Parallel data collection
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        settings = get_settings()
-
-        async def _news():
-            try: return await news_service.get_company_news(company_name)
-            except Exception: return None
-
-        async def _edgar_fedreg():
-            ec, fc = None, None
-            if settings.edgar_enabled:
-                try: ec = await edgar_service.get_company_filings(company_name)
-                except Exception: pass
-            if settings.federal_register_enabled:
-                try: fc = await federal_register_service.get_upcoming_regulations(company_name=company_name, sic_code=edgar_service._last_sic_code)
-                except Exception: pass
-            return ec, fc
-
-        async def _reviews():
-            if not settings.reviews_enabled: return None
-            try: return await reviews_service.get_reviews(company_name)
-            except Exception: return None
-
-        async def _materials():
-            retrieval = get_retrieval_service()
-            if not retrieval: return ""
-            try: return await retrieval.get_relevant_context(user_id=user["id"], company_name=company_name, company_description=scraped_content.homepage[:500] if scraped_content.homepage else "") or ""
-            except Exception: return ""
-
-        news_r, ef_r, rev_r, mat_r = await asyncio.gather(_news(), _edgar_fedreg(), _reviews(), _materials())
-        if news_r: scraped_content.news = news_r
-        ec, fc = ef_r
-        if ec: scraped_content.edgar_filings = ec
-        if fc: scraped_content.federal_regulations = fc
-        if rev_r: scraped_content.reviews = rev_r
-        retrieved_materials = mat_r
+        retrieved_materials = await collect_enrichment_data(
+            scraped_content, company_name, user["id"],
+        )
 
         document = await claude_service.generate_research_document(
             company_url=company_url,
