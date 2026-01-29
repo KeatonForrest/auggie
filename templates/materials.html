@@ -40,7 +40,8 @@
     <!-- Materials List -->
     <div class="bg-white shadow rounded-lg overflow-hidden">
         {% if materials %}
-        <table class="min-w-full divide-y divide-gray-200">
+        <!-- Desktop table -->
+        <table class="hidden sm:table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
@@ -136,6 +137,48 @@
                 {% endfor %}
             </tbody>
         </table>
+        <!-- Mobile cards -->
+        <div class="sm:hidden divide-y divide-gray-200">
+            {% for material in materials %}
+            <div class="p-4 material-row" data-filename="{{ material.filename|lower }}">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="text-sm font-medium text-gray-900 truncate mr-2">{{ material.filename }}</div>
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0
+                        {% if material.material_type == 'case_study' %}bg-green-100 text-green-800
+                        {% elif material.material_type == 'battle_card' %}bg-purple-100 text-purple-800
+                        {% elif material.material_type == 'product_doc' %}bg-blue-100 text-blue-800
+                        {% elif material.material_type == 'sales_deck' %}bg-orange-100 text-orange-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ material.material_type | replace('_', ' ') | title }}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-gray-500">
+                    <div class="flex items-center gap-3">
+                        <span>{{ "%.1f"|format(material.file_size / 1024) }} KB</span>
+                        <span>{{ material.chunk_count or 0 }} chunks</span>
+                        {% if material.status == 'ready' %}
+                        <span class="text-green-600">Ready</span>
+                        {% elif material.status == 'processing' %}
+                        <span class="text-yellow-600">Processing</span>
+                        {% elif material.status == 'failed' %}
+                        <span class="text-red-600">Failed</span>
+                        {% else %}
+                        <span>Pending</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex gap-3">
+                        {% if material.status == 'ready' %}
+                        <button onclick="previewMaterial({{ material.id }})" class="text-blue-600 font-medium">View</button>
+                        {% endif %}
+                        {% if material.status == 'failed' %}
+                        <button onclick="reprocessMaterial({{ material.id }})" class="text-indigo-600 font-medium">Retry</button>
+                        {% endif %}
+                        <button onclick="deleteMaterial({{ material.id }}, '{{ material.filename }}')" class="text-red-600 font-medium">Delete</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
         {% else %}
         <div class="text-center py-12">
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
