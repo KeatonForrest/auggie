@@ -495,21 +495,6 @@ async def get_markdown(doc_id: int, user: dict = Depends(require_auth)):
     )
 
 
-@app.get("/document/{doc_id}/pdf")
-async def get_pdf(doc_id: int, user: dict = Depends(require_auth)):
-    """Download document as PDF (currently returns markdown fallback)."""
-    document = await get_document(doc_id, user_id=user["id"])
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    # TODO: Implement PDF generation with WeasyPrint
-    safe_name = re.sub(r'[^\w\s\-.]', '', document.company_name)
-    return StreamingResponse(
-        BytesIO(document.full_markdown.encode()),
-        media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}_research.md"'}
-    )
-
 
 # =============================================================================
 # Outreach Writing Endpoints

@@ -406,7 +406,7 @@ Fix friction points that hurt activation, retention, and daily usability. Groupe
 
 - [x] **CSV export from list view** — "Export CSV" button downloads all accounts with scores, status, and company names.
 - [x] **Document search** — Client-side search input in sidebar filtering recent docs by company name.
-- [ ] **Remove or implement PDF export** — Current button returns markdown. Either implement real PDF (WeasyPrint) or remove the button.
+- [x] **Remove PDF export** — Removed dead `/document/{id}/pdf` route (no UI button existed). Can revisit with WeasyPrint later if needed.
 - [x] **Inline email editing** — Outreach modal renders emails as editable subject input + body textarea. Copy All reads current values.
 - [x] **Retry failed list items** — Per-item "Retry" button on failed list accounts with AJAX + toast feedback.
 
