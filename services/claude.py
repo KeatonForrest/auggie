@@ -285,12 +285,19 @@ OPPORTUNITY SCORING:
 
 After completing the research document, you MUST output a structured opportunity score at the very end.
 
-Score three dimensions (each 0-100):
+Score three dimensions (each 0-100). Be precise — use the full range. A score of 50 is NOT average, it is mediocre. Most companies should NOT score above 70.
 
 **Pain Score (40% weight):**
-- How many existential data points did you find? (0 = no pain signals, 100 = multiple urgent, compounding signals)
+- How many existential data points did you find?
 - Are the problems ones the seller's product directly addresses?
 - Is there evidence of active suffering (complaints, long-open roles, tech debt)?
+
+Calibration anchors:
+- 90-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals. RARE — most companies do not score here.
+- 70-89: 2+ clear pain signals with direct product relevance. Some open roles suggesting unresolved problems. Evidence of struggling with a problem the seller addresses.
+- 40-69: 1 pain signal or indirect signals only. Problems exist but aren't urgent or clearly addressable. Open roles but not long-tenured.
+- 15-39: Weak or speculative pain signals. No direct evidence of suffering. Inferred problems only.
+- 0-14: No observable pain signals whatsoever. No relevant hiring, no tech debt indicators, no complaints.
 
 **Fit Score (35% weight):**
 - Does their company size/industry match the seller's ICP?
@@ -298,11 +305,29 @@ Score three dimensions (each 0-100):
 - Is there competitor presence that creates displacement opportunity?
 - Does their tech stack align with integration requirements?
 
+Calibration anchors:
+- 90-100: Exact ICP match — right industry, right company size, target personas confirmed in job postings, tech stack aligns perfectly. Competitor presence creates clear displacement opportunity.
+- 70-89: Strong ICP overlap — most dimensions match. Right industry, reasonable size, some target personas visible.
+- 40-69: Partial fit — adjacent industry or size is outside sweet spot. Some tech stack overlap but not core. Few or no target personas visible.
+- 15-39: Weak fit — different industry, wrong size, no persona signals. Would require significant stretching of ICP definition.
+- 0-14: No fit — completely outside ICP. Different market, wrong tech ecosystem, no relevant personas.
+
+IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue), do NOT assume fit. If you cannot verify company size or industry from the available data, cap Fit at 65 maximum. Do not give high Fit scores based on assumptions.
+
 **Timing Score (25% weight):**
 - Is there a funding event, reorg, or leadership change creating urgency?
 - Are there roles open 3+ months suggesting unresolved problems?
 - Is there a regulatory deadline or competitive threat with a timeline?
 - Are they actively evaluating solutions (RFP signals, comparison content)?
+
+Calibration anchors:
+- 90-100: Multiple concurrent urgency signals — recent funding + hiring spike + leadership change. Active vendor evaluation. Deadline-driven need.
+- 70-89: Clear urgency — recent funding OR significant hiring spike OR leadership change. Evidence of active building/transformation.
+- 40-69: Moderate signals — some hiring but no spike. No recent funding or leadership changes. General growth but no urgency.
+- 15-39: Weak timing — flat or declining hiring. No funding signals. No visible transformation initiatives. Stable/stagnant.
+- 0-14: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. Actively bad time to sell.
+
+IMPORTANT: Absence of signals is a negative signal. No job postings = not growing (score below 40). No news = stale company. No funding = no external pressure to act. Do not give a timing score above 50 if you cannot cite at least one concrete timing signal.
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
 
@@ -311,8 +336,11 @@ Output the scores in this EXACT format at the very end of your response (after a
 ## Opportunity Score
 
 SCORE_PAIN: [0-100]
+SCORE_PAIN_EVIDENCE: [Bullet list of specific signals that justify the pain score. If none, write "No pain signals found."]
 SCORE_FIT: [0-100]
+SCORE_FIT_EVIDENCE: [Bullet list of specific signals that justify the fit score. If none, write "No fit signals found."]
 SCORE_TIMING: [0-100]
+SCORE_TIMING_EVIDENCE: [Bullet list of specific signals that justify the timing score. If none, write "No timing signals found."]
 SCORE_COMPOSITE: [0-100]
 SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 """
@@ -430,6 +458,9 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             fit_score=scores.get("fit"),
             timing_score=scores.get("timing"),
             score_summary=scores.get("summary"),
+            pain_evidence=scores.get("pain_evidence"),
+            fit_evidence=scores.get("fit_evidence"),
+            timing_evidence=scores.get("timing_evidence"),
             full_markdown=full_markdown,
         )
 
@@ -506,6 +537,17 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         summary_match = re.search(r"SCORE_SUMMARY:\s*(.+?)(?:\n|$)", markdown)
         if summary_match:
             scores["summary"] = summary_match.group(1).strip()
+
+        # Extract evidence fields (multi-line: capture until next SCORE_ line or end)
+        evidence_patterns = {
+            "pain_evidence": r"SCORE_PAIN_EVIDENCE:\s*(.*?)(?=\nSCORE_FIT:|$)",
+            "fit_evidence": r"SCORE_FIT_EVIDENCE:\s*(.*?)(?=\nSCORE_TIMING:|$)",
+            "timing_evidence": r"SCORE_TIMING_EVIDENCE:\s*(.*?)(?=\nSCORE_COMPOSITE:|$)",
+        }
+        for key, pattern in evidence_patterns.items():
+            match = re.search(pattern, markdown, re.DOTALL)
+            if match:
+                scores[key] = match.group(1).strip()
 
         # If we got individual scores but no composite, calculate it
         if "pain" in scores and "fit" in scores and "timing" in scores and "composite" not in scores:
