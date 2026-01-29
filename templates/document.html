@@ -101,6 +101,33 @@ This template displays a generated research document with:
             </div>
         </div>
 
+        <!-- Score Evidence (expandable) -->
+        {% if document.pain_evidence or document.fit_evidence or document.timing_evidence %}
+        <details class="mt-4 border-t pt-4">
+            <summary class="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700">Score evidence</summary>
+            <div class="mt-3 grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                {% if document.pain_evidence %}
+                <div>
+                    <span class="font-semibold text-gray-900">Pain signals</span>
+                    <div class="mt-1 whitespace-pre-line">{{ document.pain_evidence }}</div>
+                </div>
+                {% endif %}
+                {% if document.fit_evidence %}
+                <div>
+                    <span class="font-semibold text-gray-900">Fit signals</span>
+                    <div class="mt-1 whitespace-pre-line">{{ document.fit_evidence }}</div>
+                </div>
+                {% endif %}
+                {% if document.timing_evidence %}
+                <div>
+                    <span class="font-semibold text-gray-900">Timing signals</span>
+                    <div class="mt-1 whitespace-pre-line">{{ document.timing_evidence }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </details>
+        {% endif %}
+
         <!-- How We Score (expandable) -->
         <details class="mt-4 border-t pt-4">
             <summary class="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700">How we score</summary>
