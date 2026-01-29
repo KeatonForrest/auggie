@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # LeadMagic (for contact enrichment)
     leadmagic_api_key: str = ""
 
+    # HubSpot (CRM integration)
+    hubspot_client_id: str = ""
+    hubspot_client_secret: str = ""
+
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 

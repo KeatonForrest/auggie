@@ -12,7 +12,7 @@ from database import (
     create_research_job, get_bulk_job_items, update_bulk_job_item,
     finalize_bulk_job,
     get_pending_list_accounts, update_list_account,
-    finalize_list,
+    finalize_list, get_list_source, get_list_accounts,
 )
 from services.collect import collect_enrichment_data
 from services.instances import firecrawl_service, claude_service, wappalyzer_service
@@ -186,6 +186,17 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     failed_count = final["failed_accounts"]
     if failed_count > 0 and not is_admin:
         await refund_credit(user_id, cents=failed_count * 100)
+
+    # HubSpot writeback: if list was imported from HubSpot, push scores back
+    try:
+        source = await get_list_source(list_id)
+        if source and source.get("provider") == "hubspot":
+            from services.hubspot import write_list_scores_to_hubspot
+            all_accounts = await get_list_accounts(list_id)
+            updated = await write_list_scores_to_hubspot(user_id, source, all_accounts)
+            logger.info("HubSpot writeback: updated %d companies for list %d", updated, list_id)
+    except Exception:
+        logger.exception("HubSpot writeback failed for list %d", list_id)
 
     # Fire webhook for list completion
     await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)

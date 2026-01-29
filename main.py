@@ -300,6 +300,247 @@ async def integrations_clay(request: Request):
     )
 
 
+# ==========================================================================
+# Integrations: HubSpot + Instantly
+# ==========================================================================
+
+@app.get("/integrations", response_class=HTMLResponse)
+async def integrations_page(request: Request, user: dict = Depends(require_onboarding)):
+    """Integration management page."""
+    from database import get_user_integrations
+    integrations = await get_user_integrations(user["id"])
+    integration_map = {i["provider"]: i for i in integrations}
+    usage = await get_user_usage(user["id"])
+    return templates.TemplateResponse(
+        "integrations.html",
+        {
+            "request": request,
+            "user": user,
+            "integrations": integration_map,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+        }
+    )
+
+
+@app.get("/integrations/hubspot/connect")
+async def hubspot_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to HubSpot OAuth."""
+    import secrets
+    from services.hubspot import get_authorize_url
+    state = secrets.token_urlsafe(24)
+    request.session["_hubspot_state_"] = state
+    url = get_authorize_url(state)
+    return RedirectResponse(url=url)
+
+
+@app.get("/integrations/hubspot/callback")
+async def hubspot_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle HubSpot OAuth callback."""
+    from datetime import datetime as dt, timezone, timedelta
+    from services.hubspot import exchange_code
+    from database import upsert_integration
+
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get("_hubspot_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    request.session.pop("_hubspot_state_", None)
+
+    token_data = await exchange_code(code)
+    expires_at = dt.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 21600))
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="hubspot",
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+        metadata={"hub_id": token_data.get("hub_id")},
+    )
+
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+@app.post("/integrations/hubspot/disconnect")
+async def hubspot_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect HubSpot integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "hubspot")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/hubspot/companies")
+async def hubspot_companies(request: Request, user: dict = Depends(require_onboarding)):
+    """Fetch companies from HubSpot for import selection."""
+    from services.hubspot import fetch_companies
+    after = request.query_params.get("after")
+    try:
+        data = await fetch_companies(user["id"], limit=100, after=after)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"HubSpot API error: {str(e)[:200]}")
+    return JSONResponse(data)
+
+
+@app.post("/integrations/hubspot/import")
+async def hubspot_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import selected HubSpot companies into an Auggie list."""
+    from api.jobs import run_list_analysis
+    from database import upsert_integration, set_list_source
+
+    body = await request.json()
+    companies = body.get("companies", [])
+    list_name = body.get("name", "HubSpot Import")
+
+    if not companies:
+        raise HTTPException(status_code=400, detail="No companies selected")
+
+    # Build URLs and HubSpot ID map
+    valid_urls = []
+    hubspot_map = {}
+    seen = set()
+    for c in companies:
+        domain = c.get("domain", "").strip()
+        hubspot_id = str(c.get("id", ""))
+        if not domain or domain in seen:
+            continue
+        url = normalize_url(domain)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        seen.add(domain)
+        valid_urls.append(url)
+        hubspot_map[url] = hubspot_id
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in selected companies")
+
+    # Check credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    lst = await create_list(user["id"], api_key_id=None, name=list_name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+    await set_list_source(lst["id"], {
+        "provider": "hubspot",
+        "hubspot_company_map": hubspot_map,
+    })
+
+    create_tracked_task(
+        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+        name=f"list-{lst['id']}",
+    )
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
+
+
+# --- Instantly ---
+
+@app.post("/integrations/instantly/connect")
+async def instantly_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Instantly API key after validation."""
+    from services.instantly import validate_api_key
+    from database import upsert_integration
+
+    body = await request.json()
+    api_key = body.get("api_key", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+
+    valid = await validate_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Instantly API key")
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="instantly",
+        access_token=api_key,
+    )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/integrations/instantly/disconnect")
+async def instantly_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Instantly integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "instantly")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/instantly/campaigns")
+async def instantly_campaigns(request: Request, user: dict = Depends(require_onboarding)):
+    """List Instantly campaigns."""
+    from services.instantly import list_campaigns
+    try:
+        campaigns = await list_campaigns(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Instantly API error: {str(e)[:200]}")
+    return JSONResponse(campaigns)
+
+
+@app.post("/lists/{list_id}/push-instantly")
+async def push_to_instantly(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to an Instantly campaign."""
+    from services.instantly import push_accounts_to_instantly
+    from database import get_enriched_contacts
+
+    body = await request.json()
+    campaign_id = body.get("campaign_id")
+    account_ids = body.get("account_ids", [])
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id is required")
+
+    # Verify list ownership
+    lst = await get_list(list_id)
+    if not lst or lst["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    # Get accounts
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    # Get contacts for each account
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_instantly(
+        user["id"], campaign_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
 @app.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
     """Onboarding page to collect company info."""
@@ -1064,6 +1305,10 @@ async def view_list(
     )
     usage = await get_user_usage(user["id"])
 
+    # Check if Instantly is connected
+    from database import get_integration
+    instantly_integration = await get_integration(user["id"], "instantly")
+
     return templates.TemplateResponse(
         "list_view.html",
         {
@@ -1075,6 +1320,7 @@ async def view_list(
             "sort": sort,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
+            "instantly_connected": instantly_integration is not None,
         }
     )
 

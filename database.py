@@ -483,6 +483,40 @@ async def init_database():
         """)
 
         # =================================================================
+        # Integrations table (HubSpot, Instantly, etc.)
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS integrations (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                token_expires_at TIMESTAMPTZ,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, provider)
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_integrations_user_provider
+            ON integrations(user_id, provider)
+        """)
+
+        # Add hubspot_source column to lists table for tracking HubSpot-imported lists
+        try:
+            await conn.execute("ALTER TABLE lists ADD COLUMN source JSONB DEFAULT '{}'")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
+        # Add pushed_to column to list_accounts for tracking Instantly pushes
+        try:
+            await conn.execute("ALTER TABLE list_accounts ADD COLUMN pushed_to JSONB DEFAULT '{}'")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
+        # =================================================================
         # Materials tables (v2 - for uploaded sales materials)
         # Only create if materials feature is enabled (requires pgvector)
         # =================================================================
@@ -1916,3 +1950,122 @@ async def get_pending_list_accounts(list_id: int) -> list[dict]:
             list_id
         )
         return [dict(row) for row in rows]
+
+
+# =============================================================================
+# Integration Operations
+# =============================================================================
+
+async def upsert_integration(
+    user_id: int,
+    provider: str,
+    access_token: str,
+    refresh_token: str | None = None,
+    token_expires_at: datetime | None = None,
+    metadata: dict | None = None,
+) -> dict:
+    """Create or update an integration for a user."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO integrations (user_id, provider, access_token, refresh_token, token_expires_at, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            ON CONFLICT (user_id, provider) DO UPDATE SET
+                access_token = EXCLUDED.access_token,
+                refresh_token = COALESCE(EXCLUDED.refresh_token, integrations.refresh_token),
+                token_expires_at = EXCLUDED.token_expires_at,
+                metadata = COALESCE(EXCLUDED.metadata, integrations.metadata),
+                updated_at = NOW()
+            RETURNING *
+            """,
+            user_id, provider, access_token, refresh_token, token_expires_at,
+            __import__('json').dumps(metadata or {}),
+        )
+        return dict(row)
+
+
+async def get_integration(user_id: int, provider: str) -> dict | None:
+    """Get a user's integration for a provider."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM integrations WHERE user_id = $1 AND provider = $2",
+            user_id, provider,
+        )
+        return dict(row) if row else None
+
+
+async def get_user_integrations(user_id: int) -> list[dict]:
+    """Get all integrations for a user."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM integrations WHERE user_id = $1 ORDER BY provider",
+            user_id,
+        )
+        return [dict(row) for row in rows]
+
+
+async def delete_integration(user_id: int, provider: str) -> bool:
+    """Delete a user's integration. Returns True if deleted."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM integrations WHERE user_id = $1 AND provider = $2",
+            user_id, provider,
+        )
+        return result == "DELETE 1"
+
+
+async def update_integration_tokens(
+    user_id: int,
+    provider: str,
+    access_token: str,
+    refresh_token: str | None = None,
+    token_expires_at: datetime | None = None,
+) -> None:
+    """Update tokens for an integration (used by refresh flow)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE integrations SET
+                access_token = $3,
+                refresh_token = COALESCE($4, refresh_token),
+                token_expires_at = $5,
+                updated_at = NOW()
+            WHERE user_id = $1 AND provider = $2
+            """,
+            user_id, provider, access_token, refresh_token, token_expires_at,
+        )
+
+
+async def get_list_source(list_id: int) -> dict | None:
+    """Get the source metadata for a list."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT source FROM lists WHERE id = $1",
+            list_id,
+        )
+        if row and row["source"]:
+            import json
+            return json.loads(row["source"]) if isinstance(row["source"], str) else row["source"]
+        return None
+
+
+async def set_list_source(list_id: int, source: dict) -> None:
+    """Set the source metadata for a list."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE lists SET source = $2::jsonb, updated_at = NOW() WHERE id = $1",
+            list_id, __import__('json').dumps(source),
+        )
+
+
+async def update_list_account_pushed(account_id: int, provider: str, push_data: dict) -> None:
+    """Mark a list account as pushed to a provider."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE list_accounts SET pushed_to = pushed_to || $2::jsonb
+            WHERE id = $1
+            """,
+            account_id,
+            __import__('json').dumps({provider: push_data}),
+        )

@@ -14,8 +14,8 @@ from database import (
     use_credit, refund_credit, record_api_usage,
     create_bulk_job, get_bulk_job, list_bulk_jobs,
     create_bulk_job_items, get_bulk_job_items,
-    create_list, get_list, list_lists as db_list_lists, delete_list,
-    add_list_accounts, get_list_accounts, get_pending_list_accounts,
+    create_list, get_list, list_lists as db_list_lists, delete_list, get_list_accounts,
+    add_list_accounts, get_pending_list_accounts,
     update_list_status, update_list_credits,
     get_recent_document_by_url,
     try_start_list_analysis,
@@ -688,3 +688,46 @@ async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_ap
     if not deleted:
         raise HTTPException(status_code=404, detail="List not found")
     return JSONResponse(status_code=204, content=None)
+
+
+class PushInstantlyRequest(BaseModel):
+    campaign_id: str
+    account_ids: list[int] | None = None
+
+
+@router.post("/lists/{list_id}/push")
+async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_user: dict = Depends(require_api_key)):
+    """Push accounts from a list to an Instantly campaign via API."""
+    from database import get_integration, get_enriched_contacts as get_contacts
+    from services.instantly import push_accounts_to_instantly
+
+    default_limiter.check(api_user["api_key_id"])
+
+    lst = await get_list(list_id, api_user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    integration = await get_integration(api_user["id"], "instantly")
+    if not integration:
+        raise HTTPException(status_code=400, detail="Instantly not connected")
+
+    all_accounts = await get_list_accounts(list_id)
+    if body.account_ids:
+        accounts = [a for a in all_accounts if a["id"] in body.account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_contacts(account["document_id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_instantly(
+        api_user["id"], body.campaign_id, accounts, contacts_by_account,
+    )
+    return result
