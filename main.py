@@ -157,6 +157,43 @@ async def docs_page(request: Request):
     )
 
 
+@app.get("/guides/clay-pain-based-outbound", response_class=HTMLResponse)
+async def guide_clay_pain_outbound(request: Request):
+    """Clay pain-based outbound guide page."""
+    user = await get_current_user(request)
+    clay_template = {
+        "columns": [
+            {"name": "Company Website", "type": "text", "description": "The company domain to research"},
+            {
+                "name": "Auggie Research",
+                "type": "http_request",
+                "config": {
+                    "method": "POST",
+                    "url": "https://auggie.app/v1/research",
+                    "headers": {
+                        "Authorization": "Bearer aug_your_key",
+                        "Content-Type": "application/json"
+                    },
+                    "body": "{\"company_url\": \"{{/Company Website}}\"}"
+                }
+            },
+            {"name": "Pain Score", "type": "extract", "path": "scores.pain"},
+            {"name": "Composite Score", "type": "extract", "path": "scores.composite"},
+            {"name": "Summary", "type": "extract", "path": "scores.summary"},
+            {"name": "Business Problems", "type": "extract", "path": "sections.business_problems"},
+            {"name": "Talking Points", "type": "extract", "path": "sections.talking_points"},
+            {"name": "Document ID", "type": "extract", "path": "document_id"}
+        ],
+        "filters": [
+            {"column": "Pain Score", "operator": ">=", "value": 70}
+        ]
+    }
+    return templates.TemplateResponse(
+        "guide_clay_pain_outbound.html",
+        {"request": request, "user": user, "clay_template_json": clay_template}
+    )
+
+
 @app.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
     """Onboarding page to collect company info."""
