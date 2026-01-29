@@ -390,29 +390,29 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 ---
 
 ## Phase 8.5: UX Polish
-**Status:** Next
+**Status:** Complete (P0 + P1 shipped, P2 deferred)
 
 Fix friction points that hurt activation, retention, and daily usability. Grouped by impact.
 
 ### P0 — Conversion blockers
 
-- [ ] **Research progress indicator** — Replace spinner-only loading with multi-step progress (Scraping → Tech Detection → Enrichment → Analysis → Writing). Research takes 30-60s; users need to know it's working.
-- [ ] **Friendly error pages** — Replace raw `HTTPException` text with styled error pages that explain what happened, confirm credit refund, and offer next steps.
-- [ ] **Low-credit warning banner** — Show persistent banner when credits < 3 ("You have 2 credits remaining"). Prevents surprise 402 errors.
-- [ ] **Payment success confirmation** — Handle `?payment=success` query param on index page with a toast/banner confirming purchase.
-- [ ] **Duplicate research warning** — Before starting research, check if company was researched in last 7 days. Show "You researched acme.com 3 days ago — view existing or research again?"
+- [x] **Research progress indicator** — Async job + polling progress page with 5 animated steps and spinner on final step while job completes.
+- [x] **Friendly error pages** — Styled error template for 400/402/404/500 with friendly titles, credit refund note, and action buttons.
+- [x] **Low-credit warning banner** — Dismissible yellow banner when credits < 3, remembers dismissal in localStorage.
+- [x] **Payment success confirmation** — Toast via `?payment=success` URL param with history.replaceState cleanup.
+- [x] **Duplicate research warning** — Client-side check before submission with confirm dialog and link to existing document.
 
 ### P1 — Daily friction
 
-- [ ] **CSV export from list view** — "Export to CSV" button that downloads all list accounts with scores, status, and company names. Critical for the bulk workflow.
-- [ ] **Document search** — Add search bar to sidebar/documents page. At 50+ documents, the 10-item recent list is unusable.
+- [x] **CSV export from list view** — "Export CSV" button downloads all accounts with scores, status, and company names.
+- [x] **Document search** — Client-side search input in sidebar filtering recent docs by company name.
 - [ ] **Remove or implement PDF export** — Current button returns markdown. Either implement real PDF (WeasyPrint) or remove the button.
-- [ ] **Inline email editing** — Let users edit generated outreach emails in the modal before copying. Currently must copy → edit externally.
-- [ ] **Retry failed list items** — Add per-item "Retry" button on failed list accounts instead of requiring full CSV re-upload.
+- [x] **Inline email editing** — Outreach modal renders emails as editable subject input + body textarea. Copy All reads current values.
+- [x] **Retry failed list items** — Per-item "Retry" button on failed list accounts with AJAX + toast feedback.
 
-### P2 — Quality of life
+### P2 — Quality of life (deferred)
 
-- [ ] **Toast/flash notification system** — Add a reusable toast component to `base.html` for success/error messages across all actions (settings saved, upload complete, credit refunded, etc.)
+- [x] **Toast/flash notification system** — Reusable toast component in `base.html` with success/error/warning/info types, auto-dismiss, and manual close.
 - [ ] **Onboarding validation** — Client-side validation requiring at least one selection per checkbox group. Add tooltips explaining how each field affects research quality.
 - [ ] **Webhook config UI** — Webhooks exist in the API but can only be configured via API calls. Add a simple form in Settings or API Keys page.
 - [ ] **Mobile-responsive tables** — List view and API keys tables (7 columns each) overflow on mobile. Collapse to card layout or hide non-critical columns.
@@ -433,6 +433,7 @@ Complete the Clay marketplace onboarding. Technical integration is done (Phase 7
 - [ ] Test integration end-to-end with Clay team
 - [ ] Publish to Clay marketplace
 - [ ] Create Clay workflow template: "Problem-Signal Prospecting"
+- [ ] Feed PVP examples into outreach generation prompt — give the writing service concrete pain-value proposition examples so generated emails follow proven messaging patterns instead of generic output
 
 ### Auggie as a Clay Column
 ```
@@ -749,7 +750,7 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 7 | Clay Marketplace (technical integration) |
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
-| **Next** | **Phase 8.5** | **UX polish — progress indicator, errors, export, search** |
+| ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
 | Background | Phase 9 | Clay Marketplace onboarding (external process) |
 | After | Phase 10 | Bulk workflows UI + remaining integrations |
 | Later | Phase 11 | Team accounts |
