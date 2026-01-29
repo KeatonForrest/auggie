@@ -183,6 +183,30 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
                     company_name=doc.company_name,
                 )
 
+                # Fire account_scored automation rules
+                try:
+                    from services.automation import evaluate_rules
+                    from api.tasks import create_tracked_task
+                    scored_account = {
+                        "id": account_id,
+                        "status": "completed",
+                        "document_id": doc_id,
+                        "pain_score": doc.pain_score,
+                        "fit_score": doc.fit_score,
+                        "timing_score": doc.timing_score,
+                        "composite_score": doc.opportunity_score,
+                        "company_name": doc.company_name,
+                    }
+                    create_tracked_task(
+                        evaluate_rules(user_id, "account_scored", {
+                            "list_id": list_id,
+                            "accounts": [scored_account],
+                        }),
+                        name=f"automation-scored-{account_id}",
+                    )
+                except Exception:
+                    logger.exception("account_scored automation failed for account %s", account_id)
+
             except Exception as e:
                 logger.exception("List account %s failed for %s", account_id, company_url)
                 error_msg = str(e)[:500]
@@ -248,8 +272,82 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("Slack notification failed for list %d", list_id)
 
+    # Automation rules engine (runs in background to avoid blocking webhooks)
+    try:
+        from services.automation import evaluate_rules
+        from api.tasks import create_tracked_task
+        all_accounts_for_rules = await get_list_accounts(list_id)
+        completed_for_rules = [
+            a for a in all_accounts_for_rules if a.get("status") == "completed"
+        ]
+        if completed_for_rules:
+            create_tracked_task(
+                evaluate_rules(user_id, "list_complete", {
+                    "list_id": list_id,
+                    "accounts": completed_for_rules,
+                }),
+                name=f"automation-{list_id}",
+            )
+    except Exception:
+        logger.exception("Automation rules failed for list %d", list_id)
+
     # Fire webhook for list completion
     await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)
+
+
+async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: list[int] | None = None):
+    """Generate outreach sequences for completed accounts in a list."""
+    from database import (
+        update_list_account_outreach, save_outreach_draft,
+        get_list_accounts as _get_accts, get_document,
+    )
+    from services.instances import writing_service
+
+    all_accounts = await _get_accts(list_id, limit=10000)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed" and a.get("document_id")]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed" and a.get("document_id")]
+
+    user = await get_user_by_id(user_id)
+    if not user:
+        return
+
+    semaphore = asyncio.Semaphore(5)
+
+    async def process(account: dict):
+        async with semaphore:
+            account_id = account["id"]
+            await update_list_account_outreach(account_id, "pending")
+            try:
+                doc = await get_document(account["document_id"], user_id)
+                if not doc:
+                    await update_list_account_outreach(account_id, "failed")
+                    return
+                emails = await writing_service.generate_email_sequence(
+                    document=doc,
+                    product_context=user.get("product_context", ""),
+                )
+                await save_outreach_draft(account["document_id"], user_id, {"emails": emails})
+                await update_list_account_outreach(account_id, "completed")
+            except Exception as e:
+                logger.exception("Write sequence failed for account %s", account_id)
+                await update_list_account_outreach(account_id, "failed")
+
+    BATCH_SIZE = 20
+    for batch_start in range(0, len(accounts), BATCH_SIZE):
+        batch = accounts[batch_start:batch_start + BATCH_SIZE]
+        await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
+
+
+async def run_batch_enrich_contacts(list_id: int, user_id: int, account_ids: list[int] | None = None):
+    """Stub: batch enrich contacts for accounts in a list.
+
+    Currently a no-op since no enrichment provider is configured.
+    When a provider is integrated, only the inner processing logic needs to change.
+    Raises RuntimeError so the calling route can return an appropriate message.
+    """
+    raise RuntimeError("Contact enrichment provider not yet configured")
 
 
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):

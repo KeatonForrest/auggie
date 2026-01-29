@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Automations - Auggie{% endblock %}
+
+{% block layout %}
+<div class="max-w-4xl mx-auto py-8">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+            <p class="text-sm text-gray-500 mt-1">Set rules to automatically act on scored accounts</p>
+        </div>
+        <button onclick="openAddRule()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+            + Add Rule
+        </button>
+    </div>
+
+    <!-- Existing Rules -->
+    <div id="rules-list" class="space-y-4">
+        {% if rules %}
+        {% for rule in rules %}
+        <div class="bg-white rounded-lg shadow p-5 border" id="rule-{{ rule.id }}">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h3 class="font-semibold text-gray-900">{{ rule.name }}</h3>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" {{ 'checked' if rule.enabled else '' }}
+                                onchange="toggleRule({{ rule.id }}, this.checked)">
+                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p><span class="font-medium text-gray-700">When:</span>
+                            {% if rule.trigger_event == 'list_complete' %}List completes analysis{% elif rule.trigger_event == 'account_scored' %}Account is scored{% else %}{{ rule.trigger_event }}{% endif %}
+                        </p>
+                        {% set conditions = rule.conditions if rule.conditions is mapping else {} %}
+                        {% if conditions %}
+                        <p><span class="font-medium text-gray-700">If:</span>
+                            {% for key, val in conditions.items() %}
+                                {% if key == 'composite_score_gte' %}composite score &ge; {{ val }}{% endif %}
+                                {% if key == 'pain_score_gte' %}pain score &ge; {{ val }}{% endif %}
+                                {% if key == 'fit_score_gte' %}fit score &ge; {{ val }}{% endif %}
+                                {% if key == 'timing_score_gte' %}timing score &ge; {{ val }}{% endif %}
+                                {% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
+                        {% endif %}
+                        <p><span class="font-medium text-gray-700">Then:</span>
+                            {% if rule.action == 'push_instantly' %}Push to Instantly{% elif rule.action == 'write_sequences' %}Write sequences{% elif rule.action == 'notify_slack' %}Notify Slack{% else %}{{ rule.action }}{% endif %}
+                            {% set config = rule.action_config if rule.action_config is mapping else {} %}
+                            {% if config.get('campaign_id') %}<span class="text-gray-400 text-xs ml-1">(campaign: {{ config.campaign_id[:12] }}...)</span>{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <button onclick="deleteRule({{ rule.id }})" class="text-gray-400 hover:text-red-600 text-sm ml-4">Delete</button>
+            </div>
+            {% set rule_runs = runs_by_rule.get(rule.id, []) %}
+            {% if rule_runs %}
+            <div class="mt-3 pt-3 border-t">
+                <p class="text-xs font-medium text-gray-500 mb-2">Recent runs</p>
+                <div class="space-y-1.5">
+                    {% for run in rule_runs[:5] %}
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            {% if run.status == 'completed' %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
+                            {% elif run.status == 'failed' %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>
+                            {% else %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"></span>
+                            {% endif %}
+                            <span class="text-gray-600">{{ run.matched_accounts }} account{{ 's' if run.matched_accounts != 1 else '' }} matched</span>
+                            {% if run.list_id %}
+                            <a href="/lists/{{ run.list_id }}" class="text-blue-500 hover:text-blue-700">List #{{ run.list_id }}</a>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            {% if run.error_message %}
+                            <span class="text-red-500 truncate max-w-[200px]" title="{{ run.error_message }}">{{ run.error_message[:40] }}{% if run.error_message|length > 40 %}...{% endif %}</span>
+                            {% endif %}
+                            <span class="text-gray-400">{{ run.created_at.strftime('%b %d, %H:%M') }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div id="no-rules" class="bg-white rounded-lg shadow p-12 text-center">
+            <p class="text-gray-500 mb-2">No automation rules yet</p>
+            <p class="text-sm text-gray-400">Create a rule to automatically act on accounts after scoring</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Rule Modal -->
+<div id="add-rule-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Add Automation Rule</h2>
+            <button onclick="closeAddRule()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
+                <input id="rule-name" type="text" placeholder="e.g. Push high-score leads"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Trigger</label>
+                <select id="rule-trigger" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="list_complete">List completes analysis</option>
+                    <option value="account_scored">Account is scored</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Conditions (optional)</label>
+                <div class="flex gap-2">
+                    <select id="cond-score" class="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1">
+                        <option value="">No condition</option>
+                        <option value="composite_score_gte">Composite score &ge;</option>
+                        <option value="pain_score_gte">Pain score &ge;</option>
+                        <option value="fit_score_gte">Fit score &ge;</option>
+                        <option value="timing_score_gte">Timing score &ge;</option>
+                    </select>
+                    <input id="cond-value" type="number" min="0" max="100" placeholder="70"
+                        class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                <select id="rule-action" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="updateActionConfig()">
+                    <option value="write_sequences">Write sequences</option>
+                    {% if instantly_connected %}
+                    <option value="push_instantly">Push to Instantly</option>
+                    {% endif %}
+                    {% if slack_connected %}
+                    <option value="notify_slack">Notify Slack</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div id="action-config-section" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Campaign ID</label>
+                <input id="action-campaign-id" type="text" placeholder="Instantly campaign ID"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <p class="text-xs text-gray-400 mt-1">Find this in your Instantly dashboard</p>
+            </div>
+        </div>
+        <div class="p-6 border-t flex justify-end gap-3">
+            <button onclick="closeAddRule()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onclick="saveRule()" id="save-rule-btn" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">Save Rule</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddRule() {
+    document.getElementById('add-rule-modal').classList.remove('hidden');
+}
+function closeAddRule() {
+    document.getElementById('add-rule-modal').classList.add('hidden');
+}
+
+function updateActionConfig() {
+    var action = document.getElementById('rule-action').value;
+    var section = document.getElementById('action-config-section');
+    section.classList.toggle('hidden', action !== 'push_instantly');
+}
+
+function saveRule() {
+    var name = document.getElementById('rule-name').value.trim();
+    var trigger = document.getElementById('rule-trigger').value;
+    var action = document.getElementById('rule-action').value;
+
+    if (!name) { showToast('Name is required', 'error'); return; }
+
+    var conditions = {};
+    var condScore = document.getElementById('cond-score').value;
+    var condValue = document.getElementById('cond-value').value;
+    if (condScore && condValue) {
+        conditions[condScore] = parseInt(condValue);
+    }
+
+    var actionConfig = {};
+    if (action === 'push_instantly') {
+        var campaignId = document.getElementById('action-campaign-id').value.trim();
+        if (campaignId) actionConfig.campaign_id = campaignId;
+    }
+
+    var btn = document.getElementById('save-rule-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    fetch('/automations', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            trigger_event: trigger,
+            conditions: conditions,
+            action: action,
+            action_config: actionConfig
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Rule created', 'success');
+            setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+            showToast(data.detail || 'Failed to create rule', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Save Rule';
+        }
+    })
+    .catch(function() {
+        showToast('Network error', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save Rule';
+    });
+}
+
+function toggleRule(ruleId, enabled) {
+    fetch('/automations/' + ruleId + '/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast(enabled ? 'Rule enabled' : 'Rule disabled', 'success');
+        }
+    });
+}
+
+function deleteRule(ruleId) {
+    if (!confirm('Delete this automation rule?')) return;
+    fetch('/automations/' + ruleId + '/delete', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            var el = document.getElementById('rule-' + ruleId);
+            if (el) el.remove();
+            showToast('Rule deleted', 'success');
+        }
+    });
+}
+</script>
+{% endblock %}

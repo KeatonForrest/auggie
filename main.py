@@ -1707,6 +1707,12 @@ async def view_list(
     from database import get_integration
     instantly_integration = await get_integration(user["id"], "instantly")
 
+    # Pipeline step counts (computed server-side)
+    scored_count = len([a for a in accounts if a.get("status") == "completed"])
+    enriched_count = len([a for a in accounts if a.get("enrichment_status") == "completed"])
+    written_count = len([a for a in accounts if a.get("outreach_status") == "completed"])
+    pushed_count = len([a for a in accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
+
     return templates.TemplateResponse(
         "list_view.html",
         {
@@ -1719,6 +1725,10 @@ async def view_list(
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "instantly_connected": instantly_integration is not None,
+            "scored_count": scored_count,
+            "enriched_count": enriched_count,
+            "written_count": written_count,
+            "pushed_count": pushed_count,
         }
     )
 
@@ -1920,6 +1930,84 @@ async def export_selected_csv(
     )
 
 
+@app.post("/lists/{list_id}/batch-write-sequences")
+async def batch_write_sequences(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Generate outreach sequences for accounts in a list."""
+    from api.jobs import run_batch_write_sequences
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account_ids = body.get("account_ids")
+
+    create_tracked_task(
+        run_batch_write_sequences(list_id, user["id"], account_ids=account_ids),
+        name=f"write-seq-{list_id}",
+    )
+
+    # Count how many will be processed
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    if account_ids:
+        queued = len([a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed" and a.get("document_id")])
+    else:
+        queued = len([a for a in all_accounts if a.get("status") == "completed" and a.get("document_id")])
+
+    return JSONResponse({"success": True, "queued_count": queued})
+
+
+@app.post("/lists/{list_id}/batch-enrich")
+async def batch_enrich(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Batch enrich contacts for accounts in a list."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    # Stub: enrichment provider not yet configured
+    return JSONResponse(
+        {"success": False, "error": "Contact enrichment is not yet available. This feature is coming soon."},
+        status_code=422,
+    )
+
+
+@app.get("/lists/{list_id}/pipeline-status")
+async def pipeline_status(
+    list_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Get pipeline step counts for a list."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    scored = len([a for a in all_accounts if a.get("status") == "completed"])
+    enriched = len([a for a in all_accounts if a.get("enrichment_status") == "completed"])
+    sequences_written = len([a for a in all_accounts if a.get("outreach_status") == "completed"])
+    pushed = len([a for a in all_accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
+    total = len(all_accounts)
+
+    return JSONResponse({
+        "scored": scored,
+        "enriched": enriched,
+        "sequences_written": sequences_written,
+        "pushed": pushed,
+        "total": total,
+    })
+
+
 @app.post("/lists/{list_id}/retry-selected")
 async def retry_selected_accounts(
     list_id: int,
@@ -2052,6 +2140,93 @@ async def retry_list_account(
             await update_list_account(account_id, "failed", research_job_id=job["id"], error_message=error_msg)
 
     create_tracked_task(_run_retry(), name=f"retry-{account_id}")
+    return JSONResponse({"success": True})
+
+
+# =============================================================================
+# Automation Rules
+# =============================================================================
+
+@app.get("/automations", response_class=HTMLResponse)
+async def automations_page(request: Request, user: dict = Depends(require_onboarding)):
+    """Automation rules management page."""
+    from database import get_automation_rules, get_automation_runs
+    rules = await get_automation_rules(user["id"])
+    runs = await get_automation_runs(user["id"], limit=50)
+    usage = await get_user_usage(user["id"])
+
+    # Check which integrations are connected for action config
+    from database import get_integration
+    instantly_connected = await get_integration(user["id"], "instantly") is not None
+    slack_connected = await get_integration(user["id"], "slack") is not None
+
+    # Group runs by rule_id for easy lookup in template
+    runs_by_rule = {}
+    for run in runs:
+        runs_by_rule.setdefault(run["rule_id"], []).append(run)
+
+    return templates.TemplateResponse(
+        "automations.html",
+        {
+            "request": request,
+            "user": user,
+            "rules": rules,
+            "runs_by_rule": runs_by_rule,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+            "instantly_connected": instantly_connected,
+            "slack_connected": slack_connected,
+        }
+    )
+
+
+@app.post("/automations")
+async def create_automation(request: Request, user: dict = Depends(require_onboarding)):
+    """Create a new automation rule."""
+    from database import create_automation_rule
+    body = await request.json()
+
+    name = body.get("name", "").strip()
+    trigger_event = body.get("trigger_event", "")
+    conditions = body.get("conditions", {})
+    action = body.get("action", "")
+    action_config = body.get("action_config", {})
+
+    if not name or not trigger_event or not action:
+        raise HTTPException(status_code=400, detail="Name, trigger, and action are required")
+
+    valid_triggers = {"list_complete", "account_scored"}
+    valid_actions = {"push_instantly", "write_sequences", "notify_slack"}
+    if trigger_event not in valid_triggers:
+        raise HTTPException(status_code=400, detail=f"Invalid trigger: {trigger_event}")
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
+
+    rule = await create_automation_rule(
+        user["id"], name, trigger_event, conditions, action, action_config,
+    )
+    return JSONResponse({"success": True, "rule_id": rule["id"]})
+
+
+@app.post("/automations/{rule_id}/toggle")
+async def toggle_automation(rule_id: int, request: Request, user: dict = Depends(require_onboarding)):
+    """Enable or disable an automation rule."""
+    from database import update_automation_rule
+    body = await request.json()
+    enabled = body.get("enabled", True)
+    result = await update_automation_rule(rule_id, user["id"], enabled=enabled)
+    if not result:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return JSONResponse({"success": True})
+
+
+@app.post("/automations/{rule_id}/delete")
+async def delete_automation(rule_id: int, user: dict = Depends(require_onboarding)):
+    """Delete an automation rule."""
+    from database import delete_automation_rule
+    deleted = await delete_automation_rule(rule_id, user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Rule not found")
     return JSONResponse({"success": True})
 
 

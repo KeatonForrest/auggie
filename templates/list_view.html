@@ -38,6 +38,56 @@
         </div>
     </div>
 
+    <!-- Pipeline Stepper -->
+    {% set list_done = list.status not in ('created', 'analyzing') %}
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between gap-2 text-center">
+            <!-- Step 1: Score (not clickable — happens automatically) -->
+            <div class="flex-1">
+                <div class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mb-1
+                    {% if scored_count > 0 %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">1</div>
+                <p class="text-xs font-medium text-gray-700">Score</p>
+                <p class="text-xs text-gray-400" id="step-scored">{{ scored_count }}/{{ list.total_accounts }}</p>
+            </div>
+            <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
+            <!-- Step 2: Enrich (clickable when scored > 0 and list done) -->
+            <button
+                onclick="stepEnrichAll()"
+                {% if not list_done or scored_count == 0 %}disabled{% endif %}
+                class="flex-1 rounded-lg py-2 px-1 transition
+                    {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
+                <div class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mb-1
+                    {% if enriched_count > 0 %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">2</div>
+                <p class="text-xs font-medium text-gray-700">Enrich</p>
+                <p class="text-xs text-gray-400" id="step-enriched">{{ enriched_count }} enriched</p>
+            </button>
+            <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
+            <!-- Step 3: Write (clickable when scored > 0 and list done) -->
+            <button
+                onclick="stepWriteAll()"
+                {% if not list_done or scored_count == 0 %}disabled{% endif %}
+                class="flex-1 rounded-lg py-2 px-1 transition
+                    {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
+                <div class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mb-1
+                    {% if written_count > 0 %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">3</div>
+                <p class="text-xs font-medium text-gray-700">Write</p>
+                <p class="text-xs text-gray-400" id="step-written">{{ written_count }} written</p>
+            </button>
+            <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
+            <!-- Step 4: Execute (clickable when scored > 0, Instantly connected, and list done) -->
+            <button
+                onclick="{% if instantly_connected %}openInstantlyPush(){% else %}showToast('Connect Instantly in Integrations first', 'warning'){% endif %}"
+                {% if not list_done or scored_count == 0 %}disabled{% endif %}
+                class="flex-1 rounded-lg py-2 px-1 transition
+                    {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
+                <div class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mb-1
+                    {% if pushed_count > 0 %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">4</div>
+                <p class="text-xs font-medium text-gray-700">Execute</p>
+                <p class="text-xs text-gray-400" id="step-pushed">{{ pushed_count }} pushed</p>
+            </button>
+        </div>
+    </div>
+
     <!-- Progress bar -->
     {% set processed = list.analyzed_accounts + list.failed_accounts %}
     {% if list.total_accounts > 0 %}
@@ -80,6 +130,8 @@
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Fit</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Timing</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Composite</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Enriched</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Sequences</th>
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>
@@ -112,6 +164,24 @@
                         {% endif %}
                     </td>
                     {% endfor %}
+                    <td class="px-4 py-3 text-center hidden md:table-cell">
+                        {% if a.enrichment_status == 'completed' %}
+                        <span class="text-green-600 text-sm font-medium">&#10003;</span>
+                        {% elif a.enrichment_status == 'pending' %}
+                        <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {% else %}
+                        <span class="text-gray-300">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center hidden md:table-cell">
+                        {% if a.outreach_status == 'completed' %}
+                        <span class="text-green-600 text-sm font-medium">&#10003;</span>
+                        {% elif a.outreach_status == 'pending' %}
+                        <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {% else %}
+                        <span class="text-gray-300">&mdash;</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
                         {% if a.status == 'failed' %}
                         <button onclick="retryAccount({{ list.id }}, {{ a.id }}, this)" class="text-orange-600 hover:text-orange-800 text-sm font-medium">Retry</button>
@@ -140,6 +210,8 @@
     <div id="bulk-toolbar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-lg shadow-lg px-5 py-3 flex items-center gap-4 z-40">
         <span id="bulk-count" class="text-sm font-medium">0 selected</span>
         <button onclick="exportSelected()" class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">Export Selected</button>
+        <button onclick="enrichSelected()" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Enrich Selected</button>
+        <button onclick="writeSequencesSelected()" class="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">Write Sequences</button>
         {% if instantly_connected %}
         <button onclick="openInstantlyPush(true)" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700">Send to Instantly</button>
         {% endif %}
@@ -334,6 +406,104 @@ function pushToInstantly() {
         btn.textContent = 'Push';
     });
 }
+
+function stepEnrichAll() {
+    fetch('/lists/{{ list.id }}/batch-enrich', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Enriching ' + data.queued_count + ' accounts', 'success');
+            setTimeout(function() { window.location.reload(); }, 2000);
+        } else {
+            showToast(data.error || data.detail || 'Enrich failed', 'warning');
+        }
+    })
+    .catch(function() { showToast('Network error', 'error'); });
+}
+
+function stepWriteAll() {
+    fetch('/lists/{{ list.id }}/batch-write-sequences', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Writing sequences for ' + data.queued_count + ' accounts', 'success');
+            setTimeout(function() { window.location.reload(); }, 3000);
+        } else {
+            showToast(data.error || data.detail || 'Write failed', 'error');
+        }
+    })
+    .catch(function() { showToast('Network error', 'error'); });
+}
+
+function enrichSelected() {
+    var ids = Array.from(selectedIds).map(Number);
+    fetch('/lists/{{ list.id }}/batch-enrich', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Enriching ' + data.queued_count + ' accounts', 'success');
+            setTimeout(function() { window.location.reload(); }, 2000);
+        } else {
+            showToast(data.error || data.detail || 'Enrich failed', 'warning');
+        }
+    })
+    .catch(function() { showToast('Network error', 'error'); });
+}
+
+function writeSequencesSelected() {
+    var ids = Array.from(selectedIds).map(Number);
+    fetch('/lists/{{ list.id }}/batch-write-sequences', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Writing sequences for ' + data.queued_count + ' accounts', 'success');
+            setTimeout(function() { window.location.reload(); }, 3000);
+        } else {
+            showToast(data.detail || 'Write failed', 'error');
+        }
+    })
+    .catch(function() { showToast('Network error', 'error'); });
+}
+
+// Pipeline status polling
+(function() {
+    var listStatus = '{{ list.status }}';
+    if (listStatus === 'analyzing' || listStatus === 'created') return; // already has full-page reload
+    // Poll every 10s if any account has pending enrichment or outreach
+    var hasPending = document.querySelector('svg.animate-spin');
+    if (!hasPending) return;
+    setInterval(function() {
+        fetch('/lists/{{ list.id }}/pipeline-status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var el;
+            el = document.getElementById('step-scored');
+            if (el) el.textContent = d.scored + '/' + d.total;
+            el = document.getElementById('step-enriched');
+            if (el) el.textContent = d.enriched + ' enriched';
+            el = document.getElementById('step-written');
+            if (el) el.textContent = d.sequences_written + ' written';
+            el = document.getElementById('step-pushed');
+            if (el) el.textContent = d.pushed + ' pushed';
+        });
+    }, 10000);
+})();
 
 function retryAccount(listId, accountId, btn) {
     btn.disabled = true;
