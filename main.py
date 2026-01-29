@@ -158,8 +158,14 @@ async def docs_page(request: Request):
 
 
 @app.get("/guides/clay-pain-based-outbound", response_class=HTMLResponse)
-async def guide_clay_pain_outbound(request: Request):
-    """Clay pain-based outbound guide page."""
+async def guide_clay_pain_outbound_redirect():
+    """Redirect old URL to new one."""
+    return RedirectResponse(url="/guides/clay-problem-signal-prospecting", status_code=301)
+
+
+@app.get("/guides/clay-problem-signal-prospecting", response_class=HTMLResponse)
+async def guide_clay_problem_signal(request: Request):
+    """Clay problem-signal prospecting guide page."""
     user = await get_current_user(request)
     clay_template = {
         "columns": [

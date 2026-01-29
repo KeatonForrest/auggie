@@ -243,7 +243,7 @@ Build bulk processing and developer documentation.
 ### Docs + SDK
 - [x] API documentation page (`/docs`)
 - [x] Python SDK (`sdk/auggie/`)
-- [x] Clay integration guide (`/guides/clay-pain-based-outbound`)
+- [x] Clay integration guide (`/guides/clay-problem-signal-prospecting`)
 - [x] Dashboard: API key usage stats
 
 ---
@@ -255,7 +255,7 @@ Build bulk processing and developer documentation.
 Become an official enrichment provider in Clay's marketplace. This is the primary distribution channel for API adoption.
 
 ### Why Clay First
-- 150+ enrichment providers, but none do pain-based scoring
+- 150+ enrichment providers, but none do problem-signal scoring
 - Clay users are exactly our ICP: RevOps teams building outbound workflows
 - Marketplace listing = free distribution to Clay's entire customer base
 - Co-marketing starts after integration is live
@@ -270,7 +270,7 @@ Become an official enrichment provider in Clay's marketplace. This is the primar
 - [ ] Join shared Slack channel with Clay engineer
 - [ ] Test integration end-to-end with Clay team
 - [ ] Publish to Clay marketplace
-- [ ] Create Clay workflow template: "Pain-Based Outbound"
+- [ ] Create Clay workflow template: "Problem-Signal Prospecting"
 
 ### Auggie as a Clay Column
 ```
