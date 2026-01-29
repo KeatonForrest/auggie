@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Auggie + Clay — Pain-Based Company Research{% endblock %}
+
+{% block layout %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+        <!-- Hero -->
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Auggie + Clay</h1>
+            <p class="text-xl text-gray-600 mb-2">Research companies and score by pain — directly in your Clay table.</p>
+            <p class="text-gray-500">The only enrichment provider that tells you <em>which accounts are hurting</em> and <em>what to say about it</em>.</p>
+        </div>
+
+        <!-- Value Prop -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Why pain-based targeting?</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="border border-gray-200 rounded-lg p-5">
+                    <h3 class="font-semibold text-gray-800 mb-2">Persona-based (traditional)</h3>
+                    <ul class="text-sm text-gray-600 space-y-1.5">
+                        <li>"VPs of Engineering at Series B SaaS companies"</li>
+                        <li>Generic messaging to a broad list</li>
+                        <li>1-3% reply rates</li>
+                    </ul>
+                </div>
+                <div class="border border-blue-200 bg-blue-50/50 rounded-lg p-5">
+                    <h3 class="font-semibold text-blue-900 mb-2">Pain-based (Auggie)</h3>
+                    <ul class="text-sm text-blue-800 space-y-1.5">
+                        <li>"Companies with database scaling pain and a 4-month open backend role"</li>
+                        <li>Messaging references their actual problems</li>
+                        <li>Higher reply rates from relevance</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- What You Get -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">What you get per company</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f3af;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Pain Score (0-100)</h4>
+                        <p class="text-sm text-gray-600">How much active pain does this company have that your product solves?</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f4ca;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Fit + Timing Scores</h4>
+                        <p class="text-sm text-gray-600">ICP fit and buying timing signals combined into a composite score.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f50d;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Business Problems</h4>
+                        <p class="text-sm text-gray-600">Specific problems identified from hiring signals, tech stack, and news.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f4ac;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Talking Points</h4>
+                        <p class="text-sm text-gray-600">Ready-to-use messaging that references their pain. Copy into your sequences.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">How it works in Clay</h2>
+            <ol class="space-y-4">
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-bold">1</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Add an HTTP enrichment column</h4>
+                        <p class="text-sm text-gray-600">Point it at <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST https://auggie.app/v1/clay/enrich</code> with your API key.</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-bold">2</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Map the flat response fields</h4>
+                        <p class="text-sm text-gray-600">Extract <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">pain_score</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">business_problems</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">talking_points</code>, etc. directly — no nested paths.</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-bold">3</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Filter by pain score</h4>
+                        <p class="text-sm text-gray-600">Focus your outbound on companies scoring 70+ — they have real problems you can solve.</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-bold">4</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Write sequences using pain context</h4>
+                        <p class="text-sm text-gray-600">Use the talking points and business problems to write outreach that actually resonates.</p>
+                    </div>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Pricing -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Pricing</h2>
+            <div class="bg-gray-50 rounded-lg p-6">
+                <div class="flex items-baseline gap-2 mb-2">
+                    <span class="text-3xl font-bold text-gray-900">$1</span>
+                    <span class="text-gray-600">per company</span>
+                </div>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>24-hour cache — re-enriching the same company within 24h is free.</li>
+                    <li>Credits refunded if research fails.</li>
+                    <li>No subscription required. Pay per use.</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="text-center space-y-4">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="/guides/clay-pain-based-outbound" class="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                    Step-by-step setup guide
+                </a>
+                <a href="/docs#clay-integration" class="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                    API documentation
+                </a>
+            </div>
+            <p class="text-sm text-gray-500">Need an API key? <a href="/api-keys" class="text-blue-600 hover:underline">Create one here</a>.</p>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
