@@ -29,6 +29,8 @@ from database import (
     create_api_key_record, list_api_keys, revoke_api_key,
     get_api_key_usage_stats,
     save_enriched_contacts, get_enriched_contacts,
+    create_list, add_list_accounts, update_list_credits,
+    list_lists, get_list, get_list_accounts,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -794,6 +796,156 @@ async def api_list_materials(user: dict = Depends(require_auth)):
 
     materials = await get_user_materials(user["id"])
     return {"materials": materials, "enabled": True}
+
+
+# =============================================================================
+# Lists Endpoints (CSV Upload)
+# =============================================================================
+
+@app.get("/lists", response_class=HTMLResponse)
+async def lists_page(request: Request, user: dict = Depends(require_onboarding)):
+    """Upload page + table of user's recent lists."""
+    usage = await get_user_usage(user["id"])
+    recent = await list_lists(user["id"])
+    return templates.TemplateResponse(
+        "lists.html",
+        {
+            "request": request,
+            "user": user,
+            "lists": recent,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+        }
+    )
+
+
+@app.post("/lists/upload")
+async def upload_list_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    list_name: str = Form(""),
+    user: dict = Depends(require_onboarding),
+):
+    """Parse CSV, validate URLs, check credits, create list, start analysis."""
+    import asyncio
+    import csv
+    from io import StringIO
+    from api.jobs import run_list_analysis
+
+    # Validate file
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a .csv file.")
+
+    contents = await file.read()
+    if len(contents) > 1_048_576:
+        raise HTTPException(status_code=400, detail="File too large (max 1MB).")
+
+    # Parse CSV
+    text = contents.decode("utf-8", errors="replace")
+    reader = csv.reader(StringIO(text))
+    rows = list(reader)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV file is empty.")
+
+    # Detect domain column
+    header = rows[0]
+    domain_col = None
+    recognized = {"domain", "url", "website", "company_url", "company"}
+    for i, col in enumerate(header):
+        if col.strip().lower() in recognized:
+            domain_col = i
+            break
+
+    if domain_col is not None:
+        data_rows = rows[1:]  # skip header
+    else:
+        domain_col = 0  # treat first column as domains
+        # If first row looks like a URL/domain, include it
+        data_rows = rows
+
+    # Extract and normalize URLs
+    raw_urls = []
+    for row in data_rows:
+        if domain_col < len(row) and row[domain_col].strip():
+            raw_urls.append(row[domain_col].strip())
+
+    # Normalize and validate
+    valid_urls = []
+    seen = set()
+    for raw in raw_urls:
+        url = normalize_url(raw)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        if url not in seen:
+            seen.add(url)
+            valid_urls.append(url)
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in CSV.")
+
+    # Check credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100  # cents
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    # Reserve credits
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    # Create list
+    name = list_name.strip() or (file.filename.rsplit(".", 1)[0] if file.filename else "Uploaded List")
+    lst = await create_list(user["id"], api_key_id=None, name=name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    # Start analysis in background
+    asyncio.create_task(run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin))
+
+    return RedirectResponse(url=f"/lists/{lst['id']}", status_code=303)
+
+
+@app.get("/lists/{list_id}", response_class=HTMLResponse)
+async def view_list(
+    request: Request,
+    list_id: int,
+    min_score: int = 0,
+    sort: str = "composite_score",
+    user: dict = Depends(require_onboarding),
+):
+    """Results page with sortable/filterable score table."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(
+        list_id,
+        min_composite=min_score if min_score > 0 else None,
+        sort_by=sort,
+    )
+    usage = await get_user_usage(user["id"])
+
+    return templates.TemplateResponse(
+        "list_view.html",
+        {
+            "request": request,
+            "user": user,
+            "list": lst,
+            "accounts": accounts,
+            "min_score": min_score,
+            "sort": sort,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+        }
+    )
 
 
 if __name__ == "__main__":

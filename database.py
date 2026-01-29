@@ -317,6 +317,12 @@ async def init_database():
             ON webhook_deliveries(job_id)
         """)
 
+        # Make research_jobs.api_key_id nullable (for web-uploaded lists)
+        try:
+            await conn.execute("ALTER TABLE research_jobs ALTER COLUMN api_key_id DROP NOT NULL")
+        except Exception:
+            pass
+
         # Mark stale processing jobs as failed (covers Railway redeploys)
         await conn.execute("""
             UPDATE research_jobs
@@ -1201,7 +1207,7 @@ async def delete_chunks_for_material(material_id: int) -> None:
 # Research Jobs Operations
 # =============================================================================
 
-async def create_research_job(user_id: int, api_key_id: int, company_url: str) -> dict:
+async def create_research_job(user_id: int, api_key_id: int | None, company_url: str) -> dict:
     """Create a new research job. Returns the job record."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -1483,7 +1489,7 @@ async def finalize_bulk_job(bulk_job_id: int) -> dict:
 # List Operations
 # =============================================================================
 
-async def create_list(user_id: int, api_key_id: int, name: str) -> dict:
+async def create_list(user_id: int, api_key_id: int | None, name: str) -> dict:
     """Create a new list. Returns the list record."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
