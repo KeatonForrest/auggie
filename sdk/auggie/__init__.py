@@ -147,6 +147,34 @@ class AuggieClient:
         self._request("DELETE", "/v1/webhooks")
 
     # ------------------------------------------------------------------
+    # Lists
+    # ------------------------------------------------------------------
+
+    def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> dict:
+        """Create a persistent list. Returns ``{"list_id": ..., "name": ..., "status": ..., "total_accounts": N}``."""
+        return self._request("POST", "/v1/lists", json={
+            "name": name,
+            "company_urls": company_urls,
+            "analyze": analyze,
+        })
+
+    def get_list(self, list_id: int, **filter_params: Any) -> dict:
+        """Get list details with accounts. Supports min_pain_score, min_composite_score, sort_by, order, limit, offset."""
+        return self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None)
+
+    def list_lists(self) -> dict:
+        """List recent lists (summaries only)."""
+        return self._request("GET", "/v1/lists")
+
+    def analyze_list(self, list_id: int) -> dict:
+        """Trigger analysis on pending accounts in a list."""
+        return self._request("POST", f"/v1/lists/{list_id}/analyze")
+
+    def delete_list(self, list_id: int) -> None:
+        """Delete a list and all its accounts."""
+        self._request("DELETE", f"/v1/lists/{list_id}")
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 

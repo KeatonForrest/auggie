@@ -14,9 +14,12 @@ from database import (
     use_credit, refund_credit, record_api_usage,
     create_bulk_job, get_bulk_job, list_bulk_jobs,
     create_bulk_job_items, get_bulk_job_items,
+    create_list, get_list, list_lists as db_list_lists, delete_list,
+    add_list_accounts, get_list_accounts, get_pending_list_accounts,
+    update_list_status, update_list_credits,
 )
 from api.validation import validate_company_url
-from api.jobs import run_research_job, run_bulk_job
+from api.jobs import run_research_job, run_bulk_job, run_list_analysis
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
@@ -406,3 +409,195 @@ async def list_bulk_jobs_endpoint(api_user: dict = Depends(require_api_key)):
             for j in jobs
         ]
     }
+
+
+# =============================================================================
+# Lists
+# =============================================================================
+
+class CreateListRequest(BaseModel):
+    name: str
+    company_urls: list[str]
+    analyze: bool = False
+
+
+@router.post("/lists", status_code=201)
+async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends(require_api_key)):
+    """Create a persistent list of companies. Optionally trigger analysis immediately."""
+    bulk_limiter.check(api_user["api_key_id"])
+
+    if not body.company_urls:
+        raise HTTPException(status_code=422, detail="company_urls must not be empty")
+    if len(body.company_urls) > 100:
+        raise HTTPException(status_code=422, detail="Maximum 100 URLs per list")
+    if not body.name or not body.name.strip():
+        raise HTTPException(status_code=422, detail="name is required")
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Validate all URLs upfront
+    validated_urls = []
+    for url in body.company_urls:
+        try:
+            validated_urls.append(validate_company_url(url))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
+
+    n = len(validated_urls)
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+
+    # Reserve credits if analyzing immediately
+    if body.analyze and not is_admin:
+        credits_needed = n * 100
+        if usage.get("bonus_credits", 0) < credits_needed:
+            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+        reserved = await use_credit(user["id"], cents=credits_needed)
+        if not reserved:
+            raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    lst = await create_list(user["id"], api_user["api_key_id"], body.name.strip())
+    await add_list_accounts(lst["id"], validated_urls)
+
+    if body.analyze:
+        await update_list_credits(lst["id"], n * 100)
+        asyncio.create_task(
+            run_list_analysis(lst["id"], user["id"], api_user["api_key_id"], is_admin=is_admin)
+        )
+        status = "analyzing"
+    else:
+        status = "created"
+
+    return {
+        "list_id": lst["id"],
+        "name": lst["name"],
+        "status": status,
+        "total_accounts": n,
+    }
+
+
+@router.post("/lists/{list_id}/analyze", status_code=202)
+async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
+    """Trigger analysis on a list's pending accounts."""
+    bulk_limiter.check(api_user["api_key_id"])
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    lst = await get_list(list_id, api_user["user_id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    if lst["status"] == "analyzing":
+        raise HTTPException(status_code=409, detail="List is already being analyzed")
+
+    pending = await get_pending_list_accounts(list_id)
+    if not pending:
+        raise HTTPException(status_code=422, detail="No pending accounts to analyze")
+
+    n = len(pending)
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+
+    if not is_admin:
+        credits_needed = n * 100
+        if usage.get("bonus_credits", 0) < credits_needed:
+            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+        reserved = await use_credit(user["id"], cents=credits_needed)
+        if not reserved:
+            raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    await update_list_credits(list_id, (lst["credits_reserved"] or 0) + n * 100)
+    asyncio.create_task(
+        run_list_analysis(list_id, user["id"], api_user["api_key_id"], is_admin=is_admin)
+    )
+
+    return {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
+
+
+@router.get("/lists/{list_id}")
+async def get_list_endpoint(
+    list_id: int,
+    api_user: dict = Depends(require_api_key),
+    min_pain_score: int | None = None,
+    min_composite_score: int | None = None,
+    sort_by: str = "composite_score",
+    order: str = "desc",
+    limit: int = 100,
+    offset: int = 0,
+):
+    """Get list details with accounts, optional filtering/sorting."""
+    default_limiter.check(api_user["api_key_id"])
+
+    lst = await get_list(list_id, api_user["user_id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(
+        list_id,
+        min_pain=min_pain_score,
+        min_composite=min_composite_score,
+        sort_by=sort_by,
+        order=order,
+        limit=limit,
+        offset=offset,
+    )
+
+    return {
+        "list_id": lst["id"],
+        "name": lst["name"],
+        "status": lst["status"],
+        "total_accounts": lst["total_accounts"],
+        "analyzed_accounts": lst["analyzed_accounts"],
+        "failed_accounts": lst["failed_accounts"],
+        "accounts": [
+            {
+                "id": a["id"],
+                "company_url": a["company_url"],
+                "company_name": a["company_name"],
+                "status": a["status"],
+                "document_id": a["document_id"],
+                "pain_score": a["pain_score"],
+                "fit_score": a["fit_score"],
+                "timing_score": a["timing_score"],
+                "composite_score": a["composite_score"],
+                "analyzed_at": a["analyzed_at"].isoformat() if a["analyzed_at"] else None,
+            }
+            for a in accounts
+        ],
+    }
+
+
+@router.get("/lists")
+async def list_lists_endpoint(api_user: dict = Depends(require_api_key)):
+    """List user's recent lists (summaries, no accounts)."""
+    default_limiter.check(api_user["api_key_id"])
+    lists = await db_list_lists(api_user["user_id"])
+    return {
+        "lists": [
+            {
+                "list_id": l["id"],
+                "name": l["name"],
+                "status": l["status"],
+                "total_accounts": l["total_accounts"],
+                "analyzed_accounts": l["analyzed_accounts"],
+                "failed_accounts": l["failed_accounts"],
+                "created_at": l["created_at"].isoformat(),
+                "updated_at": l["updated_at"].isoformat() if l["updated_at"] else None,
+            }
+            for l in lists
+        ]
+    }
+
+
+@router.delete("/lists/{list_id}", status_code=204)
+async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
+    """Delete a list and all its accounts."""
+    default_limiter.check(api_user["api_key_id"])
+    deleted = await delete_list(list_id, api_user["user_id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="List not found")
+    return JSONResponse(status_code=204, content=None)

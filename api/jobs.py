@@ -6,11 +6,13 @@ import logging
 import httpx
 
 from database import (
-    get_user_by_id, save_document,
+    get_user_by_id, save_document, get_document,
     record_api_usage, update_job_status, get_user_webhook,
     create_webhook_delivery, update_delivery_status, refund_credit,
     create_research_job, get_bulk_job_items, update_bulk_job_item,
     finalize_bulk_job,
+    get_pending_list_accounts, update_list_account, update_list_status,
+    finalize_list,
 )
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
@@ -143,6 +145,61 @@ async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin
 
     # Fire webhook for bulk completion
     await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
+
+
+async def run_list_analysis(list_id: int, user_id: int, api_key_id: int, is_admin: bool = False):
+    """Process all pending accounts in a list with bounded concurrency."""
+    await update_list_status(list_id, "analyzing")
+    accounts = await get_pending_list_accounts(list_id)
+    semaphore = asyncio.Semaphore(5)
+
+    async def process_account(account: dict):
+        async with semaphore:
+            account_id = account["id"]
+            company_url = account["company_url"]
+
+            job = await create_research_job(user_id, api_key_id, company_url)
+            await update_list_account(account_id, "processing", research_job_id=job["id"])
+
+            try:
+                doc_id = await _run_research_pipeline(user_id, company_url)
+
+                await record_api_usage(api_key_id, "/v1/research", 1)
+                await update_job_status(job["id"], "completed", document_id=doc_id)
+
+                # Extract scores from the saved document
+                doc = await get_document(doc_id, user_id)
+                await update_list_account(
+                    account_id, "completed",
+                    document_id=doc_id,
+                    research_job_id=job["id"],
+                    pain_score=doc.pain_score,
+                    fit_score=doc.fit_score,
+                    timing_score=doc.timing_score,
+                    composite_score=doc.opportunity_score,
+                    company_name=doc.company_name,
+                )
+
+            except Exception as e:
+                logger.exception("List account %s failed for %s", account_id, company_url)
+                error_msg = str(e)[:500]
+                await update_job_status(job["id"], "failed", error_message=error_msg)
+                await update_list_account(
+                    account_id, "failed",
+                    research_job_id=job["id"],
+                    error_message=error_msg,
+                )
+
+    await asyncio.gather(*(process_account(a) for a in accounts), return_exceptions=True)
+
+    # Finalize and refund failed credits
+    final = await finalize_list(list_id)
+    failed_count = final["failed_accounts"]
+    if failed_count > 0 and not is_admin:
+        await refund_credit(user_id, cents=failed_count * 100)
+
+    # Fire webhook for list completion
+    await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)
 
 
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):
