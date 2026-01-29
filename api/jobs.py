@@ -18,6 +18,9 @@ from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
 from services.news import NewsService
+from services.edgar import EdgarService
+from services.reviews import ReviewsService
+from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
 from config import get_settings
 from api.webhooks import sign_payload
@@ -28,7 +31,9 @@ firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
 news_service = NewsService()
-
+edgar_service = EdgarService()
+reviews_service = ReviewsService()
+federal_register_service = FederalRegisterService()
 _retrieval_service = None
 
 def _get_retrieval_service():
@@ -58,6 +63,37 @@ async def _run_research_pipeline(user_id: int, company_url: str) -> int:
     news_content = await news_service.get_company_news(company_name)
     if news_content:
         scraped_content.news = news_content
+
+    # Fetch SEC EDGAR filings for public companies
+    settings = get_settings()
+    if settings.edgar_enabled:
+        try:
+            edgar_content = await edgar_service.get_company_filings(company_name)
+            if edgar_content:
+                scraped_content.edgar_filings = edgar_content
+        except Exception:
+            pass
+
+    # Fetch G2/Capterra reviews
+    if settings.reviews_enabled:
+        try:
+            reviews_content = await reviews_service.get_reviews(company_name)
+            if reviews_content:
+                scraped_content.reviews = reviews_content
+        except Exception:
+            pass
+
+    # Fetch upcoming regulations
+    if settings.federal_register_enabled:
+        try:
+            fed_content = await federal_register_service.get_upcoming_regulations(
+                company_name=company_name,
+                sic_code=edgar_service._last_sic_code,
+            )
+            if fed_content:
+                scraped_content.federal_regulations = fed_content
+        except Exception:
+            pass
 
     retrieved_materials = ""
     retrieval = _get_retrieval_service()

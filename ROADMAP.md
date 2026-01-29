@@ -332,36 +332,36 @@ Make the scoring more accurate and consistent by adding reference examples, requ
 ---
 
 ## Phase 7.7: Data Sources Expansion
-**Status:** Planned
+**Status:** Done
 
-New data sources to strengthen scoring. Firmographics become part of the score composition (not just filters). Trigger events, compliance deadlines, and competitive pressure feed directly into Pain/Fit/Timing scores.
+New data sources to strengthen scoring. Trigger events, compliance deadlines, and competitive pressure feed directly into Pain/Fit/Timing scores. All sources fail gracefully — if a source errors or returns nothing, the pipeline continues.
 
-### SEC EDGAR (free — public companies)
-- [ ] Integrate EDGAR REST API (JSON, no key needed)
-- [ ] Pull recent 8-K filings — leadership changes, M&A, restructuring, layoffs
-- [ ] Parse 10-K/10-Q Risk Factors section — companies disclose their own pain signals
-- [ ] Extract revenue, headcount, and financial performance from quarterly filings
-- [ ] Feed structured trigger events into Timing score
-- [ ] Feed Risk Factors into Pain score
+### SEC EDGAR (free — public companies) ✅
+- [x] Integrate EDGAR REST API (JSON, no key needed)
+- [x] Cache company_tickers.json for fast public/private company detection
+- [x] Domain-aware company name matching (e.g., datadoghq.com → Datadog, Inc.)
+- [x] Pull recent 8-K filings with item code descriptions and high-signal markers
+- [x] Parse 10-K Risk Factors section — companies disclose their own pain signals
+- [x] Extract financial filing timeline (10-K/10-Q dates)
+- [x] Feed into Claude prompt as high-confidence data source
+- [x] All data feeds into Pain score (Risk Factors) and Timing score (8-K events)
 
-### G2 / Capterra Review Scraping
-- [ ] Scrape G2 product pages (Firecrawl or BeautifulSoup) — star ratings, review counts
-- [ ] Extract negative review themes (scaling issues, poor support, missing features)
-- [ ] Pull competitor comparison data and "switching from/to" signals
-- [ ] Scrape Capterra as fallback/supplement
-- [ ] Feed competitive pressure signals into Pain score
+### G2 / Capterra Review Scraping ✅
+- [x] Search and scrape G2 product pages via Firecrawl search
+- [x] Search and scrape Capterra product pages via Firecrawl search
+- [x] Run G2 and Capterra lookups in parallel
+- [x] Feed ratings, pros/cons, and competitor comparisons into Claude prompt
+- [x] Competitive pressure signals feed into Pain score
 
-### Federal Register API (free — compliance deadlines)
-- [ ] Integrate Federal Register API for new regulations with effective dates
-- [ ] Match regulations to company industry classification
-- [ ] Extract upcoming compliance deadlines relevant to the company
-- [ ] Feed deadline-driven urgency into Timing score
+### Federal Register API (free — compliance deadlines) ✅
+- [x] Integrate Federal Register API for rules and proposed rules
+- [x] Match regulations to company industry via SIC code (from EDGAR when available)
+- [x] SIC-to-topic mapping for 20+ industry categories
+- [x] Extract upcoming compliance deadlines with effective dates
+- [x] Feed deadline-driven urgency into Timing score
 
 ### Firmographic Enrichment (Apollo or Crunchbase)
-- [ ] Integrate firmographic API — headcount, funding rounds, revenue, industry, founding date
-- [ ] Feed confirmed firmographics into Fit score (remove the 65 cap when data is available)
-- [ ] Add funding recency and amount to Timing score
-- [ ] Add headcount growth rate as a trigger event signal
+_Deferred — EDGAR already provides financials for public companies, and the existing Fit score cap handles the private company case. Will revisit if scoring calibration (Phase 7.5) reveals a gap._
 
 ---
 

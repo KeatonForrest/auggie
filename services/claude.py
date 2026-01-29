@@ -47,7 +47,25 @@ The company data contains several types of information with different reliabilit
    - Press releases about major projects, partnerships, acquisitions
    - Digital transformation and technology investment mentions
 
-5. **Firmographic Data** - Company size, industry, funding, contacts
+5. **SEC EDGAR Filings** (public companies only) - From SEC.gov:
+   - 8-K filings: Material events like leadership changes, M&A, restructuring, layoffs
+   - Risk Factors (from 10-K): The company's own legally-required disclosure of business challenges, threats, and vulnerabilities
+   - Filing dates and frequency indicate company activity and regulatory status
+   - These are HIGH-CONFIDENCE signals — companies are legally obligated to report them accurately
+
+6. **G2/Capterra Reviews** - Third-party review data about the company's products:
+   - Star ratings and review volume indicate market presence and customer satisfaction
+   - Negative review themes reveal pain points (scaling issues, poor support, missing features)
+   - Competitor comparisons and "switching from/to" signals reveal competitive pressure
+   - Low ratings in specific categories suggest areas where they need help
+
+7. **Federal Register Regulations** - Upcoming compliance deadlines from the Federal Register:
+   - Final Rules with effective dates create deadline-driven urgency
+   - Proposed Rules signal upcoming compliance requirements
+   - Match these to the company's industry to assess regulatory pressure
+   - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
+
+8. **Firmographic Data** - Company size, industry, funding, contacts
 
 YOUR COMPANY: {seller_company}
 
@@ -408,6 +426,25 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
             sections.append(scraped.investor_relations[:8000])
             sections.append("")
+
+        if scraped.edgar_filings:
+            sections.append("## SEC EDGAR Filings (Public Company)")
+            sections.append("(From SEC.gov - official regulatory filings. 8-K = material events, Risk Factors = company-disclosed challenges)")
+            sections.append(scraped.edgar_filings[:10000])
+            sections.append("")
+
+        if scraped.reviews:
+            sections.append("## G2/Capterra Reviews")
+            sections.append("(Third-party review data — ratings, pros/cons, competitor comparisons)")
+            sections.append(scraped.reviews[:8000])
+            sections.append("")
+
+        if scraped.federal_regulations:
+            sections.append("## Upcoming Federal Regulations")
+            sections.append("(From Federal Register — upcoming compliance deadlines relevant to this company's industry)")
+            sections.append(scraped.federal_regulations[:6000])
+            sections.append("")
+
 
         sections.append("---")
         sections.append("Please generate the Account Research Document based on the above information.")
