@@ -245,7 +245,6 @@ Build bulk processing and developer documentation.
 - [x] Python SDK (`sdk/auggie/`)
 - [x] Clay integration guide (`/guides/clay-pain-based-outbound`)
 - [x] Dashboard: API key usage stats
-- [ ] Publish SDK to PyPI
 
 ---
 
