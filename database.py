@@ -1811,6 +1811,55 @@ async def get_recent_document_by_url(user_id: int, company_url: str, hours: int 
         return _row_to_document(row) if row else None
 
 
+async def check_duplicate_research(user_id: int, company_url: str, days: int = 7) -> dict | None:
+    """Check if a research document exists for this URL within the last N days."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, company_name, created_at
+            FROM research_documents
+            WHERE user_id = $1 AND company_url = $2
+              AND created_at > NOW() - make_interval(days => $3)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            user_id, company_url, days
+        )
+        return dict(row) if row else None
+
+
+async def get_list_account(account_id: int, list_id: int) -> dict | None:
+    """Get a single list account by ID scoped to a list."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM list_accounts WHERE id = $1 AND list_id = $2",
+            account_id, list_id
+        )
+        return dict(row) if row else None
+
+
+async def reset_list_account(account_id: int) -> None:
+    """Reset a failed list account to pending for retry."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE list_accounts
+                SET status = 'pending', error_message = NULL, research_job_id = NULL
+                WHERE id = $1
+                """,
+                account_id
+            )
+            # Decrement failed counter on parent list
+            await conn.execute(
+                """
+                UPDATE lists SET failed_accounts = GREATEST(failed_accounts - 1, 0), updated_at = NOW()
+                WHERE id = (SELECT list_id FROM list_accounts WHERE id = $1)
+                """,
+                account_id
+            )
+
+
 async def get_pending_list_accounts(list_id: int) -> list[dict]:
     """Get all pending accounts for a list."""
     async with _pool.acquire() as conn:

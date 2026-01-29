@@ -23,7 +23,13 @@
             </div>
             <p class="text-sm text-gray-500">{{ list.analyzed_accounts + list.failed_accounts }}/{{ list.total_accounts }} processed{% if list.failed_accounts > 0 %} ({{ list.failed_accounts }} failed){% endif %}</p>
         </div>
-        <a href="/lists" class="text-sm text-gray-600 hover:text-gray-900">&larr; All Lists</a>
+        <div class="flex items-center gap-3">
+            <a href="/lists/{{ list.id }}/export" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Export CSV
+            </a>
+            <a href="/lists" class="text-sm text-gray-600 hover:text-gray-900">&larr; All Lists</a>
+        </div>
     </div>
 
     <!-- Progress bar -->
@@ -98,7 +104,10 @@
                         {% endif %}
                     </td>
                     {% endfor %}
-                    <td class="px-4 py-3 text-right">
+                    <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
+                        {% if a.status == 'failed' %}
+                        <button onclick="retryAccount({{ list.id }}, {{ a.id }}, this)" class="text-orange-600 hover:text-orange-800 text-sm font-medium">Retry</button>
+                        {% endif %}
                         {% if a.document_id %}
                         <a href="/document/{{ a.document_id }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</a>
                         {% endif %}
@@ -127,4 +136,27 @@
     setTimeout(function() { window.location.reload(); }, 5000);
 </script>
 {% endif %}
+<script>
+function retryAccount(listId, accountId, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Retrying...';
+    fetch('/lists/' + listId + '/accounts/' + accountId + '/retry', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                if (typeof showToast === 'function') showToast('Retry started', 'success');
+                setTimeout(function() { window.location.reload(); }, 1000);
+            } else {
+                if (typeof showToast === 'function') showToast(data.error || 'Retry failed', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Retry';
+            }
+        })
+        .catch(function() {
+            if (typeof showToast === 'function') showToast('Network error', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        });
+}
+</script>
 {% endblock %}

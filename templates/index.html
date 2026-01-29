@@ -172,29 +172,81 @@ It extends base.html and fills in the 'content' block.
 
 {% block scripts %}
 <script>
-    // Show loading state when form is submitted
-    // Research takes 30-60 seconds, so we give user feedback
-    document.getElementById('research-form').addEventListener('submit', function() {
-        const btn = document.getElementById('submit-btn');
-        const btnText = document.getElementById('btn-text');
-        const btnLoading = document.getElementById('btn-loading');
+    // AJAX research submit with progress page redirect
+    document.getElementById('research-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var btn = document.getElementById('submit-btn');
+        var btnText = document.getElementById('btn-text');
+        var btnLoading = document.getElementById('btn-loading');
+        var urlInput = document.getElementById('company_url');
+        var url = urlInput.value.trim();
+        if (!url) return;
 
         btn.disabled = true;
         btnText.classList.add('hidden');
         btnLoading.classList.remove('hidden');
+
+        // Check for duplicate first
+        fetch('/research/check-duplicate?company_url=' + encodeURIComponent(url))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.exists) {
+                    var days = Math.round((Date.now() - new Date(data.created_at).getTime()) / 86400000);
+                    var msg = 'You researched ' + data.company_name + ' ' + (days < 1 ? 'today' : days + ' day(s) ago') + '. Research again?';
+                    if (!confirm(msg)) {
+                        window.location.href = '/document/' + data.document_id;
+                        return;
+                    }
+                }
+                return submitResearch(url);
+            })
+            .catch(function() {
+                // If duplicate check fails, proceed anyway
+                return submitResearch(url);
+            });
+
+        function submitResearch(companyUrl) {
+            var formData = new FormData();
+            formData.append('company_url', companyUrl);
+            fetch('/research/start', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        window.location.href = '/research/job/' + data.job_id;
+                    } else {
+                        if (typeof showToast === 'function') showToast(data.error || 'Research failed', 'error');
+                        btn.disabled = false;
+                        btnText.classList.remove('hidden');
+                        btnLoading.classList.add('hidden');
+                    }
+                })
+                .catch(function(err) {
+                    if (typeof showToast === 'function') showToast('Network error: ' + err.message, 'error');
+                    btn.disabled = false;
+                    btnText.classList.remove('hidden');
+                    btnLoading.classList.add('hidden');
+                });
+        }
     });
+
+    // Payment success toast
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('payment') === 'success') {
+            if (typeof showToast === 'function') showToast('Payment successful! Credits added.', 'success');
+            history.replaceState({}, '', window.location.pathname);
+        }
+    })();
 
     // Materials prompt modal
     function dismissMaterialsPrompt() {
         const modal = document.getElementById('materialsPromptModal');
         if (modal) {
             modal.remove();
-            // Store dismissal in localStorage so we don't show again this session
             localStorage.setItem('materialsPromptDismissed', 'true');
         }
     }
 
-    // Check if already dismissed this session
     document.addEventListener('DOMContentLoaded', function() {
         const dismissed = localStorage.getItem('materialsPromptDismissed');
         const modal = document.getElementById('materialsPromptModal');

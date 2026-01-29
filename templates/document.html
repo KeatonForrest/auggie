@@ -347,7 +347,7 @@ This template displays a generated research document with:
                 outreachMarkdown = data.markdown;
                 document.getElementById('outreach-loading').classList.add('hidden');
                 document.getElementById('outreach-content').classList.remove('hidden');
-                document.getElementById('outreach-content').innerHTML = marked.parse(data.markdown);
+                renderEditableEmails(data.markdown);
                 document.getElementById('regenerate-btn').classList.remove('hidden');
                 document.getElementById('copy-outreach-btn').classList.remove('hidden');
             } else {
@@ -373,8 +373,52 @@ This template displays a generated research document with:
         document.getElementById('outreach-modal').classList.add('hidden');
     }
 
+    function renderEditableEmails(markdown) {
+        // Split markdown into individual emails by "## Email" or "# Email" headers
+        var container = document.getElementById('outreach-content');
+        var sections = markdown.split(/(?=^#{1,2}\s+Email\s)/m);
+        var html = '';
+        sections.forEach(function(section) {
+            section = section.trim();
+            if (!section) return;
+            // Extract subject line: look for **Subject:** pattern
+            var subjectMatch = section.match(/\*\*Subject:\*\*\s*(.+)/);
+            var subject = subjectMatch ? subjectMatch[1].trim() : '';
+            // Remove the subject line and header from body
+            var body = section
+                .replace(/^#{1,2}\s+Email\s.*\n?/, '')
+                .replace(/\*\*Subject:\*\*\s*.+\n?/, '')
+                .trim();
+            html += '<div class="mb-6 border border-gray-200 rounded-lg p-4">';
+            html += '<label class="block text-xs font-medium text-gray-500 mb-1">Subject</label>';
+            html += '<input type="text" class="email-subject w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" value="' + subject.replace(/"/g, '&quot;') + '">';
+            html += '<label class="block text-xs font-medium text-gray-500 mb-1">Body</label>';
+            html += '<textarea class="email-body w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="8">' + body.replace(/</g, '&lt;') + '</textarea>';
+            html += '</div>';
+        });
+        if (!html) {
+            // Fallback: render as plain markdown if parsing didn't find email sections
+            container.innerHTML = marked.parse(markdown);
+        } else {
+            container.innerHTML = html;
+        }
+    }
+
     function copyOutreach() {
-        navigator.clipboard.writeText(outreachMarkdown).then(() => {
+        // Build text from current editable fields
+        var subjects = document.querySelectorAll('.email-subject');
+        var bodies = document.querySelectorAll('.email-body');
+        var text = '';
+        if (subjects.length === 0) {
+            text = outreachMarkdown;
+        } else {
+            for (var i = 0; i < subjects.length; i++) {
+                text += '## Email ' + (i + 1) + '\n\n';
+                text += '**Subject:** ' + subjects[i].value + '\n\n';
+                text += bodies[i].value + '\n\n';
+            }
+        }
+        navigator.clipboard.writeText(text.trim()).then(() => {
             const btn = document.getElementById('copy-outreach-btn');
             const originalText = btn.innerHTML;
             btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';

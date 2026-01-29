@@ -16,6 +16,18 @@
         .markdown-content h3, .markdown-content h4 { font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
         .markdown-content blockquote { border-left: 3px solid #d1d5db; padding-left: 1rem; margin: 1rem 0; color: #6b7280; }
         .markdown-content code { background: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+
+        /* Toast animations */
+        @keyframes toast-slide-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toast-fade-out {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .toast-enter { animation: toast-slide-in 0.3s ease-out; }
+        .toast-exit { animation: toast-fade-out 0.3s ease-in forwards; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -67,6 +79,32 @@
         </div>
     </nav>
 
+    {% if credits is defined and not is_admin and credits < 3 %}
+    <div id="low-credit-banner" class="bg-yellow-50 border-b border-yellow-200" style="display:none;">
+        <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+            <p class="text-sm text-yellow-800">
+                You have <strong>{{ '%g' % credits }}</strong> credit{{ 's' if credits != 1 else '' }} remaining.
+                <a href="/billing/buy-credits" class="underline font-medium hover:text-yellow-900">Buy more</a>
+            </p>
+            <button onclick="dismissLowCreditBanner()" class="text-yellow-600 hover:text-yellow-800">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+    </div>
+    <script>
+        (function() {
+            var dismissed = localStorage.getItem('lowCreditBannerDismissed');
+            if (!dismissed) {
+                document.getElementById('low-credit-banner').style.display = '';
+            }
+        })();
+        function dismissLowCreditBanner() {
+            document.getElementById('low-credit-banner').style.display = 'none';
+            localStorage.setItem('lowCreditBannerDismissed', '1');
+        }
+    </script>
+    {% endif %}
+
     <div class="max-w-7xl mx-auto px-4 py-6">
         {% block layout %}
         <div class="flex gap-6">
@@ -74,15 +112,17 @@
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="font-semibold text-gray-700 mb-3">Recent Research</h3>
                     {% if recent_docs %}
-                    <ul class="space-y-2">
+                    <input type="text" id="doc-search" placeholder="Search..." class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg mb-2 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    <ul id="doc-list" class="space-y-2">
                         {% for doc in recent_docs %}
-                        <li>
+                        <li data-name="{{ doc.company_name | lower }}">
                             <a href="/document/{{ doc.id }}" class="block p-2 rounded hover:bg-gray-50">
                                 <span class="font-medium text-gray-900 text-sm">{{ doc.company_name }}</span>
                             </a>
                         </li>
                         {% endfor %}
                     </ul>
+                    <p id="doc-no-matches" class="text-sm text-gray-400 hidden">No matches</p>
                     {% else %}
                     <p class="text-sm text-gray-500">No research yet.</p>
                     {% endif %}
@@ -99,6 +139,48 @@
     <footer class="mt-12 py-6 text-center text-sm text-gray-500">
         &copy; 2026 Auggie
     </footer>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+    <script>
+        var _toastId = 0;
+        function showToast(message, type) {
+            type = type || 'info';
+            var colors = {success:'bg-green-600',error:'bg-red-600',warning:'bg-yellow-500 text-yellow-900',info:'bg-blue-600'};
+            var id = 'toast-' + (++_toastId);
+            var div = document.createElement('div');
+            div.id = id;
+            div.className = 'toast-enter flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm ' + (colors[type] || colors.info);
+            div.innerHTML = '<span class="flex-1">' + message + '</span><button onclick="dismissToast(\'' + id + '\')" class="opacity-70 hover:opacity-100">&times;</button>';
+            document.getElementById('toast-container').appendChild(div);
+            setTimeout(function(){ dismissToast(id); }, 5000);
+        }
+        function dismissToast(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('toast-enter');
+            el.classList.add('toast-exit');
+            setTimeout(function(){ el.remove(); }, 300);
+        }
+
+        // Sidebar document search
+        (function() {
+            var input = document.getElementById('doc-search');
+            if (!input) return;
+            var items = document.querySelectorAll('#doc-list li');
+            var noMatch = document.getElementById('doc-no-matches');
+            input.addEventListener('input', function() {
+                var q = this.value.toLowerCase();
+                var visible = 0;
+                items.forEach(function(li) {
+                    var show = !q || li.getAttribute('data-name').indexOf(q) !== -1;
+                    li.style.display = show ? '' : 'none';
+                    if (show) visible++;
+                });
+                noMatch.classList.toggle('hidden', visible > 0);
+            });
+        })();
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

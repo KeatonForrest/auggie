@@ -58,7 +58,7 @@ async def _run_research_pipeline(user_id: int, company_url: str) -> int:
     return doc_id
 
 
-async def run_research_job(job_id: int, user_id: int, api_key_id: int, company_url: str, *, is_admin: bool = False):
+async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, company_url: str, *, is_admin: bool = False):
     """Execute the research pipeline in the background and update job status.
 
     Credit is reserved before this function is called. On failure, non-admin
@@ -67,7 +67,8 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int, company_u
     try:
         doc_id = await _run_research_pipeline(user_id, company_url)
 
-        await record_api_usage(api_key_id, "/v1/research", 1)
+        if api_key_id is not None:
+            await record_api_usage(api_key_id, "/v1/research", 1)
         await update_job_status(job_id, "completed", document_id=doc_id)
 
         # Fire webhook

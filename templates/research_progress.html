@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Researching - Auggie{% endblock %}
+
+{% block layout %}
+<div class="max-w-xl mx-auto py-16">
+    <div class="bg-white rounded-lg shadow p-8">
+        <h1 class="text-xl font-bold text-gray-900 mb-1">Researching</h1>
+        <p class="text-gray-500 text-sm mb-8">{{ job.company_url }}</p>
+
+        <div id="steps" class="space-y-4 mb-8">
+            <div class="step flex items-center gap-3" data-at="0">
+                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
+                <span class="text-sm text-gray-600">Scraping website</span>
+            </div>
+            <div class="step flex items-center gap-3" data-at="6">
+                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
+                <span class="text-sm text-gray-600">Detecting technologies</span>
+            </div>
+            <div class="step flex items-center gap-3" data-at="12">
+                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
+                <span class="text-sm text-gray-600">Collecting data</span>
+            </div>
+            <div class="step flex items-center gap-3" data-at="20">
+                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
+                <span class="text-sm text-gray-600">Analyzing &amp; scoring</span>
+            </div>
+            <div class="step flex items-center gap-3" data-at="30">
+                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
+                <span class="text-sm text-gray-600">Writing research document</span>
+            </div>
+        </div>
+
+        <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+            <p class="font-medium mb-1">Research failed</p>
+            <p id="error-message"></p>
+            <a href="/" class="inline-block mt-3 text-red-700 underline hover:text-red-900">Try again</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var jobId = {{ job.id }};
+    var startTime = Date.now();
+    var steps = document.querySelectorAll('.step');
+    var done = false;
+
+    function updateSteps() {
+        var elapsed = (Date.now() - startTime) / 1000;
+        steps.forEach(function(s) {
+            var at = parseInt(s.getAttribute('data-at'));
+            var icon = s.querySelector('.step-icon');
+            if (elapsed >= at) {
+                icon.classList.remove('border-gray-300');
+                icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
+                icon.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+                s.querySelector('span').classList.remove('text-gray-600');
+                s.querySelector('span').classList.add('text-gray-900', 'font-medium');
+            }
+        });
+    }
+
+    var stepTimer = setInterval(updateSteps, 500);
+    updateSteps();
+
+    function poll() {
+        if (done) return;
+        fetch('/research/job/' + jobId + '/status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'completed') {
+                    done = true;
+                    clearInterval(stepTimer);
+                    // Complete all steps
+                    steps.forEach(function(s) {
+                        var icon = s.querySelector('.step-icon');
+                        icon.classList.remove('border-gray-300');
+                        icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
+                        icon.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+                        s.querySelector('span').classList.remove('text-gray-600');
+                        s.querySelector('span').classList.add('text-gray-900', 'font-medium');
+                    });
+                    setTimeout(function() {
+                        window.location.href = '/document/' + data.document_id;
+                    }, 500);
+                } else if (data.status === 'failed') {
+                    done = true;
+                    clearInterval(stepTimer);
+                    document.getElementById('error-box').classList.remove('hidden');
+                    document.getElementById('error-message').textContent = data.error_message || 'An unexpected error occurred.';
+                } else {
+                    setTimeout(poll, 2000);
+                }
+            })
+            .catch(function() { setTimeout(poll, 3000); });
+    }
+    poll();
+})();
+</script>
+{% endblock %}

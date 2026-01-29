@@ -12,6 +12,7 @@ from io import BytesIO
 from fastapi import FastAPI, HTTPException, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from config import get_settings
@@ -28,6 +29,8 @@ from database import (
     save_enriched_contacts, get_enriched_contacts,
     create_list, add_list_accounts, update_list_credits,
     list_lists, get_list, get_list_accounts,
+    create_research_job, get_research_job,
+    check_duplicate_research, get_list_account, reset_list_account,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -88,6 +91,27 @@ app.include_router(api_v1_router)
 app.include_router(webhooks_router)
 
 templates = Jinja2Templates(directory="templates")
+
+_ERROR_TITLES = {
+    400: "Invalid Request",
+    402: "Insufficient Credits",
+    403: "Forbidden",
+    404: "Not Found",
+    500: "Something Went Wrong",
+}
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        title = _ERROR_TITLES.get(exc.status_code, "Error")
+        detail = exc.detail or "An unexpected error occurred."
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "status_code": exc.status_code, "title": title, "detail": detail},
+            status_code=exc.status_code,
+        )
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
@@ -959,6 +983,218 @@ async def view_list(
             "is_admin": usage.get("is_admin", False),
         }
     )
+
+
+# =============================================================================
+# Research Progress (async job + polling)
+# =============================================================================
+
+@app.post("/research/start")
+async def start_research(
+    request: Request,
+    company_url: str = Form(...),
+    user: dict = Depends(require_onboarding),
+):
+    """Start async research job, return JSON with job_id."""
+    try:
+        company_url = validate_company_url(company_url)
+    except ValueError as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
+
+    job = await create_research_job(user["id"], api_key_id=None, company_url=company_url)
+
+    from api.jobs import run_research_job
+    create_tracked_task(
+        run_research_job(job["id"], user["id"], api_key_id=None, company_url=company_url, is_admin=is_admin),
+        name=f"web-research-{job['id']}",
+    )
+
+    return JSONResponse({"success": True, "job_id": job["id"]})
+
+
+@app.get("/research/job/{job_id}", response_class=HTMLResponse)
+async def research_progress_page(
+    request: Request,
+    job_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Render research progress page."""
+    job = await get_research_job(job_id, user["id"])
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # If already completed, redirect directly
+    if job["status"] == "completed" and job.get("document_id"):
+        return RedirectResponse(url=f"/document/{job['document_id']}", status_code=302)
+
+    recent_docs = await get_all_documents(user_id=user["id"], limit=10)
+    usage = await get_user_usage(user["id"])
+    return templates.TemplateResponse(
+        "research_progress.html",
+        {
+            "request": request,
+            "user": user,
+            "job": job,
+            "recent_docs": recent_docs,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+        }
+    )
+
+
+@app.get("/research/job/{job_id}/status")
+async def research_job_status(
+    job_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Polling endpoint for research job status."""
+    job = await get_research_job(job_id, user["id"])
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JSONResponse({
+        "status": job["status"],
+        "document_id": job.get("document_id"),
+        "error_message": job.get("error_message"),
+    })
+
+
+# =============================================================================
+# Duplicate Research Check
+# =============================================================================
+
+@app.get("/research/check-duplicate")
+async def check_duplicate(
+    company_url: str,
+    user: dict = Depends(require_auth),
+):
+    """Check if user recently researched this URL."""
+    try:
+        company_url = validate_company_url(company_url)
+    except ValueError:
+        return JSONResponse({"exists": False})
+
+    dup = await check_duplicate_research(user["id"], company_url, days=7)
+    if dup:
+        return JSONResponse({
+            "exists": True,
+            "document_id": dup["id"],
+            "company_name": dup["company_name"],
+            "created_at": dup["created_at"].isoformat(),
+        })
+    return JSONResponse({"exists": False})
+
+
+# =============================================================================
+# CSV Export
+# =============================================================================
+
+@app.get("/lists/{list_id}/export")
+async def export_list_csv(
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Export list accounts as CSV."""
+    import csv
+    from io import StringIO
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(list_id, limit=10000)
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    for a in accounts:
+        writer.writerow([
+            a.get("company_name") or "",
+            a.get("company_url", ""),
+            a.get("pain_score") if a.get("pain_score") is not None else "",
+            a.get("fit_score") if a.get("fit_score") is not None else "",
+            a.get("timing_score") if a.get("timing_score") is not None else "",
+            a.get("composite_score") if a.get("composite_score") is not None else "",
+            a.get("status", ""),
+        ])
+
+    safe_name = re.sub(r'[^\w\s\-.]', '', lst["name"])
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.csv"'},
+    )
+
+
+# =============================================================================
+# Retry Failed List Items
+# =============================================================================
+
+@app.post("/lists/{list_id}/accounts/{account_id}/retry")
+async def retry_list_account(
+    list_id: int,
+    account_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Retry a failed list account."""
+    from api.jobs import run_research_job
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    account = await get_list_account(account_id, list_id)
+    if not account:
+        return JSONResponse({"success": False, "error": "Account not found"}, status_code=404)
+    if account["status"] != "failed":
+        return JSONResponse({"success": False, "error": "Account is not in failed state"}, status_code=400)
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
+
+    await reset_list_account(account_id)
+
+    job = await create_research_job(user["id"], api_key_id=None, company_url=account["company_url"])
+
+    from database import update_list_account
+    await update_list_account(account_id, "processing", research_job_id=job["id"])
+
+    async def _run_retry():
+        from api.jobs import _run_research_pipeline
+        from database import update_job_status, get_document as get_doc
+        try:
+            doc_id = await _run_research_pipeline(user["id"], account["company_url"])
+            await update_job_status(job["id"], "completed", document_id=doc_id)
+            doc = await get_doc(doc_id, user["id"])
+            await update_list_account(
+                account_id, "completed",
+                document_id=doc_id,
+                research_job_id=job["id"],
+                pain_score=doc.pain_score,
+                fit_score=doc.fit_score,
+                timing_score=doc.timing_score,
+                composite_score=doc.opportunity_score,
+                company_name=doc.company_name,
+            )
+        except Exception as e:
+            if not is_admin:
+                await refund_credit(user["id"])
+            error_msg = str(e)[:500]
+            await update_job_status(job["id"], "failed", error_message=error_msg)
+            await update_list_account(account_id, "failed", research_job_id=job["id"], error_message=error_msg)
+
+    create_tracked_task(_run_retry(), name=f"retry-{account_id}")
+    return JSONResponse({"success": True})
 
 
 if __name__ == "__main__":
