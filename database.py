@@ -177,6 +177,9 @@ async def init_database():
             ("fit_score", "INTEGER"),
             ("timing_score", "INTEGER"),
             ("score_summary", "TEXT"),
+            ("pain_evidence", "TEXT"),
+            ("fit_evidence", "TEXT"),
+            ("timing_evidence", "TEXT"),
         ]
         for col_name, col_type in score_columns:
             try:
@@ -812,8 +815,9 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 hiring_signals, business_problems, existential_data_points, product_fit,
                 talking_points, recent_news, key_contacts, information_gaps,
                 opportunity_score, pain_score, fit_score, timing_score, score_summary,
+                pain_evidence, fit_evidence, timing_evidence,
                 full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
             RETURNING id
             """,
             user_id,
@@ -836,6 +840,9 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.fit_score,
             doc.timing_score,
             doc.score_summary,
+            doc.pain_evidence,
+            doc.fit_evidence,
+            doc.timing_evidence,
             doc.full_markdown,
         )
         return row['id']
@@ -915,6 +922,9 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         fit_score=row.get("fit_score"),
         timing_score=row.get("timing_score"),
         score_summary=row.get("score_summary"),
+        pain_evidence=row.get("pain_evidence"),
+        fit_evidence=row.get("fit_evidence"),
+        timing_evidence=row.get("timing_evidence"),
         full_markdown=row["full_markdown"] or "",
     )
 

@@ -105,6 +105,9 @@ class ResearchDocument(BaseModel):
     fit_score: Optional[int] = None          # 0-100 (35% weight)
     timing_score: Optional[int] = None       # 0-100 (25% weight)
     score_summary: Optional[str] = None      # Brief justification
+    pain_evidence: Optional[str] = None      # Bullet list of pain signals
+    fit_evidence: Optional[str] = None       # Bullet list of fit signals
+    timing_evidence: Optional[str] = None    # Bullet list of timing signals
 
     full_markdown: str
 
