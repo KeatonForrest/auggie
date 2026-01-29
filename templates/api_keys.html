@@ -50,6 +50,8 @@
                     <th class="text-left text-sm font-medium text-gray-500 px-4 py-3">Key</th>
                     <th class="text-left text-sm font-medium text-gray-500 px-4 py-3">Created</th>
                     <th class="text-left text-sm font-medium text-gray-500 px-4 py-3">Last Used</th>
+                    <th class="text-right text-sm font-medium text-gray-500 px-4 py-3">Requests</th>
+                    <th class="text-right text-sm font-medium text-gray-500 px-4 py-3">Credits</th>
                     <th class="text-right text-sm font-medium text-gray-500 px-4 py-3"></th>
                 </tr>
             </thead>
@@ -66,6 +68,8 @@
                             Never
                         {% endif %}
                     </td>
+                    <td class="px-4 py-3 text-right text-sm text-gray-500">{{ usage_stats.get(key.id, {}).get("requests", 0) }}</td>
+                    <td class="px-4 py-3 text-right text-sm text-gray-500">{{ usage_stats.get(key.id, {}).get("credits", 0) }}</td>
                     <td class="px-4 py-3 text-right">
                         <form method="POST" action="/api-keys/{{ key.id }}/revoke"
                               onsubmit="return confirm('Revoke this key? Any integrations using it will stop working.')">

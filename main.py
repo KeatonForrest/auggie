@@ -28,6 +28,7 @@ from database import (
     get_all_documents, update_user_profile, get_user_usage,
     get_user_materials, use_credit,
     create_api_key_record, list_api_keys, revoke_api_key,
+    get_api_key_usage_stats,
     save_enriched_contacts, get_enriched_contacts,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
@@ -66,6 +67,7 @@ app = FastAPI(
     description="AI-powered account research for sales teams",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/openapi-docs",
 )
 
 # Session middleware for OAuth state
@@ -142,6 +144,53 @@ async def home(request: Request):
             "show_materials_prompt": show_materials_prompt,
             "materials_enabled": settings.materials_enabled,
         }
+    )
+
+
+@app.get("/docs", response_class=HTMLResponse)
+async def docs_page(request: Request):
+    """Public API documentation page."""
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "docs.html",
+        {"request": request, "user": user}
+    )
+
+
+@app.get("/guides/clay-pain-based-outbound", response_class=HTMLResponse)
+async def guide_clay_pain_outbound(request: Request):
+    """Clay pain-based outbound guide page."""
+    user = await get_current_user(request)
+    clay_template = {
+        "columns": [
+            {"name": "Company Website", "type": "text", "description": "The company domain to research"},
+            {
+                "name": "Auggie Research",
+                "type": "http_request",
+                "config": {
+                    "method": "POST",
+                    "url": "https://auggie.app/v1/research",
+                    "headers": {
+                        "Authorization": "Bearer aug_your_key",
+                        "Content-Type": "application/json"
+                    },
+                    "body": "{\"company_url\": \"{{/Company Website}}\"}"
+                }
+            },
+            {"name": "Pain Score", "type": "extract", "path": "scores.pain"},
+            {"name": "Composite Score", "type": "extract", "path": "scores.composite"},
+            {"name": "Summary", "type": "extract", "path": "scores.summary"},
+            {"name": "Business Problems", "type": "extract", "path": "sections.business_problems"},
+            {"name": "Talking Points", "type": "extract", "path": "sections.talking_points"},
+            {"name": "Document ID", "type": "extract", "path": "document_id"}
+        ],
+        "filters": [
+            {"column": "Pain Score", "operator": ">=", "value": 70}
+        ]
+    }
+    return templates.TemplateResponse(
+        "guide_clay_pain_outbound.html",
+        {"request": request, "user": user, "clay_template_json": clay_template}
     )
 
 
@@ -640,12 +689,14 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
     """API keys management page."""
     keys = await list_api_keys(user["id"])
     usage = await get_user_usage(user["id"])
+    usage_stats = await get_api_key_usage_stats(user["id"])
     return templates.TemplateResponse(
         "api_keys.html",
         {
             "request": request,
             "user": user,
             "api_keys": keys,
+            "usage_stats": usage_stats,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "new_key": request.query_params.get("new_key"),

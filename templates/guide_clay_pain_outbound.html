@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Pain-Based Outbound with Clay + Auggie{% endblock %}
+
+{% block layout %}
+<div class="flex gap-8">
+    <!-- Sticky TOC Sidebar -->
+    <aside class="w-56 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-6 space-y-1 text-sm">
+            <a href="#overview" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Overview</a>
+            <a href="#prerequisites" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Prerequisites</a>
+            <a href="#step-1" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">1. Import Domains</a>
+            <a href="#step-2" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">2. Add Enrichment</a>
+            <a href="#step-3" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">3. Filter by Pain</a>
+            <a href="#step-4" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">4. Generate Sequences</a>
+            <a href="#template" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Template Download</a>
+        </nav>
+    </aside>
+
+    <!-- Guide Content -->
+    <main class="flex-1 min-w-0">
+        <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+            <!-- Hero -->
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-3xl font-bold text-gray-900">Pain-Based Outbound with Clay + Auggie</h1>
+                    <span class="inline-flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">~15 min setup</span>
+                </div>
+                <p class="text-gray-600">Build an automated outbound pipeline that targets companies based on real business pain, not just firmographics.</p>
+            </div>
+
+            <!-- Overview -->
+            <section id="overview">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Overview</h2>
+                <p class="text-gray-700 mb-4">Traditional outbound targets companies by size, industry, and tech stack. Pain-based outbound goes deeper: it identifies companies actively experiencing problems your product solves, then generates messaging that speaks directly to those problems.</p>
+
+                <div class="bg-gray-50 rounded-lg p-5 font-mono text-sm text-gray-700 space-y-2">
+                    <p>Company Domains</p>
+                    <p class="text-gray-400">&nbsp;&nbsp;&darr;</p>
+                    <p>Auggie Research (scores + business problems + talking points)</p>
+                    <p class="text-gray-400">&nbsp;&nbsp;&darr;</p>
+                    <p>Filter by Pain Score (&ge; 70)</p>
+                    <p class="text-gray-400">&nbsp;&nbsp;&darr;</p>
+                    <p>Generate Personalized Email Sequences</p>
+                    <p class="text-gray-400">&nbsp;&nbsp;&darr;</p>
+                    <p>Export to Sequencer</p>
+                </div>
+
+                <div class="mt-6 grid md:grid-cols-2 gap-4">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-800 mb-2">Traditional Outbound</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>Filter by industry + company size</li>
+                            <li>Generic value prop messaging</li>
+                            <li>Low reply rates (1-3%)</li>
+                        </ul>
+                    </div>
+                    <div class="border border-blue-200 bg-blue-50/50 rounded-lg p-4">
+                        <h4 class="font-semibold text-blue-900 mb-2">Pain-Based Outbound</h4>
+                        <ul class="text-sm text-blue-800 space-y-1">
+                            <li>Filter by actual business pain signals</li>
+                            <li>Messaging references specific problems</li>
+                            <li>Higher reply rates from relevance</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prerequisites -->
+            <section id="prerequisites">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Prerequisites</h2>
+                <ul class="space-y-3">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie API key</strong>
+                            <span class="text-gray-600"> &mdash; create one at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a> (starts with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">aug_</code>)</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                        <div>
+                            <strong class="text-gray-900">Clay account</strong>
+                            <span class="text-gray-600"> &mdash; free or paid plan at <a href="https://clay.com" class="text-blue-600 hover:underline" target="_blank">clay.com</a></span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie credits</strong>
+                            <span class="text-gray-600"> &mdash; 1 credit per company researched</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Step 1 -->
+            <section id="step-1">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Step 1: Import Domains into Clay</h2>
+                <ol class="list-decimal list-inside text-gray-700 space-y-3">
+                    <li>Create a new table in Clay.</li>
+                    <li>Add a <strong>Company Website</strong> column (text type).</li>
+                    <li>Import your target company domains &mdash; paste from a spreadsheet, import a CSV, or use Clay's built-in company search to populate rows.</li>
+                </ol>
+                <p class="mt-4 text-sm text-gray-500">Each row should have one company domain (e.g., <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">example.com</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://example.com</code>).</p>
+            </section>
+
+            <!-- Step 2 -->
+            <section id="step-2">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Step 2: Add Auggie Enrichment Column</h2>
+                <p class="text-gray-700 mb-4">Add an <strong>HTTP Request</strong> column and configure it to call the Auggie research API:</p>
+
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full text-sm text-left">
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700 w-32">Method</td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700">URL</td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700">Headers</td>
+                                <td class="px-4 py-2 text-gray-800">
+                                    <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization: Bearer aug_your_key</code><br>
+                                    <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Content-Type: application/json</code>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700">Body</td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{% raw %}{"company_url": "{{/Company Website}}"}{% endraw %}</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="text-gray-700 mb-3">Then add additional columns to extract fields from the response:</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Column Name</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">JSON Path</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Pain Score</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.pain</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Composite Score</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.composite</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Summary</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.summary</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Business Problems</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">sections.business_problems</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Talking Points</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">sections.talking_points</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Document ID</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">document_id</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Step 3 -->
+            <section id="step-3">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Step 3: Filter by Pain Score</h2>
+                <p class="text-gray-700 mb-4">Add a filter to your Clay table to focus on companies with the highest pain signals:</p>
+
+                <div class="space-y-3 mb-6">
+                    <div class="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <span class="font-bold text-red-800 text-lg w-12 text-center">85+</span>
+                        <div>
+                            <span class="font-semibold text-red-900">High Pain</span>
+                            <span class="text-sm text-red-700"> &mdash; Strong active pain signals. Prioritize these accounts.</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <span class="font-bold text-yellow-800 text-lg w-12 text-center">70-84</span>
+                        <div>
+                            <span class="font-semibold text-yellow-900">Moderate Pain</span>
+                            <span class="text-sm text-yellow-700"> &mdash; Notable pain signals. Good candidates for outreach.</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <span class="font-bold text-gray-600 text-lg w-12 text-center">&lt;70</span>
+                        <div>
+                            <span class="font-semibold text-gray-800">Low Pain</span>
+                            <span class="text-sm text-gray-600"> &mdash; Weak or no pain signals detected. Consider deprioritizing.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-gray-700">We recommend starting with a filter of <strong>Pain Score &ge; 70</strong> to focus on companies most likely to respond.</p>
+            </section>
+
+            <!-- Step 4 -->
+            <section id="step-4">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Step 4: Generate Personalized Sequences</h2>
+                <p class="text-gray-700 mb-4">Add a second HTTP Request column to generate email sequences for your filtered accounts. This calls the sequence endpoint using the Document ID from Step 2:</p>
+
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full text-sm text-left">
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700 w-32">Method</td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700">URL</td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{% raw %}https://auggie.app/v1/research/{{/Document ID}}/sequence{% endraw %}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-semibold text-gray-700">Headers</td>
+                                <td class="px-4 py-2 text-gray-800">
+                                    <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization: Bearer aug_your_key</code>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="text-gray-700 mb-3">Extract the generated emails:</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Column Name</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">JSON Path</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 1 Subject</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[0].subject</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 1 Body</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[0].body</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 2 Subject</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[1].subject</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 2 Body</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[1].body</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 3 Subject</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[2].subject</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Email 3 Body</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">emails[2].body</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Template Download -->
+            <section id="template">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Download Clay Template</h2>
+                <p class="text-gray-700 mb-4">Download a JSON template with pre-configured column definitions and filters. Import this into Clay to get started quickly.</p>
+                <button onclick="downloadTemplate()" class="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Download Template JSON
+                </button>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<script>
+function downloadTemplate() {
+    var template = {{ clay_template_json | tojson }};
+    var blob = new Blob([JSON.stringify(template, null, 2)], {type: 'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'auggie-clay-pain-outbound-template.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}
