@@ -640,6 +640,37 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 
 ---
 
+## Infrastructure Hygiene (Ongoing)
+**Status:** Planned
+
+General infrastructure hardening and operational improvements. Not a phase — just a running list to tackle as needed.
+
+### Cloudflare
+- [ ] Proxy app through Cloudflare (orange cloud) — DDoS protection, SSL termination, caching
+- [ ] Set up Cloudflare DNS for auggie.app / auggie.tools
+- [ ] Enable WAF rules for API endpoints
+- [ ] Configure rate limiting at edge (complement in-app rate limiting)
+- [ ] Set up page rules / cache rules for static assets
+
+### Monitoring & Observability
+- [ ] Error tracking (Sentry or similar)
+- [ ] Uptime monitoring / health checks
+- [ ] Request latency logging per endpoint
+- [ ] Database query performance monitoring
+
+### Database
+- [ ] Set up automated backups (verify Neon config)
+- [ ] Add database connection pooling review
+- [ ] Index audit for slow queries
+
+### Security
+- [ ] Rotate API secrets on a schedule
+- [ ] Review CORS configuration
+- [ ] Add Content-Security-Policy headers
+- [ ] Dependency vulnerability scanning (Dependabot or similar)
+
+---
+
 ## Priority Timeline
 
 | Timeframe | Phase | Goal |
