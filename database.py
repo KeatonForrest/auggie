@@ -1296,6 +1296,21 @@ async def vector_search(
         return [dict(row) for row in rows]
 
 
+async def get_material_preview(material_id: int, user_id: int, limit: int = 5) -> str:
+    """Fetch first N chunks by chunk_index and return concatenated content."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT content FROM material_chunks
+            WHERE material_id = $1 AND user_id = $2
+            ORDER BY chunk_index
+            LIMIT $3
+            """,
+            material_id, user_id, limit
+        )
+        return "\n\n".join(row["content"] for row in rows)
+
+
 async def delete_chunks_for_material(material_id: int) -> None:
     """Delete all chunks for a material."""
     async with _pool.acquire() as conn:

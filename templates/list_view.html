@@ -61,26 +61,28 @@
     </form>
 
     <!-- Results table -->
-    <div class="bg-white shadow rounded-lg overflow-hidden">
+    <div class="bg-white shadow rounded-lg overflow-x-auto">
         {% if accounts %}
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 w-8"><input type="checkbox" id="select-all" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"></th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Domain</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Pain</th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Fit</th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Timing</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Fit</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Timing</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Composite</th>
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
                 {% for a in accounts %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50" data-id="{{ a.id }}" data-status="{{ a.status }}">
+                    <td class="px-4 py-3"><input type="checkbox" class="row-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="{{ a.id }}"></td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ a.company_name or '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-500">{{ a.company_url | replace('https://', '') }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">{{ a.company_url | replace('https://', '') }}</td>
                     <td class="px-4 py-3">
                         {% if a.status == 'completed' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Done</span>
@@ -92,8 +94,8 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Pending</span>
                         {% endif %}
                     </td>
-                    {% for score in [a.pain_score, a.fit_score, a.timing_score, a.composite_score] %}
-                    <td class="px-4 py-3 text-center text-sm">
+                    {% for score, hide in [(a.pain_score, false), (a.fit_score, true), (a.timing_score, true), (a.composite_score, false)] %}
+                    <td class="px-4 py-3 text-center text-sm{% if hide %} hidden sm:table-cell{% endif %}">
                         {% if score is not none %}
                         <span class="inline-flex items-center justify-center w-10 px-1 py-0.5 rounded text-xs font-bold
                             {% if score >= 70 %}bg-green-100 text-green-800{% elif score >= 40 %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
@@ -127,6 +129,13 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Bulk actions toolbar -->
+    <div id="bulk-toolbar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-lg shadow-lg px-5 py-3 flex items-center gap-4 z-40">
+        <span id="bulk-count" class="text-sm font-medium">0 selected</span>
+        <button onclick="exportSelected()" class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">Export Selected</button>
+        <button id="retry-selected-btn" onclick="retrySelected()" class="hidden px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Retry Selected</button>
+    </div>
 </div>
 {% endblock %}
 
@@ -137,6 +146,89 @@
 </script>
 {% endif %}
 <script>
+// Bulk selection logic
+var selectedIds = new Set();
+var selectAllCb = document.getElementById('select-all');
+var rowCbs = document.querySelectorAll('.row-checkbox');
+var toolbar = document.getElementById('bulk-toolbar');
+var countEl = document.getElementById('bulk-count');
+var retryBtn = document.getElementById('retry-selected-btn');
+
+function updateToolbar() {
+    if (selectedIds.size > 0) {
+        toolbar.classList.remove('hidden');
+        countEl.textContent = selectedIds.size + ' selected';
+        // Show retry button if any selected row is failed
+        var anyFailed = false;
+        selectedIds.forEach(function(id) {
+            var row = document.querySelector('tr[data-id="' + id + '"]');
+            if (row && row.dataset.status === 'failed') anyFailed = true;
+        });
+        retryBtn.classList.toggle('hidden', !anyFailed);
+    } else {
+        toolbar.classList.add('hidden');
+    }
+}
+
+if (selectAllCb) {
+    selectAllCb.addEventListener('change', function() {
+        rowCbs.forEach(function(cb) {
+            cb.checked = selectAllCb.checked;
+            if (selectAllCb.checked) selectedIds.add(cb.value);
+            else selectedIds.delete(cb.value);
+        });
+        updateToolbar();
+    });
+}
+rowCbs.forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        if (cb.checked) selectedIds.add(cb.value);
+        else selectedIds.delete(cb.value);
+        if (selectAllCb) selectAllCb.checked = selectedIds.size === rowCbs.length;
+        updateToolbar();
+    });
+});
+
+function exportSelected() {
+    var ids = Array.from(selectedIds).map(Number);
+    fetch('/lists/{{ list.id }}/export-selected', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_ids: ids})
+    })
+    .then(function(r) { return r.blob(); })
+    .then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'selected_accounts.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+}
+
+function retrySelected() {
+    var ids = Array.from(selectedIds).map(Number);
+    retryBtn.disabled = true;
+    retryBtn.textContent = 'Retrying...';
+    fetch('/lists/{{ list.id }}/retry-selected', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            if (typeof showToast === 'function') showToast('Retrying ' + data.retried + ' accounts', 'success');
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            if (typeof showToast === 'function') showToast(data.error || 'Retry failed', 'error');
+            retryBtn.disabled = false;
+            retryBtn.textContent = 'Retry Selected';
+        }
+    });
+}
+
 function retryAccount(listId, accountId, btn) {
     btn.disabled = true;
     btn.textContent = 'Retrying...';

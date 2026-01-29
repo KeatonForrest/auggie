@@ -31,6 +31,7 @@ from database import (
     list_lists, get_list, get_list_accounts,
     create_research_job, get_research_job,
     check_duplicate_research, get_list_account, reset_list_account,
+    get_user_webhook, upsert_webhook, delete_user_webhook,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding
 from billing import router as billing_router
@@ -688,6 +689,7 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
     keys = await list_api_keys(user["id"])
     usage = await get_user_usage(user["id"])
     usage_stats = await get_api_key_usage_stats(user["id"])
+    webhook = await get_user_webhook(user["id"])
     return templates.TemplateResponse(
         "api_keys.html",
         {
@@ -698,6 +700,8 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "new_key": request.query_params.get("new_key"),
+            "webhook": webhook,
+            "webhook_secret": request.query_params.get("webhook_secret"),
         }
     )
 
@@ -715,6 +719,22 @@ async def create_api_key_route(request: Request, name: str = Form("Default"), us
 async def revoke_api_key_route(key_id: int, user: dict = Depends(require_auth)):
     """Revoke an API key."""
     await revoke_api_key(key_id, user["id"])
+    return RedirectResponse(url="/api-keys", status_code=303)
+
+
+@app.post("/api-keys/webhook")
+async def create_webhook_route(request: Request, webhook_url: str = Form(...), user: dict = Depends(require_auth)):
+    """Register a webhook URL."""
+    import secrets as _secrets
+    secret = _secrets.token_hex(32)
+    await upsert_webhook(user["id"], webhook_url, secret)
+    return RedirectResponse(url=f"/api-keys?webhook_secret={secret}", status_code=303)
+
+
+@app.post("/api-keys/webhook/delete")
+async def delete_webhook_route(user: dict = Depends(require_auth)):
+    """Delete user's webhook."""
+    await delete_user_webhook(user["id"])
     return RedirectResponse(url="/api-keys", status_code=303)
 
 
@@ -792,6 +812,22 @@ async def delete_material(
 
     deleted = await service.delete_material(material_id, user["id"])
     return JSONResponse({"success": deleted})
+
+
+@app.get("/materials/{material_id}/preview")
+async def preview_material(
+    material_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Return first 5 chunks of a material as preview text."""
+    from database import get_material_preview, get_material
+    mat = await get_material(material_id, user["id"])
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material not found")
+    if mat["status"] != "ready":
+        return JSONResponse({"content": "Material is not ready for preview."})
+    content = await get_material_preview(material_id, user["id"])
+    return JSONResponse({"content": content})
 
 
 @app.post("/materials/{material_id}/reprocess")
@@ -1115,6 +1151,123 @@ async def export_list_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{safe_name}.csv"'},
     )
+
+
+# =============================================================================
+# Bulk List Actions
+# =============================================================================
+
+@app.post("/lists/{list_id}/export-selected")
+async def export_selected_csv(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Export selected list accounts as CSV."""
+    import csv
+    from io import StringIO
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+    if not account_ids:
+        raise HTTPException(status_code=400, detail="No accounts selected")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    selected = [a for a in all_accounts if a["id"] in account_ids]
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    for a in selected:
+        writer.writerow([
+            a.get("company_name") or "",
+            a.get("company_url", ""),
+            a.get("pain_score") if a.get("pain_score") is not None else "",
+            a.get("fit_score") if a.get("fit_score") is not None else "",
+            a.get("timing_score") if a.get("timing_score") is not None else "",
+            a.get("composite_score") if a.get("composite_score") is not None else "",
+            a.get("status", ""),
+        ])
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="selected_accounts.csv"'},
+    )
+
+
+@app.post("/lists/{list_id}/retry-selected")
+async def retry_selected_accounts(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Retry multiple failed list accounts."""
+    from api.jobs import _run_research_pipeline
+    from database import update_list_account
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+    if not account_ids:
+        return JSONResponse({"success": False, "error": "No accounts selected"}, status_code=400)
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    failed = [a for a in all_accounts if a["id"] in account_ids and a["status"] == "failed"]
+
+    if not failed:
+        return JSONResponse({"success": False, "error": "No failed accounts in selection"}, status_code=400)
+
+    # Reserve credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(failed) * 100
+    if not is_admin:
+        reserved = await use_credit(user["id"], cents=needed)
+        if not reserved:
+            return JSONResponse({"success": False, "error": "Not enough credits"}, status_code=402)
+
+    # Reset and start retries
+    retried = 0
+    for a in failed:
+        await reset_list_account(a["id"])
+        job = await create_research_job(user["id"], api_key_id=None, company_url=a["company_url"])
+        await update_list_account(a["id"], "processing", research_job_id=job["id"])
+
+        async def _run_retry(account_id=a["id"], company_url=a["company_url"], job_id=job["id"]):
+            from database import update_job_status, get_document as get_doc
+            try:
+                doc_id = await _run_research_pipeline(user["id"], company_url)
+                await update_job_status(job_id, "completed", document_id=doc_id)
+                doc = await get_doc(doc_id, user["id"])
+                await update_list_account(
+                    account_id, "completed",
+                    document_id=doc_id,
+                    research_job_id=job_id,
+                    pain_score=doc.pain_score,
+                    fit_score=doc.fit_score,
+                    timing_score=doc.timing_score,
+                    composite_score=doc.opportunity_score,
+                    company_name=doc.company_name,
+                )
+            except Exception as e:
+                if not is_admin:
+                    await refund_credit(user["id"])
+                error_msg = str(e)[:500]
+                await update_job_status(job_id, "failed", error_message=error_msg)
+                await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)
+
+        create_tracked_task(_run_retry(), name=f"retry-{a['id']}")
+        retried += 1
+
+    return JSONResponse({"success": True, "retried": retried})
 
 
 # =============================================================================

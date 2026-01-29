@@ -73,7 +73,7 @@
                     <div class="space-y-6">
                         <!-- Company Size -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Helps filter to companies at the right scale">
                                 Target Company Size
                             </label>
                             <div class="flex flex-wrap gap-3">
@@ -94,7 +94,7 @@
 
                         <!-- Industries -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Research focuses on industry-specific pain signals">
                                 Target Industries <span class="text-gray-400 font-normal">(select all that apply)</span>
                             </label>
                             <div class="mb-3">
@@ -177,7 +177,7 @@
 
                         <!-- Target Personas - Level -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Determines which contacts to prioritize">
                                 Target Level in Org
                             </label>
                             <div class="flex flex-wrap gap-3">
@@ -206,7 +206,7 @@
 
                         <!-- Target Personas - Function -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Shapes talking points to the right department">
                                 Target Function
                             </label>
                             <div class="grid grid-cols-2 gap-2">
@@ -262,6 +262,36 @@
     </main>
 
     <script>
+        // Form validation: require at least 1 checkbox in each group
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const groups = [
+                { name: 'target_company_size', label: 'Target Company Size' },
+                { name: 'target_industries', label: 'Target Industries' },
+                { name: 'target_level', label: 'Target Level in Org' },
+                { name: 'target_function', label: 'Target Function' },
+            ];
+            let valid = true;
+            // Clear previous errors
+            document.querySelectorAll('.checkbox-error').forEach(el => el.remove());
+            document.querySelectorAll('.error-border').forEach(el => el.classList.remove('error-border', 'border', 'border-red-400', 'rounded-lg', 'p-2'));
+
+            groups.forEach(function(group) {
+                const checked = document.querySelectorAll('input[name="' + group.name + '"]:checked');
+                if (checked.length === 0) {
+                    valid = false;
+                    // Find the container div for this checkbox group
+                    const firstCb = document.querySelector('input[name="' + group.name + '"]');
+                    const container = firstCb.closest('.flex, .grid');
+                    container.classList.add('error-border', 'border', 'border-red-400', 'rounded-lg', 'p-2');
+                    const err = document.createElement('p');
+                    err.className = 'checkbox-error text-red-600 text-xs mt-1';
+                    err.textContent = 'Please select at least one ' + group.label.toLowerCase() + '.';
+                    container.parentNode.insertBefore(err, container.nextSibling);
+                }
+            });
+            if (!valid) e.preventDefault();
+        });
+
         // Select All Industries toggle
         const selectAllCheckbox = document.getElementById('select-all-industries');
         const industryCheckboxes = document.querySelectorAll('input[name="target_industries"]');

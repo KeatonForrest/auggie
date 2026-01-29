@@ -30,6 +30,13 @@
         </div>
     </div>
 
+    <!-- Search -->
+    {% if materials %}
+    <div class="mb-4">
+        <input type="text" id="material-search" placeholder="Search materials..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+    </div>
+    {% endif %}
+
     <!-- Materials List -->
     <div class="bg-white shadow rounded-lg overflow-hidden">
         {% if materials %}
@@ -45,7 +52,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for material in materials %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 material-row" data-filename="{{ material.filename|lower }}">
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex items-center">
                             <span class="text-2xl mr-3">
@@ -111,6 +118,11 @@
                         {{ material.chunk_count or 0 }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {% if material.status == 'ready' %}
+                        <button onclick="previewMaterial({{ material.id }})" class="text-blue-600 hover:text-blue-900 mr-3">
+                            View
+                        </button>
+                        {% endif %}
                         {% if material.status == 'failed' %}
                         <button onclick="reprocessMaterial({{ material.id }})" class="text-indigo-600 hover:text-indigo-900 mr-3">
                             Retry
@@ -189,6 +201,20 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+<!-- Preview Modal -->
+<div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[80vh] flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-900">Material Preview</h2>
+            <button onclick="closePreviewModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="previewContent" class="overflow-y-auto flex-1 text-sm text-gray-700 whitespace-pre-wrap border rounded-lg p-4 bg-gray-50"></div>
     </div>
 </div>
 {% endblock %}
@@ -305,6 +331,39 @@ async function reprocessMaterial(id) {
     } catch (err) {
         alert('Reprocess failed: ' + err.message);
     }
+}
+
+// Material search
+const searchInput = document.getElementById('material-search');
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        document.querySelectorAll('.material-row').forEach(function(row) {
+            row.style.display = row.dataset.filename.includes(query) ? '' : 'none';
+        });
+    });
+}
+
+// Preview modal
+const previewModal = document.getElementById('previewModal');
+const previewContent = document.getElementById('previewContent');
+
+async function previewMaterial(id) {
+    previewContent.textContent = 'Loading...';
+    previewModal.classList.remove('hidden');
+    previewModal.classList.add('flex');
+    try {
+        const res = await fetch('/materials/' + id + '/preview');
+        const data = await res.json();
+        previewContent.textContent = data.content || 'No content available.';
+    } catch (err) {
+        previewContent.textContent = 'Failed to load preview.';
+    }
+}
+
+function closePreviewModal() {
+    previewModal.classList.add('hidden');
+    previewModal.classList.remove('flex');
 }
 
 // Auto-refresh if any materials are processing
