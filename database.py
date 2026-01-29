@@ -19,8 +19,8 @@ async def init_database():
 
     _pool = await asyncpg.create_pool(
         settings.database_url,
-        min_size=2,
-        max_size=10,
+        min_size=5,
+        max_size=20,
         statement_cache_size=0,  # Disable cache to handle schema changes
     )
 
@@ -423,6 +423,14 @@ async def init_database():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_list_accounts_list
             ON list_accounts(list_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_list_accounts_status
+            ON list_accounts(status)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_research_jobs_status_created
+            ON research_jobs(status, created_at DESC)
         """)
 
         # Mark stale analyzing lists as failed
@@ -865,18 +873,25 @@ async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
 
 
 async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocument]:
-    """Get all research documents for a user, most recent first."""
+    """Get all research documents for a user, most recent first (summary only)."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT * FROM research_documents
+            SELECT id, user_id, company_url, company_name, created_at,
+                   company_overview, projects_initiatives, confirmed_tech_stack,
+                   hiring_signals, business_problems, existential_data_points,
+                   product_fit, talking_points, recent_news, key_contacts,
+                   information_gaps,
+                   opportunity_score, pain_score, fit_score, timing_score,
+                   score_summary, pain_evidence, fit_evidence, timing_evidence
+            FROM research_documents
             WHERE user_id = $1
             ORDER BY created_at DESC
             LIMIT $2
             """,
             user_id, limit
         )
-        return [_row_to_document(row) for row in rows]
+        return [_row_to_document_summary(row) for row in rows]
 
 
 async def search_documents(user_id: int, query: str) -> list[ResearchDocument]:
@@ -885,14 +900,21 @@ async def search_documents(user_id: int, query: str) -> list[ResearchDocument]:
         search_term = f"%{query}%"
         rows = await conn.fetch(
             """
-            SELECT * FROM research_documents
+            SELECT id, user_id, company_url, company_name, created_at,
+                   company_overview, projects_initiatives, confirmed_tech_stack,
+                   hiring_signals, business_problems, existential_data_points,
+                   product_fit, talking_points, recent_news, key_contacts,
+                   information_gaps,
+                   opportunity_score, pain_score, fit_score, timing_score,
+                   score_summary, pain_evidence, fit_evidence, timing_evidence
+            FROM research_documents
             WHERE user_id = $1 AND (company_name ILIKE $2 OR company_url ILIKE $2)
             ORDER BY created_at DESC
             LIMIT 20
             """,
             user_id, search_term
         )
-        return [_row_to_document(row) for row in rows]
+        return [_row_to_document_summary(row) for row in rows]
 
 
 async def delete_document(doc_id: int, user_id: int) -> bool:
@@ -932,6 +954,36 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         fit_evidence=row.get("fit_evidence"),
         timing_evidence=row.get("timing_evidence"),
         full_markdown=row["full_markdown"] or "",
+    )
+
+
+def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
+    """Convert a database row (without full_markdown) to a ResearchDocument."""
+    return ResearchDocument(
+        id=row["id"],
+        company_url=row["company_url"],
+        company_name=row["company_name"],
+        created_at=row["created_at"],
+        company_overview=row["company_overview"] or "",
+        projects_initiatives=row["projects_initiatives"] or "",
+        confirmed_tech_stack=row["confirmed_tech_stack"] or "",
+        hiring_signals=row["hiring_signals"] or "",
+        business_problems=row["business_problems"] or "",
+        existential_data_points=row.get("existential_data_points") or "",
+        product_fit=row["product_fit"] or "",
+        talking_points=row["talking_points"] or "",
+        recent_news=row["recent_news"] or "",
+        key_contacts=row.get("key_contacts") or "",
+        information_gaps=row["information_gaps"] or "",
+        opportunity_score=row.get("opportunity_score"),
+        pain_score=row.get("pain_score"),
+        fit_score=row.get("fit_score"),
+        timing_score=row.get("timing_score"),
+        score_summary=row.get("score_summary"),
+        pain_evidence=row.get("pain_evidence"),
+        fit_evidence=row.get("fit_evidence"),
+        timing_evidence=row.get("timing_evidence"),
+        full_markdown="",
     )
 
 
@@ -1036,18 +1088,22 @@ async def get_api_key_usage_stats(user_id: int) -> dict[int, dict]:
 async def save_enriched_contacts(document_id: int, user_id: int, contacts: list[dict]):
     """Save enriched contacts for a research document."""
     async with _pool.acquire() as conn:
-        for c in contacts:
-            await conn.execute(
-                """
-                INSERT INTO enriched_contacts
-                    (document_id, user_id, name, first_name, last_name, title, email, email_status, profile_url, company_name)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                """,
-                document_id, user_id,
-                c.get("name"), c.get("first_name"), c.get("last_name"),
-                c.get("title"), c.get("email"), c.get("email_status"),
-                c.get("profile_url"), c.get("company_name"),
-            )
+        await conn.executemany(
+            """
+            INSERT INTO enriched_contacts
+                (document_id, user_id, name, first_name, last_name, title, email, email_status, profile_url, company_name)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            """,
+            [
+                (
+                    document_id, user_id,
+                    c.get("name"), c.get("first_name"), c.get("last_name"),
+                    c.get("title"), c.get("email"), c.get("email_status"),
+                    c.get("profile_url"), c.get("company_name"),
+                )
+                for c in contacts
+            ],
+        )
 
 
 async def get_enriched_contacts(document_id: int, user_id: int) -> list[dict]:
@@ -1390,18 +1446,15 @@ async def list_bulk_jobs(user_id: int, limit: int = 20) -> list[dict]:
 async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]:
     """Batch-insert items for a bulk job. Returns list of item records."""
     async with _pool.acquire() as conn:
-        rows = []
-        for url in urls:
-            row = await conn.fetchrow(
-                """
-                INSERT INTO bulk_job_items (bulk_job_id, company_url)
-                VALUES ($1, $2)
-                RETURNING *
-                """,
-                bulk_job_id, url
-            )
-            rows.append(dict(row))
-        return rows
+        await conn.executemany(
+            "INSERT INTO bulk_job_items (bulk_job_id, company_url) VALUES ($1, $2)",
+            [(bulk_job_id, url) for url in urls],
+        )
+        rows = await conn.fetch(
+            "SELECT * FROM bulk_job_items WHERE bulk_job_id = $1 ORDER BY id",
+            bulk_job_id,
+        )
+        return [dict(row) for row in rows]
 
 
 async def get_bulk_job_items(bulk_job_id: int) -> list[dict]:
@@ -1543,22 +1596,19 @@ async def delete_list(list_id: int, user_id: int) -> bool:
 async def add_list_accounts(list_id: int, company_urls: list[str]) -> list[dict]:
     """Batch-insert accounts for a list. Updates total_accounts on parent. Returns account records."""
     async with _pool.acquire() as conn:
-        rows = []
-        for url in company_urls:
-            row = await conn.fetchrow(
-                """
-                INSERT INTO list_accounts (list_id, company_url)
-                VALUES ($1, $2)
-                RETURNING *
-                """,
-                list_id, url
-            )
-            rows.append(dict(row))
+        await conn.executemany(
+            "INSERT INTO list_accounts (list_id, company_url) VALUES ($1, $2)",
+            [(list_id, url) for url in company_urls],
+        )
         await conn.execute(
             "UPDATE lists SET total_accounts = $2, updated_at = NOW() WHERE id = $1",
             list_id, len(company_urls)
         )
-        return rows
+        rows = await conn.fetch(
+            "SELECT * FROM list_accounts WHERE list_id = $1 ORDER BY id",
+            list_id,
+        )
+        return [dict(row) for row in rows]
 
 
 async def get_list_accounts(

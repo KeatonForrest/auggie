@@ -6,6 +6,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from models import TechStack, DetectedTechnology
+from services.collect import get_shared_http_client
 
 try:
     from Wappalyzer import Wappalyzer, WebPage
@@ -165,9 +166,9 @@ class WappalyzerService:
 
         print(f"Checking {len(urls_to_check)} potential app subdomains...")
 
-        async with httpx.AsyncClient() as client:
-            tasks = [self._check_url_exists(client, url) for url in urls_to_check]
-            results = await asyncio.gather(*tasks)
+        client = get_shared_http_client()
+        tasks = [self._check_url_exists(client, url) for url in urls_to_check]
+        results = await asyncio.gather(*tasks)
 
         found = [url for url in results if url is not None]
 
@@ -188,9 +189,9 @@ class WappalyzerService:
 
         print(f"Checking {len(urls_to_check)} potential app paths...")
 
-        async with httpx.AsyncClient() as client:
-            tasks = [self._check_url_exists(client, url) for url in urls_to_check]
-            results = await asyncio.gather(*tasks)
+        client = get_shared_http_client()
+        tasks = [self._check_url_exists(client, url) for url in urls_to_check]
+        results = await asyncio.gather(*tasks)
 
         found = [url for url in results if url is not None]
 
@@ -216,8 +217,10 @@ class WappalyzerService:
         full_main_url = f"https://{base_domain}"
 
         print(f"Wappalyzer: Analyzing main domain: {full_main_url}")
-        # Always fetch fresh for main domain - Firecrawl HTML may be stripped
-        main_tech = await self.analyze_url(full_main_url)
+        if main_html:
+            main_tech = await self.analyze_html(main_html, full_main_url)
+        else:
+            main_tech = await self.analyze_url(full_main_url)
         print(f"Wappalyzer: Main domain result - {len(main_tech.technologies)} technologies")
 
         # Always include main domain in results (even if empty)
