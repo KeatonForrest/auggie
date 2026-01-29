@@ -136,7 +136,7 @@ Hiring backend engineers.
 ## Stated Business Problems
 Scaling issues mentioned.
 
-## MongoDB Fit Analysis
+## Product Fit Analysis
 HIGH - Good fit for their needs.
 
 ## Recommended Talking Points
@@ -155,7 +155,7 @@ No pricing info found.
         assert "confirmed_tech_stack" in sections
         assert "hiring_signals" in sections
         assert "business_problems" in sections
-        assert "mongodb_fit" in sections
+        assert "product_fit" in sections
         assert "talking_points" in sections
         assert "information_gaps" in sections
 

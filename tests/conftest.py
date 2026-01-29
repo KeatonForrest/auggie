@@ -66,7 +66,7 @@ def sample_research_document():
         confirmed_tech_stack="React, Node.js, PostgreSQL detected.",
         hiring_signals="Hiring for backend and data roles.",
         business_problems="Scaling challenges mentioned in blog.",
-        mongodb_fit="HIGH - Their PostgreSQL usage could benefit from MongoDB.",
+        product_fit="HIGH - Their PostgreSQL usage could benefit from MongoDB.",
         talking_points="1. Discuss their scaling challenges.\n2. MongoDB Atlas.",
         information_gaps="No pricing page found.",
         full_markdown="# Acme Corp Research\n\n## Company Overview\nAcme Corp is...",
@@ -92,11 +92,34 @@ def mock_services(sample_scraped_content, sample_tech_stack, sample_research_doc
         }
 
 
+@pytest.fixture
+def fake_user():
+    """Fake authenticated user for route tests."""
+    return {
+        "id": 1,
+        "email": "test@test.com",
+        "name": "Test User",
+        "product_context": "Test product context",
+        "company_name": "Test Co",
+    }
+
+
 @pytest_asyncio.fixture
 async def async_client():
-    """Async HTTP client for testing FastAPI endpoints."""
+    """Async HTTP client for testing FastAPI endpoints (unauthenticated)."""
     from main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def authed_client(fake_user):
+    """Async HTTP client with authentication mocked."""
+    from main import app
+
+    with patch("auth.get_current_user", new_callable=AsyncMock, return_value=fake_user):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
