@@ -530,7 +530,7 @@ async def push_to_instantly(
     contacts_by_account = {}
     for account in accounts:
         if account.get("document_id"):
-            contacts = await get_enriched_contacts(account["document_id"])
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
             if contacts:
                 contacts_by_account[account["id"]] = contacts
 
