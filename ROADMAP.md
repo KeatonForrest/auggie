@@ -220,21 +220,29 @@ The API is the foundation for enterprise. Without it, no Clay integration, no bu
 ---
 
 ## Phase 6: Bulk Lists + Docs + SDK
-**Status:** NEXT
+**Status:** MOSTLY COMPLETE
 
 Build bulk processing and developer documentation.
 
-### Bulk/Lists
-- [ ] `POST /v1/lists` - Create list from domains
-- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores
-- [ ] Background job processing (reuses async job infrastructure)
-- [ ] Progress webhooks
+### Bulk Research API
+- [x] `POST /v1/research/bulk` - Bulk research (up to 100 URLs, bounded concurrency)
+- [x] `GET /v1/research/bulk/{id}` - Poll bulk job progress + items
+- [x] `GET /v1/research/bulk` - List recent bulk jobs
+- [x] Background job processing (async with semaphore, 5 concurrent)
+- [x] Credit reservation + refund on failure
+- [x] Rate limiting (2 bulk requests / 60s)
+- [x] Webhook notification on bulk completion
+
+### Lists (not yet built)
+- [ ] `POST /v1/lists` - Create persistent list from domains
+- [ ] `GET /v1/lists/{id}/accounts` - Get accounts with pain scores, filtering/sorting
 
 ### Docs + SDK
-- [ ] API documentation (Mintlify)
-- [ ] Python SDK (basic)
-- [ ] Clay integration guide
-- [ ] Dashboard: Usage tracking
+- [x] API documentation page (`/docs`)
+- [x] Python SDK (`sdk/auggie/`)
+- [x] Clay integration guide (`/guides/clay-pain-based-outbound`)
+- [x] Dashboard: API key usage stats
+- [ ] Publish SDK to PyPI
 
 ---
 
@@ -563,7 +571,7 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 | ✅ Done | Phase 3 | Writing workflow |
 | ✅ Done | Phase 4 | Microsoft OAuth |
 | ✅ Done | Phase 5 | Public API (async jobs, webhooks, sequences, rate limiting) |
-| **NEXT** | **Phase 6** | **Bulk lists + API docs + Python SDK** |
+| **In Progress** | **Phase 6** | **Bulk research done, docs done, lists API remaining** |
 | Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
 | After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
 | After | Phase 9 | Bulk workflows UI |
