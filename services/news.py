@@ -18,6 +18,7 @@ class NewsService:
         self,
         company_name: str,
         max_articles: int = 5,
+        client: Optional[httpx.AsyncClient] = None,
     ) -> Optional[str]:
         """
         Fetch recent news articles about a company using SerpAPI Google News.
@@ -27,38 +28,41 @@ class NewsService:
         if not self.api_key:
             return None
 
-        # Clean company name for search
         search_query = self._clean_company_name(company_name)
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    self.base_url,
-                    params={
-                        "engine": "google_news",
-                        "q": search_query,
-                        "api_key": self.api_key,
-                    },
-                    timeout=15.0,
-                )
-
-                if response.status_code != 200:
-                    print(f"SerpAPI error: {response.status_code} - {response.text}")
-                    return None
-
-                data = response.json()
-
-                # SerpAPI returns news_results array
-                articles = data.get("news_results", [])[:max_articles]
-
-                if not articles:
-                    return None
-
-                return self._format_articles(articles)
-
+            if client is None:
+                async with httpx.AsyncClient() as client:
+                    return await self._fetch_news(client, search_query, max_articles)
+            else:
+                return await self._fetch_news(client, search_query, max_articles)
         except Exception as e:
             print(f"SerpAPI error: {e}")
             return None
+
+    async def _fetch_news(self, client: httpx.AsyncClient, search_query: str, max_articles: int) -> Optional[str]:
+        """Internal: fetch news with a provided client."""
+        response = await client.get(
+            self.base_url,
+            params={
+                "engine": "google_news",
+                "q": search_query,
+                "api_key": self.api_key,
+            },
+            timeout=15.0,
+        )
+
+        if response.status_code != 200:
+            print(f"SerpAPI error: {response.status_code} - {response.text}")
+            return None
+
+        data = response.json()
+        articles = data.get("news_results", [])[:max_articles]
+
+        if not articles:
+            return None
+
+        return self._format_articles(articles)
 
     def _clean_company_name(self, name: str) -> str:
         """Remove common suffixes for better search results."""

@@ -1,7 +1,11 @@
 """edgar.py - SEC EDGAR integration for public company filings and financial data."""
 
+import asyncio
+import json
 import httpx
+import os
 import re
+import time
 from typing import Optional
 
 
@@ -30,6 +34,10 @@ HIGH_SIGNAL_ITEMS = {"1.01", "1.02", "1.03", "2.01", "2.05", "2.06", "4.01", "4.
 # SEC requires this header on all requests
 USER_AGENT = "AugmentedResearch admin@augmented.dev"
 
+# Disk cache for tickers JSON (avoids re-downloading 10MB+ on restart)
+_TICKERS_CACHE_PATH = os.path.join(os.path.dirname(__file__), ".edgar_tickers_cache.json")
+_TICKERS_CACHE_TTL = 86400  # 24 hours
+
 
 class EdgarService:
     """Service for fetching public company filings from SEC EDGAR."""
@@ -38,22 +46,29 @@ class EdgarService:
         self._tickers_cache: Optional[dict] = None
         self._last_sic_code: Optional[str] = None  # Set after get_company_filings
 
-    async def _load_tickers(self, client: httpx.AsyncClient) -> dict:
-        """Load and cache the SEC company tickers JSON. Returns {name_lower: {cik, ticker, title}}."""
-        if self._tickers_cache is not None:
-            return self._tickers_cache
+    def _load_disk_cache(self) -> Optional[dict]:
+        """Try to load tickers from disk cache if fresh enough."""
+        try:
+            if not os.path.exists(_TICKERS_CACHE_PATH):
+                return None
+            age = time.time() - os.path.getmtime(_TICKERS_CACHE_PATH)
+            if age > _TICKERS_CACHE_TTL:
+                return None
+            with open(_TICKERS_CACHE_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
 
-        response = await client.get(
-            "https://www.sec.gov/files/company_tickers.json",
-            headers={"User-Agent": USER_AGENT},
-            timeout=15.0,
-        )
-        if response.status_code != 200:
-            self._tickers_cache = {}
-            return self._tickers_cache
+    def _save_disk_cache(self, data: dict):
+        """Save raw tickers JSON to disk for next startup."""
+        try:
+            with open(_TICKERS_CACHE_PATH, "w") as f:
+                json.dump(data, f)
+        except Exception:
+            pass  # Non-critical
 
-        data = response.json()
-        # Build lookup by lowercase company name and by ticker
+    def _build_lookup(self, data: dict) -> dict:
+        """Build lookup dict from raw SEC tickers JSON."""
         lookup = {}
         for entry in data.values():
             name = entry["title"].lower().strip()
@@ -65,8 +80,33 @@ class EdgarService:
             }
             lookup[name] = record
             lookup[ticker.lower()] = record
+        return lookup
 
-        self._tickers_cache = lookup
+    async def _load_tickers(self, client: httpx.AsyncClient) -> dict:
+        """Load and cache the SEC company tickers JSON. Returns {name_lower: {cik, ticker, title}}."""
+        if self._tickers_cache is not None:
+            return self._tickers_cache
+
+        # Try disk cache first
+        disk_data = self._load_disk_cache()
+        if disk_data is not None:
+            print("EDGAR: Loaded tickers from disk cache")
+            self._tickers_cache = self._build_lookup(disk_data)
+            return self._tickers_cache
+
+        # Fetch from SEC
+        response = await client.get(
+            "https://www.sec.gov/files/company_tickers.json",
+            headers={"User-Agent": USER_AGENT},
+            timeout=15.0,
+        )
+        if response.status_code != 200:
+            self._tickers_cache = {}
+            return self._tickers_cache
+
+        data = response.json()
+        self._save_disk_cache(data)
+        self._tickers_cache = self._build_lookup(data)
         return self._tickers_cache
 
     def _match_company(self, company_name: str, tickers: dict) -> Optional[dict]:
@@ -125,7 +165,7 @@ class EdgarService:
 
         return None
 
-    async def get_company_filings(self, company_name: str) -> Optional[str]:
+    async def get_company_filings(self, company_name: str, client: Optional[httpx.AsyncClient] = None) -> Optional[str]:
         """
         Fetch SEC EDGAR data for a public company.
 
@@ -133,60 +173,66 @@ class EdgarService:
         or lookup fails.
         """
         try:
-            async with httpx.AsyncClient() as client:
-                # Step 1: Resolve company name to CIK
-                tickers = await self._load_tickers(client)
-                match = self._match_company(company_name, tickers)
-                if not match:
-                    return None
-
-                cik = match["cik"]
-                ticker = match["ticker"]
-                print(f"EDGAR: Found {match['title']} ({ticker}) — CIK {cik}")
-
-                # Step 2: Get submissions (company metadata + all filings)
-                submissions = await self._get_submissions(client, cik)
-                if not submissions:
-                    return None
-
-                # Store SIC code for downstream use (e.g., Federal Register)
-                self._last_sic_code = submissions.get("sic")
-
-                # Step 3: Extract useful data
-                sections = []
-                sections.append(f"**Company:** {submissions.get('name', match['title'])} ({ticker})")
-                sections.append(f"**SIC:** {submissions.get('sicDescription', 'Unknown')}")
-
-                if submissions.get("stateOfIncorporation"):
-                    sections.append(f"**Incorporated:** {submissions['stateOfIncorporation']}")
-                if submissions.get("category"):
-                    sections.append(f"**Filer Category:** {submissions['category']}")
-
-                sections.append("")
-
-                # Step 4: Extract recent 8-K trigger events
-                eight_k_section = self._extract_8k_events(submissions)
-                if eight_k_section:
-                    sections.append(eight_k_section)
-
-                # Step 5: Extract recent 10-K/10-Q filing info
-                annual_section = self._extract_annual_filings(submissions)
-                if annual_section:
-                    sections.append(annual_section)
-
-                # Step 6: Try to fetch Risk Factors from most recent 10-K
-                risk_factors = await self._fetch_risk_factors(client, cik, submissions)
-                if risk_factors:
-                    sections.append("### Risk Factors (from 10-K)")
-                    sections.append("(Company's own disclosure of business challenges and threats)")
-                    sections.append(risk_factors)
-                    sections.append("")
-
-                return "\n".join(sections)
-
+            if client is None:
+                async with httpx.AsyncClient() as client:
+                    return await self._get_company_filings_impl(client, company_name)
+            else:
+                return await self._get_company_filings_impl(client, company_name)
         except Exception as e:
             print(f"EDGAR error (non-fatal): {e}")
             return None
+
+    async def _get_company_filings_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
+        """Internal implementation with a provided client."""
+        # Step 1: Resolve company name to CIK
+        tickers = await self._load_tickers(client)
+        match = self._match_company(company_name, tickers)
+        if not match:
+            return None
+
+        cik = match["cik"]
+        ticker = match["ticker"]
+        print(f"EDGAR: Found {match['title']} ({ticker}) — CIK {cik}")
+
+        # Step 2: Get submissions (company metadata + all filings)
+        submissions = await self._get_submissions(client, cik)
+        if not submissions:
+            return None
+
+        # Store SIC code for downstream use (e.g., Federal Register)
+        self._last_sic_code = submissions.get("sic")
+
+        # Step 3: Extract useful data
+        sections = []
+        sections.append(f"**Company:** {submissions.get('name', match['title'])} ({ticker})")
+        sections.append(f"**SIC:** {submissions.get('sicDescription', 'Unknown')}")
+
+        if submissions.get("stateOfIncorporation"):
+            sections.append(f"**Incorporated:** {submissions['stateOfIncorporation']}")
+        if submissions.get("category"):
+            sections.append(f"**Filer Category:** {submissions['category']}")
+
+        sections.append("")
+
+        # Step 4: Extract recent 8-K trigger events
+        eight_k_section = self._extract_8k_events(submissions)
+        if eight_k_section:
+            sections.append(eight_k_section)
+
+        # Step 5: Extract recent 10-K/10-Q filing info
+        annual_section = self._extract_annual_filings(submissions)
+        if annual_section:
+            sections.append(annual_section)
+
+        # Step 6: Try to fetch Risk Factors from most recent 10-K
+        risk_factors = await self._fetch_risk_factors(client, cik, submissions)
+        if risk_factors:
+            sections.append("### Risk Factors (from 10-K)")
+            sections.append("(Company's own disclosure of business challenges and threats)")
+            sections.append(risk_factors)
+            sections.append("")
+
+        return "\n".join(sections)
 
     async def _get_submissions(self, client: httpx.AsyncClient, cik: str) -> Optional[dict]:
         """Fetch the submissions JSON for a company."""
@@ -304,7 +350,7 @@ class EdgarService:
                     print(f"EDGAR: 10-K fetch failed: {response.status_code}")
                     return None
 
-                return self._parse_risk_factors(response.text)
+                return await asyncio.to_thread(self._parse_risk_factors, response.text)
             except Exception as e:
                 print(f"EDGAR: 10-K fetch error: {e}")
                 return None

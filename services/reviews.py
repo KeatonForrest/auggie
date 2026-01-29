@@ -17,42 +17,47 @@ class ReviewsService:
             "Content-Type": "application/json",
         }
 
-    async def get_reviews(self, company_name: str) -> Optional[str]:
+    async def get_reviews(self, company_name: str, client: Optional[httpx.AsyncClient] = None) -> Optional[str]:
         """
         Fetch G2 and Capterra review data for a company.
 
         Returns formatted string for Claude prompt, or None if nothing found.
         """
         try:
-            async with httpx.AsyncClient() as client:
-                # Run G2 and Capterra lookups in parallel
-                import asyncio
-                g2_task = self._scrape_g2(client, company_name)
-                capterra_task = self._scrape_capterra(client, company_name)
-                g2_result, capterra_result = await asyncio.gather(
-                    g2_task, capterra_task, return_exceptions=True
-                )
-
-                sections = []
-
-                if isinstance(g2_result, str) and g2_result:
-                    sections.append("### G2 Reviews")
-                    sections.append(g2_result)
-                    sections.append("")
-
-                if isinstance(capterra_result, str) and capterra_result:
-                    sections.append("### Capterra Reviews")
-                    sections.append(capterra_result)
-                    sections.append("")
-
-                if not sections:
-                    return None
-
-                return "\n".join(sections)
-
+            if client is None:
+                async with httpx.AsyncClient() as client:
+                    return await self._get_reviews_impl(client, company_name)
+            else:
+                return await self._get_reviews_impl(client, company_name)
         except Exception as e:
             print(f"Reviews scraping error (non-fatal): {e}")
             return None
+
+    async def _get_reviews_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
+        """Internal implementation with a provided client."""
+        import asyncio
+        g2_task = self._scrape_g2(client, company_name)
+        capterra_task = self._scrape_capterra(client, company_name)
+        g2_result, capterra_result = await asyncio.gather(
+            g2_task, capterra_task, return_exceptions=True
+        )
+
+        sections = []
+
+        if isinstance(g2_result, str) and g2_result:
+            sections.append("### G2 Reviews")
+            sections.append(g2_result)
+            sections.append("")
+
+        if isinstance(capterra_result, str) and capterra_result:
+            sections.append("### Capterra Reviews")
+            sections.append(capterra_result)
+            sections.append("")
+
+        if not sections:
+            return None
+
+        return "\n".join(sections)
 
     async def _scrape_g2(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
         """Search for and scrape G2 product page."""

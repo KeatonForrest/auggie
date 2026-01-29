@@ -15,5 +15,8 @@ __pycache__/
 .vscode/
 .idea/
 
+# EDGAR tickers disk cache
+.edgar_tickers_cache.json
+
 # Mac
 .DS_Store
