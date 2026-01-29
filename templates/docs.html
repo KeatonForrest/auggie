@@ -84,7 +84,7 @@ except AuggieError as e:
             <section id="getting-started">
                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Getting Started</h2>
                 <p class="text-gray-700 mb-3">Base URL for all API requests:</p>
-                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>https://auggie.app/v1</code></pre>
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>https://auggie.app/v1</code></pre>
                 <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-2">How it works</h3>
                 <ol class="list-decimal list-inside text-gray-700 space-y-2">
                     <li><strong>Create an API key</strong> at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>.</li>
@@ -99,7 +99,7 @@ except AuggieError as e:
                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Authentication</h2>
                 <p class="text-gray-700 mb-3">All API requests require a Bearer token. Create API keys at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>.</p>
                 <p class="text-gray-700 mb-3">Include the key in the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code> header:</p>
-                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>Authorization: Bearer aug_your_api_key_here</code></pre>
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>Authorization: Bearer aug_your_api_key_here</code></pre>
                 <p class="text-gray-500 text-sm mt-3">Keys are shown once on creation. Store them securely — they cannot be retrieved later.</p>
             </section>
 
@@ -116,18 +116,18 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Start an async research job. Returns immediately with a job ID. Costs 1 credit.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "company_url": "https://example.com"
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "job_id": 42,
   "status": "processing"
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/research \
   -H "Authorization: Bearer aug_your_key" \
   -H "Content-Type: application/json" \
   -d '{"company_url": "https://example.com"}'</code></pre>
@@ -142,7 +142,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Poll for job status. Returns the full research document when completed.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — processing</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "job_id": 42,
   "status": "processing",
   "company_url": "https://example.com",
@@ -151,7 +151,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — completed</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "job_id": 42,
   "status": "completed",
   "company_url": "https://example.com",
@@ -182,7 +182,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/42 \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.app/v1/research/42 \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
 
@@ -195,7 +195,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">List your recent research jobs.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "jobs": [
     {
       "job_id": 42,
@@ -210,7 +210,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.app/v1/research \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
             </section>
@@ -227,7 +227,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Generate a 3-email outreach sequence from a completed research document. Requires a completed document ID.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "success": true,
   "document_id": 15,
   "emails": [
@@ -250,7 +250,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research/15/sequence \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/research/15/sequence \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
             </section>
@@ -269,7 +269,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Start a bulk research job. Returns immediately with a bulk job ID. Costs 1 credit per URL.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "company_urls": [
     "https://example.com",
     "https://acme.com",
@@ -279,14 +279,14 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "bulk_job_id": 7,
   "status": "processing",
   "total_items": 3
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/research/bulk \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/research/bulk \
   -H "Authorization: Bearer aug_your_key" \
   -H "Content-Type: application/json" \
   -d '{"company_urls": ["https://example.com", "https://acme.com"], "name": "Q1 prospects"}'</code></pre>
@@ -301,7 +301,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Get bulk job progress and all items with their status.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "bulk_job_id": 7,
   "name": "Q1 prospects",
   "status": "completed",
@@ -326,7 +326,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/bulk/7 \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.app/v1/research/bulk/7 \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
 
@@ -339,7 +339,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">List your recent bulk jobs (summaries only, no items).</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "bulk_jobs": [
     {
       "bulk_job_id": 7,
@@ -355,7 +355,7 @@ except AuggieError as e:
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/research/bulk \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.app/v1/research/bulk \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
             </section>
@@ -374,19 +374,19 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Register or update your webhook URL. Returns a secret for HMAC signature verification.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "url": "https://yourserver.com/webhook"
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "url": "https://yourserver.com/webhook",
   "secret": "a1b2c3...hex...",
   "active": true
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X POST https://auggie.app/v1/webhooks/register \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/webhooks/register \
   -H "Authorization: Bearer aug_your_key" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://yourserver.com/webhook"}'</code></pre>
@@ -401,13 +401,13 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Get your current webhook configuration.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-4"><code>{
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
   "url": "https://yourserver.com/webhook",
   "active": true
 }</code></pre>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl https://auggie.app/v1/webhooks \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.app/v1/webhooks \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
 
@@ -420,7 +420,7 @@ except AuggieError as e:
                     <p class="text-gray-700 mb-3">Remove your webhook. Returns 204 on success.</p>
 
                     <h4 class="text-sm font-semibold text-gray-700 mb-1">curl example</h4>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>curl -X DELETE https://auggie.app/v1/webhooks \
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X DELETE https://auggie.app/v1/webhooks \
   -H "Authorization: Bearer aug_your_key"</code></pre>
                 </div>
 
@@ -428,7 +428,7 @@ except AuggieError as e:
                 <div class="border rounded-lg p-5">
                     <h3 class="text-lg font-semibold text-gray-800 mb-3">Verifying webhook signatures</h3>
                     <p class="text-gray-700 mb-3">Each webhook delivery includes an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">X-Auggie-Signature</code> header containing an HMAC-SHA256 hex digest. Verify it using the secret returned at registration:</p>
-                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>import hashlib, hmac, json
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>import hashlib, hmac, json
 
 def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
     """Verify an Auggie webhook signature."""
@@ -478,7 +478,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
 
                 <h4 class="text-sm font-semibold text-gray-700 mb-1">Body template</h4>
                 <p class="text-gray-700 mb-2">Reference the column containing company URLs (e.g., <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/Company Website</code>):</p>
-                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto mb-6"><code>{% raw %}{
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-6"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{% raw %}{
   "company_url": "{{/Company Website}}"
 }{% endraw %}</code></pre>
 
