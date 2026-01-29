@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     # LeadMagic (for contact enrichment)
     leadmagic_api_key: str = ""
 
+    # SEC EDGAR (free, no key needed)
+    edgar_enabled: bool = True
+
+    # G2/Capterra review scraping (uses Firecrawl credits)
+    reviews_enabled: bool = True
+
+    # Federal Register API (free, no key needed)
+    federal_register_enabled: bool = True
+
     # Feature flags
     materials_enabled: bool = False
 

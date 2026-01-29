@@ -47,7 +47,25 @@ The company data contains several types of information with different reliabilit
    - Press releases about major projects, partnerships, acquisitions
    - Digital transformation and technology investment mentions
 
-5. **Firmographic Data** - Company size, industry, funding, contacts
+5. **SEC EDGAR Filings** (public companies only) - From SEC.gov:
+   - 8-K filings: Material events like leadership changes, M&A, restructuring, layoffs
+   - Risk Factors (from 10-K): The company's own legally-required disclosure of business challenges, threats, and vulnerabilities
+   - Filing dates and frequency indicate company activity and regulatory status
+   - These are HIGH-CONFIDENCE signals — companies are legally obligated to report them accurately
+
+6. **G2/Capterra Reviews** - Third-party review data about the company's products:
+   - Star ratings and review volume indicate market presence and customer satisfaction
+   - Negative review themes reveal pain points (scaling issues, poor support, missing features)
+   - Competitor comparisons and "switching from/to" signals reveal competitive pressure
+   - Low ratings in specific categories suggest areas where they need help
+
+7. **Federal Register Regulations** - Upcoming compliance deadlines from the Federal Register:
+   - Final Rules with effective dates create deadline-driven urgency
+   - Proposed Rules signal upcoming compliance requirements
+   - Match these to the company's industry to assess regulatory pressure
+   - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
+
+8. **Firmographic Data** - Company size, industry, funding, contacts
 
 YOUR COMPANY: {seller_company}
 
@@ -285,7 +303,12 @@ OPPORTUNITY SCORING:
 
 After completing the research document, you MUST output a structured opportunity score at the very end.
 
-Score three dimensions (each 0-100). Be precise — use the full range. A score of 50 is NOT average, it is mediocre. Most companies should NOT score above 70.
+Score three dimensions (each 0-100). Be precise and use the FULL range, including very low numbers (3, 7, 12) and the middle range (42, 57, 63). NEVER default to round numbers like 20, 25, 45, or 75. Each score should feel like a specific judgment, not a bucket. Most companies should NOT score above 70.
+
+SCORING DISCIPLINE:
+- Do NOT cluster scores at round numbers. Scores like 20, 25, 45, 50, 75 suggest you are bucketing rather than scoring precisely. Use the exact number your evidence justifies — 17, 23, 38, 52, 71, etc.
+- Each dimension must be scored INDEPENDENTLY. Do not give similar scores across all three dimensions. A company can have high Pain but low Fit, or strong Timing but no Pain.
+- When two companies have very different profiles, their scores MUST look different. If a SaaS company and a baseball training company get similar Fit scores, something is wrong.
 
 **Pain Score (40% weight):**
 - How many existential data points did you find?
@@ -293,11 +316,11 @@ Score three dimensions (each 0-100). Be precise — use the full range. A score 
 - Is there evidence of active suffering (complaints, long-open roles, tech debt)?
 
 Calibration anchors:
-- 90-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals. RARE — most companies do not score here.
-- 70-89: 2+ clear pain signals with direct product relevance. Some open roles suggesting unresolved problems. Evidence of struggling with a problem the seller addresses.
-- 40-69: 1 pain signal or indirect signals only. Problems exist but aren't urgent or clearly addressable. Open roles but not long-tenured.
-- 15-39: Weak or speculative pain signals. No direct evidence of suffering. Inferred problems only.
-- 0-14: No observable pain signals whatsoever. No relevant hiring, no tech debt indicators, no complaints.
+- 85-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals. RARE — most companies do not score here.
+- 65-84: 2+ clear pain signals with direct product relevance. Some open roles suggesting unresolved problems. Evidence of struggling with a problem the seller addresses.
+- 35-64: 1 pain signal or indirect signals only. Problems exist but aren't urgent or clearly addressable. Open roles but not long-tenured.
+- 10-34: Weak or speculative pain signals. No direct evidence of suffering. Inferred problems only.
+- 0-9: No observable pain signals whatsoever. No relevant hiring, no tech debt indicators, no complaints. Company shows no signs of needing the seller's product.
 
 **Fit Score (35% weight):**
 - Does their company size/industry match the seller's ICP?
@@ -306,13 +329,13 @@ Calibration anchors:
 - Does their tech stack align with integration requirements?
 
 Calibration anchors:
-- 90-100: Exact ICP match — right industry, right company size, target personas confirmed in job postings, tech stack aligns perfectly. Competitor presence creates clear displacement opportunity.
-- 70-89: Strong ICP overlap — most dimensions match. Right industry, reasonable size, some target personas visible.
-- 40-69: Partial fit — adjacent industry or size is outside sweet spot. Some tech stack overlap but not core. Few or no target personas visible.
-- 15-39: Weak fit — different industry, wrong size, no persona signals. Would require significant stretching of ICP definition.
-- 0-14: No fit — completely outside ICP. Different market, wrong tech ecosystem, no relevant personas.
+- 85-100: Exact ICP match — right industry, right company size, target personas confirmed in job postings, tech stack aligns perfectly. Competitor presence creates clear displacement opportunity. REQUIRES confirmed firmographic data to score here.
+- 65-84: Strong ICP overlap — most dimensions match. Right industry, reasonable size, some target personas visible.
+- 35-64: Partial fit — adjacent industry or size is outside sweet spot. Some tech stack overlap but not core. Few or no target personas visible.
+- 10-34: Weak fit — different industry, wrong size, no persona signals. Would require significant stretching of ICP definition.
+- 0-9: No fit — completely outside ICP. Different market, wrong tech ecosystem, no relevant personas. A consumer app, a restaurant, a sports team with no data infrastructure needs.
 
-IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue), do NOT assume fit. If you cannot verify company size or industry from the available data, cap Fit at 65 maximum. Do not give high Fit scores based on assumptions.
+IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue from SEC EDGAR filings or other verified sources), do NOT assume fit. Cap Fit at 65 maximum. This cap is STRICT — do not exceed 65 without confirmed data, even if the company "seems like" a good fit. A networking company is not an 85 Fit just because they are "enterprise tech."
 
 **Timing Score (25% weight):**
 - Is there a funding event, reorg, or leadership change creating urgency?
@@ -321,13 +344,18 @@ IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue), do
 - Are they actively evaluating solutions (RFP signals, comparison content)?
 
 Calibration anchors:
-- 90-100: Multiple concurrent urgency signals — recent funding + hiring spike + leadership change. Active vendor evaluation. Deadline-driven need.
-- 70-89: Clear urgency — recent funding OR significant hiring spike OR leadership change. Evidence of active building/transformation.
-- 40-69: Moderate signals — some hiring but no spike. No recent funding or leadership changes. General growth but no urgency.
-- 15-39: Weak timing — flat or declining hiring. No funding signals. No visible transformation initiatives. Stable/stagnant.
-- 0-14: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. Actively bad time to sell.
+- 85-100: Multiple concurrent urgency signals — recent funding + hiring spike + leadership change. Active vendor evaluation. Deadline-driven need.
+- 65-84: Clear urgency — recent funding OR significant hiring spike OR leadership change. Evidence of active building/transformation.
+- 35-64: Moderate signals — some hiring but no spike. No recent funding or leadership changes. General growth but no urgency.
+- 10-34: Weak timing — flat or declining hiring. No funding signals. No visible transformation initiatives. Stable/stagnant.
+- 0-9: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. Actively bad time to sell. OR: zero timing signals of any kind found.
 
-IMPORTANT: Absence of signals is a negative signal. No job postings = not growing (score below 40). No news = stale company. No funding = no external pressure to act. Do not give a timing score above 50 if you cannot cite at least one concrete timing signal.
+IMPORTANT: Absence of signals is a STRONG negative signal for Timing. If you found ZERO timing signals — no job postings, no news, no funding, no leadership changes, no regulatory deadlines — the Timing score must be below 15, not 20. A score of 20 implies you found something weak. A score of 8 means you found nothing. Be honest about the difference.
+
+CONCRETE EXAMPLE (for a database product seller):
+- A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 82, Fit: 78, Timing: 76, Composite: 79
+- A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 12, Fit: 38, Timing: 8, Composite: 19
+- A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 18, Fit: 31, Timing: 11, Composite: 20
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
 
@@ -408,6 +436,25 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
             sections.append(scraped.investor_relations[:8000])
             sections.append("")
+
+        if scraped.edgar_filings:
+            sections.append("## SEC EDGAR Filings (Public Company)")
+            sections.append("(From SEC.gov - official regulatory filings. 8-K = material events, Risk Factors = company-disclosed challenges)")
+            sections.append(scraped.edgar_filings[:10000])
+            sections.append("")
+
+        if scraped.reviews:
+            sections.append("## G2/Capterra Reviews")
+            sections.append("(Third-party review data — ratings, pros/cons, competitor comparisons)")
+            sections.append(scraped.reviews[:8000])
+            sections.append("")
+
+        if scraped.federal_regulations:
+            sections.append("## Upcoming Federal Regulations")
+            sections.append("(From Federal Register — upcoming compliance deadlines relevant to this company's industry)")
+            sections.append(scraped.federal_regulations[:6000])
+            sections.append("")
+
 
         sections.append("---")
         sections.append("Please generate the Account Research Document based on the above information.")

@@ -259,3 +259,60 @@ class ApolloService:
             return ""
 
         return "\n".join(sections)
+
+    async def get_firmographics(self, domain: str) -> Optional[str]:
+        """
+        Get firmographic data for scoring (headcount, revenue, funding, industry).
+
+        Returns formatted string for Claude prompt, or None if no API key or no data.
+        """
+        if not self.settings.apollo_api_key:
+            return None
+
+        domain = domain.replace("https://", "").replace("http://", "")
+        domain = domain.split("/")[0].replace("www.", "")
+
+        async with httpx.AsyncClient() as client:
+            org = await self._search_organization(client, domain)
+            if not org:
+                return None
+
+            lines = []
+            lines.append(f"**Company:** {org.get('name', domain)}")
+
+            if org.get("industry"):
+                lines.append(f"**Industry:** {org['industry']}")
+            if org.get("estimated_num_employees"):
+                lines.append(f"**Employees:** {org['estimated_num_employees']}")
+            if org.get("annual_revenue_printed"):
+                lines.append(f"**Revenue:** {org['annual_revenue_printed']}")
+            if org.get("annual_revenue"):
+                lines.append(f"**Revenue (raw):** ${org['annual_revenue']:,.0f}")
+            if org.get("founded_year"):
+                lines.append(f"**Founded:** {org['founded_year']}")
+            if org.get("total_funding"):
+                lines.append(f"**Total Funding:** ${org['total_funding']:,.0f}")
+            if org.get("total_funding_printed"):
+                lines.append(f"**Total Funding:** {org['total_funding_printed']}")
+            if org.get("latest_funding_round_date"):
+                lines.append(f"**Latest Funding Round:** {org['latest_funding_round_date']}")
+            if org.get("latest_funding_stage"):
+                lines.append(f"**Latest Funding Stage:** {org['latest_funding_stage']}")
+            if org.get("latest_funding_round_amount"):
+                lines.append(f"**Latest Round Amount:** ${org['latest_funding_round_amount']:,.0f}")
+            if org.get("publicly_traded_symbol"):
+                lines.append(f"**Ticker:** {org['publicly_traded_symbol']}")
+                lines.append(f"**Publicly Traded:** Yes")
+            if org.get("keywords"):
+                keywords = org["keywords"][:10] if isinstance(org["keywords"], list) else []
+                if keywords:
+                    lines.append(f"**Keywords:** {', '.join(keywords)}")
+
+            # Only return if we got meaningful data beyond just the name
+            if len(lines) <= 1:
+                return None
+
+            lines.append("")
+            lines.append("(This is CONFIRMED firmographic data — use it to validate or override inferred company size/industry for Fit scoring. With confirmed firmographics, the Fit score cap of 65 can be removed.)")
+
+            return "\n".join(lines)
