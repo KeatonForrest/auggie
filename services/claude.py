@@ -16,7 +16,8 @@ class ClaudeService:
         self.settings = get_settings()
         self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
 
-    def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "") -> str:
+    def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
+                               target_personas: str = "", target_industries: str = "", problems_solved: str = "") -> str:
         """Build the system prompt defining Claude's research analyst role."""
         base_prompt = f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
 
@@ -117,6 +118,18 @@ NOTE: No sales materials have been uploaded yet. Focus on identifying pain point
 based on the problems your product solves. Recommend uploading case studies and battle cards
 for more personalized recommendations in future research.
 """
+
+        # Add ICP section if any ICP fields are populated
+        icp_parts = []
+        if target_industries:
+            icp_parts.append(f"""- **Industry emphasis**: The seller targets these industries: {target_industries}. Emphasize industry-specific signals such as regulatory pressure, compliance deadlines, and industry-specific technology patterns. Score Fit higher when the prospect matches a target industry.""")
+        if target_personas:
+            icp_parts.append(f"""- **Persona emphasis**: The seller targets these personas: {target_personas}. Focus existential data points and champion identification on those specific roles. Look for hiring and org signals relevant to those functions.""")
+        if problems_solved:
+            icp_parts.append(f"""- **Problem alignment**: The seller's product solves these problems: {problems_solved}. Cross-reference the prospect's observed pain against these specific problems rather than performing generic analysis.""")
+
+        if icp_parts:
+            base_prompt += "\nIDEAL CUSTOMER PROFILE:\n\n" + "\n".join(icp_parts) + "\n"
 
         base_prompt += """
 When analyzing the prospect, specifically look for:
@@ -248,7 +261,14 @@ Good examples:
 - "Your app stack shows Redis but your job posting mentions caching problems"
 
 Do NOT include generic statements like "You are a fast-growing fintech" or "Companies like yours often struggle with X."
+"""
 
+        if target_personas:
+            base_prompt += f"""
+PERSONA-AWARE HOOKS: The seller targets {target_personas}. Frame opening hooks through the lens of what matters to those personas. For example, for marketing leaders emphasize marketing tech, campaign infrastructure, and attribution signals; for legal ops emphasize compliance, contract management, and regulatory exposure; for engineering leaders emphasize tech stack, scaling, and developer productivity signals.
+"""
+
+        base_prompt += """
 **Two-Sided Questions (use to end emails):**
 For each existential data point, provide a two-sided question that names two plausible root causes.
 
@@ -259,11 +279,26 @@ Format: "[Observable signal]" usually means either [Cause A] or [Cause B]. Which
 Examples:
 - "4 open backend roles for 3+ months usually means either the scaling problems are complex enough that candidates are hesitant, or you are solving it with tooling instead. Which is closer?"
 - "3x user growth on PostgreSQL usually means either you are already seeing latency issues, or you are burning engineering cycles on manual optimization. Which is it?"
+"""
 
+        if target_personas:
+            base_prompt += f"""
+PERSONA-AWARE QUESTIONS: Both causes in each two-sided question should resonate with the daily concerns of {target_personas}. Frame root causes in terms these personas would naturally think about.
+"""
+
+        base_prompt += """
 **Conversation Starters:**
 3-5 specific talking points based on verified data. Each should reference something concrete from the research and connect to your product value.
 
 Format: "I noticed [specific observation]. Companies in similar situations often [pattern]. How are you thinking about [related challenge]?"
+"""
+
+        if target_personas:
+            base_prompt += f"""
+PERSONA-AWARE STARTERS: Reference challenges specific to {target_personas}'s function, not just generic company observations. Connect observations to what these personas care about day-to-day.
+"""
+
+        base_prompt += """
 
 ## Recent News & Press
 Any recent announcements, press coverage, or public statements. Include dates and sources. Flag anything that suggests timing sensitivity.
@@ -469,9 +504,16 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         tech_by_domain: Optional[dict[str, TechStack]] = None,
         retrieved_materials: str = "",
         seller_company: str = "",
+        target_personas: str = "",
+        target_industries: str = "",
+        problems_solved: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
-        system_prompt = self._build_system_prompt(product_context, retrieved_materials, seller_company)
+        system_prompt = self._build_system_prompt(
+            product_context, retrieved_materials, seller_company,
+            target_personas=target_personas, target_industries=target_industries,
+            problems_solved=problems_solved,
+        )
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         message = self.client.messages.create(

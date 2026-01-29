@@ -393,6 +393,9 @@ async def create_research(
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,  # v2: Include materials
             seller_company=user.get("company_name", ""),  # For competitor detection
+            target_personas=user.get("target_personas", ""),
+            target_industries=user.get("target_industries", ""),
+            problems_solved=user.get("problems_solved", ""),
         )
 
         # Save document (credit already deducted)
@@ -646,6 +649,9 @@ async def api_create_research(
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,
             seller_company=user.get("company_name", ""),
+            target_personas=user.get("target_personas", ""),
+            target_industries=user.get("target_industries", ""),
+            problems_solved=user.get("problems_solved", ""),
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
