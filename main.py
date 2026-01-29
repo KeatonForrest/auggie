@@ -13,6 +13,8 @@ from fastapi import FastAPI, HTTPException, Request, Form, Depends, UploadFile, 
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from config import get_settings
@@ -39,6 +41,29 @@ from api.routes import router as api_v1_router
 from api.webhooks import router as webhooks_router
 
 settings = get_settings()
+
+_is_https = settings.app_url.startswith("https")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' https://*.googleusercontent.com data:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        if _is_https:
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+        return response
 
 
 import re
@@ -82,8 +107,25 @@ app = FastAPI(
     docs_url="/openapi-docs",
 )
 
+# Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.app_url],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+    allow_credentials=True,
+)
+
 # Session middleware for OAuth state
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    https_only=_is_https,
+    same_site="lax",
+)
 
 # Include auth routes
 app.include_router(auth_router)
@@ -886,6 +928,9 @@ async def upload_list_csv(
     user: dict = Depends(require_onboarding),
 ):
     """Parse CSV, validate URLs, check credits, create list, start analysis."""
+    from api.ratelimit import upload_limiter, get_client_ip
+    upload_limiter.check(get_client_ip(request))
+
     import csv
     from io import StringIO
     from api.jobs import run_list_analysis
@@ -1017,6 +1062,9 @@ async def start_research(
     user: dict = Depends(require_onboarding),
 ):
     """Start async research job, return JSON with job_id."""
+    from api.ratelimit import research_web_limiter, get_client_ip
+    research_web_limiter.check(get_client_ip(request))
+
     try:
         company_url = validate_company_url(company_url)
     except ValueError as e:

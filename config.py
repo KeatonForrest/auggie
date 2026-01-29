@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Session secret (generate with: openssl rand -hex 32)
     session_secret: str = "dev-secret-change-in-production"
 
+    # Separate JWT secret (falls back to session_secret when empty)
+    jwt_secret: str = ""
+
     # App URL (for OAuth redirect)
     app_url: str = "http://localhost:8000"
 

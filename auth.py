@@ -51,7 +51,7 @@ if settings.microsoft_client_id:
     )
 
 # JWT settings
-JWT_SECRET = settings.session_secret
+JWT_SECRET = settings.jwt_secret or settings.session_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_DAYS = 7
 
@@ -120,6 +120,8 @@ async def require_onboarding(request: Request) -> dict:
 @router.get("/login")
 async def login(request: Request):
     """Redirect to Google OAuth."""
+    from api.ratelimit import auth_limiter, get_client_ip
+    auth_limiter.check(get_client_ip(request))
     redirect_uri = f"{settings.app_url}/auth/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -173,6 +175,8 @@ async def callback(request: Request):
 async def login_microsoft(request: Request):
     """Redirect to Microsoft OAuth - manual implementation."""
     import secrets
+    from api.ratelimit import auth_limiter, get_client_ip
+    auth_limiter.check(get_client_ip(request))
 
     if not settings.microsoft_client_id:
         raise HTTPException(status_code=404, detail="Microsoft sign-in not available")
