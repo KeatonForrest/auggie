@@ -374,30 +374,36 @@ This template displays a generated research document with:
     }
 
     function renderEditableEmails(markdown) {
-        // Split markdown into individual emails by "## Email" or "# Email" headers
         var container = document.getElementById('outreach-content');
-        var sections = markdown.split(/(?=^#{1,2}\s+Email\s)/m);
+        // Extract shared subject line
+        var subjectMatch = markdown.match(/\*\*Subject:\*\*\s*(.+)/);
+        var sharedSubject = subjectMatch ? subjectMatch[1].trim() : '';
+        // Split on "## Email N" headers (not "# Email Sequence")
+        var sections = markdown.split(/(?=^## Email \d)/m);
         var html = '';
+        var emailCount = 0;
         sections.forEach(function(section) {
             section = section.trim();
-            if (!section) return;
-            // Extract subject line: look for **Subject:** pattern
-            var subjectMatch = section.match(/\*\*Subject:\*\*\s*(.+)/);
-            var subject = subjectMatch ? subjectMatch[1].trim() : '';
-            // Remove the subject line and header from body
+            if (!section || !section.match(/^## Email \d/)) return;
+            emailCount++;
+            // Extract per-email subject if present, otherwise use shared
+            var perSubject = section.match(/\*\*Subject:\*\*\s*(.+)/);
+            var subject = perSubject ? perSubject[1].trim() : sharedSubject;
+            // Remove header, subject line, and trailing ---
             var body = section
-                .replace(/^#{1,2}\s+Email\s.*\n?/, '')
+                .replace(/^## Email \d+\s*\n?/, '')
                 .replace(/\*\*Subject:\*\*\s*.+\n?/, '')
+                .replace(/\n?---\s*$/, '')
                 .trim();
             html += '<div class="mb-6 border border-gray-200 rounded-lg p-4">';
+            html += '<div class="text-xs font-semibold text-gray-400 uppercase mb-2">Email ' + emailCount + '</div>';
             html += '<label class="block text-xs font-medium text-gray-500 mb-1">Subject</label>';
             html += '<input type="text" class="email-subject w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" value="' + subject.replace(/"/g, '&quot;') + '">';
             html += '<label class="block text-xs font-medium text-gray-500 mb-1">Body</label>';
             html += '<textarea class="email-body w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="8">' + body.replace(/</g, '&lt;') + '</textarea>';
             html += '</div>';
         });
-        if (!html) {
-            // Fallback: render as plain markdown if parsing didn't find email sections
+        if (!emailCount) {
             container.innerHTML = marked.parse(markdown);
         } else {
             container.innerHTML = html;
