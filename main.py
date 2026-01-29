@@ -169,7 +169,7 @@ async def guide_clay_pain_outbound(request: Request):
                 "type": "http_request",
                 "config": {
                     "method": "POST",
-                    "url": "https://auggie.app/v1/research",
+                    "url": "https://auggie.app/v1/clay/enrich",
                     "headers": {
                         "Authorization": "Bearer aug_your_key",
                         "Content-Type": "application/json"
@@ -177,11 +177,13 @@ async def guide_clay_pain_outbound(request: Request):
                     "body": "{\"company_url\": \"{{/Company Website}}\"}"
                 }
             },
-            {"name": "Pain Score", "type": "extract", "path": "scores.pain"},
-            {"name": "Composite Score", "type": "extract", "path": "scores.composite"},
-            {"name": "Summary", "type": "extract", "path": "scores.summary"},
-            {"name": "Business Problems", "type": "extract", "path": "sections.business_problems"},
-            {"name": "Talking Points", "type": "extract", "path": "sections.talking_points"},
+            {"name": "Pain Score", "type": "extract", "path": "pain_score"},
+            {"name": "Composite Score", "type": "extract", "path": "composite_score"},
+            {"name": "Score Summary", "type": "extract", "path": "score_summary"},
+            {"name": "Pain Reasons", "type": "extract", "path": "pain_reasons"},
+            {"name": "Business Problems", "type": "extract", "path": "business_problems"},
+            {"name": "Talking Points", "type": "extract", "path": "talking_points"},
+            {"name": "Product Fit", "type": "extract", "path": "product_fit"},
             {"name": "Document ID", "type": "extract", "path": "document_id"}
         ],
         "filters": [
@@ -191,6 +193,16 @@ async def guide_clay_pain_outbound(request: Request):
     return templates.TemplateResponse(
         "guide_clay_pain_outbound.html",
         {"request": request, "user": user, "clay_template_json": clay_template}
+    )
+
+
+@app.get("/integrations/clay", response_class=HTMLResponse)
+async def integrations_clay(request: Request):
+    """Clay integration landing page for marketplace listing."""
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "integrations_clay.html",
+        {"request": request, "user": user}
     )
 
 

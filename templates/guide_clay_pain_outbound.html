@@ -108,7 +108,11 @@
             <!-- Step 2 -->
             <section id="step-2">
                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Step 2: Add Auggie Enrichment Column</h2>
-                <p class="text-gray-700 mb-4">Add an <strong>HTTP Request</strong> column and configure it to call the Auggie research API:</p>
+                <p class="text-gray-700 mb-4">Add an <strong>HTTP Request</strong> column and configure it to call the Auggie Clay enrichment endpoint. This is a synchronous endpoint — Clay will wait for the result (no polling needed).</p>
+
+                <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
+                    <p class="text-sm text-amber-800"><strong>Important:</strong> Set your Clay HTTP column timeout to <strong>120 seconds</strong>. Research typically completes in 30-60 seconds, but complex companies may take longer.</p>
+                </div>
 
                 <div class="overflow-x-auto mb-6">
                     <table class="w-full text-sm text-left">
@@ -119,7 +123,7 @@
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 font-semibold text-gray-700">URL</td>
-                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code></td>
+                                <td class="px-4 py-2 text-gray-800"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/clay/enrich</code></td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 font-semibold text-gray-700">Headers</td>
@@ -136,35 +140,51 @@
                     </table>
                 </div>
 
-                <p class="text-gray-700 mb-3">Then add additional columns to extract fields from the response:</p>
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                    <p class="text-sm text-blue-800"><strong>24-hour caching:</strong> If the same company was researched within the last 24 hours, the cached result is returned instantly at no credit cost.</p>
+                </div>
+
+                <p class="text-gray-700 mb-3">Then add additional columns to extract fields from the response. All fields are flat (no nested paths):</p>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-2 font-semibold text-gray-700">Column Name</th>
-                                <th class="px-4 py-2 font-semibold text-gray-700">JSON Path</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">JSON Field</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
                             <tr>
                                 <td class="px-4 py-2 text-gray-800">Pain Score</td>
-                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.pain</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_score</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 text-gray-800">Composite Score</td>
-                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.composite</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">composite_score</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2 text-gray-800">Summary</td>
-                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">scores.summary</td>
+                                <td class="px-4 py-2 text-gray-800">Fit Score</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">fit_score</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Score Summary</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">score_summary</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Pain Reasons</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_reasons</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 text-gray-800">Business Problems</td>
-                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">sections.business_problems</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">business_problems</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 text-gray-800">Talking Points</td>
-                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">sections.talking_points</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">talking_points</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-800">Product Fit</td>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">product_fit</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 text-gray-800">Document ID</td>
@@ -173,6 +193,8 @@
                         </tbody>
                     </table>
                 </div>
+
+                <p class="text-sm text-gray-500 mt-4">Alternatively, you can use the async <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/research</code> endpoint with polling if you prefer. See the <a href="/docs#research" class="text-blue-600 hover:underline">API docs</a>.</p>
             </section>
 
             <!-- Step 3 -->

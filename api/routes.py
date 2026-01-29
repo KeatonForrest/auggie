@@ -1,6 +1,7 @@
 """v1 API routes — authenticated via API key."""
 
 import asyncio
+import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -17,10 +18,11 @@ from database import (
     create_list, get_list, list_lists as db_list_lists, delete_list,
     add_list_accounts, get_list_accounts, get_pending_list_accounts,
     update_list_status, update_list_credits,
+    get_recent_document_by_url,
 )
 from api.validation import validate_company_url
-from api.jobs import run_research_job, run_bulk_job, run_list_analysis
-from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter
+from api.jobs import run_research_job, run_bulk_job, run_list_analysis, _run_research_pipeline
+from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -242,6 +244,107 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
         )
     except Exception as e:
         return EnrichResponse(success=False, error=str(e))
+
+
+
+# =============================================================================
+# Clay Sync Enrichment
+# =============================================================================
+
+class ClayEnrichRequest(BaseModel):
+    company_url: str
+
+
+def _truncate(text: str | None, max_len: int = 500) -> str:
+    """Truncate text to max_len characters."""
+    if not text:
+        return ""
+    return text[:max_len] + ("..." if len(text) > max_len else "")
+
+
+def _build_clay_response(doc, *, cached: bool, duration: float | None = None, error: str | None = None) -> dict:
+    """Build flat Clay-friendly response from a ResearchDocument."""
+    return {
+        "success": True,
+        "company_name": doc.company_name,
+        "company_url": doc.company_url,
+        "pain_score": doc.pain_score,
+        "fit_score": doc.fit_score,
+        "timing_score": doc.timing_score,
+        "composite_score": doc.opportunity_score,
+        "score_summary": _truncate(doc.score_summary),
+        "pain_reasons": _truncate(doc.score_summary or doc.business_problems),
+        "business_problems": _truncate(doc.business_problems),
+        "product_fit": _truncate(doc.product_fit),
+        "talking_points": _truncate(doc.talking_points),
+        "existential_data_points": _truncate(doc.existential_data_points),
+        "document_id": doc.id,
+        "cached": cached,
+        "research_duration_seconds": round(duration, 2) if duration is not None else None,
+        "error": error,
+    }
+
+
+@router.post("/clay/enrich")
+async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_api_key)):
+    """Synchronous enrichment endpoint optimized for Clay HTTP columns.
+
+    Runs the full research pipeline and returns a flat JSON response.
+    Uses 24-hour caching to avoid duplicate costs.
+    """
+    clay_limiter.check(api_user["api_key_id"])
+
+    user = await get_user_by_id(api_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Validate URL
+    try:
+        company_url = validate_company_url(body.company_url)
+    except ValueError as e:
+        return JSONResponse(content={"success": False, "error": str(e)})
+
+    # Check 24h cache
+    cached_doc = await get_recent_document_by_url(user["id"], company_url)
+    if cached_doc:
+        await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
+        return _build_clay_response(cached_doc, cached=True)
+
+    # Check and reserve credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        if usage.get("bonus_credits", 0) <= 0:
+            return JSONResponse(content={"success": False, "error": "No credits remaining"})
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            return JSONResponse(content={"success": False, "error": "No credits remaining"})
+
+    # Create research job for tracking
+    job = await create_research_job(user["id"], api_user["api_key_id"], company_url)
+
+    # Run pipeline synchronously
+    start = time.monotonic()
+    try:
+        doc_id = await _run_research_pipeline(user["id"], company_url)
+        duration = time.monotonic() - start
+
+        await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 1)
+        from database import update_job_status
+        await update_job_status(job["id"], "completed", document_id=doc_id)
+
+        doc = await get_document(doc_id, user["id"])
+        return _build_clay_response(doc, cached=False, duration=duration)
+
+    except Exception as e:
+        duration = time.monotonic() - start
+        if not is_admin:
+            await refund_credit(user["id"])
+        from database import update_job_status
+        await update_job_status(job["id"], "failed", error_message=str(e)[:500])
+        return JSONResponse(
+            content={"success": False, "error": str(e)[:500]},
+        )
 
 
 def _build_default_titles(user: dict) -> list[str]:

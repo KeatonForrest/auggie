@@ -262,11 +262,14 @@ Become an official enrichment provider in Clay's marketplace. This is the primar
 
 ### Steps
 - [x] Build API (Phase 5 prerequisite)
+- [x] Build Clay-compatible synchronous enrichment endpoint
+- [x] Add 24-hour caching to avoid duplicate costs
+- [x] Update docs and Clay guide with sync endpoint
+- [x] Create /integrations/clay landing page
 - [ ] Contact Clay Data Partnerships Team
 - [ ] Join shared Slack channel with Clay engineer
-- [ ] Build Clay-compatible enrichment endpoint
-- [ ] Test integration end-to-end
-- [ ] Publish to Clay marketplace (site, docs, product search)
+- [ ] Test integration end-to-end with Clay team
+- [ ] Publish to Clay marketplace
 - [ ] Create Clay workflow template: "Pain-Based Outbound"
 
 ### Auggie as a Clay Column

@@ -1681,6 +1681,22 @@ async def update_list_credits(list_id: int, credits_reserved: int) -> None:
         )
 
 
+async def get_recent_document_by_url(user_id: int, company_url: str, hours: int = 24) -> Optional[ResearchDocument]:
+    """Find a recent research document for this URL within the time window."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT * FROM research_documents
+            WHERE user_id = $1 AND company_url = $2
+              AND created_at > NOW() - make_interval(hours => $3)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            user_id, company_url, hours
+        )
+        return _row_to_document(row) if row else None
+
+
 async def get_pending_list_accounts(list_id: int) -> list[dict]:
     """Get all pending accounts for a list."""
     async with _pool.acquire() as conn:
