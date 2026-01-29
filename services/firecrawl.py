@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 from models import ScrapedContent
 from config import get_settings
+from services.collect import get_shared_http_client
 
 
 class FirecrawlService:
@@ -216,62 +217,62 @@ class FirecrawlService:
 
         print(f"Starting comprehensive scrape for {domain}...")
 
-        async with httpx.AsyncClient() as client:
-            print("Running all scraping tasks in parallel...")
+        client = get_shared_http_client()
+        print("Running all scraping tasks in parallel...")
 
-            other_urls = {
-                "about": urljoin(base_url, "/about"),
-                "careers": urljoin(base_url, "/careers"),
-                "blog": urljoin(base_url, "/blog"),
-                "engineering": urljoin(base_url, "/engineering"),
-            }
+        other_urls = {
+            "about": urljoin(base_url, "/about"),
+            "careers": urljoin(base_url, "/careers"),
+            "blog": urljoin(base_url, "/blog"),
+            "engineering": urljoin(base_url, "/engineering"),
+        }
 
-            # Homepage needs HTML for Wappalyzer tech detection
-            homepage_task = self._scrape_url(client, base_url, include_html=True)
-            other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
-            job_task = self._scrape_job_board(client, company_name, domain)
-            investor_task = self._scrape_investor_relations(client, domain)
-            engineering_task = self._scrape_engineering_blog(client, domain)
-            docs_task = self._scrape_developer_docs(client, domain)
+        # Homepage needs HTML for Wappalyzer tech detection
+        homepage_task = self._scrape_url(client, base_url, include_html=True)
+        other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
+        job_task = self._scrape_job_board(client, company_name, domain)
+        investor_task = self._scrape_investor_relations(client, domain)
+        engineering_task = self._scrape_engineering_blog(client, domain)
+        docs_task = self._scrape_developer_docs(client, domain)
 
-            results = await asyncio.gather(
-                homepage_task,
-                *other_tasks.values(),
-                job_task,
-                investor_task,
-                engineering_task,
-                docs_task,
-                return_exceptions=True
-            )
+        results = await asyncio.gather(
+            homepage_task,
+            *other_tasks.values(),
+            job_task,
+            investor_task,
+            engineering_task,
+            docs_task,
+            return_exceptions=True
+        )
 
-            # Unpack results
-            homepage_result = results[0]
-            if isinstance(homepage_result, Exception):
-                homepage_markdown, homepage_html = None, None
-            else:
-                homepage_markdown, homepage_html = homepage_result
+        # Unpack results
+        homepage_result = results[0]
+        if isinstance(homepage_result, Exception):
+            homepage_markdown, homepage_html = None, None
+        else:
+            homepage_markdown, homepage_html = homepage_result
 
-            core_results = {}
-            for i, name in enumerate(other_tasks.keys()):
-                result = results[i + 1]
-                if not isinstance(result, Exception):
-                    core_results[name] = result
+        core_results = {}
+        for i, name in enumerate(other_tasks.keys()):
+            result = results[i + 1]
+            if not isinstance(result, Exception):
+                core_results[name] = result
 
-            job_postings = results[-4] if not isinstance(results[-4], Exception) else None
-            investor_content = results[-3] if not isinstance(results[-3], Exception) else None
-            engineering_subdomain = results[-2] if not isinstance(results[-2], Exception) else None
-            docs_content = results[-1] if not isinstance(results[-1], Exception) else None
+        job_postings = results[-4] if not isinstance(results[-4], Exception) else None
+        investor_content = results[-3] if not isinstance(results[-3], Exception) else None
+        engineering_subdomain = results[-2] if not isinstance(results[-2], Exception) else None
+        docs_content = results[-1] if not isinstance(results[-1], Exception) else None
 
-            # Combine engineering content from /engineering path, subdomains, and docs
-            engineering_path = core_results.get("engineering")
-            additional_parts = []
-            if engineering_path and len(engineering_path) > 200:
-                additional_parts.append(engineering_path)
-            if engineering_subdomain and len(engineering_subdomain) > 200:
-                additional_parts.append(engineering_subdomain)
-            if docs_content and len(docs_content) > 200:
-                additional_parts.append(docs_content)
-            additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
+        # Combine engineering content from /engineering path, subdomains, and docs
+        engineering_path = core_results.get("engineering")
+        additional_parts = []
+        if engineering_path and len(engineering_path) > 200:
+            additional_parts.append(engineering_path)
+        if engineering_subdomain and len(engineering_subdomain) > 200:
+            additional_parts.append(engineering_subdomain)
+        if docs_content and len(docs_content) > 200:
+            additional_parts.append(docs_content)
+        additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
 
         print("Scraping complete!")
 
