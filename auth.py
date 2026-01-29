@@ -252,13 +252,7 @@ async def microsoft_callback(request: Request):
 
         if userinfo_response.status_code != 200:
             print(f"Userinfo fetch failed: {userinfo_response.text}")
-            # Fallback: decode id_token
-            id_token = token_data.get("id_token")
-            if id_token:
-                import jwt as pyjwt
-                user_info = pyjwt.decode(id_token, options={"verify_signature": False})
-            else:
-                raise HTTPException(status_code=400, detail="Failed to get user info")
+            raise HTTPException(status_code=502, detail="Failed to get user info from Microsoft")
         else:
             user_info = userinfo_response.json()
 

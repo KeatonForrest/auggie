@@ -16,16 +16,13 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from config import get_settings
 from models import ResearchRequest, ResearchResponse, ResearchDocument
-from services.firecrawl import FirecrawlService
-from services.claude import ClaudeService
-from services.wappalyzer import WappalyzerService
 from services.materials import MaterialsService
-from services.writing import WritingService
+from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service
 from services.collect import collect_enrichment_data, close_shared_http_client
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, get_user_usage,
-    get_user_materials, use_credit,
+    get_user_materials, use_credit, refund_credit,
     create_api_key_record, list_api_keys, revoke_api_key,
     get_api_key_usage_stats,
     save_enriched_contacts, get_enriched_contacts,
@@ -40,7 +37,10 @@ from api.webhooks import router as webhooks_router
 settings = get_settings()
 
 
+import re
+
 from api.validation import validate_company_url
+from api.tasks import create_tracked_task
 
 
 def normalize_url(url: str) -> str:
@@ -57,6 +57,12 @@ async def lifespan(app: FastAPI):
     print("Initializing database...")
     await init_database()
     print("Database ready!")
+    # Warn if default session secret is used in non-localhost mode
+    if "localhost" not in settings.app_url and settings.session_secret == "dev-secret-change-in-production":
+        print("=" * 60)
+        print("WARNING: Using default session secret in production!")
+        print("Set SESSION_SECRET to a strong random value.")
+        print("=" * 60)
     yield
     print("Shutting down...")
     await close_shared_http_client()
@@ -82,12 +88,6 @@ app.include_router(api_v1_router)
 app.include_router(webhooks_router)
 
 templates = Jinja2Templates(directory="templates")
-
-# Services (instantiated once, reused for all requests)
-firecrawl_service = FirecrawlService()
-claude_service = ClaudeService()
-wappalyzer_service = WappalyzerService()
-writing_service = WritingService()
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
@@ -357,14 +357,16 @@ async def create_research(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Check credits (admins have unlimited)
+    # Check and reserve credit upfront (admins have unlimited)
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
-    if not is_admin and usage.get("bonus_credits", 0) <= 0:
-        raise HTTPException(
-            status_code=402,
-            detail="No credits remaining. Buy more credits to continue researching."
-        )
+    if not is_admin:
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            raise HTTPException(
+                status_code=402,
+                detail="No credits remaining. Buy more credits to continue researching."
+            )
 
     try:
         print(f"[{user['email']}] Scraping {company_url}...")
@@ -393,11 +395,9 @@ async def create_research(
             seller_company=user.get("company_name", ""),  # For competitor detection
         )
 
-        # Save document and deduct credit (skip for admins)
+        # Save document (credit already deducted)
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        if not is_admin:
-            await use_credit(user["id"])
 
         recent_docs = await get_all_documents(user_id=user["id"], limit=10)
         usage = await get_user_usage(user["id"])
@@ -418,6 +418,8 @@ async def create_research(
     except HTTPException:
         raise
     except Exception as e:
+        if not is_admin:
+            await refund_credit(user["id"])
         print(f"Error generating research: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -458,10 +460,11 @@ async def get_markdown(doc_id: int, user: dict = Depends(require_auth)):
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    safe_name = re.sub(r'[^\w\s\-.]', '', document.company_name)
     return StreamingResponse(
         BytesIO(document.full_markdown.encode()),
         media_type="text/markdown",
-        headers={"Content-Disposition": f"attachment; filename={document.company_name}_research.md"}
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_research.md"'}
     )
 
 
@@ -473,10 +476,11 @@ async def get_pdf(doc_id: int, user: dict = Depends(require_auth)):
         raise HTTPException(status_code=404, detail="Document not found")
 
     # TODO: Implement PDF generation with WeasyPrint
+    safe_name = re.sub(r'[^\w\s\-.]', '', document.company_name)
     return StreamingResponse(
         BytesIO(document.full_markdown.encode()),
         media_type="text/markdown",
-        headers={"Content-Disposition": f"attachment; filename={document.company_name}_research.md"}
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_research.md"'}
     )
 
 
@@ -533,11 +537,13 @@ async def enrich_document_contacts(
     if existing:
         return JSONResponse({"success": True, "contacts": existing, "cached": True})
 
-    # Check credits (enrichment costs 0.5 credits = 50 cents)
+    # Reserve credit upfront (enrichment costs 0.5 credits = 50 cents)
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
-    if not is_admin and usage.get("bonus_credits", 0) < 50:
-        return JSONResponse({"success": False, "error": "No credits remaining"})
+    if not is_admin:
+        reserved = await use_credit(user["id"], cents=50)
+        if not reserved:
+            return JSONResponse({"success": False, "error": "No credits remaining"})
 
     # Build target titles from user's ICP settings
     target_titles = _build_target_titles(user)
@@ -553,8 +559,6 @@ async def enrich_document_contacts(
 
         if contacts:
             await save_enriched_contacts(doc_id, user["id"], contacts)
-            if not is_admin:
-                await use_credit(user["id"], cents=50)
 
         return JSONResponse({
             "success": True,
@@ -562,6 +566,8 @@ async def enrich_document_contacts(
             "cached": False,
         })
     except Exception as e:
+        if not is_admin:
+            await refund_credit(user["id"], cents=50)
         print(f"Error enriching contacts: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
@@ -617,8 +623,10 @@ async def api_create_research(
 
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
-    if not is_admin and usage.get("bonus_credits", 0) <= 0:
-        return ResearchResponse(success=False, error="No credits remaining")
+    if not is_admin:
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            return ResearchResponse(success=False, error="No credits remaining")
 
     try:
         scraped_content = await firecrawl_service.scrape_company(company_url)
@@ -641,11 +649,11 @@ async def api_create_research(
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
-        if not is_admin:
-            await use_credit(user["id"])
         return ResearchResponse(success=True, document=document)
 
     except Exception as e:
+        if not is_admin:
+            await refund_credit(user["id"])
         return ResearchResponse(success=False, error=str(e))
 
 
@@ -827,7 +835,6 @@ async def upload_list_csv(
     user: dict = Depends(require_onboarding),
 ):
     """Parse CSV, validate URLs, check credits, create list, start analysis."""
-    import asyncio
     import csv
     from io import StringIO
     from api.jobs import run_list_analysis
@@ -908,7 +915,7 @@ async def upload_list_csv(
     await update_list_credits(lst["id"], needed)
 
     # Start analysis in background
-    asyncio.create_task(run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin))
+    create_tracked_task(run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin), name=f"list-{lst['id']}")
 
     return RedirectResponse(url=f"/lists/{lst['id']}", status_code=303)
 

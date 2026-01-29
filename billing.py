@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 
 from config import get_settings
-from database import update_user_stripe, get_user_by_id, add_credits
+from database import update_user_stripe, get_user_by_id, fulfill_session
 from auth import require_auth
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -85,15 +85,8 @@ async def buy_credits(request: Request, user: dict = Depends(require_auth)):
 @router.get("/success")
 async def credits_success(request: Request, session_id: str, user: dict = Depends(require_auth)):
     """Handle successful credit purchase."""
-    session = stripe.checkout.Session.retrieve(session_id)
-
-    # Verify payment was successful
-    if session.payment_status == "paid":
-        credits = int(session.metadata.get("credits", 10))
-        await add_credits(user["id"], credits)
-        print(f"Added {credits} credits to user {user['id']}")
-
-    return RedirectResponse(url="/", status_code=302)
+    # Just redirect — credits are fulfilled only via the webhook
+    return RedirectResponse(url="/?payment=success", status_code=302)
 
 
 @router.post("/webhook")
@@ -102,8 +95,11 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
-    # Verify webhook signature (skip in dev if no secret set)
-    if settings.stripe_webhook_secret and settings.stripe_webhook_secret != "whsec_placeholder":
+    # Verify webhook signature
+    has_valid_secret = settings.stripe_webhook_secret and settings.stripe_webhook_secret != "whsec_placeholder"
+    is_local_dev = "localhost" in settings.app_url
+
+    if has_valid_secret:
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, settings.stripe_webhook_secret
@@ -112,18 +108,24 @@ async def stripe_webhook(request: Request):
             raise HTTPException(status_code=400, detail="Invalid payload")
         except stripe.error.SignatureVerificationError:
             raise HTTPException(status_code=400, detail="Invalid signature")
-    else:
+    elif is_local_dev:
         # Dev mode: parse without verification
         import json
         event = stripe.Event.construct_from(json.loads(payload), stripe.api_key)
+    else:
+        # Production without valid webhook secret — reject
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
 
-    # Handle checkout completion (backup for credit addition)
+    # Handle checkout completion (idempotent via fulfill_session)
     if event.type == "checkout.session.completed":
         session = event.data.object
         if session.mode == "payment" and session.payment_status == "paid":
             credits = int(session.metadata.get("credits", 10))
             user_id = int(session.metadata.get("user_id"))
-            await add_credits(user_id, credits)
-            print(f"[Webhook] Added {credits} credits to user {user_id}")
+            added = await fulfill_session(session.id, user_id, credits)
+            if added:
+                print(f"[Webhook] Fulfilled {credits} credits for user {user_id} (session {session.id})")
+            else:
+                print(f"[Webhook] Session {session.id} already fulfilled, skipping")
 
     return {"status": "success"}

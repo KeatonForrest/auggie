@@ -433,6 +433,16 @@ async def init_database():
             ON research_jobs(status, created_at DESC)
         """)
 
+        # Fulfilled sessions table (idempotent Stripe fulfillment)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS fulfilled_sessions (
+                session_id TEXT PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                credits INTEGER NOT NULL,
+                fulfilled_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
         # Mark stale analyzing lists as failed
         await conn.execute("""
             UPDATE lists SET status = 'failed', updated_at = NOW()
@@ -798,6 +808,42 @@ async def refund_credit(user_id: int, cents: int = 100) -> None:
             "UPDATE users SET bonus_credits = bonus_credits + $2 WHERE id = $1",
             user_id, cents
         )
+
+
+async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
+    """Idempotently fulfill a Stripe checkout session.
+
+    Inserts into fulfilled_sessions and adds credits in one transaction.
+    Returns True if credits were added, False if already fulfilled.
+    """
+    cents = credits * 100
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            try:
+                await conn.execute(
+                    "INSERT INTO fulfilled_sessions (session_id, user_id, credits) VALUES ($1, $2, $3)",
+                    session_id, user_id, credits,
+                )
+            except asyncpg.exceptions.UniqueViolationError:
+                return False
+            await conn.execute(
+                "UPDATE users SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+                user_id, cents,
+            )
+            return True
+
+
+async def try_start_list_analysis(list_id: int) -> bool:
+    """Atomically transition a list to 'analyzing' status.
+
+    Returns True if the transition succeeded, False if already analyzing.
+    """
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE lists SET status = 'analyzing', updated_at = NOW() WHERE id = $1 AND status != 'analyzing' RETURNING id",
+            list_id,
+        )
+        return row is not None
 
 
 async def set_admin(email: str, is_admin: bool = True) -> bool:
@@ -1516,26 +1562,27 @@ async def update_bulk_job_item(
 async def finalize_bulk_job(bulk_job_id: int) -> dict:
     """Set final status and completed_at on a bulk job. Returns updated record."""
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT total_items, completed_items, failed_items FROM bulk_jobs WHERE id = $1",
-            bulk_job_id
-        )
-        if row["failed_items"] == row["total_items"]:
-            final_status = "failed"
-        elif row["failed_items"] > 0:
-            final_status = "partial_failure"
-        else:
-            final_status = "completed"
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT total_items, completed_items, failed_items FROM bulk_jobs WHERE id = $1 FOR UPDATE",
+                bulk_job_id
+            )
+            if row["failed_items"] == row["total_items"]:
+                final_status = "failed"
+            elif row["failed_items"] > 0:
+                final_status = "partial_failure"
+            else:
+                final_status = "completed"
 
-        updated = await conn.fetchrow(
-            """
-            UPDATE bulk_jobs SET status = $2, completed_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            """,
-            bulk_job_id, final_status
-        )
-        return dict(updated)
+            updated = await conn.fetchrow(
+                """
+                UPDATE bulk_jobs SET status = $2, completed_at = NOW()
+                WHERE id = $1
+                RETURNING *
+                """,
+                bulk_job_id, final_status
+            )
+            return dict(updated)
 
 
 # =============================================================================
@@ -1707,26 +1754,27 @@ async def update_list_account(
 async def finalize_list(list_id: int) -> dict:
     """Set final status on a list. Returns updated record."""
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT total_accounts, analyzed_accounts, failed_accounts FROM lists WHERE id = $1",
-            list_id
-        )
-        if row["failed_accounts"] == row["total_accounts"]:
-            final_status = "failed"
-        elif row["failed_accounts"] > 0:
-            final_status = "partial_failure"
-        else:
-            final_status = "completed"
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT total_accounts, analyzed_accounts, failed_accounts FROM lists WHERE id = $1 FOR UPDATE",
+                list_id
+            )
+            if row["failed_accounts"] == row["total_accounts"]:
+                final_status = "failed"
+            elif row["failed_accounts"] > 0:
+                final_status = "partial_failure"
+            else:
+                final_status = "completed"
 
-        updated = await conn.fetchrow(
-            """
-            UPDATE lists SET status = $2, updated_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            """,
-            list_id, final_status
-        )
-        return dict(updated)
+            updated = await conn.fetchrow(
+                """
+                UPDATE lists SET status = $2, updated_at = NOW()
+                WHERE id = $1
+                RETURNING *
+                """,
+                list_id, final_status
+            )
+            return dict(updated)
 
 
 async def update_list_status(list_id: int, status: str) -> None:

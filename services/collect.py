@@ -25,16 +25,20 @@ federal_register_service = FederalRegisterService()
 
 # Shared httpx client — created lazily on first use, reuses TCP connections
 _http_client: Optional[httpx.AsyncClient] = None
+_http_client_lock: Optional[asyncio.Lock] = None
 
 
-def get_shared_http_client() -> httpx.AsyncClient:
+async def get_shared_http_client() -> httpx.AsyncClient:
     """Get or create the shared httpx client with connection pooling."""
-    global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(
-            timeout=30.0,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-        )
+    global _http_client, _http_client_lock
+    if _http_client_lock is None:
+        _http_client_lock = asyncio.Lock()
+    async with _http_client_lock:
+        if _http_client is None or _http_client.is_closed:
+            _http_client = httpx.AsyncClient(
+                timeout=30.0,
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
     return _http_client
 
 
@@ -85,7 +89,7 @@ async def collect_enrichment_data(
     company_name = _extract_company_name(company_url)
     settings = get_settings()
 
-    client = get_shared_http_client()
+    client = await get_shared_http_client()
 
     async def _fetch_news():
         try:
