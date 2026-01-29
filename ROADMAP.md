@@ -390,7 +390,7 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 ---
 
 ## Phase 8.5: UX Polish
-**Status:** Complete (P0 + P1 shipped, P2 deferred)
+**Status:** Complete (P0 + P1 + P2 shipped)
 
 Fix friction points that hurt activation, retention, and daily usability. Grouped by impact.
 
@@ -410,14 +410,14 @@ Fix friction points that hurt activation, retention, and daily usability. Groupe
 - [x] **Inline email editing** — Outreach modal renders emails as editable subject input + body textarea. Copy All reads current values.
 - [x] **Retry failed list items** — Per-item "Retry" button on failed list accounts with AJAX + toast feedback.
 
-### P2 — Quality of life (deferred)
+### P2 — Quality of life
 
 - [x] **Toast/flash notification system** — Reusable toast component in `base.html` with success/error/warning/info types, auto-dismiss, and manual close.
-- [ ] **Onboarding validation** — Client-side validation requiring at least one selection per checkbox group. Add tooltips explaining how each field affects research quality.
-- [ ] **Webhook config UI** — Webhooks exist in the API but can only be configured via API calls. Add a simple form in Settings or API Keys page.
-- [ ] **Mobile-responsive tables** — List view and API keys tables (7 columns each) overflow on mobile. Collapse to card layout or hide non-critical columns.
-- [ ] **Bulk list actions** — Checkboxes + toolbar for selecting multiple list accounts to export, delete, or retry.
-- [ ] **Materials search & preview** — Add search bar and "View" button showing extracted text. Users can't find or inspect materials at scale.
+- [x] **Onboarding validation** — Client-side validation requiring at least one selection per checkbox group. Add tooltips explaining how each field affects research quality.
+- [x] **Webhook config UI** — Webhooks exist in the API but can only be configured via API calls. Add a simple form in Settings or API Keys page.
+- [x] **Mobile-responsive tables** — List view and API keys tables (7 columns each) overflow on mobile. Collapse to card layout or hide non-critical columns.
+- [x] **Bulk list actions** — Checkboxes + toolbar for selecting multiple list accounts to export, delete, or retry.
+- [x] **Materials search & preview** — Add search bar and "View" button showing extracted text. Users can't find or inspect materials at scale.
 
 ---
 
