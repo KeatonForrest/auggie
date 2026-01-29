@@ -331,7 +331,7 @@ _Deferred — EDGAR already provides financials for public companies, and the ex
 ---
 
 ## Phase 8: Intelligence Orchestration
-**Status:** Stage 1 Complete
+**Status:** Stages 1–6 Complete
 
 Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
@@ -343,34 +343,34 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [x] Trigger bulk analysis on upload (reuse existing list analysis pipeline)
 - [x] Display results in a list view with score sorting/filtering
 
-### Stage 2: CRM Ingest — HubSpot
-- [ ] Register Auggie as a HubSpot app (OAuth)
-- [ ] Build HubSpot OAuth flow (connect account)
-- [ ] Pull companies from HubSpot via API
-- [ ] Let user select which companies/lists to import
-- [ ] Create Auggie list from imported companies, trigger analysis
-- [ ] Write scores back to HubSpot company records (custom properties)
+### Stage 2: CRM Ingest — HubSpot ✅
+- [x] Register Auggie as a HubSpot app (OAuth)
+- [x] Build HubSpot OAuth flow (connect account)
+- [x] Pull companies from HubSpot via API
+- [x] Let user select which companies/lists to import
+- [x] Create Auggie list from imported companies, trigger analysis
+- [x] Write scores back to HubSpot company records (custom properties)
 
-### Stage 3: CRM Ingest — Salesforce
-- [ ] Register Auggie as a Salesforce Connected App
-- [ ] Build Salesforce OAuth flow
-- [ ] Pull accounts from Salesforce
-- [ ] Import flow (same pattern as HubSpot)
-- [ ] Write scores back to Salesforce account records
+### Stage 3: CRM Ingest — Salesforce ✅
+- [x] Register Auggie as a Salesforce Connected App
+- [x] Build Salesforce OAuth flow
+- [x] Pull accounts from Salesforce
+- [x] Import flow (same pattern as HubSpot)
+- [x] Write scores back to Salesforce account records
 
-### Stage 4: Prospecting Tool Ingest
-- [ ] Apollo API integration — import saved lists
-- [ ] Ocean.io API integration — import lookalike audiences
+### Stage 4: Prospecting Tool Ingest ✅
+- [x] Apollo API integration — import saved lists
+- [x] Ocean.io API integration — import lookalike audiences
 
-### Stage 5: Execute — First Sequencer
-- [ ] Pick sequencer (Instantly likely first — simple API, popular with ICP)
-- [ ] Build OAuth or API key connection flow
-- [ ] Push contacts + sequences to the sequencer from a completed list
-- [ ] UI: "Send to Instantly" button on filtered list view
+### Stage 5: Execute — First Sequencer ✅
+- [x] Pick sequencer (Instantly likely first — simple API, popular with ICP)
+- [x] Build OAuth or API key connection flow
+- [x] Push contacts + sequences to the sequencer from a completed list
+- [x] UI: "Send to Instantly" button on filtered list view
 
-### Stage 6: Notifications
-- [ ] Slack integration — webhook notifications (research complete, high-pain alert)
-- [ ] Zapier/Make webhook triggers (covers long tail without custom integrations)
+### Stage 6: Notifications ✅
+- [x] Slack integration — webhook notifications (research complete, high-pain alert)
+- [x] Zapier/Make webhook triggers (covers long tail without custom integrations)
 
 ### Stage 7: Chrome Extension
 - [ ] Chrome extension — research any company from their website
@@ -751,8 +751,9 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
+| ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack |
 | Background | Phase 9 | Clay Marketplace onboarding (external process) |
-| After | Phase 10 | Bulk workflows UI + remaining integrations |
+| Next | Phase 10 | Bulk workflows UI + remaining integrations |
 | Later | Phase 11 | Team accounts |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
