@@ -201,6 +201,15 @@ async def init_database():
             ON users(stripe_customer_id)
             WHERE stripe_customer_id IS NOT NULL
         """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_microsoft_id
+            ON users(microsoft_id)
+            WHERE microsoft_id IS NOT NULL
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_documents_user_url
+            ON research_documents(user_id, company_url)
+        """)
 
         # =================================================================
         # API Keys table
@@ -221,6 +230,10 @@ async def init_database():
             CREATE INDEX IF NOT EXISTS idx_api_keys_user
             ON api_keys(user_id)
             WHERE NOT revoked
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_api_keys_prefix
+            ON api_keys(prefix)
         """)
 
         await conn.execute("""
@@ -257,6 +270,10 @@ async def init_database():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_enriched_contacts_doc
             ON enriched_contacts(document_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_enriched_contacts_user
+            ON enriched_contacts(user_id)
         """)
 
         # =================================================================
@@ -373,6 +390,17 @@ async def init_database():
             ON bulk_job_items(bulk_job_id)
         """)
 
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_webhooks_user_active
+            ON webhooks(user_id)
+            WHERE active = TRUE
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_bulk_jobs_status_created
+            ON bulk_jobs(status, created_at DESC)
+        """)
+
         # Mark stale bulk jobs as failed
         await conn.execute("""
             UPDATE bulk_jobs SET status = 'failed', completed_at = NOW()
@@ -441,6 +469,11 @@ async def init_database():
                 credits INTEGER NOT NULL,
                 fulfilled_at TIMESTAMPTZ DEFAULT NOW()
             )
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_lists_status_created
+            ON lists(status, created_at DESC)
         """)
 
         # Mark stale analyzing lists as failed

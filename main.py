@@ -6,6 +6,7 @@ Open: http://localhost:8000
 Docs: http://localhost:8000/docs
 """
 
+import time
 from contextlib import asynccontextmanager
 from io import BytesIO
 
@@ -43,6 +44,18 @@ from api.webhooks import router as webhooks_router
 settings = get_settings()
 
 _is_https = settings.app_url.startswith("https")
+
+
+class LatencyLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+        start = time.monotonic()
+        response = await call_next(request)
+        duration = time.monotonic() - start
+        if duration > 1.0:
+            print(f"SLOW {request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -107,6 +120,9 @@ app = FastAPI(
     docs_url="/openapi-docs",
 )
 
+# Latency logging (outermost = first to run)
+app.add_middleware(LatencyLoggingMiddleware)
+
 # Security headers
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -134,6 +150,18 @@ app.include_router(api_v1_router)
 app.include_router(webhooks_router)
 
 templates = Jinja2Templates(directory="templates")
+
+
+@app.get("/health")
+async def health_check():
+    """Unauthenticated health check for uptime monitors and Railway."""
+    from database import _pool
+    try:
+        async with _pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        return JSONResponse({"status": "ok", "db": "ok"})
+    except Exception:
+        return JSONResponse({"status": "degraded", "db": "error"}, status_code=503)
 
 _ERROR_TITLES = {
     400: "Invalid Request",
