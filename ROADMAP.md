@@ -331,12 +331,46 @@ Make the scoring more accurate and consistent by adding reference examples, requ
 
 ---
 
+## Phase 7.7: Data Sources Expansion
+**Status:** Planned
+
+New data sources to strengthen scoring. Firmographics become part of the score composition (not just filters). Trigger events, compliance deadlines, and competitive pressure feed directly into Pain/Fit/Timing scores.
+
+### SEC EDGAR (free — public companies)
+- [ ] Integrate EDGAR REST API (JSON, no key needed)
+- [ ] Pull recent 8-K filings — leadership changes, M&A, restructuring, layoffs
+- [ ] Parse 10-K/10-Q Risk Factors section — companies disclose their own pain signals
+- [ ] Extract revenue, headcount, and financial performance from quarterly filings
+- [ ] Feed structured trigger events into Timing score
+- [ ] Feed Risk Factors into Pain score
+
+### G2 / Capterra Review Scraping
+- [ ] Scrape G2 product pages (Firecrawl or BeautifulSoup) — star ratings, review counts
+- [ ] Extract negative review themes (scaling issues, poor support, missing features)
+- [ ] Pull competitor comparison data and "switching from/to" signals
+- [ ] Scrape Capterra as fallback/supplement
+- [ ] Feed competitive pressure signals into Pain score
+
+### Federal Register API (free — compliance deadlines)
+- [ ] Integrate Federal Register API for new regulations with effective dates
+- [ ] Match regulations to company industry classification
+- [ ] Extract upcoming compliance deadlines relevant to the company
+- [ ] Feed deadline-driven urgency into Timing score
+
+### Firmographic Enrichment (Apollo or Crunchbase)
+- [ ] Integrate firmographic API — headcount, funding rounds, revenue, industry, founding date
+- [ ] Feed confirmed firmographics into Fit score (remove the 65 cap when data is available)
+- [ ] Add funding recency and amount to Timing score
+- [ ] Add headcount growth rate as a trigger event signal
+
+---
+
 ## Phase 8: Intelligence Orchestration
 **Status:** Planned
 
 Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
-**Recommended build order:** CSV Upload → HubSpot → Crunchbase → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
+**Recommended build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
 
 ### Stage 1: CSV Upload (foundation)
 - [ ] Build CSV upload UI — accept a file of company domains
@@ -359,27 +393,21 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [ ] Import flow (same pattern as HubSpot)
 - [ ] Write scores back to Salesforce account records
 
-### Stage 4: Firmographic Enrichment — Crunchbase
-- [ ] Crunchbase API integration (funding, headcount, industry, founding date)
-- [ ] Enrich researched companies with firmographic data
-- [ ] Add firmographic fields to research output and Clay response
-- [ ] Enable filtering/sorting by funding stage, headcount, industry
-
-### Stage 5: Prospecting Tool Ingest
+### Stage 4: Prospecting Tool Ingest
 - [ ] Apollo API integration — import saved lists
 - [ ] Ocean.io API integration — import lookalike audiences
 
-### Stage 6: Execute — First Sequencer
+### Stage 5: Execute — First Sequencer
 - [ ] Pick sequencer (Instantly likely first — simple API, popular with ICP)
 - [ ] Build OAuth or API key connection flow
 - [ ] Push contacts + sequences to the sequencer from a completed list
 - [ ] UI: "Send to Instantly" button on filtered list view
 
-### Stage 7: Notifications
+### Stage 6: Notifications
 - [ ] Slack integration — webhook notifications (research complete, high-pain alert)
 - [ ] Zapier/Make webhook triggers (covers long tail without custom integrations)
 
-### Stage 8: Chrome Extension
+### Stage 7: Chrome Extension
 - [ ] Chrome extension — research any company from their website
 - [ ] Show scores + talking points in a sidebar popup
 
@@ -683,6 +711,7 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 6 | Bulk research, lists API, docs, SDK |
 | Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
 | Next | Phase 7.5 | Score calibration (anchors, evidence, negative signals) |
+| Next | Phase 7.7 | Data sources (EDGAR, G2, Federal Register, firmographics) |
 | After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
 | After | Phase 9 | Bulk workflows UI |
 | Later | Phase 10 | Team accounts |
