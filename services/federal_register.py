@@ -60,6 +60,7 @@ class FederalRegisterService:
         company_name: str,
         sic_code: Optional[str] = None,
         industry_keywords: Optional[list[str]] = None,
+        client: Optional[httpx.AsyncClient] = None,
     ) -> Optional[str]:
         """
         Search Federal Register for upcoming regulations relevant to a company.
@@ -68,10 +69,10 @@ class FederalRegisterService:
             company_name: Company name (used in output formatting)
             sic_code: SIC code from EDGAR (e.g., "7372")
             industry_keywords: Additional search terms from company description
+            client: Optional shared httpx client for connection reuse.
 
         Returns formatted string for Claude prompt, or None if nothing relevant found.
         """
-        # Build search terms from SIC code
         search_terms = []
         if sic_code:
             prefix = sic_code[:2]
@@ -82,41 +83,43 @@ class FederalRegisterService:
             search_terms = DEFAULT_TOPICS
 
         try:
-            async with httpx.AsyncClient() as client:
-                # Search for recent and upcoming rules across relevant topics
-                all_results = []
-                tasks = [
-                    self._search_regulations(client, term)
-                    for term in search_terms[:3]  # Limit to 3 searches to be respectful
-                ]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for result in results:
-                    if isinstance(result, list):
-                        all_results.extend(result)
-
-                if not all_results:
-                    return None
-
-                # Deduplicate by title
-                seen = set()
-                unique = []
-                for reg in all_results:
-                    if reg["title"] not in seen:
-                        seen.add(reg["title"])
-                        unique.append(reg)
-
-                # Sort by effective date (soonest first)
-                unique.sort(key=lambda r: r.get("effective_on") or "9999-12-31")
-
-                # Take top results
-                unique = unique[:8]
-
-                return self._format_results(unique)
-
+            if client is None:
+                async with httpx.AsyncClient() as client:
+                    return await self._get_regulations_impl(client, search_terms)
+            else:
+                return await self._get_regulations_impl(client, search_terms)
         except Exception as e:
             print(f"Federal Register error (non-fatal): {e}")
             return None
+
+    async def _get_regulations_impl(self, client: httpx.AsyncClient, search_terms: list[str]) -> Optional[str]:
+        """Internal implementation with a provided client."""
+        all_results = []
+        tasks = [
+            self._search_regulations(client, term)
+            for term in search_terms[:3]
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, list):
+                all_results.extend(result)
+
+        if not all_results:
+            return None
+
+        # Deduplicate by title
+        seen = set()
+        unique = []
+        for reg in all_results:
+            if reg["title"] not in seen:
+                seen.add(reg["title"])
+                unique.append(reg)
+
+        unique.sort(key=lambda r: r.get("effective_on") or "9999-12-31")
+        unique = unique[:8]
+
+        return self._format_results(unique)
 
     async def _search_regulations(
         self, client: httpx.AsyncClient, term: str

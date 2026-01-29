@@ -44,9 +44,8 @@ async def _run_research_pipeline(user_id: int, company_url: str) -> int:
         main_html=scraped_content.homepage_html,
     )
 
-    company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
     retrieved_materials = await collect_enrichment_data(
-        scraped_content, company_name, user_id,
+        scraped_content, company_url, user_id,
     )
 
     document = await claude_service.generate_research_document(

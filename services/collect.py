@@ -7,6 +7,8 @@ collect_enrichment_data() instead of duplicating the gather logic.
 import asyncio
 from typing import Optional
 
+import httpx
+
 from config import get_settings
 from models import ScrapedContent
 from services.news import NewsService
@@ -21,6 +23,29 @@ edgar_service = EdgarService()
 reviews_service = ReviewsService()
 federal_register_service = FederalRegisterService()
 
+# Shared httpx client — created lazily on first use, reuses TCP connections
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def get_shared_http_client() -> httpx.AsyncClient:
+    """Get or create the shared httpx client with connection pooling."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _http_client
+
+
+async def close_shared_http_client():
+    """Close the shared client. Call on app shutdown."""
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
+
+
 _retrieval_service = None
 
 
@@ -31,9 +56,14 @@ def _get_retrieval_service() -> Optional[RetrievalService]:
     return _retrieval_service
 
 
+def _extract_company_name(company_url: str) -> str:
+    """Extract clean company name from a URL."""
+    return company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+
+
 async def collect_enrichment_data(
     scraped_content: ScrapedContent,
-    company_name: str,
+    company_url: str,
     user_id: int,
     *,
     verbose: bool = False,
@@ -45,18 +75,21 @@ async def collect_enrichment_data(
 
     Args:
         scraped_content: Already-scraped website content to enrich.
-        company_name: Clean domain-derived company name.
+        company_url: The company URL (name is extracted internally).
         user_id: Used for materials retrieval scoping.
         verbose: If True, print progress messages (web UI mode).
 
     Returns:
         Retrieved materials string (empty string if none).
     """
+    company_name = _extract_company_name(company_url)
     settings = get_settings()
+
+    client = get_shared_http_client()
 
     async def _fetch_news():
         try:
-            return await news_service.get_company_news(company_name)
+            return await news_service.get_company_news(company_name, client=client)
         except Exception as e:
             if verbose:
                 print(f"News fetch failed (non-fatal): {e}")
@@ -67,7 +100,7 @@ async def collect_enrichment_data(
         fed_content = None
         if settings.edgar_enabled:
             try:
-                edgar_content = await edgar_service.get_company_filings(company_name)
+                edgar_content = await edgar_service.get_company_filings(company_name, client=client)
             except Exception as e:
                 if verbose:
                     print(f"EDGAR lookup failed (non-fatal): {e}")
@@ -76,6 +109,7 @@ async def collect_enrichment_data(
                 fed_content = await federal_register_service.get_upcoming_regulations(
                     company_name=company_name,
                     sic_code=edgar_service._last_sic_code,
+                    client=client,
                 )
             except Exception as e:
                 if verbose:
@@ -86,7 +120,7 @@ async def collect_enrichment_data(
         if not settings.reviews_enabled:
             return None
         try:
-            return await reviews_service.get_reviews(company_name)
+            return await reviews_service.get_reviews(company_name, client=client)
         except Exception as e:
             if verbose:
                 print(f"Reviews scraping failed (non-fatal): {e}")

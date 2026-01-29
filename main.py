@@ -21,7 +21,7 @@ from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
 from services.materials import MaterialsService
 from services.writing import WritingService
-from services.collect import collect_enrichment_data
+from services.collect import collect_enrichment_data, close_shared_http_client
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, get_user_usage,
@@ -57,6 +57,7 @@ async def lifespan(app: FastAPI):
     print("Database ready!")
     yield
     print("Shutting down...")
+    await close_shared_http_client()
     await close_database()
     print("Database connections closed.")
 
@@ -376,9 +377,8 @@ async def create_research(
         print(f"Detected {total_tech} technologies across {len(tech_by_domain)} domains")
 
         # Parallel data collection
-        company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
         retrieved_materials = await collect_enrichment_data(
-            scraped_content, company_name, user["id"], verbose=True,
+            scraped_content, company_url, user["id"], verbose=True,
         )
 
         print("Generating research document...")
@@ -625,9 +625,8 @@ async def api_create_research(
             main_html=scraped_content.homepage_html
         )
 
-        company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
         retrieved_materials = await collect_enrichment_data(
-            scraped_content, company_name, user["id"],
+            scraped_content, company_url, user["id"],
         )
 
         document = await claude_service.generate_research_document(
