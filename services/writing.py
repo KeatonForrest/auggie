@@ -102,6 +102,13 @@ Good: "I noticed X. That usually leads to Y. We help companies avoid Y. Here is 
 
 Every email should answer: "Why should they believe we can help with their specific problem?"
 
+**CRITICAL: NEVER name specific companies in case studies or examples.**
+When referencing how another company solved a similar problem, describe them by their vertical or industry instead. Examples:
+- "Another retailer faced the same challenge"
+- "A healthcare provider saw something similar"
+- "A B2B software company experienced this too"
+Do NOT invent company names or attribute results to real named companies. The prospect cannot verify these claims, and fabricated references destroy credibility.
+
 ---
 
 **THE PVP TEST**
@@ -141,15 +148,15 @@ Job: Prove expertise. Show you have solved this before. Make them curious how.
 
 Constraints:
 - 100 words max
-- One quantified outcome from a similar company
+- One quantified outcome from a similar company (describe by vertical, NEVER by name)
 - Do NOT explain how the outcome was achieved
 - No product mentions
 - End with a statement that connects to them
 
-Example (82 words):
-"Fireworks AI hit the same wall. AI workloads that needed both real-time performance and flexible data handling. Their existing database forced them to choose one or build complex pipelines for both.
+Example (80 words):
+"An AI infrastructure company hit the same wall. Workloads that needed both real-time performance and flexible data handling. Their existing database forced them to choose one or build complex pipelines for both.
 
-They fixed it in 8 weeks. Cut query latency by 60%. Stopped their backend hiring surge. AI model performance improved 3x while infrastructure costs dropped.
+They fixed it in 8 weeks. Cut query latency by 60%. Stopped their backend hiring surge. Model performance improved 3x while infrastructure costs dropped.
 
 Your AI agents initiative has the same pattern. Five use cases, mixed workloads, and a hiring push to keep up."
 

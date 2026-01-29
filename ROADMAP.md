@@ -249,45 +249,16 @@ Build bulk processing and developer documentation.
 ---
 
 ## Phase 7: Clay Marketplace
-**Status:** Planned
-**Timeline:** 30-60 day onboarding process (runs in background)
+**Status:** Partially Complete (technical work done, marketplace onboarding remaining — see Phase 9)
 
-Become an official enrichment provider in Clay's marketplace. This is the primary distribution channel for API adoption.
+Technical foundation for Clay integration is complete. Remaining marketplace onboarding steps moved to Phase 9 to run in the background.
 
-### Why Clay First
-- 150+ enrichment providers, but none do problem-signal scoring
-- Clay users are exactly our ICP: RevOps teams building outbound workflows
-- Marketplace listing = free distribution to Clay's entire customer base
-- Co-marketing starts after integration is live
-
-### Steps
+### Completed
 - [x] Build API (Phase 5 prerequisite)
 - [x] Build Clay-compatible synchronous enrichment endpoint
 - [x] Add 24-hour caching to avoid duplicate costs
 - [x] Update docs and Clay guide with sync endpoint
 - [x] Create /integrations/clay landing page
-- [ ] Contact Clay Data Partnerships Team
-- [ ] Join shared Slack channel with Clay engineer
-- [ ] Test integration end-to-end with Clay team
-- [ ] Publish to Clay marketplace
-- [ ] Create Clay workflow template: "Problem-Signal Prospecting"
-
-### Auggie as a Clay Column
-```
-Clay Table:
-┌──────────┬─────────────┬───────────────┬─────────────┬──────────────┐
-│ Domain   │ Auggie Pain │ Auggie Why    │ LeadMagic   │ Auggie       │
-│          │ Score       │               │ Contact     │ Sequence     │
-├──────────┼─────────────┼───────────────┼─────────────┼──────────────┤
-│ acme.com │ 9           │ Scaling + 4mo │ mike@acme   │ Mike - saw...│
-│          │             │ backend role  │             │              │
-└──────────┴─────────────┴───────────────┴─────────────┴──────────────┘
-```
-
-### Success Criteria
-- Listed in Clay marketplace
-- 20+ Clay users using Auggie enrichment within 60 days of listing
-- Clay workflow template published and discoverable
 
 ---
 
@@ -360,13 +331,13 @@ _Deferred — EDGAR already provides financials for public companies, and the ex
 ---
 
 ## Phase 8: Intelligence Orchestration
-**Status:** Planned
+**Status:** Next — starting with CSV Upload
 
 Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
-**Recommended build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
+**Build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
 
-### Stage 1: CSV Upload (foundation)
+### Stage 1: CSV Upload (foundation) ← NEXT
 - [ ] Build CSV upload UI — accept a file of company domains
 - [ ] Parse CSV, validate URLs, create a list automatically
 - [ ] Trigger bulk analysis on upload (reuse existing list analysis pipeline)
@@ -418,7 +389,39 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 
 ---
 
-## Phase 9: Bulk Workflows & Lists UI
+## Phase 9: Clay Marketplace
+**Status:** Planned (runs in background alongside Phase 8)
+**Timeline:** 30-60 day onboarding process
+
+Complete the Clay marketplace onboarding. Technical integration is done (Phase 7). This is the external partnership process.
+
+### Steps
+- [ ] Contact Clay Data Partnerships Team
+- [ ] Join shared Slack channel with Clay engineer
+- [ ] Test integration end-to-end with Clay team
+- [ ] Publish to Clay marketplace
+- [ ] Create Clay workflow template: "Problem-Signal Prospecting"
+
+### Auggie as a Clay Column
+```
+Clay Table:
+┌──────────┬─────────────┬───────────────┬─────────────┬──────────────┐
+│ Domain   │ Auggie Pain │ Auggie Why    │ LeadMagic   │ Auggie       │
+│          │ Score       │               │ Contact     │ Sequence     │
+├──────────┼─────────────┼───────────────┼─────────────┼──────────────┤
+│ acme.com │ 9           │ Scaling + 4mo │ mike@acme   │ Mike - saw...│
+│          │             │ backend role  │             │              │
+└──────────┴─────────────┴───────────────┴─────────────┴──────────────┘
+```
+
+### Success Criteria
+- Listed in Clay marketplace
+- 20+ Clay users using Auggie enrichment within 60 days of listing
+- Clay workflow template published and discoverable
+
+---
+
+## Phase 10: Bulk Workflows & Lists UI
 **Status:** Future (core to enterprise)
 
 ### List Management UI
@@ -552,7 +555,7 @@ CREATE TABLE list_accounts (
 
 ---
 
-## Phase 10: Team Accounts
+## Phase 11: Team Accounts
 **Status:** Planned
 
 Enable businesses to have multiple users under one organization.
@@ -566,7 +569,7 @@ Enable businesses to have multiple users under one organization.
 
 ---
 
-## Phase 11: Enterprise Auth & Security
+## Phase 12: Enterprise Auth & Security
 **Status:** Planned
 
 Required for enterprise sales.
@@ -663,9 +666,17 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 ---
 
 ## Infrastructure Hygiene (Ongoing)
-**Status:** Planned
+**Status:** In Progress
 
 General infrastructure hardening and operational improvements. Not a phase — just a running list to tackle as needed.
+
+### Pipeline Performance ✅
+- [x] Parallel data collection via `asyncio.gather` (news, EDGAR+FedReg, reviews, materials)
+- [x] Shared `collect_enrichment_data()` function — single source of truth across all 3 pipelines
+- [x] Shared httpx client with connection pooling (eliminates per-request TCP/TLS handshake)
+- [x] EDGAR tickers disk cache with 24h TTL (cold start: seconds → milliseconds)
+- [x] 10-K Risk Factors parsing offloaded to thread pool (`asyncio.to_thread`)
+- [x] Company name extraction centralized in `collect_enrichment_data()`
 
 ### Cloudflare
 - [ ] Proxy app through Cloudflare (orange cloud) — DDoS protection, SSL termination, caching
@@ -703,13 +714,14 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 4 | Microsoft OAuth |
 | ✅ Done | Phase 5 | Public API (async jobs, webhooks, sequences, rate limiting) |
 | ✅ Done | Phase 6 | Bulk research, lists API, docs, SDK |
-| Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
+| ✅ Done | Phase 7 | Clay Marketplace (technical integration) |
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
-| After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
-| After | Phase 9 | Bulk workflows UI |
-| Later | Phase 10 | Team accounts |
-| Later | Phase 11 | Enterprise security (SSO, SCIM, audit logs)
+| **Next** | **Phase 8** | **Intelligence orchestration — CSV Upload first** |
+| Background | Phase 9 | Clay Marketplace onboarding (external process) |
+| After | Phase 10 | Bulk workflows UI |
+| Later | Phase 11 | Team accounts |
+| Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---
 
