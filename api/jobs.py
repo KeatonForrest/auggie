@@ -106,10 +106,14 @@ async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin
                 await update_job_status(job["id"], "failed", error_message=error_msg)
                 await update_bulk_job_item(item_id, "failed", research_job_id=job["id"], error_message=error_msg)
 
-    results = await asyncio.gather(*(process_item(item) for item in items), return_exceptions=True)
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            logger.error("Bulk item %s raised unhandled exception: %s", items[i]["id"], result)
+    # Process in batches of 20 to limit memory usage
+    BATCH_SIZE = 20
+    for batch_start in range(0, len(items), BATCH_SIZE):
+        batch = items[batch_start:batch_start + BATCH_SIZE]
+        results = await asyncio.gather(*(process_item(item) for item in batch), return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error("Bulk item %s raised unhandled exception: %s", batch[i]["id"], result)
 
     # Finalize and refund failed credits
     final = await finalize_bulk_job(bulk_job_id)
@@ -164,10 +168,14 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
                     error_message=error_msg,
                 )
 
-    results = await asyncio.gather(*(process_account(a) for a in accounts), return_exceptions=True)
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            logger.error("List account %s raised unhandled exception: %s", accounts[i]["id"], result)
+    # Process in batches of 20 to limit memory usage
+    BATCH_SIZE = 20
+    for batch_start in range(0, len(accounts), BATCH_SIZE):
+        batch = accounts[batch_start:batch_start + BATCH_SIZE]
+        results = await asyncio.gather(*(process_account(a) for a in batch), return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error("List account %s raised unhandled exception: %s", batch[i]["id"], result)
 
     # Finalize and refund failed credits
     final = await finalize_list(list_id)

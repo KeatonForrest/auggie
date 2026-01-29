@@ -2,13 +2,13 @@
 
 from fastapi import Header, HTTPException
 
-from database import validate_api_key
+from database import validate_api_key, get_user_by_id
 
 
 async def require_api_key(authorization: str = Header(...)) -> dict:
     """FastAPI dependency that validates Bearer token API keys.
 
-    Returns dict with user_id and api_key_id on success.
+    Returns full user dict with api_key_id added.
     Raises 401 on invalid/missing key.
     """
     if not authorization.startswith("Bearer "):
@@ -23,4 +23,10 @@ async def require_api_key(authorization: str = Header(...)) -> dict:
     if not result:
         raise HTTPException(status_code=401, detail="Invalid or revoked API key")
 
-    return result
+    user = await get_user_by_id(result["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Merge api_key_id into user dict so callers have everything
+    user["api_key_id"] = result["api_key_id"]
+    return user

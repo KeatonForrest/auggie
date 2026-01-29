@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from api.auth import require_api_key
 from database import (
-    get_user_by_id, get_user_usage, get_document,
+    get_user_usage, get_document,
     save_enriched_contacts, get_enriched_contacts,
     create_research_job, get_research_job, list_user_jobs,
     use_credit, refund_credit, record_api_usage,
@@ -54,24 +54,21 @@ class ResearchResponse(BaseModel):
 async def ping(api_user: dict = Depends(require_api_key)):
     """Health check endpoint. Returns 200 if API key is valid."""
     default_limiter.check(api_user["api_key_id"])
-    return {"status": "ok", "user_id": api_user["user_id"]}
+    return {"status": "ok", "user_id": api_user["id"]}
 
 
 @router.post("/research", status_code=202)
 async def create_research(body: ResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start an async research job. Returns immediately with a job_id."""
     research_limiter.check(api_user["api_key_id"])
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
 
     # Check and reserve credits upfront (refunded on failure)
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
         if usage.get("bonus_credits", 0) <= 0:
             raise HTTPException(status_code=402, detail="No credits remaining")
-        reserved = await use_credit(user["id"])
+        reserved = await use_credit(api_user["id"])
         if not reserved:
             raise HTTPException(status_code=402, detail="No credits remaining")
 
@@ -80,13 +77,13 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
     except ValueError as e:
         # Refund if we reserved
         if not is_admin:
-            await refund_credit(user["id"])
+            await refund_credit(api_user["id"])
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = await create_research_job(user["id"], api_user["api_key_id"], company_url)
+    job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
     create_tracked_task(
-        run_research_job(job["id"], user["id"], api_user["api_key_id"], company_url, is_admin=is_admin),
+        run_research_job(job["id"], api_user["id"], api_user["api_key_id"], company_url, is_admin=is_admin),
         name=f"research-{job['id']}",
     )
 
@@ -97,7 +94,7 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
 async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key)):
     """Poll for job status. Returns full result when completed."""
     default_limiter.check(api_user["api_key_id"])
-    job = await get_research_job(job_id, api_user["user_id"])
+    job = await get_research_job(job_id, api_user["id"])
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -113,7 +110,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
         result["error"] = job["error_message"]
 
     if job["status"] == "completed" and job["document_id"]:
-        doc = await get_document(job["document_id"], api_user["user_id"])
+        doc = await get_document(job["document_id"], api_user["id"])
         if doc:
             result["document_id"] = job["document_id"]
             result["company_name"] = doc.company_name
@@ -145,7 +142,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
 async def list_jobs(api_user: dict = Depends(require_api_key)):
     """List the user's recent research jobs."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_user_jobs(api_user["user_id"])
+    jobs = await list_user_jobs(api_user["id"])
     return {
         "jobs": [
             {
@@ -195,16 +192,12 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
     if not leadmagic.is_configured():
         return EnrichResponse(success=False, error="Contact enrichment is not yet configured.")
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    document = await get_document(body.document_id, user_id=user["id"])
+    document = await get_document(body.document_id, user_id=api_user["id"])
     if not document:
         return EnrichResponse(success=False, error="Document not found")
 
     # Check if already enriched
-    existing = await get_enriched_contacts(body.document_id, user["id"])
+    existing = await get_enriched_contacts(body.document_id, api_user["id"])
     if existing:
         return EnrichResponse(
             success=True,
@@ -213,7 +206,7 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
         )
 
     # Check credits (enrichment = 50 cents = 0.5 credits)
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin and usage.get("bonus_credits", 0) < 50:
         return EnrichResponse(success=False, error="Insufficient credits (enrichment costs 0.5 credits)")
@@ -221,7 +214,7 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
     # Use custom titles or fall back to user's ICP
     titles = body.titles
     if not titles:
-        titles = _build_default_titles(user)
+        titles = _build_default_titles(api_user)
 
     company_domain = document.company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
 
@@ -233,9 +226,9 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
         )
 
         if contacts:
-            await save_enriched_contacts(body.document_id, user["id"], contacts)
+            await save_enriched_contacts(body.document_id, api_user["id"], contacts)
             if not is_admin:
-                await use_credit(user["id"], cents=50)
+                await use_credit(api_user["id"], cents=50)
 
         await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
 
@@ -296,10 +289,6 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
     """
     clay_limiter.check(api_user["api_key_id"])
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
     # Validate URL
     try:
         company_url = validate_company_url(body.company_url)
@@ -307,41 +296,41 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         return JSONResponse(content={"success": False, "error": str(e)})
 
     # Check 24h cache
-    cached_doc = await get_recent_document_by_url(user["id"], company_url)
+    cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
     if cached_doc:
         await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
         return _build_clay_response(cached_doc, cached=True)
 
     # Check and reserve credits
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
         if usage.get("bonus_credits", 0) <= 0:
             return JSONResponse(content={"success": False, "error": "No credits remaining"})
-        reserved = await use_credit(user["id"])
+        reserved = await use_credit(api_user["id"])
         if not reserved:
             return JSONResponse(content={"success": False, "error": "No credits remaining"})
 
     # Create research job for tracking
-    job = await create_research_job(user["id"], api_user["api_key_id"], company_url)
+    job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
     # Run pipeline synchronously
     start = time.monotonic()
     try:
-        doc_id = await _run_research_pipeline(user["id"], company_url)
+        doc_id = await _run_research_pipeline(api_user["id"], company_url)
         duration = time.monotonic() - start
 
         await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 1)
         from database import update_job_status
         await update_job_status(job["id"], "completed", document_id=doc_id)
 
-        doc = await get_document(doc_id, user["id"])
+        doc = await get_document(doc_id, api_user["id"])
         return _build_clay_response(doc, cached=False, duration=duration)
 
     except Exception as e:
         duration = time.monotonic() - start
         if not is_admin:
-            await refund_credit(user["id"])
+            await refund_credit(api_user["id"])
         from database import update_job_status
         await update_job_status(job["id"], "failed", error_message=str(e)[:500])
         return JSONResponse(
@@ -377,21 +366,16 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
     """Generate a 3-email outreach sequence from a completed research document."""
     sequence_limiter.check(api_user["api_key_id"])
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    document = await get_document(doc_id, user_id=user["id"])
+    document = await get_document(doc_id, user_id=api_user["id"])
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    from services.writing import WritingService
-    writing_service = WritingService()
+    from services.instances import writing_service
 
     try:
         emails = await writing_service.generate_email_sequence(
             document=document,
-            product_context=user.get("product_context", ""),
+            product_context=api_user.get("product_context", ""),
         )
 
         await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)
@@ -424,10 +408,6 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
     if len(body.company_urls) > 100:
         raise HTTPException(status_code=422, detail="Maximum 100 URLs per bulk job")
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
     # Validate all URLs upfront
     validated_urls = []
     for url in body.company_urls:
@@ -438,21 +418,21 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
 
     # Reserve credits upfront
     n = len(validated_urls)
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
         credits_needed = n * 100  # cents
         if usage.get("bonus_credits", 0) < credits_needed:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(user["id"], cents=credits_needed)
+        reserved = await use_credit(api_user["id"], cents=credits_needed)
         if not reserved:
             raise HTTPException(status_code=402, detail="Insufficient credits")
 
-    bulk_job = await create_bulk_job(user["id"], api_user["api_key_id"], body.name, n, n * 100)
+    bulk_job = await create_bulk_job(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
     await create_bulk_job_items(bulk_job["id"], validated_urls)
 
     create_tracked_task(
-        run_bulk_job(bulk_job["id"], user["id"], api_user["api_key_id"], is_admin=is_admin),
+        run_bulk_job(bulk_job["id"], api_user["id"], api_user["api_key_id"], is_admin=is_admin),
         name=f"bulk-{bulk_job['id']}",
     )
 
@@ -463,7 +443,7 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
 async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require_api_key)):
     """Get bulk job progress and all items."""
     default_limiter.check(api_user["api_key_id"])
-    job = await get_bulk_job(bulk_job_id, api_user["user_id"])
+    job = await get_bulk_job(bulk_job_id, api_user["id"])
     if not job:
         raise HTTPException(status_code=404, detail="Bulk job not found")
 
@@ -499,7 +479,7 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
 async def list_bulk_jobs_endpoint(api_user: dict = Depends(require_api_key)):
     """List recent bulk jobs (summaries only)."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_bulk_jobs(api_user["user_id"])
+    jobs = await list_bulk_jobs(api_user["id"])
     return {
         "bulk_jobs": [
             {
@@ -539,10 +519,6 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     if not body.name or not body.name.strip():
         raise HTTPException(status_code=422, detail="name is required")
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
     # Validate and deduplicate URLs upfront
     validated_urls = []
     seen = set()
@@ -556,7 +532,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
             validated_urls.append(v)
 
     n = len(validated_urls)
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
 
     # Reserve credits if analyzing immediately
@@ -564,18 +540,18 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
         credits_needed = n * 100
         if usage.get("bonus_credits", 0) < credits_needed:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(user["id"], cents=credits_needed)
+        reserved = await use_credit(api_user["id"], cents=credits_needed)
         if not reserved:
             raise HTTPException(status_code=402, detail="Insufficient credits")
 
-    lst = await create_list(user["id"], api_user["api_key_id"], body.name.strip())
+    lst = await create_list(api_user["id"], api_user["api_key_id"], body.name.strip())
     await add_list_accounts(lst["id"], validated_urls)
 
     if body.analyze:
         await update_list_credits(lst["id"], n * 100)
         await update_list_status(lst["id"], "analyzing")
         create_tracked_task(
-            run_list_analysis(lst["id"], user["id"], api_user["api_key_id"], is_admin=is_admin),
+            run_list_analysis(lst["id"], api_user["id"], api_user["api_key_id"], is_admin=is_admin),
             name=f"list-{lst['id']}",
         )
         status = "analyzing"
@@ -595,11 +571,7 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
     """Trigger analysis on a list's pending accounts."""
     bulk_limiter.check(api_user["api_key_id"])
 
-    user = await get_user_by_id(api_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    lst = await get_list(list_id, api_user["user_id"])
+    lst = await get_list(list_id, api_user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
@@ -613,20 +585,20 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
         raise HTTPException(status_code=422, detail="No pending accounts to analyze")
 
     n = len(pending)
-    usage = await get_user_usage(user["id"])
+    usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
 
     if not is_admin:
         credits_needed = n * 100
         if usage.get("bonus_credits", 0) < credits_needed:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(user["id"], cents=credits_needed)
+        reserved = await use_credit(api_user["id"], cents=credits_needed)
         if not reserved:
             raise HTTPException(status_code=402, detail="Insufficient credits")
 
     await update_list_credits(list_id, (lst["credits_reserved"] or 0) + n * 100)
     create_tracked_task(
-        run_list_analysis(list_id, user["id"], api_user["api_key_id"], is_admin=is_admin),
+        run_list_analysis(list_id, api_user["id"], api_user["api_key_id"], is_admin=is_admin),
         name=f"list-analyze-{list_id}",
     )
 
@@ -647,7 +619,7 @@ async def get_list_endpoint(
     """Get list details with accounts, optional filtering/sorting."""
     default_limiter.check(api_user["api_key_id"])
 
-    lst = await get_list(list_id, api_user["user_id"])
+    lst = await get_list(list_id, api_user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
@@ -690,7 +662,7 @@ async def get_list_endpoint(
 async def list_lists_endpoint(api_user: dict = Depends(require_api_key)):
     """List user's recent lists (summaries, no accounts)."""
     default_limiter.check(api_user["api_key_id"])
-    lists = await db_list_lists(api_user["user_id"])
+    lists = await db_list_lists(api_user["id"])
     return {
         "lists": [
             {
@@ -712,7 +684,7 @@ async def list_lists_endpoint(api_user: dict = Depends(require_api_key)):
 async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
     """Delete a list and all its accounts."""
     default_limiter.check(api_user["api_key_id"])
-    deleted = await delete_list(list_id, api_user["user_id"])
+    deleted = await delete_list(list_id, api_user["id"])
     if not deleted:
         raise HTTPException(status_code=404, detail="List not found")
     return JSONResponse(status_code=204, content=None)

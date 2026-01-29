@@ -99,26 +99,30 @@ async def collect_enrichment_data(
                 print(f"News fetch failed (non-fatal): {e}")
             return None
 
-    async def _fetch_edgar_and_fedreg():
-        edgar_content = None
-        fed_content = None
-        if settings.edgar_enabled:
-            try:
-                edgar_content = await edgar_service.get_company_filings(company_name, client=client)
-            except Exception as e:
-                if verbose:
-                    print(f"EDGAR lookup failed (non-fatal): {e}")
-        if settings.federal_register_enabled:
-            try:
-                fed_content = await federal_register_service.get_upcoming_regulations(
-                    company_name=company_name,
-                    sic_code=edgar_service._last_sic_code,
-                    client=client,
-                )
-            except Exception as e:
-                if verbose:
-                    print(f"Federal Register lookup failed (non-fatal): {e}")
-        return edgar_content, fed_content
+    async def _fetch_edgar():
+        if not settings.edgar_enabled:
+            return None
+        try:
+            return await edgar_service.get_company_filings(company_name, client=client)
+        except Exception as e:
+            if verbose:
+                print(f"EDGAR lookup failed (non-fatal): {e}")
+            return None
+
+    async def _fetch_fedreg():
+        """Fetch Federal Register data. Runs after EDGAR so SIC code is available."""
+        if not settings.federal_register_enabled:
+            return None
+        try:
+            return await federal_register_service.get_upcoming_regulations(
+                company_name=company_name,
+                sic_code=edgar_service._last_sic_code,
+                client=client,
+            )
+        except Exception as e:
+            if verbose:
+                print(f"Federal Register lookup failed (non-fatal): {e}")
+            return None
 
     async def _fetch_reviews():
         if not settings.reviews_enabled:
@@ -148,19 +152,22 @@ async def collect_enrichment_data(
     if verbose:
         print(f"Fetching enrichment data for {company_name} (parallel)...")
 
-    news_result, edgar_fedreg_result, reviews_result, materials_result = await asyncio.gather(
+    # Run EDGAR, news, reviews, materials in parallel
+    news_result, edgar_content, reviews_result, materials_result = await asyncio.gather(
         _fetch_news(),
-        _fetch_edgar_and_fedreg(),
+        _fetch_edgar(),
         _fetch_reviews(),
         _fetch_materials(),
     )
+
+    # Federal Register depends on EDGAR's SIC code, so run after EDGAR completes
+    fed_content = await _fetch_fedreg()
 
     # Assign results
     if news_result:
         scraped_content.news = news_result
         if verbose:
             print("Found recent news articles")
-    edgar_content, fed_content = edgar_fedreg_result
     if edgar_content:
         scraped_content.edgar_filings = edgar_content
         if verbose:
