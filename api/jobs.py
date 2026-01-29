@@ -11,21 +11,15 @@ from database import (
     create_webhook_delivery, update_delivery_status, refund_credit,
     create_research_job, get_bulk_job_items, update_bulk_job_item,
     finalize_bulk_job,
-    get_pending_list_accounts, update_list_account, update_list_status,
+    get_pending_list_accounts, update_list_account,
     finalize_list,
 )
-from services.firecrawl import FirecrawlService
-from services.claude import ClaudeService
-from services.wappalyzer import WappalyzerService
 from services.collect import collect_enrichment_data
+from services.instances import firecrawl_service, claude_service, wappalyzer_service
 from config import get_settings
 from api.webhooks import sign_payload
 
 logger = logging.getLogger(__name__)
-
-firecrawl_service = FirecrawlService()
-claude_service = ClaudeService()
-wappalyzer_service = WappalyzerService()
 
 
 async def _run_research_pipeline(user_id: int, company_url: str) -> int:
@@ -112,7 +106,10 @@ async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin
                 await update_job_status(job["id"], "failed", error_message=error_msg)
                 await update_bulk_job_item(item_id, "failed", research_job_id=job["id"], error_message=error_msg)
 
-    await asyncio.gather(*(process_item(item) for item in items), return_exceptions=True)
+    results = await asyncio.gather(*(process_item(item) for item in items), return_exceptions=True)
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error("Bulk item %s raised unhandled exception: %s", items[i]["id"], result)
 
     # Finalize and refund failed credits
     final = await finalize_bulk_job(bulk_job_id)
@@ -126,7 +123,6 @@ async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin
 
 async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None = None, is_admin: bool = False):
     """Process all pending accounts in a list with bounded concurrency."""
-    await update_list_status(list_id, "analyzing")
     accounts = await get_pending_list_accounts(list_id)
     semaphore = asyncio.Semaphore(5)
 
@@ -168,7 +164,10 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
                     error_message=error_msg,
                 )
 
-    await asyncio.gather(*(process_account(a) for a in accounts), return_exceptions=True)
+    results = await asyncio.gather(*(process_account(a) for a in accounts), return_exceptions=True)
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error("List account %s raised unhandled exception: %s", accounts[i]["id"], result)
 
     # Finalize and refund failed credits
     final = await finalize_list(list_id)

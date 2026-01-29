@@ -166,7 +166,7 @@ class WappalyzerService:
 
         print(f"Checking {len(urls_to_check)} potential app subdomains...")
 
-        client = get_shared_http_client()
+        client = await get_shared_http_client()
         tasks = [self._check_url_exists(client, url) for url in urls_to_check]
         results = await asyncio.gather(*tasks)
 
@@ -189,7 +189,7 @@ class WappalyzerService:
 
         print(f"Checking {len(urls_to_check)} potential app paths...")
 
-        client = get_shared_http_client()
+        client = await get_shared_http_client()
         tasks = [self._check_url_exists(client, url) for url in urls_to_check]
         results = await asyncio.gather(*tasks)
 

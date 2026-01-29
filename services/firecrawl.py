@@ -217,7 +217,7 @@ class FirecrawlService:
 
         print(f"Starting comprehensive scrape for {domain}...")
 
-        client = get_shared_http_client()
+        client = await get_shared_http_client()
         print("Running all scraping tasks in parallel...")
 
         other_urls = {

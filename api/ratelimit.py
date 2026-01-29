@@ -20,10 +20,8 @@ class RateLimiter:
         """Raise 429 if rate limit exceeded."""
         now = time.monotonic()
         cutoff = now - self.window
-        hits = self._hits[api_key_id]
 
-        # Prune old entries
-        self._hits[api_key_id] = hits = [t for t in hits if t > cutoff]
+        hits = [t for t in self._hits[api_key_id] if t > cutoff]
 
         if len(hits) >= self.requests:
             retry_after = int(hits[0] - cutoff) + 1
@@ -34,6 +32,15 @@ class RateLimiter:
             )
 
         hits.append(now)
+        self._hits[api_key_id] = hits
+
+    def _cleanup(self) -> None:
+        """Remove keys with no recent hits. Call periodically if needed."""
+        now = time.monotonic()
+        cutoff = now - self.window
+        empty = [k for k, v in self._hits.items() if not any(t > cutoff for t in v)]
+        for k in empty:
+            del self._hits[k]
 
 
 # Shared limiters

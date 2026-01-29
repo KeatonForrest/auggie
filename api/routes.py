@@ -1,6 +1,5 @@
 """v1 API routes — authenticated via API key."""
 
-import asyncio
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,9 +18,11 @@ from database import (
     add_list_accounts, get_list_accounts, get_pending_list_accounts,
     update_list_status, update_list_credits,
     get_recent_document_by_url,
+    try_start_list_analysis,
 )
 from api.validation import validate_company_url
 from api.jobs import run_research_job, run_bulk_job, run_list_analysis, _run_research_pipeline
+from api.tasks import create_tracked_task
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
@@ -84,8 +85,9 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
 
     job = await create_research_job(user["id"], api_user["api_key_id"], company_url)
 
-    asyncio.create_task(
-        run_research_job(job["id"], user["id"], api_user["api_key_id"], company_url, is_admin=is_admin)
+    create_tracked_task(
+        run_research_job(job["id"], user["id"], api_user["api_key_id"], company_url, is_admin=is_admin),
+        name=f"research-{job['id']}",
     )
 
     return {"job_id": job["id"], "status": "processing"}
@@ -449,8 +451,9 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
     bulk_job = await create_bulk_job(user["id"], api_user["api_key_id"], body.name, n, n * 100)
     await create_bulk_job_items(bulk_job["id"], validated_urls)
 
-    asyncio.create_task(
-        run_bulk_job(bulk_job["id"], user["id"], api_user["api_key_id"], is_admin=is_admin)
+    create_tracked_task(
+        run_bulk_job(bulk_job["id"], user["id"], api_user["api_key_id"], is_admin=is_admin),
+        name=f"bulk-{bulk_job['id']}",
     )
 
     return {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
@@ -571,8 +574,9 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     if body.analyze:
         await update_list_credits(lst["id"], n * 100)
         await update_list_status(lst["id"], "analyzing")
-        asyncio.create_task(
-            run_list_analysis(lst["id"], user["id"], api_user["api_key_id"], is_admin=is_admin)
+        create_tracked_task(
+            run_list_analysis(lst["id"], user["id"], api_user["api_key_id"], is_admin=is_admin),
+            name=f"list-{lst['id']}",
         )
         status = "analyzing"
     else:
@@ -599,7 +603,9 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    if lst["status"] == "analyzing":
+    # Atomic status transition — prevents concurrent analysis starts
+    started = await try_start_list_analysis(list_id)
+    if not started:
         raise HTTPException(status_code=409, detail="List is already being analyzed")
 
     pending = await get_pending_list_accounts(list_id)
@@ -619,8 +625,9 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
             raise HTTPException(status_code=402, detail="Insufficient credits")
 
     await update_list_credits(list_id, (lst["credits_reserved"] or 0) + n * 100)
-    asyncio.create_task(
-        run_list_analysis(list_id, user["id"], api_user["api_key_id"], is_admin=is_admin)
+    create_tracked_task(
+        run_list_analysis(list_id, user["id"], api_user["api_key_id"], is_admin=is_admin),
+        name=f"list-analyze-{list_id}",
     )
 
     return {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
