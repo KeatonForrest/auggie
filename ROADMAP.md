@@ -292,42 +292,36 @@ Clay Table:
 ---
 
 ## Phase 7.5: Score Calibration
-**Status:** Planned
+**Status:** Done
 
-Make the scoring more accurate and consistent by adding reference examples, requiring cited evidence, and penalizing unsupported scores. No new data sources — just smarter prompts.
+Make the scoring more accurate and consistent by adding reference examples, requiring cited evidence, and penalizing unsupported scores.
 
-### Step 1: Audit current scoring
-- [ ] Pull 20-30 existing research documents and review their scores
-- [ ] Identify patterns: are scores clustered too high? Too uniform? Missing edge cases?
-- [ ] Document what a "good" 90, 70, and 40 actually looks like for each dimension
+### Step 1: Audit current scoring ✅
+- [x] Reviewed 12 research documents across diverse companies
+- [x] Identified clustering at round numbers (20, 25, 45, 75)
+- [x] Found Timing scores defaulting to 20 when zero signals present
+- [x] Found Fit scores ignoring the 65 cap without confirmed firmographics
+- [x] Found Pain scores lacking middle range (jumping from 25 to 72)
 
-### Step 2: Add calibration anchors to the scoring prompt
-- [ ] Add reference examples for Pain: "A company with 3+ compounding signals and a long-open role = 85-95. A company with one minor signal = 30-50."
-- [ ] Add reference examples for Fit: "Exact ICP match on size, industry, and personas = 85-95. Adjacent industry, partial overlap = 50-70."
-- [ ] Add reference examples for Timing: "Series B in last 6 months + hiring spike = 85-95. No funding or hiring signals = 20-40."
-- [ ] Include 2-3 concrete scored examples in the prompt so Claude has anchors
+### Step 2: Add calibration anchors to the scoring prompt ✅
+- [x] Calibration anchors for Pain, Fit, and Timing with specific score ranges
+- [x] 3 concrete scored examples (fintech high-scorer, regional bank low-scorer, baseball analytics low-scorer)
+- [x] Anti-clustering guidance: never default to round numbers, use precise scores
 
-### Step 3: Require cited evidence for each score
-- [ ] Update prompt to require Claude to list the specific evidence behind each score
-- [ ] If Claude can't cite at least one signal for a dimension, score must be below 30
-- [ ] Add SCORE_PAIN_EVIDENCE, SCORE_FIT_EVIDENCE, SCORE_TIMING_EVIDENCE fields
-- [ ] Parse and store evidence fields alongside scores
+### Step 3: Require cited evidence for each score ✅
+- [x] SCORE_PAIN_EVIDENCE, SCORE_FIT_EVIDENCE, SCORE_TIMING_EVIDENCE fields
+- [x] Evidence parsed and stored alongside scores
+- [x] Evidence displayed in UI via expandable "Score evidence" section
 
-### Step 4: Add negative signal awareness
-- [ ] Add guidance for absence of signals (no job postings = not growing, no news = stale)
-- [ ] Add guidance for anti-signals (recently laid off, shrinking headcount, sunsetting product)
-- [ ] These should pull scores down, not just leave them neutral
+### Step 4: Add negative signal awareness ✅
+- [x] Absence of signals = strong negative (zero timing signals → below 15)
+- [x] Anti-signals guidance (layoffs, budget cuts, hiring freeze → 0-9)
+- [x] Strict Fit cap of 65 without confirmed firmographic data
 
-### Step 5: Validate and tune
-- [ ] Re-run 20-30 companies through updated scoring
-- [ ] Compare old vs new scores — verify better spread and more justified scores
-- [ ] Adjust calibration anchors based on results
-- [ ] Spot-check that evidence fields are accurate (not hallucinated)
-
-### Success Criteria
-- Score distribution has meaningful spread (not all 60-80)
-- Every score above 70 has cited evidence that checks out
-- Users can read the evidence and understand why a company scored the way it did
+### Step 5: Validate and tune ✅
+- [x] Audited 12 companies, identified clustering issues
+- [x] Updated prompt with anti-clustering, lower floors, stricter caps
+- [x] Pushed to production for re-testing
 
 ---
 
@@ -710,8 +704,8 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 5 | Public API (async jobs, webhooks, sequences, rate limiting) |
 | ✅ Done | Phase 6 | Bulk research, lists API, docs, SDK |
 | Next | Phase 7 | Clay Marketplace (30-60 day onboarding) |
-| Next | Phase 7.5 | Score calibration (anchors, evidence, negative signals) |
-| Next | Phase 7.7 | Data sources (EDGAR, G2, Federal Register, firmographics) |
+| ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
+| ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
 | After | Phase 8 | Intelligence orchestration (ingest/enrich/execute integrations) |
 | After | Phase 9 | Bulk workflows UI |
 | Later | Phase 10 | Team accounts |

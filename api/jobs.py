@@ -17,11 +17,7 @@ from database import (
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
-from services.news import NewsService
-from services.edgar import EdgarService
-from services.reviews import ReviewsService
-from services.federal_register import FederalRegisterService
-from services.retrieval import RetrievalService
+from services.collect import collect_enrichment_data
 from config import get_settings
 from api.webhooks import sign_payload
 
@@ -30,17 +26,6 @@ logger = logging.getLogger(__name__)
 firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
-news_service = NewsService()
-edgar_service = EdgarService()
-reviews_service = ReviewsService()
-federal_register_service = FederalRegisterService()
-_retrieval_service = None
-
-def _get_retrieval_service():
-    global _retrieval_service
-    if _retrieval_service is None and get_settings().materials_enabled:
-        _retrieval_service = RetrievalService()
-    return _retrieval_service
 
 
 async def _run_research_pipeline(user_id: int, company_url: str) -> int:
@@ -60,52 +45,9 @@ async def _run_research_pipeline(user_id: int, company_url: str) -> int:
     )
 
     company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-    news_content = await news_service.get_company_news(company_name)
-    if news_content:
-        scraped_content.news = news_content
-
-    # Fetch SEC EDGAR filings for public companies
-    settings = get_settings()
-    if settings.edgar_enabled:
-        try:
-            edgar_content = await edgar_service.get_company_filings(company_name)
-            if edgar_content:
-                scraped_content.edgar_filings = edgar_content
-        except Exception:
-            pass
-
-    # Fetch G2/Capterra reviews
-    if settings.reviews_enabled:
-        try:
-            reviews_content = await reviews_service.get_reviews(company_name)
-            if reviews_content:
-                scraped_content.reviews = reviews_content
-        except Exception:
-            pass
-
-    # Fetch upcoming regulations
-    if settings.federal_register_enabled:
-        try:
-            fed_content = await federal_register_service.get_upcoming_regulations(
-                company_name=company_name,
-                sic_code=edgar_service._last_sic_code,
-            )
-            if fed_content:
-                scraped_content.federal_regulations = fed_content
-        except Exception:
-            pass
-
-    retrieved_materials = ""
-    retrieval = _get_retrieval_service()
-    if retrieval:
-        try:
-            retrieved_materials = await retrieval.get_relevant_context(
-                user_id=user_id,
-                company_name=company_name,
-                company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-            )
-        except Exception:
-            pass
+    retrieved_materials = await collect_enrichment_data(
+        scraped_content, company_name, user_id,
+    )
 
     document = await claude_service.generate_research_document(
         company_url=company_url,

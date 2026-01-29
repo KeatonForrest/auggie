@@ -19,13 +19,9 @@ from models import ResearchRequest, ResearchResponse, ResearchDocument
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
 from services.wappalyzer import WappalyzerService
-from services.news import NewsService
 from services.materials import MaterialsService
-from services.retrieval import RetrievalService
 from services.writing import WritingService
-from services.edgar import EdgarService
-from services.reviews import ReviewsService
-from services.federal_register import FederalRegisterService
+from services.collect import collect_enrichment_data
 from database import (
     init_database, close_database, save_document, get_document,
     get_all_documents, update_user_profile, get_user_usage,
@@ -88,15 +84,10 @@ templates = Jinja2Templates(directory="templates")
 firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
 wappalyzer_service = WappalyzerService()
-news_service = NewsService()
-edgar_service = EdgarService()
-reviews_service = ReviewsService()
-federal_register_service = FederalRegisterService()
 writing_service = WritingService()
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
-retrieval_service = None
 
 def get_materials_service():
     """Get or create materials service (lazy init)."""
@@ -104,13 +95,6 @@ def get_materials_service():
     if materials_service is None and settings.materials_enabled:
         materials_service = MaterialsService()
     return materials_service
-
-def get_retrieval_service():
-    """Get or create retrieval service (lazy init)."""
-    global retrieval_service
-    if retrieval_service is None and settings.materials_enabled:
-        retrieval_service = RetrievalService()
-    return retrieval_service
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -391,75 +375,11 @@ async def create_research(
         total_tech = sum(len(t.technologies) for t in tech_by_domain.values())
         print(f"Detected {total_tech} technologies across {len(tech_by_domain)} domains")
 
-        # Fetch recent news about the company
+        # Parallel data collection
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        print(f"Fetching news for {company_name}...")
-        news_content = await news_service.get_company_news(company_name)
-        if news_content:
-            scraped_content.news = news_content
-            print(f"Found recent news articles")
-        else:
-            print("No recent news found")
-
-        # Fetch SEC EDGAR filings for public companies
-        settings = get_settings()
-        if settings.edgar_enabled:
-            try:
-                print(f"Checking SEC EDGAR for {company_name}...")
-                edgar_content = await edgar_service.get_company_filings(company_name)
-                if edgar_content:
-                    scraped_content.edgar_filings = edgar_content
-                    print("Found SEC EDGAR filings")
-                else:
-                    print("Not a public company or no EDGAR data found")
-            except Exception as e:
-                print(f"EDGAR lookup failed (non-fatal): {e}")
-
-        # Fetch G2/Capterra reviews
-        if settings.reviews_enabled:
-            try:
-                print(f"Checking G2/Capterra for {company_name}...")
-                reviews_content = await reviews_service.get_reviews(company_name)
-                if reviews_content:
-                    scraped_content.reviews = reviews_content
-                    print("Found review data")
-                else:
-                    print("No G2/Capterra reviews found")
-            except Exception as e:
-                print(f"Reviews scraping failed (non-fatal): {e}")
-
-        # Fetch upcoming regulations from Federal Register
-        if settings.federal_register_enabled:
-            try:
-                sic_code = edgar_service._last_sic_code
-                print(f"Checking Federal Register for {company_name}...")
-                fed_content = await federal_register_service.get_upcoming_regulations(
-                    company_name=company_name,
-                    sic_code=sic_code,
-                )
-                if fed_content:
-                    scraped_content.federal_regulations = fed_content
-                    print("Found relevant regulations")
-                else:
-                    print("No relevant upcoming regulations found")
-            except Exception as e:
-                print(f"Federal Register lookup failed (non-fatal): {e}")
-
-        # v2: Retrieve relevant materials if enabled
-        retrieved_materials = ""
-        retrieval = get_retrieval_service()
-        if retrieval:
-            try:
-                print("Searching for relevant sales materials...")
-                retrieved_materials = await retrieval.get_relevant_context(
-                    user_id=user["id"],
-                    company_name=company_name,
-                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                )
-                if retrieved_materials:
-                    print(f"Found relevant materials to enhance research")
-            except Exception as e:
-                print(f"Materials retrieval failed (non-fatal): {e}")
+        retrieved_materials = await collect_enrichment_data(
+            scraped_content, company_name, user["id"], verbose=True,
+        )
 
         print("Generating research document...")
         document = await claude_service.generate_research_document(
@@ -705,55 +625,10 @@ async def api_create_research(
             main_html=scraped_content.homepage_html
         )
 
-        # Fetch recent news
         company_name = company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        news_content = await news_service.get_company_news(company_name)
-        if news_content:
-            scraped_content.news = news_content
-
-        # Fetch SEC EDGAR filings for public companies
-        settings = get_settings()
-        if settings.edgar_enabled:
-            try:
-                edgar_content = await edgar_service.get_company_filings(company_name)
-                if edgar_content:
-                    scraped_content.edgar_filings = edgar_content
-            except Exception:
-                pass
-
-        # Fetch G2/Capterra reviews
-        if settings.reviews_enabled:
-            try:
-                reviews_content = await reviews_service.get_reviews(company_name)
-                if reviews_content:
-                    scraped_content.reviews = reviews_content
-            except Exception:
-                pass
-
-        # Fetch upcoming regulations
-        if settings.federal_register_enabled:
-            try:
-                fed_content = await federal_register_service.get_upcoming_regulations(
-                    company_name=company_name,
-                    sic_code=edgar_service._last_sic_code,
-                )
-                if fed_content:
-                    scraped_content.federal_regulations = fed_content
-            except Exception:
-                pass
-
-        # v2: Retrieve relevant materials if enabled
-        retrieved_materials = ""
-        retrieval = get_retrieval_service()
-        if retrieval:
-            try:
-                retrieved_materials = await retrieval.get_relevant_context(
-                    user_id=user["id"],
-                    company_name=company_name,
-                    company_description=scraped_content.homepage[:500] if scraped_content.homepage else "",
-                )
-            except Exception:
-                pass  # Non-fatal
+        retrieved_materials = await collect_enrichment_data(
+            scraped_content, company_name, user["id"],
+        )
 
         document = await claude_service.generate_research_document(
             company_url=company_url,
