@@ -54,7 +54,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 - Core research generation working (Claude Opus 4, temperature 0.25)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
-- Consumption pricing (1 free, $10 for 10 credits) working
+- Consumption pricing (5 free, $10 for 10 credits) working
 - Admin accounts (unlimited usage for internal users)
 - Public API with async jobs, webhooks, rate limiting, sequence generation
 - Chrome extension with real-time progress tracking and background polling
@@ -606,7 +606,7 @@ UI and API use the same credits. Where you work doesn't change what you pay.
 | **Basic** | $1.00 | Research + sequence (BYOC) | UI + API |
 | **Full** | $1.50 | Research + Opportunity Score + LeadMagic contact + sequence | UI + API |
 
-**Free:** 1 Basic research to try it out (no API).
+**Free:** 5 researches to try it out (no API).
 
 **BYOC** = Bring Your Own Contact (you provide contact info for sequence personalization)
 

@@ -916,7 +916,7 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
             org_row = await conn.fetchrow(
                 """
                 INSERT INTO organizations (name, slug, bonus_credits)
-                VALUES ($1, $2, 100)
+                VALUES ($1, $2, 500)
                 RETURNING id
                 """,
                 org_name, org_slug
@@ -957,7 +957,7 @@ async def create_user_microsoft(email: str, name: str, picture: str, microsoft_i
             org_row = await conn.fetchrow(
                 """
                 INSERT INTO organizations (name, slug, bonus_credits)
-                VALUES ($1, $2, 100)
+                VALUES ($1, $2, 500)
                 RETURNING id
                 """,
                 org_name, org_slug
