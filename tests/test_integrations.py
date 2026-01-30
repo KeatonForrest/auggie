@@ -557,7 +557,7 @@ class TestPushToInstantlyRoute:
 
     @pytest.mark.asyncio
     async def test_push_rejects_wrong_user(self, authed_client):
-        with patch("main.get_list", new_callable=AsyncMock, return_value={"id": 1, "user_id": 999}):
+        with patch("main.get_list", new_callable=AsyncMock, return_value=None):
             response = await authed_client.post(
                 "/lists/1/push-instantly",
                 json={"campaign_id": "camp-1"},
