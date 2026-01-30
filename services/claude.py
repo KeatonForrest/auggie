@@ -19,7 +19,11 @@ class ClaudeService:
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "") -> str:
         """Build the system prompt defining Claude's research analyst role."""
-        base_prompt = f"""You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
+        base_prompt = f"""Follow every section in OUTPUT FORMAT exactly. Do not skip or merge sections. Output all SCORE_ fields at the end in the exact format specified.
+
+Your three dimension scores should rarely be within 10 points of each other. Companies almost always have uneven profiles — strong pain but weak timing, good fit but no urgency, etc. If your three scores are within 10 points, re-examine your evidence.
+
+You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
 
 UNDERSTANDING THE DATA:
 
@@ -384,6 +388,7 @@ IMPORTANT: Absence of signals is a STRONG negative signal for Timing. If you fou
 CONCRETE EXAMPLE (for a database product seller):
 - A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 85, Fit: 82, Timing: 79, Composite: 83
 - A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 22, Fit: 43, Timing: 18, Composite: 28
+- A healthcare SaaS company (200 employees, Series B) with one relevant job posting mentioning "data pipeline issues" but no long-open roles, partial ICP match (right industry, slightly small), no recent funding or leadership changes but steady hiring → Pain: 47, Fit: 54, Timing: 31, Composite: 45
 - A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 28, Fit: 36, Timing: 19, Composite: 28
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
@@ -504,15 +509,27 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         )
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
+        model = "claude-sonnet-4-20250514"
         message = self.client.messages.create(
-            model="claude-opus-4-20250514",
-            max_tokens=4000,
-            temperature=0.25,
+            model=model,
+            max_tokens=16000,
+            temperature=1.0,
+            thinking={
+                "type": "enabled",
+                "budget_tokens": 8000,
+            },
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
 
-        full_markdown = message.content[0].text
+        # Parse response: extract text and thinking content
+        full_markdown = ""
+        thinking_content = ""
+        for block in message.content:
+            if block.type == "thinking":
+                thinking_content += block.thinking + "\n"
+            elif block.type == "text":
+                full_markdown = block.text
         sections = self._parse_sections(full_markdown)
         scores = self._parse_scores(full_markdown)
 
@@ -539,6 +556,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             pain_evidence=scores.get("pain_evidence"),
             fit_evidence=scores.get("fit_evidence"),
             timing_evidence=scores.get("timing_evidence"),
+            thinking_content=thinking_content.strip() or None,
+            model_used=model,
             full_markdown=full_markdown,
         )
 

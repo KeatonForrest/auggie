@@ -189,6 +189,26 @@ async def init_database():
             except asyncpg.exceptions.DuplicateColumnError:
                 pass
 
+        # Add thinking_content and model_used columns
+        for col_name, col_type in [("thinking_content", "TEXT"), ("model_used", "TEXT")]:
+            try:
+                await conn.execute(f"ALTER TABLE research_documents ADD COLUMN {col_name} {col_type}")
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
+
+        # Create research_feedback table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS research_feedback (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES research_documents(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                is_positive BOOLEAN NOT NULL,
+                comment TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(document_id, user_id)
+            )
+        """)
+
         # Create indexes (IF NOT EXISTS for indexes requires a different approach)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_documents_user_created
@@ -1235,8 +1255,9 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 talking_points, recent_news, key_contacts, information_gaps,
                 opportunity_score, pain_score, fit_score, timing_score, score_summary,
                 pain_evidence, fit_evidence, timing_evidence,
+                thinking_content, model_used,
                 full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
             RETURNING id
             """,
             user_id,
@@ -1262,6 +1283,8 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.pain_evidence,
             doc.fit_evidence,
             doc.timing_evidence,
+            doc.thinking_content,
+            doc.model_used,
             doc.full_markdown,
         )
         return row['id']
@@ -1358,6 +1381,8 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         pain_evidence=row.get("pain_evidence"),
         fit_evidence=row.get("fit_evidence"),
         timing_evidence=row.get("timing_evidence"),
+        thinking_content=row.get("thinking_content"),
+        model_used=row.get("model_used"),
         full_markdown=row["full_markdown"] or "",
     )
 
@@ -1388,6 +1413,8 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
         pain_evidence=row.get("pain_evidence"),
         fit_evidence=row.get("fit_evidence"),
         timing_evidence=row.get("timing_evidence"),
+        thinking_content=row.get("thinking_content"),
+        model_used=row.get("model_used"),
         full_markdown="",
     )
 
@@ -2815,3 +2842,51 @@ async def delete_empty_org(org_id: int) -> bool:
             await conn.execute("DELETE FROM organizations WHERE id = $1", org_id)
             return True
         return False
+
+
+# =================================================================
+# Research Feedback
+# =================================================================
+
+async def save_feedback(document_id: int, user_id: int, is_positive: bool, comment: Optional[str] = None):
+    """Upsert feedback for a document (one per user per document)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO research_feedback (document_id, user_id, is_positive, comment)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (document_id, user_id)
+            DO UPDATE SET is_positive = $3, comment = $4, created_at = NOW()
+            """,
+            document_id, user_id, is_positive, comment,
+        )
+
+
+async def get_feedback(document_id: int, user_id: int) -> Optional[dict]:
+    """Get existing feedback for a document by a user."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT is_positive, comment FROM research_feedback WHERE document_id = $1 AND user_id = $2",
+            document_id, user_id,
+        )
+        if row:
+            return {"is_positive": row["is_positive"], "comment": row["comment"]}
+        return None
+
+
+async def get_all_feedback(limit: int = 100) -> list[dict]:
+    """Get all feedback joined with document model_used and scores for A/B analysis."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT f.id, f.document_id, f.user_id, f.is_positive, f.comment, f.created_at,
+                   d.model_used, d.opportunity_score, d.pain_score, d.fit_score, d.timing_score,
+                   d.company_name
+            FROM research_feedback f
+            JOIN research_documents d ON d.id = f.document_id
+            ORDER BY f.created_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+        return [dict(r) for r in rows]

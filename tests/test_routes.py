@@ -57,12 +57,14 @@ async def test_view_document(authed_client, sample_research_document):
     with patch("main.get_document", new_callable=AsyncMock) as mock_get_doc, \
          patch("main.get_all_documents", new_callable=AsyncMock) as mock_get_docs, \
          patch("main.get_user_usage", new_callable=AsyncMock) as mock_usage, \
-         patch("main.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts:
+         patch("main.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts, \
+         patch("main.get_feedback", new_callable=AsyncMock) as mock_feedback:
 
         mock_get_doc.return_value = sample_research_document
         mock_get_docs.return_value = [sample_research_document]
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
         mock_contacts.return_value = []
+        mock_feedback.return_value = None
 
         response = await authed_client.get("/document/1")
 

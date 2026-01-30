@@ -111,6 +111,10 @@ class ResearchDocument(BaseModel):
     fit_evidence: Optional[str] = None       # Bullet list of fit signals
     timing_evidence: Optional[str] = None    # Bullet list of timing signals
 
+    # Model metadata
+    thinking_content: Optional[str] = None
+    model_used: Optional[str] = None
+
     full_markdown: str
 
 

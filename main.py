@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from contextlib import asynccontextmanager
 from io import BytesIO
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
@@ -36,6 +37,7 @@ from database import (
     create_research_job, get_research_job,
     check_duplicate_research, get_list_account, reset_list_account,
     get_user_webhook, upsert_webhook, delete_user_webhook,
+    save_feedback, get_feedback,
 )
 from auth import router as auth_router, get_current_user, require_auth, require_onboarding, require_org_admin
 from billing import router as billing_router
@@ -1267,6 +1269,7 @@ async def view_document(
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
     enriched_contacts = await get_enriched_contacts(doc_id, user["id"])
+    feedback = await get_feedback(doc_id, user["id"])
 
     return templates.TemplateResponse(
         "document.html",
@@ -1278,8 +1281,24 @@ async def view_document(
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "enriched_contacts": enriched_contacts,
+            "feedback": feedback,
         }
     )
+
+
+@app.post("/document/{doc_id}/feedback")
+async def submit_feedback(
+    doc_id: int,
+    is_positive: bool = Form(...),
+    comment: Optional[str] = Form(None),
+    user: dict = Depends(require_auth),
+):
+    """Submit thumbs up/down feedback on a research document."""
+    document = await get_document(doc_id, user_id=user["id"])
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await save_feedback(doc_id, user["id"], is_positive, comment)
+    return JSONResponse({"success": True})
 
 
 @app.get("/document/{doc_id}/markdown")

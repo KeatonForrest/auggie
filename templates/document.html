@@ -146,6 +146,28 @@ This template displays a generated research document with:
                 </div>
             </div>
         </details>
+    <!-- Feedback Widget -->
+    <div class="mt-4 border-t pt-4">
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-medium text-gray-600">Was this research helpful?</span>
+            <button onclick="submitFeedback(true)" id="thumb-up"
+                    class="p-2 rounded-lg border transition {{ 'bg-green-100 border-green-400 text-green-700' if feedback and feedback.is_positive else 'border-gray-300 text-gray-400 hover:text-green-600 hover:border-green-300' }}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z M3 15v6h4v-6H3z"></path></svg>
+            </button>
+            <button onclick="submitFeedback(false)" id="thumb-down"
+                    class="p-2 rounded-lg border transition {{ 'bg-red-100 border-red-400 text-red-700' if feedback and not feedback.is_positive else 'border-gray-300 text-gray-400 hover:text-red-600 hover:border-red-300' }}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z M21 4h-4v11h4V4z"></path></svg>
+            </button>
+        </div>
+        <div id="feedback-comment-area" class="{{ '' if feedback else 'hidden' }} mt-3">
+            <textarea id="feedback-comment" rows="2" placeholder="Optional: tell us more..."
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">{{ feedback.comment if feedback and feedback.comment else '' }}</textarea>
+            <button onclick="submitFeedbackWithComment()" class="mt-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                Save comment
+            </button>
+        </div>
+        <div id="feedback-toast" class="hidden mt-2 text-sm text-green-600 font-medium">Feedback saved!</div>
+    </div>
     </div>
     {% endif %}
 
@@ -436,6 +458,45 @@ This template displays a generated research document with:
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeOutreachModal();
     });
+
+    // Feedback
+    let currentFeedbackPositive = null;
+
+    function submitFeedback(isPositive) {
+        currentFeedbackPositive = isPositive;
+        document.getElementById('feedback-comment-area').classList.remove('hidden');
+        // Update button styles
+        const upBtn = document.getElementById('thumb-up');
+        const downBtn = document.getElementById('thumb-down');
+        upBtn.className = 'p-2 rounded-lg border transition ' + (isPositive ? 'bg-green-100 border-green-400 text-green-700' : 'border-gray-300 text-gray-400 hover:text-green-600 hover:border-green-300');
+        downBtn.className = 'p-2 rounded-lg border transition ' + (!isPositive ? 'bg-red-100 border-red-400 text-red-700' : 'border-gray-300 text-gray-400 hover:text-red-600 hover:border-red-300');
+        // Submit immediately without comment
+        doSubmitFeedback(isPositive, '');
+    }
+
+    function submitFeedbackWithComment() {
+        if (currentFeedbackPositive === null) return;
+        const comment = document.getElementById('feedback-comment').value;
+        doSubmitFeedback(currentFeedbackPositive, comment);
+    }
+
+    function doSubmitFeedback(isPositive, comment) {
+        const formData = new FormData();
+        formData.append('is_positive', isPositive);
+        formData.append('comment', comment);
+        fetch('/document/{{ document.id }}/feedback', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const toast = document.getElementById('feedback-toast');
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 2000);
+            }
+        });
+    }
 
 </script>
 {% endblock %}
