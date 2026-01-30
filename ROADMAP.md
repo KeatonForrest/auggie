@@ -397,10 +397,7 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [x] Polish pass: timer memory leak fix, storage/API error hardening, input validation, clipboard safety
 
 ### Future Execute Integrations
-- [ ] Outreach — push sequences
-- [ ] Salesloft — push sequences
-- [ ] HubSpot — push to sequences
-- [ ] Salesforce — sync research to account records
+_Moved to Phase 11.5 (testing) and Phase 11.75 (new sequencers)._
 
 ### Future Enrich Integrations
 - [ ] LeadMagic — contacts for high-pain accounts only (re-enable after data quality improves)
@@ -548,6 +545,33 @@ Enable businesses to have multiple users under one organization.
 - [x] Nav cleanup: collapsed to 4 primary links + "More" dropdown
 - [x] G2/Capterra review scraping removed (low signal-to-cost)
 - [x] Wappalyzer optimized: subdomain list cut from 30+ to 10, HEAD-first discovery
+
+---
+
+## Phase 11.5: Integration Testing
+**Status:** Planned
+
+End-to-end testing of existing integrations before adding new ones.
+
+- [ ] HubSpot — import companies, write scores back
+- [ ] Salesforce — import accounts, write scores back
+- [ ] Instantly — push contacts + sequences
+- [ ] Apollo — import saved lists
+- [ ] Ocean.io — import lookalike audiences
+- [ ] Slack — webhook notifications (research complete, high-pain alert)
+- [ ] Webhooks — delivery + HMAC verification
+- [ ] Chrome extension — full flow (research, poll, display scores)
+
+---
+
+## Phase 11.75: Sequencer Integrations
+**Status:** Planned
+
+Add outbound sequencer integrations so users can push sequences directly from Auggie.
+
+- [ ] Outreach — OAuth connection, push contacts + sequences to Outreach
+- [ ] Salesloft — OAuth connection, push contacts + sequences to Salesloft
+- [ ] EmailBison — API integration, push sequences
 
 ---
 
@@ -707,6 +731,8 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
 | ✅ Done | Phase 11 | Team accounts (orgs, invites, roles, shared credits, usage dashboard) |
+| Next | Phase 11.5 | Integration testing (HubSpot, Salesforce, Instantly, Apollo, etc.) |
+| Next | Phase 11.75 | Sequencer integrations (Outreach, Salesloft, EmailBison) |
 | Next | — | Speed: evaluate Sonnet 4 for research generation |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
