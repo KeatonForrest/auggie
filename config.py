@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # Federal Register API (free, no key needed)
     federal_register_enabled: bool = True
 
+    # Database pool sizing
+    db_pool_min: int = 5
+    db_pool_max: int = 20
+
     # Feature flags
     materials_enabled: bool = False
 

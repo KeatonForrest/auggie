@@ -3,3 +3,6 @@
 
 [phases.setup]
 aptPkgs = ["libxml2-dev", "libxslt1-dev", "zlib1g-dev"]
+
+[start]
+cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
