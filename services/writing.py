@@ -83,9 +83,9 @@ You MUST use partial-signal patterns for this sequence:
 - Position insights as benchmarks, not diagnoses
 - Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
 - Frame the ASK as "yours regardless" or "useful either way"
-- When describing what you observed, use neutral discovery language ("I saw X", "your site uses Y") — never frame missing technology as a gap or deficiency
-- Never reference what your research did or didn't uncover. Talk about what the prospect's stack IS, not what your search turned up. Do not narrate the research process.
-- If you only have partial tech signals, lead with what you see and pivot directly to the value question: "I saw X — curious whether Y is on your radar."
+- Lead with business initiatives, product launches, or market moves — not tech stack details
+- Never reference what your research did or didn't uncover. Talk about what the prospect is DOING, not what your search turned up. Do not narrate the research process.
+- If you only have partial signals, lead with the business activity and pivot to the value question: "You're expanding into X — curious whether Y is on your radar."
 - Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
 - Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
 
@@ -171,14 +171,26 @@ Constraints:
 - End with a statement, not a question
 
 Structure:
-- What you observed (specific, from research)
-- What that usually means for companies like them
-- A useful implication or pattern
+- Lead with the BUSINESS initiative or outcome they care about (product launch, market move, growth milestone)
+- Connect it to the friction or tradeoff companies in that position face
+- Close with a pattern or implication that earns curiosity
 
-Example (68 words):
-"I noticed you are hiring multiple Staff-level Golang engineers while rolling out AI agents across five use cases. That combination usually means the backend is under pressure to support workloads it was not designed for.
+**CRITICAL: Lead with business, not technology.**
+- DO NOT open with tech stack observations ("I noticed your site runs jQuery", "your domains show Bootstrap")
+- DO NOT list specific technologies, frameworks, or languages in the opening line
+- Technology can appear as brief supporting context mid-email, but the opener and closer must be about the business problem, initiative, or outcome
+- Think "you're launching X" not "your stack uses Y"
 
-Most teams in this spot end up choosing between expensive vertical scaling or a long re-architecture project. There is a third path that a few companies have figured out."
+Bad: "I noticed your product domains show jQuery and Bootstrap across the board while you're hiring AI Engineers."
+Good: "You're launching Deal Intelligence while scaling your AI team — the companies shipping AI products fastest have found a way to avoid the frontend rewrite that usually slows things down."
+
+Bad: "I noticed you're running Postgres and Redis while migrating to microservices."
+Good: "You're breaking your monolith into services while keeping release velocity up. Most teams in that transition hit a data layer bottleneck they don't see coming."
+
+Example (65 words):
+"You are rolling out AI agents across five use cases while expanding the engineering team to keep up. That pace usually forces a choice: expensive vertical scaling or a long re-architecture project that slows product delivery.
+
+The companies shipping fastest right now have found a third path that avoids both. The pattern looks a lot like what you are building toward."
 
 ---
 
@@ -193,12 +205,12 @@ Constraints:
 - No product mentions
 - End with a statement that connects to them
 
-Example (80 words):
-"An AI infrastructure company hit the same wall. Workloads that needed both real-time performance and flexible data handling. Their existing database forced them to choose one or build complex pipelines for both.
+Example (78 words):
+"An AI infrastructure company hit the same wall. They were shipping fast but every new use case meant more custom plumbing to keep performance up. Engineering headcount was growing faster than product output.
 
-They fixed it in 8 weeks. Cut query latency by 60%. Stopped their backend hiring surge. Model performance improved 3x while infrastructure costs dropped.
+They fixed it in 8 weeks. Cut time-to-ship by 60%. Stopped their backend hiring surge. Model performance improved 3x while infrastructure costs dropped.
 
-Your AI agents initiative has the same pattern. Five use cases, mixed workloads, and a hiring push to keep up."
+Your AI agents initiative has the same shape. Five use cases, growing team, and velocity pressure that keeps rising."
 
 ---
 
