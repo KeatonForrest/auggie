@@ -2029,6 +2029,8 @@ async def view_list(
     # Check if Instantly is connected
     from database import get_integration
     instantly_integration = await get_integration(user["id"], "instantly")
+    outreach_integration = await get_integration(user["id"], "outreach")
+    salesloft_integration = await get_integration(user["id"], "salesloft")
 
     # Pipeline step counts (computed server-side)
     scored_count = len([a for a in accounts if a.get("status") == "completed"])
@@ -2048,6 +2050,8 @@ async def view_list(
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "instantly_connected": instantly_integration is not None,
+            "outreach_connected": outreach_integration is not None,
+            "salesloft_connected": salesloft_integration is not None,
             "scored_count": scored_count,
             "enriched_count": enriched_count,
             "written_count": written_count,
@@ -2482,6 +2486,8 @@ async def automations_page(request: Request, user: dict = Depends(require_onboar
     # Check which integrations are connected for action config
     from database import get_integration
     instantly_connected = await get_integration(user["id"], "instantly") is not None
+    outreach_connected = await get_integration(user["id"], "outreach") is not None
+    salesloft_connected = await get_integration(user["id"], "salesloft") is not None
     slack_connected = await get_integration(user["id"], "slack") is not None
 
     # Group runs by rule_id for easy lookup in template
@@ -2499,6 +2505,8 @@ async def automations_page(request: Request, user: dict = Depends(require_onboar
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "instantly_connected": instantly_connected,
+            "outreach_connected": outreach_connected,
+            "salesloft_connected": salesloft_connected,
             "slack_connected": slack_connected,
         }
     )

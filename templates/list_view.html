@@ -30,6 +30,18 @@
                 Send to Instantly
             </button>
             {% endif %}
+            {% if outreach_connected %}
+            <button onclick="openOutreachPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+                Send to Outreach
+            </button>
+            {% endif %}
+            {% if salesloft_connected %}
+            <button onclick="openSalesloftPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                Send to SalesLoft
+            </button>
+            {% endif %}
             <a href="/lists/{{ list.id }}/export" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Export CSV
@@ -76,7 +88,7 @@
             <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
             <!-- Step 4: Execute (clickable when scored > 0, Instantly connected, and list done) -->
             <button
-                onclick="{% if instantly_connected %}openInstantlyPush(){% else %}showToast('Connect Instantly in Integrations first', 'warning'){% endif %}"
+                onclick="{% if instantly_connected %}openInstantlyPush(){% elif outreach_connected %}openOutreachPush(){% elif salesloft_connected %}openSalesloftPush(){% else %}showToast('Connect a sending tool in Integrations first', 'warning'){% endif %}"
                 {% if not list_done or scored_count == 0 %}disabled{% endif %}
                 class="flex-1 rounded-lg py-2 px-1 transition
                     {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
@@ -215,6 +227,12 @@
         {% if instantly_connected %}
         <button onclick="openInstantlyPush(true)" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700">Send to Instantly</button>
         {% endif %}
+        {% if outreach_connected %}
+        <button onclick="openOutreachPush(true)" class="px-3 py-1.5 bg-violet-600 text-white text-sm font-medium rounded hover:bg-violet-700">Send to Outreach</button>
+        {% endif %}
+        {% if salesloft_connected %}
+        <button onclick="openSalesloftPush(true)" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Send to SalesLoft</button>
+        {% endif %}
         <button id="retry-selected-btn" onclick="retrySelected()" class="hidden px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Retry Selected</button>
     </div>
 </div>
@@ -241,6 +259,60 @@
         <div class="p-6 border-t flex justify-end gap-3">
             <button onclick="closeInstantlyPush()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
             <button onclick="pushToInstantly()" id="inst-push-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50" disabled>Push</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if outreach_connected %}
+<!-- Outreach Push Modal -->
+<div id="outreach-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Send to Outreach</h2>
+            <button onclick="closeOutreachPush()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6">
+            <div id="or-loading" class="text-center py-4 text-gray-500">Loading sequences...</div>
+            <div id="or-form" class="hidden space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Sequence</label>
+                    <select id="or-sequence" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                </div>
+                <p id="or-info" class="text-sm text-gray-500"></p>
+            </div>
+            <div id="or-error" class="hidden text-sm text-red-600 py-4"></div>
+        </div>
+        <div class="p-6 border-t flex justify-end gap-3">
+            <button onclick="closeOutreachPush()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onclick="pushToOutreach()" id="or-push-btn" class="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50" disabled>Push</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if salesloft_connected %}
+<!-- SalesLoft Push Modal -->
+<div id="salesloft-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Send to SalesLoft</h2>
+            <button onclick="closeSalesloftPush()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6">
+            <div id="sl-loading" class="text-center py-4 text-gray-500">Loading cadences...</div>
+            <div id="sl-form" class="hidden space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cadence</label>
+                    <select id="sl-cadence" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                </div>
+                <p id="sl-info" class="text-sm text-gray-500"></p>
+            </div>
+            <div id="sl-error" class="hidden text-sm text-red-600 py-4"></div>
+        </div>
+        <div class="p-6 border-t flex justify-end gap-3">
+            <button onclick="closeSalesloftPush()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onclick="pushToSalesloft()" id="sl-push-btn" class="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50" disabled>Push</button>
         </div>
     </div>
 </div>
@@ -394,6 +466,146 @@ function pushToInstantly() {
             if (typeof showToast === 'function') showToast('Pushed ' + data.pushed + ' leads to Instantly', 'success');
         } else if (data.error) {
             if (typeof showToast === 'function') showToast(data.error, 'error');
+        } else {
+            if (typeof showToast === 'function') showToast('No contacts to push. Enrich contacts first.', 'warning');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Push';
+    })
+    .catch(function() {
+        if (typeof showToast === 'function') showToast('Network error', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Push';
+    });
+}
+
+// Outreach push
+var orUseSelected = false;
+function openOutreachPush(useSelected) {
+    orUseSelected = !!useSelected;
+    document.getElementById('outreach-modal').classList.remove('hidden');
+    document.getElementById('or-loading').classList.remove('hidden');
+    document.getElementById('or-form').classList.add('hidden');
+    document.getElementById('or-error').classList.add('hidden');
+
+    fetch('/integrations/outreach/sequences')
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(sequences) {
+            document.getElementById('or-loading').classList.add('hidden');
+            document.getElementById('or-form').classList.remove('hidden');
+            var sel = document.getElementById('or-sequence');
+            sel.innerHTML = '';
+            (sequences || []).forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name || s.id;
+                sel.appendChild(opt);
+            });
+            document.getElementById('or-push-btn').disabled = !sel.options.length;
+            var count = orUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
+            document.getElementById('or-info').textContent = 'Pushing ' + count + ' account(s) with enriched contacts.';
+        })
+        .catch(function() {
+            document.getElementById('or-loading').classList.add('hidden');
+            document.getElementById('or-error').classList.remove('hidden');
+            document.getElementById('or-error').textContent = 'Failed to load sequences.';
+        });
+}
+
+function closeOutreachPush() {
+    document.getElementById('outreach-modal').classList.add('hidden');
+}
+
+function pushToOutreach() {
+    var btn = document.getElementById('or-push-btn');
+    btn.disabled = true;
+    btn.textContent = 'Pushing...';
+
+    var body = { sequence_id: document.getElementById('or-sequence').value };
+    if (orUseSelected) body.account_ids = Array.from(selectedIds).map(Number);
+
+    fetch('/lists/{{ list.id }}/push-outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        closeOutreachPush();
+        if (data.added > 0) {
+            if (typeof showToast === 'function') showToast('Added ' + data.added + ' contacts to Outreach sequence', 'success');
+        } else if (data.errors > 0) {
+            if (typeof showToast === 'function') showToast(data.errors + ' errors pushing to Outreach', 'error');
+        } else {
+            if (typeof showToast === 'function') showToast('No contacts to push. Enrich contacts first.', 'warning');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Push';
+    })
+    .catch(function() {
+        if (typeof showToast === 'function') showToast('Network error', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Push';
+    });
+}
+
+// SalesLoft push
+var slUseSelected = false;
+function openSalesloftPush(useSelected) {
+    slUseSelected = !!useSelected;
+    document.getElementById('salesloft-modal').classList.remove('hidden');
+    document.getElementById('sl-loading').classList.remove('hidden');
+    document.getElementById('sl-form').classList.add('hidden');
+    document.getElementById('sl-error').classList.add('hidden');
+
+    fetch('/integrations/salesloft/cadences')
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(cadences) {
+            document.getElementById('sl-loading').classList.add('hidden');
+            document.getElementById('sl-form').classList.remove('hidden');
+            var sel = document.getElementById('sl-cadence');
+            sel.innerHTML = '';
+            (cadences || []).forEach(function(c) {
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name || c.id;
+                sel.appendChild(opt);
+            });
+            document.getElementById('sl-push-btn').disabled = !sel.options.length;
+            var count = slUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
+            document.getElementById('sl-info').textContent = 'Pushing ' + count + ' account(s) with enriched contacts.';
+        })
+        .catch(function() {
+            document.getElementById('sl-loading').classList.add('hidden');
+            document.getElementById('sl-error').classList.remove('hidden');
+            document.getElementById('sl-error').textContent = 'Failed to load cadences.';
+        });
+}
+
+function closeSalesloftPush() {
+    document.getElementById('salesloft-modal').classList.add('hidden');
+}
+
+function pushToSalesloft() {
+    var btn = document.getElementById('sl-push-btn');
+    btn.disabled = true;
+    btn.textContent = 'Pushing...';
+
+    var body = { cadence_id: document.getElementById('sl-cadence').value };
+    if (slUseSelected) body.account_ids = Array.from(selectedIds).map(Number);
+
+    fetch('/lists/{{ list.id }}/push-salesloft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        closeSalesloftPush();
+        if (data.added > 0) {
+            if (typeof showToast === 'function') showToast('Added ' + data.added + ' contacts to SalesLoft cadence', 'success');
+        } else if (data.errors > 0) {
+            if (typeof showToast === 'function') showToast(data.errors + ' errors pushing to SalesLoft', 'error');
         } else {
             if (typeof showToast === 'function') showToast('No contacts to push. Enrich contacts first.', 'warning');
         }
