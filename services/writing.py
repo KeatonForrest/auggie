@@ -68,6 +68,7 @@ class WritingService:
     def _build_prompt(self, report: str, opportunity_score: Optional[int] = None) -> str:
         """Build the full prompt with the report inserted."""
         low_confidence_block = ""
+        low_confidence_closing = ""
         if opportunity_score is not None and opportunity_score < 50:
             low_confidence_block = f"""
 **LOW-CONFIDENCE RESEARCH — PARTIAL-SIGNAL MODE**
@@ -91,6 +92,19 @@ Refer to Section B (Examples 41-50) for tone and structure. Those are your prima
 
 ---
 
+"""
+            low_confidence_closing = """
+
+---
+
+**FINAL CHECK — PARTIAL-SIGNAL MODE**
+
+BEFORE outputting your emails, re-read the PARTIAL-SIGNAL MODE block at the top. Then scan every sentence you wrote for:
+- Banned phrases: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "that combination"
+- Any sentence describing what your research did NOT find — rewrite to state only what you observed
+- Any condescending framing like "works fine for simple" or "basic infrastructure" — remove the judgment
+
+If any violations appear, rewrite those sentences before outputting. Do not output a first draft.
 """
         return f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
 
@@ -1443,7 +1457,7 @@ Present your final output in this format:
 [body]
 </email3>
 </email_series>
-"""
+{low_confidence_closing}"""
 
     def _parse_emails(self, response: str) -> list[dict]:
         """Parse the email series from the response."""
