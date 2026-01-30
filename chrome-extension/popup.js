@@ -1,6 +1,6 @@
-import { getApiKey, getCachedResearch, setCachedResearch } from './utils/storage.js';
-import { createResearch, getResearchStatus } from './utils/api.js';
-import { WEB_APP_URL, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS, EXCLUDED_DOMAINS, EXCLUDED_PROTOCOLS } from './utils/constants.js';
+import { getApiKey, getCachedResearch } from './utils/storage.js';
+import { createResearch } from './utils/api.js';
+import { WEB_APP_URL, EXCLUDED_DOMAINS, EXCLUDED_PROTOCOLS } from './utils/constants.js';
 
 // --- DOM refs ---
 const states = {
@@ -53,7 +53,7 @@ function renderCompleted(data) {
     tpList.appendChild(li);
   });
 
-  const docId = data.id || data.doc_id;
+  const docId = data.id || data.doc_id || data.document_id;
   document.getElementById('viewFull').href = `${WEB_APP_URL}/document/${docId}`;
 
   document.getElementById('copyScores').onclick = () => {
@@ -67,39 +67,15 @@ function renderCompleted(data) {
   showState('completed');
 }
 
-// --- Polling ---
-async function pollResearch(jobId, apiKey, domain) {
+// --- Show researching state with elapsed timer ---
+function showResearching(startedAt) {
+  showState('researching');
   const elapsedEl = document.getElementById('elapsed');
-  const start = Date.now();
-  let attempts = 0;
-
-  const tick = () => { elapsedEl.textContent = `${Math.round((Date.now() - start) / 1000)}s`; };
+  const tick = () => { elapsedEl.textContent = `${Math.round((Date.now() - startedAt) / 1000)}s`; };
+  tick();
   const timer = setInterval(tick, 1000);
-
-  try {
-    while (attempts < MAX_POLL_ATTEMPTS) {
-      attempts++;
-      const res = await getResearchStatus(jobId, apiKey);
-      if (res.status === 'completed' || res.status === 'complete') {
-        clearInterval(timer);
-        await setCachedResearch(domain, res);
-        renderCompleted(res);
-        chrome.runtime.sendMessage({ type: 'BADGE_UPDATE', domain, score: res.scores?.composite });
-        return;
-      }
-      if (res.status === 'failed' || res.status === 'error') {
-        clearInterval(timer);
-        showError(res.error || 'Research failed.');
-        return;
-      }
-      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-    }
-    clearInterval(timer);
-    showError('Research timed out. Please try again.');
-  } catch (e) {
-    clearInterval(timer);
-    showError(e.message);
-  }
+  // Store timer so we can clean up
+  showResearching._timer = timer;
 }
 
 // --- Error handling ---
@@ -119,6 +95,18 @@ function showError(msg) {
   showState('error');
 }
 
+// --- Listen for background job updates ---
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'JOB_COMPLETE' && msg.domain === currentDomain) {
+    if (showResearching._timer) clearInterval(showResearching._timer);
+    renderCompleted(msg.data);
+  }
+  if (msg.type === 'JOB_FAILED' && msg.domain === currentDomain) {
+    if (showResearching._timer) clearInterval(showResearching._timer);
+    showError(msg.error);
+  }
+});
+
 // --- Init ---
 let currentDomain = null;
 
@@ -135,13 +123,20 @@ async function init() {
     if (!domain) { showState('excluded'); return; }
     currentDomain = domain;
 
+    // Check cache first
     const cached = await getCachedResearch(domain);
     if (cached) { renderCompleted(cached); return; }
+
+    // Check if background is already polling for this domain
+    const jobStatus = await chrome.runtime.sendMessage({ type: 'GET_JOB_STATUS', domain });
+    if (jobStatus?.active) {
+      showResearching(jobStatus.startedAt);
+      return;
+    }
 
     document.getElementById('nrDomain').textContent = domain;
     showState('notResearched');
   } catch (e) {
-    console.error('init error:', e, typeof e, Object.keys(e || {}));
     showError(e);
   }
 }
@@ -152,11 +147,13 @@ document.getElementById('openOptions').addEventListener('click', () => {
 });
 
 document.getElementById('startResearch').addEventListener('click', async () => {
-  showState('researching');
   try {
     const apiKey = await getApiKey();
     const res = await createResearch(currentDomain, apiKey);
-    await pollResearch(res.job_id || res.id, apiKey, currentDomain);
+    const jobId = res.job_id || res.id;
+    // Hand off polling to background service worker
+    await chrome.runtime.sendMessage({ type: 'START_POLL', domain: currentDomain, jobId });
+    showResearching(Date.now());
   } catch (e) {
     showError(e.status === 402 ? 'Insufficient credits.' : e);
   }

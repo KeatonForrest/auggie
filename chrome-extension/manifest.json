@@ -3,7 +3,7 @@
   "name": "Auggie — Company Research",
   "version": "1.0.1",
   "description": "Instantly research any company from the website you're browsing. Get pain/fit/timing scores and talking points.",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": ["https://auggie.tools/*"],
   "background": {
     "service_worker": "background.js",
