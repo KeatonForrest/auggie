@@ -83,8 +83,9 @@ You MUST use partial-signal patterns for this sequence:
 - Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
 - Frame the ASK as "yours regardless" or "useful either way"
 - When describing what you observed, use neutral discovery language ("I saw X", "your site uses Y") — never frame missing technology as a gap or deficiency
-- Describe only what you found, not what you didn't find. Let the prospect fill in the gaps themselves
-- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have"
+- Never reference what your research did or didn't uncover. Talk about what the prospect's stack IS, not what your search turned up. Do not narrate the research process.
+- If you only have partial tech signals, lead with what you see and pivot directly to the value question: "I saw X — curious whether Y is on your radar."
+- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find"
 
 Refer to Section B (Examples 41-50) for tone and structure. Those are your primary models for this sequence.
 
