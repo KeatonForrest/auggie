@@ -512,9 +512,9 @@ async def push_to_instantly(
     if not campaign_id:
         raise HTTPException(status_code=400, detail="campaign_id is required")
 
-    # Verify list ownership
-    lst = await get_list(list_id)
-    if not lst or lst["user_id"] != user["id"]:
+    # Verify list ownership (org-scoped)
+    lst = await get_list(list_id, user["id"])
+    if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
     # Get accounts

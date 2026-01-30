@@ -549,19 +549,22 @@ Enable businesses to have multiple users under one organization.
 ---
 
 ## Phase 11.5: Integration Testing
-**Status:** Planned
+**Status:** In Progress
 
-End-to-end testing of existing integrations before adding new ones.
+End-to-end testing of existing integrations after Phase 11 org-scoped changes.
 
-- [ ] HubSpot — import companies, write scores back
-- [ ] Salesforce — import accounts, write scores back
-- [ ] Instantly — push contacts + sequences
-- [ ] Apollo — import saved lists
-- [ ] Ocean.io — import lookalike audiences
-- [ ] Slack — webhook notifications (research complete, high-pain alert)
-- [ ] Webhooks — delivery + HMAC verification
-- [ ] Clay — sync enrichment endpoint, 24h caching
-- [ ] Chrome extension — full flow (research, poll, display scores)
+**Bug found during code review:**
+- `push_to_instantly` (`main.py:516`) called `get_list(list_id)` without `user_id` — would crash. Fixed to `get_list(list_id, user["id"])`.
+
+- [ ] Webhooks — register, trigger job, verify delivery + HMAC + org_id in DB
+- [ ] HubSpot — OAuth connect, import companies, verify list org_id, write scores back, disconnect
+- [ ] Salesforce — OAuth connect, import accounts, verify list org_id, write scores back, disconnect
+- [ ] Instantly — connect, list campaigns, push accounts from scored list
+- [ ] Apollo — connect, list saved lists, import companies, verify list org_id
+- [ ] Ocean.io — connect, list audiences, import companies, verify list org_id
+- [ ] Clay — POST /v1/clay/enrich, verify response fields, verify cache hit, verify org credit deduction
+- [ ] Slack — connect webhook URL, send test notification, verify high-pain alert
+- [ ] Chrome extension — install, configure API key, research from extension, verify cache
 
 ---
 
@@ -736,7 +739,7 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
 | ✅ Done | Phase 11 | Team accounts (orgs, invites, roles, shared credits, usage dashboard) |
-| Next | Phase 11.5 | Integration testing (HubSpot, Salesforce, Instantly, Apollo, etc.) |
+| Active | Phase 11.5 | Integration testing (manual end-to-end verification) |
 | Next | Phase 11.75 | Sequencer integrations (Outreach, Salesloft, EmailBison) |
 | Next | — | Speed: evaluate Sonnet 4 for research generation |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
