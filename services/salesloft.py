@@ -169,6 +169,7 @@ async def push_sequences_to_salesloft(
     cadences_created = 0
     skipped = 0
     errors = 0
+    created_ids = []
 
     for account in accounts:
         emails = drafts_by_account.get(account["id"])
@@ -181,7 +182,13 @@ async def push_sequences_to_salesloft(
         )
         if created_id:
             cadences_created += 1
+            created_ids.append(created_id)
         else:
             errors += 1
 
-    return {"cadences_created": cadences_created, "skipped": skipped, "errors": errors}
+    return {
+        "cadences_created": cadences_created,
+        "skipped": skipped,
+        "errors": errors,
+        "created_ids": created_ids,
+    }

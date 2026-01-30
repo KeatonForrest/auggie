@@ -189,7 +189,7 @@
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
     <script>
         var _toastId = 0;
-        function showToast(message, type) {
+        function showToast(message, type, persistent) {
             type = type || 'info';
             var colors = {success:'bg-green-600',error:'bg-red-600',warning:'bg-yellow-500 text-yellow-900',info:'bg-blue-600'};
             var id = 'toast-' + (++_toastId);
@@ -198,7 +198,7 @@
             div.className = 'toast-enter flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm ' + (colors[type] || colors.info);
             div.innerHTML = '<span class="flex-1">' + message + '</span><button onclick="dismissToast(\'' + id + '\')" class="opacity-70 hover:opacity-100">&times;</button>';
             document.getElementById('toast-container').appendChild(div);
-            setTimeout(function(){ dismissToast(id); }, 5000);
+            if (!persistent) setTimeout(function(){ dismissToast(id); }, 5000);
         }
         function dismissToast(id) {
             var el = document.getElementById(id);

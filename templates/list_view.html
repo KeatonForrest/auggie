@@ -625,7 +625,13 @@ function pushToOutreach() {
     .then(function(data) {
         closeOutreachPush();
         if (data.sequences_created > 0) {
-            showToast('Created ' + data.sequences_created + ' sequence(s) in Outreach', 'success');
+            var msg = 'Created ' + data.sequences_created + ' sequence(s) in Outreach';
+            if (data.created_ids && data.created_ids.length === 1) {
+                msg += ' — <a href="https://app.outreach.io/sequences/' + data.created_ids[0] + '" target="_blank" class="underline font-medium">View in Outreach</a>';
+            } else if (data.created_ids && data.created_ids.length > 1) {
+                msg += ' — <a href="https://app.outreach.io/sequences" target="_blank" class="underline font-medium">View in Outreach</a>';
+            }
+            showToast(msg, 'success', true);
         } else {
             showToast('No sequences created. Write sequences first.', 'warning');
         }
@@ -673,7 +679,13 @@ function pushToSalesloft() {
     .then(function(data) {
         closeSalesloftPush();
         if (data.cadences_created > 0) {
-            showToast('Created ' + data.cadences_created + ' cadence(s) in SalesLoft', 'success');
+            var msg = 'Created ' + data.cadences_created + ' cadence(s) in SalesLoft';
+            if (data.created_ids && data.created_ids.length === 1) {
+                msg += ' — <a href="https://app.salesloft.com/app/cadences/' + data.created_ids[0] + '" target="_blank" class="underline font-medium">View in SalesLoft</a>';
+            } else if (data.created_ids && data.created_ids.length > 1) {
+                msg += ' — <a href="https://app.salesloft.com/app/cadences" target="_blank" class="underline font-medium">View in SalesLoft</a>';
+            }
+            showToast(msg, 'success', true);
         } else {
             showToast('No cadences created. Write sequences first.', 'warning');
         }

@@ -226,6 +226,7 @@ async def push_sequences_to_outreach(
     sequences_created = 0
     skipped = 0
     errors = 0
+    created_ids = []
 
     for account in accounts:
         emails = drafts_by_account.get(account["id"])
@@ -238,7 +239,13 @@ async def push_sequences_to_outreach(
         )
         if created_id:
             sequences_created += 1
+            created_ids.append(created_id)
         else:
             errors += 1
 
-    return {"sequences_created": sequences_created, "skipped": skipped, "errors": errors}
+    return {
+        "sequences_created": sequences_created,
+        "skipped": skipped,
+        "errors": errors,
+        "created_ids": created_ids,
+    }
