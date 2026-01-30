@@ -104,8 +104,11 @@ async function pollResearch(jobId, apiKey, domain) {
 
 // --- Error handling ---
 function showError(msg) {
+  console.error('showError called with:', msg);
   const el = document.getElementById('errorMsg');
-  const text = typeof msg === 'string' ? msg : (msg?.message || String(msg));
+  const text = typeof msg === 'string' ? msg
+    : (msg instanceof Error) ? msg.message
+    : (msg?.message || msg?.detail || JSON.stringify(msg));
   if (text.includes('402') || text.includes('credits')) {
     el.textContent = 'Insufficient credits. Add credits at auggie.tools/billing.';
   } else if (text.includes('429')) {
