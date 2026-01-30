@@ -37,7 +37,7 @@ This is the foundation for enterprise. Without the API:
 | G1 | Enable Clay integration (Auggie as enrichment column) |
 | G2 | Support bulk/automated research workflows |
 | G3 | Unlock enterprise sales with API access as premium feature |
-| G4 | Maintain unit economics ($0.56-0.76 COGS per research) |
+| G4 | Maintain unit economics ($0.27-0.56 COGS per research) |
 
 ### Success Metrics
 

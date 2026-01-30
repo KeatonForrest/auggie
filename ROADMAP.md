@@ -642,32 +642,30 @@ $0.50 more unlocks scoring, contact, and full personalization.
 
 ### Unit Economics
 
+_Updated Jan 2026: Switched research model from Claude Opus 4 to Claude Sonnet 4 with extended thinking. ~60% reduction in LLM cost per research._
+
 **Basic ($1.00):**
 | Cost Component | Estimate |
 |----------------|----------|
-| Firecrawl (scraping) | $0.10-0.15 |
-| Claude Opus 4 (research) | $0.45-0.60 |
+| Firecrawl (~12 scrapes/research) | $0.10-0.14 |
+| Claude Sonnet 4 (research + thinking) | $0.10-0.15 |
 | SerpAPI (news) | $0.01 |
 | Claude Sonnet 4 (sequence) | $0.06 |
-| **COGS** | **$0.62-0.82** |
+| **COGS** | **$0.27-0.36** |
 | **Revenue** | **$1.00** |
-| **Margin** | **18-38%** |
-
-_Note: G2/Capterra removal saved ~$0.08/research (2x Firecrawl search calls). Actual COGS closer to $0.54-0.74, margin ~26-46%._
+| **Margin** | **64-73%** |
 
 **Full ($1.50):**
 | Cost Component | Estimate |
 |----------------|----------|
-| Firecrawl (scraping) | $0.10-0.15 |
-| Claude Opus 4 (research + scoring) | $0.48-0.65 |
+| Firecrawl (~12 scrapes/research) | $0.10-0.14 |
+| Claude Sonnet 4 (research + thinking) | $0.10-0.15 |
 | SerpAPI (news) | $0.01 |
 | Claude Sonnet 4 (sequence) | $0.06 |
 | LeadMagic (contact) | $0.10-0.20 |
-| **COGS** | **$0.75-1.07** |
+| **COGS** | **$0.37-0.56** |
 | **Revenue** | **$1.50** |
-| **Margin** | **29-50%** |
-
-_Note: G2/Capterra removal saved ~$0.08/research. Actual COGS closer to $0.67-0.99, margin ~34-55%._
+| **Margin** | **63-75%** |
 
 Positive margin on every research. No utilization risk. No subscription management.
 
