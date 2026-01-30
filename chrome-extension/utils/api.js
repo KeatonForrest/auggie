@@ -23,7 +23,10 @@ async function request(path, key, options = {}) {
   }
   const body = await res.json();
   if (!res.ok) {
-    const err = new Error(body.detail || `API error ${res.status}`);
+    const detail = Array.isArray(body.detail)
+      ? body.detail.map(d => d.msg || JSON.stringify(d)).join('; ')
+      : (typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
+    const err = new Error(detail || `API error ${res.status}`);
     err.status = res.status;
     throw err;
   }
@@ -34,10 +37,10 @@ export function validateApiKey(key) {
   return request('/ping', key);
 }
 
-export function createResearch(url, key) {
+export function createResearch(domain, key) {
   return request('/research', key, {
     method: 'POST',
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ company_url: domain }),
   });
 }
 

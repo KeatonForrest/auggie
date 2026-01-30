@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auggie — Company Research",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Instantly research any company from the website you're browsing. Get pain/fit/timing scores and talking points.",
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["https://auggie.tools/*"],

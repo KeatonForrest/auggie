@@ -141,6 +141,7 @@ async function init() {
     document.getElementById('nrDomain').textContent = domain;
     showState('notResearched');
   } catch (e) {
+    console.error('init error:', e, typeof e, Object.keys(e || {}));
     showError(e);
   }
 }
