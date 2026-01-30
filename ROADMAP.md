@@ -50,13 +50,15 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 
 ---
 
-## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API COMPLETE
-- Core research generation working (Claude Opus 4)
+## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API + CHROME EXTENSION
+- Core research generation working (Claude Opus 4, temperature 0.25)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
 - Consumption pricing (1 free, $10 for 10 credits) working
 - Admin accounts (unlimited usage for internal users)
 - Public API with async jobs, webhooks, rate limiting, sequence generation
+- Chrome extension with real-time progress tracking and background polling
+- Scoring recalibrated: raised Fit cap (65→80), shifted anchors up ~10pts, removed sync research route
 - Live at https://auggie.tools
 
 ---
@@ -286,13 +288,21 @@ Make the scoring more accurate and consistent by adding reference examples, requ
 
 ### Step 4: Add negative signal awareness ✅
 - [x] Absence of signals = strong negative (zero timing signals → below 15)
-- [x] Anti-signals guidance (layoffs, budget cuts, hiring freeze → 0-9)
-- [x] Strict Fit cap of 65 without confirmed firmographic data
+- [x] Anti-signals guidance (layoffs, budget cuts, hiring freeze → 0-14)
+- [x] Fit cap of 80 without confirmed firmographic data (raised from 65)
 
 ### Step 5: Validate and tune ✅
 - [x] Audited 12 companies, identified clustering issues
 - [x] Updated prompt with anti-clustering, lower floors, stricter caps
 - [x] Pushed to production for re-testing
+
+### Step 6: Recalibration (Jan 2026) ✅
+- [x] Set temperature to 0.25 (was default 1.0 — caused ±13pt variance between runs)
+- [x] Raised Fit cap from 65 to 80 — most companies lack SEC filings, cap was filtering out good prospects
+- [x] Shifted all calibration anchors up ~10 points to reduce false negatives
+- [x] Raised ceiling guidance from 70 to 75
+- [x] Updated example scores to match new calibration
+- [x] Validated: adaptivebiotech.com scores 77 composite consistently across runs
 
 ---
 
@@ -372,9 +382,17 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [x] Slack integration — webhook notifications (research complete, high-pain alert)
 - [x] Zapier/Make webhook triggers (covers long tail without custom integrations)
 
-### Stage 7: Chrome Extension
-- [ ] Chrome extension — research any company from their website
-- [ ] Show scores + talking points in a sidebar popup
+### Stage 7: Chrome Extension ✅
+- [x] Chrome extension — research any company from their website
+- [x] Popup UI with 6 states (no key, loading, excluded, not researched, researching, completed)
+- [x] API key auth via options page with validation
+- [x] Background service worker polls for completion (survives popup close)
+- [x] Real-time pipeline progress steps (scraping → analyzing → enriching → generating)
+- [x] Score display (composite, pain, fit, timing) with progress bars
+- [x] Badge shows composite score on extension icon (color-coded)
+- [x] 24h local cache by domain to avoid duplicate charges
+- [x] Domain exclusion list (google, linkedin, twitter, etc.)
+- [x] Copy scores to clipboard, open full research in auggie.tools
 
 ### Future Execute Integrations
 - [ ] Outreach — push sequences
@@ -608,6 +626,8 @@ General infrastructure hardening and operational improvements. Not a phase — j
 - [x] EDGAR tickers disk cache with 24h TTL (cold start: seconds → milliseconds)
 - [x] 10-K Risk Factors parsing offloaded to thread pool (`asyncio.to_thread`)
 - [x] Company name extraction centralized in `collect_enrichment_data()`
+- [x] Removed blocking sync `POST /research` route — all research now async via background jobs
+- [x] Real-time pipeline progress tracking (`progress` column on research_jobs table)
 
 ### Cloudflare
 - [ ] Proxy app through Cloudflare (orange cloud) — DDoS protection, SSL termination, caching
@@ -649,10 +669,12 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
-| ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack |
+| ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack, Chrome Extension |
+| ✅ Done | Phase 7.5 Step 6 | Score recalibration (temperature, anchors, Fit cap) |
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
 | Next | Phase 11 | Team accounts |
+| Next | — | Speed: evaluate Sonnet 4 for research generation |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---
