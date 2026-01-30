@@ -673,6 +673,216 @@ async def salesforce_import(request: Request, user: dict = Depends(require_onboa
     return JSONResponse({"success": True, "list_id": lst["id"]})
 
 
+# --- Outreach (OAuth) ---
+
+@app.get("/integrations/outreach/connect")
+async def outreach_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to Outreach OAuth."""
+    import secrets
+    from services.outreach import get_authorize_url
+    state = secrets.token_urlsafe(24)
+    request.session["_outreach_state_"] = state
+    url = get_authorize_url(state)
+    return RedirectResponse(url=url)
+
+
+@app.get("/integrations/outreach/callback")
+async def outreach_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle Outreach OAuth callback."""
+    from datetime import datetime as dt, timezone, timedelta
+    from services.outreach import exchange_code
+    from database import upsert_integration
+
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get("_outreach_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    request.session.pop("_outreach_state_", None)
+
+    token_data = await exchange_code(code)
+    expires_at = dt.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 7200))
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="outreach",
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+    )
+
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+@app.post("/integrations/outreach/disconnect")
+async def outreach_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Outreach integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "outreach")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.post("/lists/{list_id}/push-outreach")
+async def push_to_outreach(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to an Outreach sequence."""
+    from services.outreach import push_accounts_to_outreach
+    from database import get_enriched_contacts
+
+    body = await request.json()
+    sequence_id = body.get("sequence_id")
+    account_ids = body.get("account_ids", [])
+
+    if not sequence_id:
+        raise HTTPException(status_code=400, detail="sequence_id is required")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_outreach(
+        user["id"], sequence_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
+@app.get("/integrations/outreach/sequences")
+async def outreach_sequences(request: Request, user: dict = Depends(require_onboarding)):
+    """List Outreach sequences."""
+    from services.outreach import list_sequences
+    try:
+        sequences = await list_sequences(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Outreach API error: {str(e)[:200]}")
+    return JSONResponse(sequences)
+
+
+# --- SalesLoft (OAuth) ---
+
+@app.get("/integrations/salesloft/connect")
+async def salesloft_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to SalesLoft OAuth."""
+    import secrets
+    from services.salesloft import get_authorize_url
+    state = secrets.token_urlsafe(24)
+    request.session["_salesloft_state_"] = state
+    url = get_authorize_url(state)
+    return RedirectResponse(url=url)
+
+
+@app.get("/integrations/salesloft/callback")
+async def salesloft_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle SalesLoft OAuth callback."""
+    from datetime import datetime as dt, timezone, timedelta
+    from services.salesloft import exchange_code
+    from database import upsert_integration
+
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get("_salesloft_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    request.session.pop("_salesloft_state_", None)
+
+    token_data = await exchange_code(code)
+    expires_at = dt.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 7200))
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="salesloft",
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+    )
+
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+@app.post("/integrations/salesloft/disconnect")
+async def salesloft_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect SalesLoft integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "salesloft")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.post("/lists/{list_id}/push-salesloft")
+async def push_to_salesloft(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to a SalesLoft cadence."""
+    from services.salesloft import push_accounts_to_salesloft
+    from database import get_enriched_contacts
+
+    body = await request.json()
+    cadence_id = body.get("cadence_id")
+    account_ids = body.get("account_ids", [])
+
+    if not cadence_id:
+        raise HTTPException(status_code=400, detail="cadence_id is required")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_salesloft(
+        user["id"], cadence_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
+@app.get("/integrations/salesloft/cadences")
+async def salesloft_cadences(request: Request, user: dict = Depends(require_onboarding)):
+    """List SalesLoft cadences."""
+    from services.salesloft import list_cadences
+    try:
+        cadences = await list_cadences(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"SalesLoft API error: {str(e)[:200]}")
+    return JSONResponse(cadences)
+
+
 # --- Apollo (API key) ---
 
 @app.post("/integrations/apollo/connect")

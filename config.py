@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     salesforce_client_id: str = ""
     salesforce_client_secret: str = ""
 
+    # Outreach (sales engagement)
+    outreach_client_id: str = ""
+    outreach_client_secret: str = ""
+
+    # SalesLoft (sales engagement)
+    salesloft_client_id: str = ""
+    salesloft_client_secret: str = ""
+
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 
