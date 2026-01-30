@@ -9,25 +9,21 @@
         <p class="text-gray-500 text-sm mb-8">{{ job.company_url }}</p>
 
         <div id="steps" class="space-y-4 mb-8">
-            <div class="step flex items-center gap-3" data-at="0">
+            <div class="step flex items-center gap-3" data-stage="scraping">
                 <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
                 <span class="text-sm text-gray-600">Scraping website</span>
             </div>
-            <div class="step flex items-center gap-3" data-at="6">
+            <div class="step flex items-center gap-3" data-stage="analyzing">
                 <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
-                <span class="text-sm text-gray-600">Detecting technologies</span>
+                <span class="text-sm text-gray-600">Analyzing tech stack</span>
             </div>
-            <div class="step flex items-center gap-3" data-at="12">
+            <div class="step flex items-center gap-3" data-stage="enriching">
                 <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
-                <span class="text-sm text-gray-600">Collecting data</span>
+                <span class="text-sm text-gray-600">Enriching data</span>
             </div>
-            <div class="step flex items-center gap-3" data-at="20">
+            <div class="step flex items-center gap-3" data-stage="generating">
                 <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
-                <span class="text-sm text-gray-600">Analyzing &amp; scoring</span>
-            </div>
-            <div class="step flex items-center gap-3" data-at="30">
-                <div class="step-icon w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs"></div>
-                <span class="text-sm text-gray-600">Writing research document</span>
+                <span class="text-sm text-gray-600">Generating report</span>
             </div>
         </div>
 
@@ -44,60 +40,61 @@
 <script>
 (function() {
     var jobId = {{ job.id }};
-    var startTime = Date.now();
     var steps = document.querySelectorAll('.step');
+    var stages = ['scraping', 'analyzing', 'enriching', 'generating'];
     var done = false;
 
     var checkSvg = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
     var spinSvg = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
 
-    function updateSteps() {
-        var elapsed = (Date.now() - startTime) / 1000;
-        var lastReached = null;
-        steps.forEach(function(s) {
-            var at = parseInt(s.getAttribute('data-at'));
-            var icon = s.querySelector('.step-icon');
-            if (elapsed >= at) {
-                icon.classList.remove('border-gray-300');
-                icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
-                icon.innerHTML = checkSvg;
-                s.querySelector('span').classList.remove('text-gray-600');
-                s.querySelector('span').classList.add('text-gray-900', 'font-medium');
-                lastReached = s;
-            }
-        });
-        // Show spinner on last completed step if all steps are checked but job isn't done
-        if (lastReached === steps[steps.length - 1] && !done) {
-            lastReached.querySelector('.step-icon').innerHTML = spinSvg;
+    function setStepState(stepEl, state) {
+        var icon = stepEl.querySelector('.step-icon');
+        var label = stepEl.querySelector('span');
+        icon.classList.remove('border-gray-300', 'border-blue-600', 'bg-blue-600', 'text-white');
+        label.classList.remove('text-gray-600', 'text-gray-900', 'font-medium');
+        if (state === 'done') {
+            icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
+            icon.innerHTML = checkSvg;
+            label.classList.add('text-gray-900', 'font-medium');
+        } else if (state === 'active') {
+            icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
+            icon.innerHTML = spinSvg;
+            label.classList.add('text-gray-900', 'font-medium');
+        } else {
+            icon.classList.add('border-gray-300');
+            icon.innerHTML = '';
+            label.classList.add('text-gray-600');
         }
     }
 
-    var stepTimer = setInterval(updateSteps, 500);
-    updateSteps();
+    function updateProgress(progress) {
+        var idx = stages.indexOf(progress);
+        if (idx === -1) return;
+        steps.forEach(function(s, i) {
+            if (i < idx) setStepState(s, 'done');
+            else if (i === idx) setStepState(s, 'active');
+            else setStepState(s, 'pending');
+        });
+    }
+
+    function completeAll() {
+        steps.forEach(function(s) { setStepState(s, 'done'); });
+    }
 
     function poll() {
         if (done) return;
         fetch('/research/job/' + jobId + '/status')
             .then(function(r) { return r.json(); })
             .then(function(data) {
+                if (data.progress) updateProgress(data.progress);
                 if (data.status === 'completed') {
                     done = true;
-                    clearInterval(stepTimer);
-                    // Complete all steps
-                    steps.forEach(function(s) {
-                        var icon = s.querySelector('.step-icon');
-                        icon.classList.remove('border-gray-300');
-                        icon.classList.add('border-blue-600', 'bg-blue-600', 'text-white');
-                        icon.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
-                        s.querySelector('span').classList.remove('text-gray-600');
-                        s.querySelector('span').classList.add('text-gray-900', 'font-medium');
-                    });
+                    completeAll();
                     setTimeout(function() {
                         window.location.href = '/document/' + data.document_id;
                     }, 500);
                 } else if (data.status === 'failed') {
                     done = true;
-                    clearInterval(stepTimer);
                     document.getElementById('error-box').classList.remove('hidden');
                     document.getElementById('error-message').textContent = data.error_message || 'An unexpected error occurred.';
                 } else {

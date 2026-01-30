@@ -1811,6 +1811,7 @@ async def research_job_status(
         raise HTTPException(status_code=404, detail="Job not found")
     return JSONResponse({
         "status": job["status"],
+        "progress": job.get("progress"),
         "document_id": job.get("document_id"),
         "error_message": job.get("error_message"),
     })
