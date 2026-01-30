@@ -1233,11 +1233,12 @@ async def team_usage_dashboard(
     user: dict = Depends(require_org_admin),
 ):
     """Per-member usage breakdown (admin only)."""
-    from database import get_org_usage_breakdown, get_org
+    from database import get_org_usage_breakdown, get_org, get_all_feedback
     org_id = user.get("org_id")
     org = await get_org(org_id)
     breakdown = await get_org_usage_breakdown(org_id, days=30)
     usage = await get_user_usage(user["id"])
+    feedback_list = await get_all_feedback(limit=50)
 
     return templates.TemplateResponse(
         "usage_dashboard.html",
@@ -1248,6 +1249,7 @@ async def team_usage_dashboard(
             "breakdown": breakdown,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": True,
+            "feedback_list": feedback_list,
         }
     )
 

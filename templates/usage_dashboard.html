@@ -82,6 +82,73 @@
                 </table>
             </div>
         </div>
+
+        <!-- Research Feedback -->
+        {% if feedback_list %}
+        <div class="bg-white rounded-xl shadow-lg p-8 mt-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Research Feedback</h2>
+                <p class="text-sm text-gray-500 mt-1">User ratings on generated research documents</p>
+            </div>
+
+            <!-- Summary stats -->
+            {% set positive_count = feedback_list | selectattr('is_positive') | list | length %}
+            {% set total_count = feedback_list | length %}
+            <div class="flex gap-4 mb-6">
+                <div class="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
+                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"></path></svg>
+                    <span class="text-sm font-medium text-green-800">{{ positive_count }} positive</span>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg">
+                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"></path></svg>
+                    <span class="text-sm font-medium text-red-800">{{ total_count - positive_count }} negative</span>
+                </div>
+            </div>
+
+            <div class="border rounded-lg overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Rating</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Company</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Model</th>
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Score</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Comment</th>
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for fb in feedback_list %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                {% if fb.is_positive %}
+                                <span class="text-green-600">&#128077;</span>
+                                {% else %}
+                                <span class="text-red-600">&#128078;</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <a href="/document/{{ fb.document_id }}" class="text-blue-600 hover:underline font-medium">{{ fb.company_name }}</a>
+                            </td>
+                            <td class="px-4 py-3 text-gray-500">
+                                {% if fb.model_used %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">{{ fb.model_used | replace('claude-', '') | replace('-20250514', '') }}</span>
+                                {% else %}
+                                <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium text-gray-900">
+                                {% if fb.opportunity_score is not none %}{{ fb.opportunity_score }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-gray-600 max-w-xs truncate">{{ fb.comment or '' }}</td>
+                            <td class="px-4 py-3 text-right text-gray-500">{{ fb.created_at.strftime('%b %d') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
     </main>
 </body>
 </html>
