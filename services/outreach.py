@@ -211,129 +211,34 @@ def _plain_to_html(text: str) -> str:
     return escaped.replace("\n\n", "</p><p>").replace("\n", "<br>")
 
 
-async def push_accounts_to_outreach(
+async def push_sequences_to_outreach(
     user_id: int,
-    sequence_id: str | None,
     accounts: list[dict],
-    contacts_by_account: dict[int, list[dict]],
-    drafts_by_account: dict[int, list[dict]] | None = None,
+    drafts_by_account: dict[int, list[dict]],
 ) -> dict:
-    """Push contacts from scored accounts into Outreach sequences.
+    """Create Outreach sequences with Auggie-generated email content (no contacts).
 
-    If drafts_by_account is provided and sequence_id is "auggie_generated", creates
-    a per-account sequence with the Auggie email content. Otherwise adds contacts
-    to the specified existing sequence.
+    Creates one sequence per account. Users assign their own prospects in Outreach.
 
-    Returns {"added": int, "skipped": int, "errors": int, "sequences_created": int}.
+    Returns {"sequences_created": int, "skipped": int, "errors": int}.
     """
     token = await get_valid_token(user_id)
-    added = 0
+    sequences_created = 0
     skipped = 0
     errors = 0
-    sequences_created = 0
-    use_auggie_sequences = sequence_id == "auggie_generated" and drafts_by_account
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for account in accounts:
-            contacts = contacts_by_account.get(account["id"], [])
-            if not contacts:
-                skipped += 1
-                continue
+    for account in accounts:
+        emails = drafts_by_account.get(account["id"])
+        if not emails:
+            skipped += 1
+            continue
 
-            # Determine which sequence to use for this account
-            target_sequence_id = sequence_id
-            if use_auggie_sequences:
-                emails = drafts_by_account.get(account["id"])
-                if emails:
-                    created_id = await _create_sequence_with_emails(
-                        token, account.get("company_name", "Unknown"), emails,
-                    )
-                    if created_id:
-                        target_sequence_id = str(created_id)
-                        sequences_created += 1
-                    else:
-                        errors += 1
-                        continue
-                else:
-                    skipped += 1
-                    continue
+        created_id = await _create_sequence_with_emails(
+            token, account.get("company_name", "Unknown"), emails,
+        )
+        if created_id:
+            sequences_created += 1
+        else:
+            errors += 1
 
-            if not target_sequence_id or target_sequence_id == "auggie_generated":
-                skipped += 1
-                continue
-
-            for contact in contacts:
-                email = contact.get("email")
-                if not email:
-                    continue
-
-                # Create or find prospect
-                prospect_payload = {
-                    "data": {
-                        "type": "prospect",
-                        "attributes": {
-                            "emails": [email],
-                            "firstName": contact.get("first_name", ""),
-                            "lastName": contact.get("last_name", ""),
-                            "title": contact.get("title", ""),
-                            "company": account.get("company_name", ""),
-                            "companyDomain": account.get("company_url", "").replace("https://", "").replace("http://", "").rstrip("/"),
-                        },
-                    }
-                }
-
-                resp = await client.post(
-                    f"{OUTREACH_API_BASE}/prospects",
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
-                    json=prospect_payload,
-                )
-
-                if resp.status_code == 422:
-                    find_resp = await client.get(
-                        f"{OUTREACH_API_BASE}/prospects",
-                        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
-                        params={"filter[emails]": email},
-                    )
-                    if find_resp.status_code == 200:
-                        found = find_resp.json().get("data", [])
-                        if found:
-                            prospect_id = found[0]["id"]
-                        else:
-                            errors += 1
-                            continue
-                    else:
-                        errors += 1
-                        continue
-                elif resp.status_code >= 400:
-                    logger.warning("Outreach prospect create failed: %s", resp.text[:200])
-                    errors += 1
-                    continue
-                else:
-                    prospect_id = resp.json()["data"]["id"]
-
-                # Add to sequence
-                seq_state_payload = {
-                    "data": {
-                        "type": "sequenceState",
-                        "relationships": {
-                            "prospect": {"data": {"type": "prospect", "id": int(prospect_id)}},
-                            "sequence": {"data": {"type": "sequence", "id": int(target_sequence_id)}},
-                        },
-                    }
-                }
-
-                seq_resp = await client.post(
-                    f"{OUTREACH_API_BASE}/sequenceStates",
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
-                    json=seq_state_payload,
-                )
-
-                if seq_resp.status_code < 300:
-                    added += 1
-                elif seq_resp.status_code == 422:
-                    skipped += 1
-                else:
-                    logger.warning("Outreach sequence add failed: %s", seq_resp.text[:200])
-                    errors += 1
-
-    return {"added": added, "skipped": skipped, "errors": errors, "sequences_created": sequences_created}
+    return {"sequences_created": sequences_created, "skipped": skipped, "errors": errors}

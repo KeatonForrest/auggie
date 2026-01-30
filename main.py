@@ -729,16 +729,12 @@ async def push_to_outreach(
     list_id: int,
     user: dict = Depends(require_onboarding),
 ):
-    """Push selected accounts from a list to an Outreach sequence."""
-    from services.outreach import push_accounts_to_outreach
-    from database import get_enriched_contacts, get_outreach_draft
+    """Push Auggie-generated sequences to Outreach (sequences only, no contacts)."""
+    from services.outreach import push_sequences_to_outreach
+    from database import get_outreach_draft
 
     body = await request.json()
-    sequence_id = body.get("sequence_id")
     account_ids = body.get("account_ids", [])
-
-    if not sequence_id:
-        raise HTTPException(status_code=400, detail="sequence_id is required")
 
     lst = await get_list(list_id, user["id"])
     if not lst:
@@ -753,29 +749,23 @@ async def push_to_outreach(
     if not accounts:
         raise HTTPException(status_code=400, detail="No accounts to push")
 
-    contacts_by_account = {}
     drafts_by_account = {}
     for account in accounts:
         if account.get("document_id"):
-            contacts = await get_enriched_contacts(account["document_id"], user["id"])
-            if contacts:
-                contacts_by_account[account["id"]] = contacts
-            if sequence_id == "auggie_generated":
-                draft = await get_outreach_draft(account["document_id"])
-                if draft and draft.get("content"):
-                    content = draft["content"]
-                    if isinstance(content, str):
-                        import json
-                        content = json.loads(content)
-                    emails = content.get("emails", [])
-                    if emails:
-                        drafts_by_account[account["id"]] = emails
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    import json
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
 
-    result = await push_accounts_to_outreach(
-        user["id"], sequence_id, accounts, contacts_by_account,
-        drafts_by_account=drafts_by_account if drafts_by_account else None,
-    )
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
 
+    result = await push_sequences_to_outreach(user["id"], accounts, drafts_by_account)
     return JSONResponse(result)
 
 
@@ -846,16 +836,12 @@ async def push_to_salesloft(
     list_id: int,
     user: dict = Depends(require_onboarding),
 ):
-    """Push selected accounts from a list to a SalesLoft cadence."""
-    from services.salesloft import push_accounts_to_salesloft
-    from database import get_enriched_contacts, get_outreach_draft
+    """Push Auggie-generated sequences to SalesLoft as cadences (no contacts)."""
+    from services.salesloft import push_sequences_to_salesloft
+    from database import get_outreach_draft
 
     body = await request.json()
-    cadence_id = body.get("cadence_id")
     account_ids = body.get("account_ids", [])
-
-    if not cadence_id:
-        raise HTTPException(status_code=400, detail="cadence_id is required")
 
     lst = await get_list(list_id, user["id"])
     if not lst:
@@ -870,29 +856,23 @@ async def push_to_salesloft(
     if not accounts:
         raise HTTPException(status_code=400, detail="No accounts to push")
 
-    contacts_by_account = {}
     drafts_by_account = {}
     for account in accounts:
         if account.get("document_id"):
-            contacts = await get_enriched_contacts(account["document_id"], user["id"])
-            if contacts:
-                contacts_by_account[account["id"]] = contacts
-            if cadence_id == "auggie_generated":
-                draft = await get_outreach_draft(account["document_id"])
-                if draft and draft.get("content"):
-                    content = draft["content"]
-                    if isinstance(content, str):
-                        import json
-                        content = json.loads(content)
-                    emails = content.get("emails", [])
-                    if emails:
-                        drafts_by_account[account["id"]] = emails
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    import json
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
 
-    result = await push_accounts_to_salesloft(
-        user["id"], cadence_id, accounts, contacts_by_account,
-        drafts_by_account=drafts_by_account if drafts_by_account else None,
-    )
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
 
+    result = await push_sequences_to_salesloft(user["id"], accounts, drafts_by_account)
     return JSONResponse(result)
 
 

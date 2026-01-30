@@ -272,20 +272,14 @@
             <h2 class="text-lg font-semibold">Send to Outreach</h2>
             <button onclick="closeOutreachPush()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div class="p-6">
-            <div id="or-loading" class="text-center py-4 text-gray-500">Loading sequences...</div>
-            <div id="or-form" class="hidden space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sequence</label>
-                    <select id="or-sequence" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
-                </div>
-                <p id="or-info" class="text-sm text-gray-500"></p>
-            </div>
-            <div id="or-error" class="hidden text-sm text-red-600 py-4"></div>
+        <div class="p-6 space-y-3">
+            <p class="text-sm text-gray-600">Creates one Outreach sequence per account using Auggie-generated email content. You assign prospects to the sequences in Outreach.</p>
+            <p id="or-info" class="text-sm text-gray-500"></p>
+            <div id="or-error" class="hidden text-sm text-red-600"></div>
         </div>
         <div class="p-6 border-t flex justify-end gap-3">
             <button onclick="closeOutreachPush()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button onclick="pushToOutreach()" id="or-push-btn" class="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50" disabled>Push</button>
+            <button onclick="pushToOutreach()" id="or-push-btn" class="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">Push Sequences</button>
         </div>
     </div>
 </div>
@@ -299,20 +293,14 @@
             <h2 class="text-lg font-semibold">Send to SalesLoft</h2>
             <button onclick="closeSalesloftPush()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div class="p-6">
-            <div id="sl-loading" class="text-center py-4 text-gray-500">Loading cadences...</div>
-            <div id="sl-form" class="hidden space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Cadence</label>
-                    <select id="sl-cadence" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
-                </div>
-                <p id="sl-info" class="text-sm text-gray-500"></p>
-            </div>
-            <div id="sl-error" class="hidden text-sm text-red-600 py-4"></div>
+        <div class="p-6 space-y-3">
+            <p class="text-sm text-gray-600">Creates one SalesLoft cadence per account using Auggie-generated email content. You assign people to the cadences in SalesLoft.</p>
+            <p id="sl-info" class="text-sm text-gray-500"></p>
+            <div id="sl-error" class="hidden text-sm text-red-600"></div>
         </div>
         <div class="p-6 border-t flex justify-end gap-3">
             <button onclick="closeSalesloftPush()" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button onclick="pushToSalesloft()" id="sl-push-btn" class="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50" disabled>Push</button>
+            <button onclick="pushToSalesloft()" id="sl-push-btn" class="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">Push Cadences</button>
         </div>
     </div>
 </div>
@@ -484,36 +472,9 @@ var orUseSelected = false;
 function openOutreachPush(useSelected) {
     orUseSelected = !!useSelected;
     document.getElementById('outreach-modal').classList.remove('hidden');
-    document.getElementById('or-loading').classList.remove('hidden');
-    document.getElementById('or-form').classList.add('hidden');
     document.getElementById('or-error').classList.add('hidden');
-
-    fetch('/integrations/outreach/sequences')
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(sequences) {
-            document.getElementById('or-loading').classList.add('hidden');
-            document.getElementById('or-form').classList.remove('hidden');
-            var sel = document.getElementById('or-sequence');
-            sel.innerHTML = '';
-            var augOpt = document.createElement('option');
-            augOpt.value = 'auggie_generated';
-            augOpt.textContent = 'Use Auggie-generated sequences';
-            sel.appendChild(augOpt);
-            (sequences || []).forEach(function(s) {
-                var opt = document.createElement('option');
-                opt.value = s.id;
-                opt.textContent = s.name || s.id;
-                sel.appendChild(opt);
-            });
-            document.getElementById('or-push-btn').disabled = !sel.options.length;
-            var count = orUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
-            document.getElementById('or-info').textContent = 'Pushing ' + count + ' account(s) with enriched contacts.';
-        })
-        .catch(function() {
-            document.getElementById('or-loading').classList.add('hidden');
-            document.getElementById('or-error').classList.remove('hidden');
-            document.getElementById('or-error').textContent = 'Failed to load sequences.';
-        });
+    var count = orUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
+    document.getElementById('or-info').textContent = count + ' account(s) with written sequences will be pushed.';
 }
 
 function closeOutreachPush() {
@@ -525,7 +486,7 @@ function pushToOutreach() {
     btn.disabled = true;
     btn.textContent = 'Pushing...';
 
-    var body = { sequence_id: document.getElementById('or-sequence').value };
+    var body = {};
     if (orUseSelected) body.account_ids = Array.from(selectedIds).map(Number);
 
     fetch('/lists/{{ list.id }}/push-outreach', {
@@ -533,23 +494,24 @@ function pushToOutreach() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || 'Push failed'); });
+        return r.json();
+    })
     .then(function(data) {
         closeOutreachPush();
-        if (data.added > 0) {
-            if (typeof showToast === 'function') showToast('Added ' + data.added + ' contacts to Outreach sequence', 'success');
-        } else if (data.errors > 0) {
-            if (typeof showToast === 'function') showToast(data.errors + ' errors pushing to Outreach', 'error');
+        if (data.sequences_created > 0) {
+            showToast('Created ' + data.sequences_created + ' sequence(s) in Outreach', 'success');
         } else {
-            if (typeof showToast === 'function') showToast('No contacts to push. Enrich contacts first.', 'warning');
+            showToast('No sequences created. Write sequences first.', 'warning');
         }
         btn.disabled = false;
-        btn.textContent = 'Push';
+        btn.textContent = 'Push Sequences';
     })
-    .catch(function() {
-        if (typeof showToast === 'function') showToast('Network error', 'error');
+    .catch(function(e) {
+        showToast(e.message || 'Network error', 'error');
         btn.disabled = false;
-        btn.textContent = 'Push';
+        btn.textContent = 'Push Sequences';
     });
 }
 
@@ -558,36 +520,9 @@ var slUseSelected = false;
 function openSalesloftPush(useSelected) {
     slUseSelected = !!useSelected;
     document.getElementById('salesloft-modal').classList.remove('hidden');
-    document.getElementById('sl-loading').classList.remove('hidden');
-    document.getElementById('sl-form').classList.add('hidden');
     document.getElementById('sl-error').classList.add('hidden');
-
-    fetch('/integrations/salesloft/cadences')
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(cadences) {
-            document.getElementById('sl-loading').classList.add('hidden');
-            document.getElementById('sl-form').classList.remove('hidden');
-            var sel = document.getElementById('sl-cadence');
-            sel.innerHTML = '';
-            var augOpt = document.createElement('option');
-            augOpt.value = 'auggie_generated';
-            augOpt.textContent = 'Use Auggie-generated sequences';
-            sel.appendChild(augOpt);
-            (cadences || []).forEach(function(c) {
-                var opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.name || c.id;
-                sel.appendChild(opt);
-            });
-            document.getElementById('sl-push-btn').disabled = !sel.options.length;
-            var count = slUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
-            document.getElementById('sl-info').textContent = 'Pushing ' + count + ' account(s) with enriched contacts.';
-        })
-        .catch(function() {
-            document.getElementById('sl-loading').classList.add('hidden');
-            document.getElementById('sl-error').classList.remove('hidden');
-            document.getElementById('sl-error').textContent = 'Failed to load cadences.';
-        });
+    var count = slUseSelected ? selectedIds.size : '{{ accounts|selectattr("status","equalto","completed")|list|length }}';
+    document.getElementById('sl-info').textContent = count + ' account(s) with written sequences will be pushed.';
 }
 
 function closeSalesloftPush() {
@@ -599,7 +534,7 @@ function pushToSalesloft() {
     btn.disabled = true;
     btn.textContent = 'Pushing...';
 
-    var body = { cadence_id: document.getElementById('sl-cadence').value };
+    var body = {};
     if (slUseSelected) body.account_ids = Array.from(selectedIds).map(Number);
 
     fetch('/lists/{{ list.id }}/push-salesloft', {
@@ -607,23 +542,24 @@ function pushToSalesloft() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || 'Push failed'); });
+        return r.json();
+    })
     .then(function(data) {
         closeSalesloftPush();
-        if (data.added > 0) {
-            if (typeof showToast === 'function') showToast('Added ' + data.added + ' contacts to SalesLoft cadence', 'success');
-        } else if (data.errors > 0) {
-            if (typeof showToast === 'function') showToast(data.errors + ' errors pushing to SalesLoft', 'error');
+        if (data.cadences_created > 0) {
+            showToast('Created ' + data.cadences_created + ' cadence(s) in SalesLoft', 'success');
         } else {
-            if (typeof showToast === 'function') showToast('No contacts to push. Enrich contacts first.', 'warning');
+            showToast('No cadences created. Write sequences first.', 'warning');
         }
         btn.disabled = false;
-        btn.textContent = 'Push';
+        btn.textContent = 'Push Cadences';
     })
-    .catch(function() {
-        if (typeof showToast === 'function') showToast('Network error', 'error');
+    .catch(function(e) {
+        showToast(e.message || 'Network error', 'error');
         btn.disabled = false;
-        btn.textContent = 'Push';
+        btn.textContent = 'Push Cadences';
     });
 }
 
