@@ -16,7 +16,7 @@ OUTREACH_AUTH_URL = "https://api.outreach.io/oauth/authorize"
 OUTREACH_TOKEN_URL = "https://api.outreach.io/oauth/token"
 OUTREACH_API_BASE = "https://api.outreach.io/api/v2"
 
-SCOPES = "prospects.all sequences.all sequenceStates.all"
+SCOPES = "prospects.all sequences.all sequenceStates.all sequenceTemplates.all templates.all"
 
 
 def get_authorize_url(state: str) -> str:
@@ -109,25 +109,156 @@ async def list_sequences(user_id: int) -> list[dict]:
     ]
 
 
+async def _create_sequence_with_emails(
+    token: str,
+    company_name: str,
+    emails: list[dict],
+) -> int | None:
+    """Create an Outreach sequence with Auggie-generated email steps.
+
+    Returns the sequence ID, or None on failure.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Create the sequence
+        seq_resp = await client.post(
+            f"{OUTREACH_API_BASE}/sequences",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
+            json={
+                "data": {
+                    "type": "sequence",
+                    "attributes": {
+                        "name": f"Auggie – {company_name}",
+                        "sequenceType": "standard",
+                        "enabled": True,
+                    },
+                }
+            },
+        )
+        if seq_resp.status_code >= 400:
+            logger.warning("Outreach sequence create failed: %s", seq_resp.text[:200])
+            return None
+        sequence_id = seq_resp.json()["data"]["id"]
+
+        # 2. Add email steps
+        for i, email in enumerate(emails):
+            # Create a template for this step
+            tpl_resp = await client.post(
+                f"{OUTREACH_API_BASE}/templates",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
+                json={
+                    "data": {
+                        "type": "template",
+                        "attributes": {
+                            "name": f"Auggie – {company_name} – Email {email.get('email_number', i + 1)}",
+                            "subject": email.get("subject", ""),
+                            "bodyHtml": f"<p>{_plain_to_html(email.get('body', ''))}</p>",
+                            "toRecipients": ["{{email}}"],
+                        },
+                    }
+                },
+            )
+            if tpl_resp.status_code >= 400:
+                logger.warning("Outreach template create failed: %s", tpl_resp.text[:200])
+                continue
+            template_id = tpl_resp.json()["data"]["id"]
+
+            # Create sequence step linked to template
+            step_resp = await client.post(
+                f"{OUTREACH_API_BASE}/sequenceSteps",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
+                json={
+                    "data": {
+                        "type": "sequenceStep",
+                        "attributes": {
+                            "stepType": "auto_email",
+                            "order": i + 1,
+                            "interval": 3 if i > 0 else 0,  # 3-day gap between follow-ups
+                        },
+                        "relationships": {
+                            "sequence": {"data": {"type": "sequence", "id": sequence_id}},
+                        },
+                    }
+                },
+            )
+            if step_resp.status_code >= 400:
+                logger.warning("Outreach step create failed: %s", step_resp.text[:200])
+                continue
+            step_id = step_resp.json()["data"]["id"]
+
+            # Link template to step
+            await client.post(
+                f"{OUTREACH_API_BASE}/sequenceTemplates",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
+                json={
+                    "data": {
+                        "type": "sequenceTemplate",
+                        "attributes": {"isReply": i > 0},
+                        "relationships": {
+                            "template": {"data": {"type": "template", "id": template_id}},
+                            "sequenceStep": {"data": {"type": "sequenceStep", "id": step_id}},
+                        },
+                    }
+                },
+            )
+
+    return sequence_id
+
+
+def _plain_to_html(text: str) -> str:
+    """Convert plain text to simple HTML paragraphs."""
+    import html
+    escaped = html.escape(text)
+    return escaped.replace("\n\n", "</p><p>").replace("\n", "<br>")
+
+
 async def push_accounts_to_outreach(
     user_id: int,
-    sequence_id: str,
+    sequence_id: str | None,
     accounts: list[dict],
     contacts_by_account: dict[int, list[dict]],
+    drafts_by_account: dict[int, list[dict]] | None = None,
 ) -> dict:
-    """Push contacts from scored accounts into an Outreach sequence.
+    """Push contacts from scored accounts into Outreach sequences.
 
-    Returns {"added": int, "skipped": int, "errors": int}.
+    If drafts_by_account is provided and sequence_id is "auggie_generated", creates
+    a per-account sequence with the Auggie email content. Otherwise adds contacts
+    to the specified existing sequence.
+
+    Returns {"added": int, "skipped": int, "errors": int, "sequences_created": int}.
     """
     token = await get_valid_token(user_id)
     added = 0
     skipped = 0
     errors = 0
+    sequences_created = 0
+    use_auggie_sequences = sequence_id == "auggie_generated" and drafts_by_account
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         for account in accounts:
             contacts = contacts_by_account.get(account["id"], [])
             if not contacts:
+                skipped += 1
+                continue
+
+            # Determine which sequence to use for this account
+            target_sequence_id = sequence_id
+            if use_auggie_sequences:
+                emails = drafts_by_account.get(account["id"])
+                if emails:
+                    created_id = await _create_sequence_with_emails(
+                        token, account.get("company_name", "Unknown"), emails,
+                    )
+                    if created_id:
+                        target_sequence_id = str(created_id)
+                        sequences_created += 1
+                    else:
+                        errors += 1
+                        continue
+                else:
+                    skipped += 1
+                    continue
+
+            if not target_sequence_id or target_sequence_id == "auggie_generated":
                 skipped += 1
                 continue
 
@@ -158,7 +289,6 @@ async def push_accounts_to_outreach(
                 )
 
                 if resp.status_code == 422:
-                    # Prospect may already exist — try to find by email
                     find_resp = await client.get(
                         f"{OUTREACH_API_BASE}/prospects",
                         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.api+json"},
@@ -187,7 +317,7 @@ async def push_accounts_to_outreach(
                         "type": "sequenceState",
                         "relationships": {
                             "prospect": {"data": {"type": "prospect", "id": int(prospect_id)}},
-                            "sequence": {"data": {"type": "sequence", "id": int(sequence_id)}},
+                            "sequence": {"data": {"type": "sequence", "id": int(target_sequence_id)}},
                         },
                     }
                 }
@@ -201,9 +331,9 @@ async def push_accounts_to_outreach(
                 if seq_resp.status_code < 300:
                     added += 1
                 elif seq_resp.status_code == 422:
-                    skipped += 1  # Already in sequence
+                    skipped += 1
                 else:
                     logger.warning("Outreach sequence add failed: %s", seq_resp.text[:200])
                     errors += 1
 
-    return {"added": added, "skipped": skipped, "errors": errors}
+    return {"added": added, "skipped": skipped, "errors": errors, "sequences_created": sequences_created}

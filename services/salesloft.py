@@ -105,25 +105,102 @@ async def list_cadences(user_id: int) -> list[dict]:
     ]
 
 
+async def _create_cadence_with_emails(
+    token: str,
+    company_name: str,
+    emails: list[dict],
+) -> int | None:
+    """Create a SalesLoft cadence with Auggie-generated email steps.
+
+    Returns the cadence ID, or None on failure.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Create the cadence
+        cadence_resp = await client.post(
+            f"{SALESLOFT_API_BASE}/cadences",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "name": f"Auggie – {company_name}",
+                "cadence_function": "outbound",
+            },
+        )
+        if cadence_resp.status_code >= 400:
+            logger.warning("SalesLoft cadence create failed: %s", cadence_resp.text[:200])
+            return None
+        cadence_id = cadence_resp.json()["data"]["id"]
+
+        # 2. Add email steps
+        for i, email in enumerate(emails):
+            step_resp = await client.post(
+                f"{SALESLOFT_API_BASE}/steps",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={
+                    "cadence_id": cadence_id,
+                    "day": 1 + (i * 3),  # Day 1, 4, 7
+                    "step_type": "email",
+                    "name": f"Email {email.get('email_number', i + 1)}",
+                    "details": {
+                        "email_template": {
+                            "subject": email.get("subject", ""),
+                            "body": email.get("body", ""),
+                            "is_reply": i > 0,
+                        },
+                    },
+                },
+            )
+            if step_resp.status_code >= 400:
+                logger.warning("SalesLoft step create failed: %s", step_resp.text[:200])
+
+    return cadence_id
+
+
 async def push_accounts_to_salesloft(
     user_id: int,
-    cadence_id: str,
+    cadence_id: str | None,
     accounts: list[dict],
     contacts_by_account: dict[int, list[dict]],
+    drafts_by_account: dict[int, list[dict]] | None = None,
 ) -> dict:
-    """Push contacts from scored accounts into a SalesLoft cadence.
+    """Push contacts from scored accounts into SalesLoft cadences.
 
-    Returns {"added": int, "skipped": int, "errors": int}.
+    If drafts_by_account is provided and cadence_id is "auggie_generated", creates
+    a per-account cadence with the Auggie email content. Otherwise adds contacts
+    to the specified existing cadence.
+
+    Returns {"added": int, "skipped": int, "errors": int, "cadences_created": int}.
     """
     token = await get_valid_token(user_id)
     added = 0
     skipped = 0
     errors = 0
+    cadences_created = 0
+    use_auggie_cadences = cadence_id == "auggie_generated" and drafts_by_account
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         for account in accounts:
             contacts = contacts_by_account.get(account["id"], [])
             if not contacts:
+                skipped += 1
+                continue
+
+            target_cadence_id = cadence_id
+            if use_auggie_cadences:
+                emails = drafts_by_account.get(account["id"])
+                if emails:
+                    created_id = await _create_cadence_with_emails(
+                        token, account.get("company_name", "Unknown"), emails,
+                    )
+                    if created_id:
+                        target_cadence_id = str(created_id)
+                        cadences_created += 1
+                    else:
+                        errors += 1
+                        continue
+                else:
+                    skipped += 1
+                    continue
+
+            if not target_cadence_id or target_cadence_id == "auggie_generated":
                 skipped += 1
                 continue
 
@@ -149,7 +226,6 @@ async def push_accounts_to_salesloft(
                 )
 
                 if resp.status_code == 422:
-                    # Person may already exist — find by email
                     find_resp = await client.get(
                         f"{SALESLOFT_API_BASE}/people",
                         headers={"Authorization": f"Bearer {token}"},
@@ -178,16 +254,16 @@ async def push_accounts_to_salesloft(
                     headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                     json={
                         "person_id": person_id,
-                        "cadence_id": int(cadence_id),
+                        "cadence_id": int(target_cadence_id),
                     },
                 )
 
                 if cadence_resp.status_code < 300:
                     added += 1
                 elif cadence_resp.status_code == 422:
-                    skipped += 1  # Already in cadence
+                    skipped += 1
                 else:
                     logger.warning("SalesLoft cadence add failed: %s", cadence_resp.text[:200])
                     errors += 1
 
-    return {"added": added, "skipped": skipped, "errors": errors}
+    return {"added": added, "skipped": skipped, "errors": errors, "cadences_created": cadences_created}

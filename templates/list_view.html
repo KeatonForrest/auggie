@@ -495,6 +495,10 @@ function openOutreachPush(useSelected) {
             document.getElementById('or-form').classList.remove('hidden');
             var sel = document.getElementById('or-sequence');
             sel.innerHTML = '';
+            var augOpt = document.createElement('option');
+            augOpt.value = 'auggie_generated';
+            augOpt.textContent = 'Use Auggie-generated sequences';
+            sel.appendChild(augOpt);
             (sequences || []).forEach(function(s) {
                 var opt = document.createElement('option');
                 opt.value = s.id;
@@ -565,6 +569,10 @@ function openSalesloftPush(useSelected) {
             document.getElementById('sl-form').classList.remove('hidden');
             var sel = document.getElementById('sl-cadence');
             sel.innerHTML = '';
+            var augOpt = document.createElement('option');
+            augOpt.value = 'auggie_generated';
+            augOpt.textContent = 'Use Auggie-generated sequences';
+            sel.appendChild(augOpt);
             (cadences || []).forEach(function(c) {
                 var opt = document.createElement('option');
                 opt.value = c.id;
