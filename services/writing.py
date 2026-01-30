@@ -65,8 +65,29 @@ class WritingService:
 
         return "\n".join(sections)
 
-    def _build_prompt(self, report: str) -> str:
+    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None) -> str:
         """Build the full prompt with the report inserted."""
+        low_confidence_block = ""
+        if opportunity_score is not None and opportunity_score < 50:
+            low_confidence_block = f"""
+**LOW-CONFIDENCE RESEARCH — PARTIAL-SIGNAL MODE**
+
+The research score for this prospect is {opportunity_score}/100. The data is thin, ambiguous, or unconfirmed.
+
+You MUST use partial-signal patterns for this sequence:
+- Do NOT use "that combination usually means" or similar confident framing
+- Name what you observed and explicitly acknowledge what you don't know
+- Offer value conditionally: "If X is true, here's something useful"
+- Give permission to ignore: "If this isn't relevant, no worries"
+- Position insights as benchmarks, not diagnoses
+- Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
+- Frame the ASK as "yours regardless" or "useful either way"
+
+Refer to Section B (Examples 41-50) for tone and structure. Those are your primary models for this sequence.
+
+---
+
+"""
         return f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
 
 Count words before submitting each email. If over the limit, rewrite shorter.
@@ -79,7 +100,7 @@ These are requirements, not guidelines.
 
 ---
 
-You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
+{low_confidence_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
 **Your job:** Use research to demonstrate you understand their problem, then explain why you can help. The research is proof of understanding, not the point of the email.
 
@@ -1455,7 +1476,7 @@ Present your final output in this format:
         report = self._build_report(document, product_context)
 
         # Build the full prompt
-        prompt = self._build_prompt(report)
+        prompt = self._build_prompt(report, document.opportunity_score)
 
         # Call Sonnet
         message = self.client.messages.create(
