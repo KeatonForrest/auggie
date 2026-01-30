@@ -11,7 +11,7 @@ httpx==0.27.0
 pydantic-settings==2.2.0
 
 # Anthropic - Claude API client
-anthropic==0.39.0
+anthropic>=0.49.0
 
 # Python-dotenv - load .env files
 python-dotenv==1.0.1
