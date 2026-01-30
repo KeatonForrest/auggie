@@ -86,7 +86,8 @@ You MUST use partial-signal patterns for this sequence:
 - When describing what you observed, use neutral discovery language ("I saw X", "your site uses Y") — never frame missing technology as a gap or deficiency
 - Never reference what your research did or didn't uncover. Talk about what the prospect's stack IS, not what your search turned up. Do not narrate the research process.
 - If you only have partial tech signals, lead with what you see and pivot directly to the value question: "I saw X — curious whether Y is on your radar."
-- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find"
+- Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
+- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
 
 Refer to Section B (Examples 41-50) for tone and structure. Those are your primary models for this sequence.
 
@@ -102,7 +103,7 @@ Refer to Section B (Examples 41-50) for tone and structure. Those are your prima
 BEFORE outputting your emails, re-read the PARTIAL-SIGNAL MODE block at the top. Then scan every sentence you wrote for:
 - Banned phrases: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "that combination"
 - Any sentence describing what your research did NOT find — rewrite to state only what you observed
-- Any condescending framing like "works fine for simple" or "basic infrastructure" — remove the judgment
+- Any condescending framing: "basic", "simple", "limited", "rudimentary", "might work fine", "works fine for now", "worth knowing" — describe their stack neutrally without grading it
 
 If any violations appear, rewrite those sentences before outputting. Do not output a first draft.
 """
