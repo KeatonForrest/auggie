@@ -1,11 +1,17 @@
 """config.py - Application configuration loaded from environment variables."""
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
     """Settings loaded from .env file or environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     firecrawl_api_key: str
     anthropic_api_key: str
@@ -83,10 +89,6 @@ class Settings(BaseSettings):
         """Get the R2 S3-compatible endpoint URL."""
         return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
 
 
 @lru_cache
