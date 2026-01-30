@@ -96,7 +96,6 @@ function showResearching(startedAt) {
 
 // --- Error handling ---
 function showError(msg) {
-  console.error('showError called with:', msg);
   const el = document.getElementById('errorMsg');
   const text = typeof msg === 'string' ? msg
     : (msg instanceof Error) ? msg.message

@@ -1078,87 +1078,9 @@ async def save_settings(
     return RedirectResponse(url="/settings?saved=true", status_code=302)
 
 
-@app.post("/research", response_class=HTMLResponse)
-async def create_research(
-    request: Request,
-    company_url: str = Form(...),
-    user: dict = Depends(require_onboarding),
-):
-    """Generate a research document for a company."""
-    # Validate and normalize URL (SSRF protection)
-    try:
-        company_url = validate_company_url(company_url)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
-    # Check and reserve credit upfront (admins have unlimited)
-    usage = await get_user_usage(user["id"])
-    is_admin = usage.get("is_admin", False)
-    if not is_admin:
-        reserved = await use_credit(user["id"])
-        if not reserved:
-            raise HTTPException(
-                status_code=402,
-                detail="No credits remaining. Buy more credits to continue researching."
-            )
 
-    try:
-        print(f"[{user['email']}] Scraping {company_url}...")
-        scraped_content = await firecrawl_service.scrape_company(company_url)
 
-        print("Detecting technologies across domains...")
-        tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
-            main_url=company_url,
-            main_html=scraped_content.homepage_html
-        )
-        total_tech = sum(len(t.technologies) for t in tech_by_domain.values())
-        print(f"Detected {total_tech} technologies across {len(tech_by_domain)} domains")
-
-        # Parallel data collection
-        retrieved_materials = await collect_enrichment_data(
-            scraped_content, company_url, user["id"], verbose=True,
-        )
-
-        print("Generating research document...")
-        document = await claude_service.generate_research_document(
-            company_url=company_url,
-            scraped=scraped_content,
-            product_context=user["product_context"],  # From user profile!
-            tech_by_domain=tech_by_domain,
-            retrieved_materials=retrieved_materials,  # v2: Include materials
-            seller_company=user.get("company_name", ""),  # For competitor detection
-            target_personas=user.get("target_personas", ""),
-            target_industries=user.get("target_industries", ""),
-            problems_solved=user.get("problems_solved", ""),
-        )
-
-        # Save document (credit already deducted)
-        doc_id = await save_document(document, user_id=user["id"])
-        document.id = doc_id
-
-        recent_docs = await get_all_documents(user_id=user["id"], limit=10)
-        usage = await get_user_usage(user["id"])
-
-        return templates.TemplateResponse(
-            "document.html",
-            {
-                "request": request,
-                "user": user,
-                "document": document,
-                "recent_docs": recent_docs,
-                "credits": usage.get("bonus_credits", 0) / 100,
-                "is_admin": usage.get("is_admin", False),
-                "enriched_contacts": [],
-            }
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        if not is_admin:
-            await refund_credit(user["id"])
-        print(f"Error generating research: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/document/{doc_id}", response_class=HTMLResponse)
