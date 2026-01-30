@@ -348,12 +348,14 @@ SCORING DISCIPLINE:
 - Are the problems ones the seller's product directly addresses?
 - Is there evidence of active suffering (complaints, long-open roles, tech debt)?
 
+IMPORTANT: You are scoring based on publicly available web data, not insider knowledge. Companies rarely publish their pain directly. Score based on what signals ARE detectable — job postings mentioning problems, tech stack gaps, scaling language on careers pages, etc. A single relevant signal from public data is meaningful and should score in the 50s, not the 30s.
+
 Calibration anchors:
 - 85-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals.
-- 70-84: 2+ clear pain signals with direct product relevance. Some open roles suggesting unresolved problems. Evidence of struggling with a problem the seller addresses.
-- 45-69: 1 clear pain signal or multiple indirect signals. Problems exist but aren't urgent or clearly addressable. Open roles but not long-tenured.
-- 15-44: Weak or speculative pain signals. No direct evidence of suffering. Inferred problems only.
-- 0-14: No observable pain signals whatsoever. No relevant hiring, no tech debt indicators, no complaints. Company shows no signs of needing the seller's product.
+- 65-84: 2+ pain signals with product relevance. Job postings mentioning relevant challenges (scaling, migration, performance). Hiring for roles that suggest unresolved problems in the seller's domain.
+- 45-64: 1 clear pain signal — a job posting mentioning a relevant problem, tech debt visible in stack, or data-intensive operations that imply infrastructure needs. This is the EXPECTED range for most prospects where you find something relevant.
+- 20-44: Speculative pain only. No job postings mention relevant problems. Pain is inferred purely from industry or company type, not observed.
+- 0-19: No observable pain signals whatsoever. No relevant hiring, no tech indicators, nothing to suggest they need the seller's product.
 
 **Fit Score (35% weight):**
 - Does their company size/industry match the seller's ICP?
@@ -376,19 +378,19 @@ IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue from
 - Is there a regulatory deadline or competitive threat with a timeline?
 - Are they actively evaluating solutions (RFP signals, comparison content)?
 
+IMPORTANT: Active hiring and recent product launches ARE timing signals. A company that is actively posting technical roles and shipping new features is in a building phase — that's a real window. Don't require a funding round or leadership change to score above 50.
+
 Calibration anchors:
 - 85-100: Multiple concurrent urgency signals — recent funding + hiring spike + leadership change. Active vendor evaluation. Deadline-driven need.
 - 65-84: Clear urgency — recent funding OR significant hiring spike OR leadership change. Evidence of active building/transformation.
-- 40-64: Moderate signals — some hiring but no spike. No recent funding or leadership changes. General growth but no urgency.
-- 15-39: Weak timing — flat or declining hiring. No funding signals. No visible transformation initiatives. Stable/stagnant.
-- 0-14: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. Actively bad time to sell. OR: zero timing signals of any kind found.
-
-IMPORTANT: Absence of signals is a STRONG negative signal for Timing. If you found ZERO timing signals — no job postings, no news, no funding, no leadership changes, no regulatory deadlines — the Timing score must be below 15, not 20. A score of 20 implies you found something weak. A score of 8 means you found nothing. Be honest about the difference.
+- 45-64: Active building phase — steady technical hiring, recent product launches, or platform expansion. The company is investing and making decisions. This is the EXPECTED range for growing companies without a specific urgency trigger.
+- 20-44: Minimal activity — limited hiring, no recent news, no visible investment. Company appears stable but not actively building.
+- 0-19: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. OR: zero timing signals of any kind found.
 
 CONCRETE EXAMPLE (for a database product seller):
 - A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 85, Fit: 82, Timing: 79, Composite: 83
+- A SaaS platform (enterprise customers, right industry) hiring multiple backend engineers with postings mentioning "search infrastructure" and "recommendation systems," active product launches, but no confirmed database pain or long-open roles → Pain: 52, Fit: 71, Timing: 56, Composite: 60
 - A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 22, Fit: 43, Timing: 18, Composite: 28
-- A healthcare SaaS company (200 employees, Series B) with one relevant job posting mentioning "data pipeline issues" but no long-open roles, partial ICP match (right industry, slightly small), no recent funding or leadership changes but steady hiring → Pain: 47, Fit: 54, Timing: 31, Composite: 45
 - A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 28, Fit: 36, Timing: 19, Composite: 28
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
