@@ -249,9 +249,9 @@ Build bulk processing and developer documentation.
 ---
 
 ## Phase 7: Clay Marketplace
-**Status:** Partially Complete (technical work done, marketplace onboarding remaining — see Phase 9)
+**Status:** Partially Complete (technical work done, marketplace onboarding remaining — see Phase 13)
 
-Technical foundation for Clay integration is complete. Remaining marketplace onboarding steps moved to Phase 9 to run in the background.
+Technical foundation for Clay integration is complete. Remaining marketplace onboarding steps moved to Phase 13 to run in the background.
 
 ### Completed
 - [x] Build API (Phase 5 prerequisite)
@@ -421,8 +421,8 @@ Fix friction points that hurt activation, retention, and daily usability. Groupe
 
 ---
 
-## Phase 9: Clay Marketplace
-**Status:** Planned (runs in background alongside Phase 8)
+## Phase 13: Clay Marketplace
+**Status:** Planned (runs in background)
 **Timeline:** 30-60 day onboarding process
 
 Complete the Clay marketplace onboarding. Technical integration is done (Phase 7). This is the external partnership process.
@@ -650,7 +650,7 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
 | ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack |
-| Background | Phase 9 | Clay Marketplace onboarding (external process) |
+| Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
 | Next | Phase 11 | Team accounts |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
