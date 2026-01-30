@@ -150,6 +150,7 @@
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Composite</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Enriched</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Sequences</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Pushed</th>
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>
@@ -196,6 +197,23 @@
                         <span class="text-green-600 text-sm font-medium">&#10003;</span>
                         {% elif a.outreach_status == 'pending' %}
                         <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {% else %}
+                        <span class="text-gray-300">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center hidden md:table-cell">
+                        {% set pushed = a.pushed_to if a.pushed_to is mapping else {} %}
+                        {% if pushed %}
+                        <div class="flex items-center justify-center gap-1 flex-wrap">
+                            {% for provider in pushed %}
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium
+                                {% if provider == 'instantly' %}bg-purple-100 text-purple-700
+                                {% elif provider == 'smartlead' %}bg-sky-100 text-sky-700
+                                {% elif provider == 'outreach' %}bg-violet-100 text-violet-700
+                                {% elif provider == 'salesloft' %}bg-teal-100 text-teal-700
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">{{ provider | capitalize }}</span>
+                            {% endfor %}
+                        </div>
                         {% else %}
                         <span class="text-gray-300">&mdash;</span>
                         {% endif %}
