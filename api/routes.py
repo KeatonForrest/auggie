@@ -732,3 +732,72 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
         api_user["id"], body.campaign_id, accounts, contacts_by_account,
     )
     return result
+
+
+# =================================================================
+# Team API Routes
+# =================================================================
+
+class InviteRequest(BaseModel):
+    email: str
+    role: str = "member"
+
+
+class RoleUpdate(BaseModel):
+    role: str
+
+
+@router.get("/team")
+async def api_list_team(api_user: dict = Depends(require_api_key)):
+    """List team members."""
+    from database import get_org_members, get_user_by_id
+    user = await get_user_by_id(api_user["id"])
+    if not user or not user.get("org_id"):
+        raise HTTPException(status_code=400, detail="No organization found")
+    members = await get_org_members(user["org_id"])
+    return {"members": members}
+
+
+@router.post("/team/invite")
+async def api_invite_member(body: InviteRequest, api_user: dict = Depends(require_api_key)):
+    """Invite a team member (admin only)."""
+    from database import get_user_by_id, create_org_invite
+    user = await get_user_by_id(api_user["id"])
+    if not user or user.get("org_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if body.role not in ("admin", "member", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    invite = await create_org_invite(user["org_id"], body.email, body.role, user["id"])
+    return {"invite": {"id": invite["id"], "email": invite["email"], "role": invite["role"], "token": invite["token"], "expires_at": str(invite["expires_at"])}}
+
+
+@router.delete("/team/members/{member_id}")
+async def api_remove_member(member_id: int, api_user: dict = Depends(require_api_key)):
+    """Remove a team member (admin only)."""
+    from database import get_user_by_id, remove_org_member
+    user = await get_user_by_id(api_user["id"])
+    if not user or user.get("org_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if member_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself")
+    removed = await remove_org_member(user["org_id"], member_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return {"removed": True}
+
+
+@router.patch("/team/members/{member_id}")
+async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Depends(require_api_key)):
+    """Change a team member's role (admin only)."""
+    from database import get_user_by_id, update_member_role
+    user = await get_user_by_id(api_user["id"])
+    if not user or user.get("org_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if member_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    if body.role not in ("admin", "member", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    updated = await update_member_role(user["org_id"], member_id, body.role)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return {"updated": True}

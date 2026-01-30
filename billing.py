@@ -5,8 +5,8 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 
 from config import get_settings
-from database import update_user_stripe, get_user_by_id, fulfill_session
-from auth import require_auth
+from database import update_user_stripe, get_user_by_id, fulfill_session, update_org_stripe
+from auth import require_auth, require_org_admin
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -52,20 +52,23 @@ async def get_or_create_credit_pack_price():
 
 
 @router.get("/buy-credits")
-async def buy_credits(request: Request, user: dict = Depends(require_auth)):
-    """Create a Stripe checkout session for credit purchase."""
+async def buy_credits(request: Request, user: dict = Depends(require_org_admin)):
+    """Create a Stripe checkout session for credit purchase (admin only)."""
     price_id = await get_or_create_credit_pack_price()
 
-    # Create or get Stripe customer
-    if user.get("stripe_customer_id"):
-        customer_id = user["stripe_customer_id"]
+    # Create or get Stripe customer on the org
+    org_customer_id = user.get("org_stripe_customer_id")
+    if org_customer_id:
+        customer_id = org_customer_id
     else:
         customer = stripe.Customer.create(
             email=user["email"],
-            name=user.get("name", ""),
-            metadata={"user_id": str(user["id"])},
+            name=user.get("org_name") or user.get("name", ""),
+            metadata={"user_id": str(user["id"]), "org_id": str(user.get("org_id", ""))},
         )
         customer_id = customer.id
+        if user.get("org_id"):
+            await update_org_stripe(user["org_id"], customer_id)
         await update_user_stripe(user["id"], customer_id)
 
     # Create checkout session for one-time payment
@@ -76,7 +79,7 @@ async def buy_credits(request: Request, user: dict = Depends(require_auth)):
         mode="payment",
         success_url=f"{settings.app_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{settings.app_url}/",
-        metadata={"user_id": str(user["id"]), "credits": "10"},
+        metadata={"user_id": str(user["id"]), "org_id": str(user.get("org_id", "")), "credits": "10"},
     )
 
     return RedirectResponse(url=checkout_session.url, status_code=303)

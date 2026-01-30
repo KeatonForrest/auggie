@@ -16,6 +16,8 @@ from database import (
     create_user,
     create_user_microsoft,
     get_user_by_id,
+    get_pending_invites_for_email,
+    accept_invite,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -117,6 +119,26 @@ async def require_onboarding(request: Request) -> dict:
     return user
 
 
+async def require_org_admin(request: Request) -> dict:
+    """Dependency that requires auth + org admin role."""
+    user = await require_auth(request)
+    if user.get("org_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+async def _auto_accept_invites(user: dict) -> None:
+    """Auto-accept any pending invites matching the user's email."""
+    try:
+        invites = await get_pending_invites_for_email(user["email"])
+        if invites:
+            # Accept the most recent invite
+            await accept_invite(invites[0]["token"], user["id"])
+            print(f"Auto-accepted invite for {user['email']} to org {invites[0].get('org_name')}")
+    except Exception as e:
+        print(f"Error auto-accepting invites: {e}")
+
+
 @router.get("/login")
 async def login(request: Request):
     """Redirect to Google OAuth."""
@@ -156,7 +178,10 @@ async def callback(request: Request):
         print(f"Created new user: {email}")
     else:
         print(f"Existing user logged in: {email}")
-    
+
+    # Auto-accept pending org invites
+    await _auto_accept_invites(user)
+
     # Store user_id in session (managed by SessionMiddleware)
     request.session["user_id"] = user["id"]
     print(f"Stored user_id {user['id']} in session")
@@ -285,6 +310,9 @@ async def microsoft_callback(request: Request):
         print(f"Created new user (Microsoft): {email}")
     else:
         print(f"Existing user logged in (Microsoft): {email}")
+
+    # Auto-accept pending org invites
+    await _auto_accept_invites(user)
 
     # Store user_id in session
     request.session["user_id"] = user["id"]

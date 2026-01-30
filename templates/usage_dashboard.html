@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usage Dashboard - Auggie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <a href="/" class="text-xl font-bold text-gray-900 hover:text-gray-700">Auggie</a>
+                <div class="flex items-center gap-4">
+                    <a href="/settings/team" class="text-sm text-gray-600 hover:text-gray-900">Back to Team</a>
+                    <div class="flex items-center gap-2">
+                        {% if user.picture %}
+                        <img src="{{ user.picture }}" alt="" class="w-8 h-8 rounded-full">
+                        {% endif %}
+                        <span class="text-sm text-gray-700">{{ user.name or user.email }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-3xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold text-gray-900">Usage Dashboard</h1>
+                <p class="text-sm text-gray-500 mt-1">{{ org.name }} &mdash; {{ credits }} credits remaining (last 30 days)</p>
+            </div>
+
+            <div class="border rounded-lg overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Member</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Role</th>
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Research (30d)</th>
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for member in breakdown %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    {% if member.picture %}
+                                    <img src="{{ member.picture }}" alt="" class="w-6 h-6 rounded-full">
+                                    {% endif %}
+                                    <div>
+                                        <div class="font-medium text-gray-900">{{ member.name or member.email }}</div>
+                                        <div class="text-gray-500 text-xs">{{ member.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if member.role == 'admin' %}bg-purple-100 text-purple-800
+                                    {% elif member.role == 'viewer' %}bg-gray-100 text-gray-800
+                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                    {{ member.role }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium text-gray-900">{{ member.research_count }}</td>
+                            <td class="px-4 py-3 text-right text-gray-500">
+                                {% if member.last_activity %}
+                                {{ member.last_activity.strftime('%b %d, %Y') }}
+                                {% else %}
+                                <span class="text-gray-400">Never</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not breakdown %}
+                        <tr>
+                            <td colspan="4" class="px-4 py-6 text-center text-gray-500">No team members found.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

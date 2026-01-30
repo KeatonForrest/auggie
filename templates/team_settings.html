@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Settings - Auggie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <a href="/" class="text-xl font-bold text-gray-900 hover:text-gray-700">Auggie</a>
+                <div class="flex items-center gap-4">
+                    <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Back to Dashboard</a>
+                    <div class="flex items-center gap-2">
+                        {% if user.picture %}
+                        <img src="{{ user.picture }}" alt="" class="w-8 h-8 rounded-full">
+                        {% endif %}
+                        <span class="text-sm text-gray-700">{{ user.name or user.email }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-3xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Team Settings</h1>
+                    <p class="text-sm text-gray-500 mt-1">{{ org.name }} &mdash; {{ credits }} credits remaining</p>
+                </div>
+                {% if is_admin %}
+                <a href="/settings/team/usage" class="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200">Usage Dashboard</a>
+                {% endif %}
+            </div>
+
+            {% if request.query_params.get('invited') %}
+            <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6">
+                Invite sent to <strong>{{ request.query_params.get('invited') }}</strong>. Share the invite link below.
+            </div>
+            {% endif %}
+
+            <!-- Members Table -->
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">Members</h2>
+            <div class="border rounded-lg overflow-hidden mb-8">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Member</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Role</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Joined</th>
+                            {% if is_admin %}
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for member in members %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    {% if member.picture %}
+                                    <img src="{{ member.picture }}" alt="" class="w-6 h-6 rounded-full">
+                                    {% endif %}
+                                    <div>
+                                        <div class="font-medium text-gray-900">{{ member.name or member.email }}</div>
+                                        <div class="text-gray-500 text-xs">{{ member.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if member.role == 'admin' %}bg-purple-100 text-purple-800
+                                    {% elif member.role == 'viewer' %}bg-gray-100 text-gray-800
+                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                    {{ member.role }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-500">{{ member.joined_at.strftime('%b %d, %Y') if member.joined_at else '' }}</td>
+                            {% if is_admin %}
+                            <td class="px-4 py-3 text-right">
+                                {% if member.id != user.id %}
+                                <div class="flex items-center justify-end gap-2">
+                                    <form method="post" action="/settings/team/role" class="inline">
+                                        <input type="hidden" name="member_id" value="{{ member.id }}">
+                                        <select name="role" onchange="this.form.submit()" class="text-xs border rounded px-1 py-0.5">
+                                            <option value="admin" {% if member.role == 'admin' %}selected{% endif %}>admin</option>
+                                            <option value="member" {% if member.role == 'member' %}selected{% endif %}>member</option>
+                                            <option value="viewer" {% if member.role == 'viewer' %}selected{% endif %}>viewer</option>
+                                        </select>
+                                    </form>
+                                    <form method="post" action="/settings/team/remove" onsubmit="return confirm('Remove this member?')">
+                                        <input type="hidden" name="member_id" value="{{ member.id }}">
+                                        <button type="submit" class="text-red-600 hover:text-red-800 text-xs">Remove</button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-xs text-gray-400">You</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if is_admin %}
+            <!-- Pending Invites -->
+            {% if invites %}
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">Pending Invites</h2>
+            <div class="border rounded-lg overflow-hidden mb-8">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Email</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Role</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Expires</th>
+                            <th class="text-left px-4 py-2 font-medium text-gray-600">Link</th>
+                            <th class="text-right px-4 py-2 font-medium text-gray-600">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for invite in invites %}
+                        <tr>
+                            <td class="px-4 py-3 text-gray-900">{{ invite.email }}</td>
+                            <td class="px-4 py-3 text-gray-500">{{ invite.role }}</td>
+                            <td class="px-4 py-3 text-gray-500">{{ invite.expires_at.strftime('%b %d') if invite.expires_at else '' }}</td>
+                            <td class="px-4 py-3">
+                                <button onclick="copyInviteLink('{{ invite.token }}')" class="text-xs text-blue-600 hover:text-blue-800">Copy link</button>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <form method="post" action="/settings/team/revoke-invite" class="inline">
+                                    <input type="hidden" name="invite_id" value="{{ invite.id }}">
+                                    <button type="submit" class="text-red-600 hover:text-red-800 text-xs">Revoke</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Invite Form -->
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">Invite Team Member</h2>
+            <form method="post" action="/settings/team/invite" class="flex items-end gap-3">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+                    <input type="email" name="email" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                           placeholder="colleague@company.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select name="role" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer</option>
+                    </select>
+                </div>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+                    Send Invite
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+    function copyInviteLink(token) {
+        var url = window.location.origin + '/invite/' + token;
+        navigator.clipboard.writeText(url).then(function() {
+            alert('Invite link copied to clipboard');
+        });
+    }
+    </script>
+</body>
+</html>

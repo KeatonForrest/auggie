@@ -1,7 +1,9 @@
 """database.py - PostgreSQL database operations for research documents."""
 
 import asyncpg
-from datetime import datetime
+import secrets
+import re
+from datetime import datetime, timedelta
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -670,6 +672,144 @@ async def init_database():
                 # It will be created when data is added, or use HNSW instead
                 pass
 
+        # =================================================================
+        # Organizations & Team tables
+        # =================================================================
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS organizations (
+                id BIGSERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                stripe_customer_id TEXT UNIQUE,
+                bonus_credits INTEGER DEFAULT 0,
+                billing_period_start TIMESTAMPTZ DEFAULT NOW(),
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS org_members (
+                id BIGSERIAL PRIMARY KEY,
+                org_id BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member', 'viewer')),
+                joined_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(org_id, user_id)
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_org_members_user
+            ON org_members(user_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_org_members_org
+            ON org_members(org_id)
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS org_invites (
+                id BIGSERIAL PRIMARY KEY,
+                org_id BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                email TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member', 'viewer')),
+                token TEXT UNIQUE NOT NULL,
+                invited_by BIGINT NOT NULL REFERENCES users(id),
+                accepted_at TIMESTAMPTZ,
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(org_id, email)
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_org_invites_token
+            ON org_invites(token)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_org_invites_email
+            ON org_invites(email)
+        """)
+
+        # Add org_id column to users
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN org_id BIGINT REFERENCES organizations(id)")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
+        # Add org_id to org-shared tables
+        for table in ["materials", "material_chunks", "lists", "webhooks"]:
+            try:
+                await conn.execute(f"ALTER TABLE {table} ADD COLUMN org_id BIGINT REFERENCES organizations(id)")
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
+            except Exception:
+                pass  # Table may not exist (e.g. materials when not enabled)
+
+        # Migrate existing users to 1-person orgs (one txn per user, with row lock)
+        unmigrated_ids = [r["id"] for r in await conn.fetch(
+            "SELECT id FROM users WHERE org_id IS NULL"
+        )]
+        for uid in unmigrated_ids:
+            async with conn.transaction():
+                u = await conn.fetchrow(
+                    "SELECT id, email, name, company_name, stripe_customer_id, bonus_credits "
+                    "FROM users WHERE id = $1 AND org_id IS NULL FOR UPDATE",
+                    uid
+                )
+                if not u:
+                    continue  # Already migrated by another instance
+
+                org_name = u["company_name"] or u["name"] or u["email"]
+                org_slug = f"user-{u['id']}"
+                try:
+                    org_row = await conn.fetchrow(
+                        """
+                        INSERT INTO organizations (name, slug, stripe_customer_id, bonus_credits)
+                        VALUES ($1, $2, $3, $4)
+                        RETURNING id
+                        """,
+                        org_name, org_slug, u["stripe_customer_id"], u["bonus_credits"]
+                    )
+                    org_id = org_row["id"]
+                    await conn.execute(
+                        "UPDATE users SET org_id = $2, bonus_credits = 0 WHERE id = $1",
+                        u["id"], org_id
+                    )
+                    await conn.execute(
+                        """
+                        INSERT INTO org_members (org_id, user_id, role)
+                        VALUES ($1, $2, 'admin')
+                        ON CONFLICT (org_id, user_id) DO NOTHING
+                        """,
+                        org_id, u["id"]
+                    )
+                    # Backfill org_id on shared tables
+                    for table in ["materials", "material_chunks", "lists", "webhooks"]:
+                        try:
+                            await conn.execute(
+                                f"UPDATE {table} SET org_id = $2 WHERE user_id = $1 AND org_id IS NULL",
+                                u["id"], org_id
+                            )
+                        except Exception:
+                            pass
+                except asyncpg.exceptions.UniqueViolationError:
+                    # Slug conflict — another instance created it; adopt the existing org
+                    existing_org = await conn.fetchval(
+                        "SELECT id FROM organizations WHERE slug = $1", org_slug
+                    )
+                    if existing_org:
+                        await conn.execute(
+                            "UPDATE users SET org_id = $2, bonus_credits = 0 WHERE id = $1",
+                            u["id"], existing_org
+                        )
+                        await conn.execute(
+                            """
+                            INSERT INTO org_members (org_id, user_id, role)
+                            VALUES ($1, $2, 'admin')
+                            ON CONFLICT (org_id, user_id) DO NOTHING
+                            """,
+                            existing_org, u["id"]
+                        )
+
 
 async def close_database():
     """Close the connection pool."""
@@ -711,41 +851,107 @@ async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
 
 
 async def get_user_by_id(user_id: int) -> Optional[dict]:
-    """Get a user by their ID."""
+    """Get a user by their ID, including org context."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM users WHERE id = $1",
+            """
+            SELECT u.*,
+                   om.role AS org_role,
+                   o.name AS org_name,
+                   o.slug AS org_slug,
+                   o.bonus_credits AS org_credits,
+                   o.stripe_customer_id AS org_stripe_customer_id
+            FROM users u
+            LEFT JOIN org_members om ON om.user_id = u.id
+            LEFT JOIN organizations o ON o.id = u.org_id
+            WHERE u.id = $1
+            """,
             user_id
         )
         return dict(row) if row else None
 
 
 async def create_user(email: str, name: str, picture: str, google_id: str) -> dict:
-    """Create a new user from Google OAuth data."""
+    """Create a new user from Google OAuth data with auto-created org."""
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO users (email, name, picture, google_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 100)
-            RETURNING *
-            """,
-            email, name, picture, google_id
-        )
-        return dict(row)
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (email, name, picture, google_id, bonus_credits)
+                VALUES ($1, $2, $3, $4, 0)
+                RETURNING *
+                """,
+                email, name, picture, google_id
+            )
+            user = dict(row)
+            # Auto-create a 1-person org (org holds the credits)
+            org_name = name or email
+            org_slug = f"user-{user['id']}"
+            org_row = await conn.fetchrow(
+                """
+                INSERT INTO organizations (name, slug, bonus_credits)
+                VALUES ($1, $2, 100)
+                RETURNING id
+                """,
+                org_name, org_slug
+            )
+            org_id = org_row["id"]
+            await conn.execute(
+                "UPDATE users SET org_id = $2 WHERE id = $1",
+                user["id"], org_id
+            )
+            await conn.execute(
+                "INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')",
+                org_id, user["id"]
+            )
+            user["org_id"] = org_id
+            user["org_role"] = "admin"
+            user["org_name"] = org_name
+            user["org_slug"] = org_slug
+            user["org_credits"] = 100
+            user["org_stripe_customer_id"] = None
+            return user
 
 
 async def create_user_microsoft(email: str, name: str, picture: str, microsoft_id: str) -> dict:
-    """Create a new user from Microsoft OAuth data."""
+    """Create a new user from Microsoft OAuth data with auto-created org."""
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO users (email, name, picture, microsoft_id, bonus_credits)
-            VALUES ($1, $2, $3, $4, 100)
-            RETURNING *
-            """,
-            email, name, picture, microsoft_id
-        )
-        return dict(row)
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (email, name, picture, microsoft_id, bonus_credits)
+                VALUES ($1, $2, $3, $4, 0)
+                RETURNING *
+                """,
+                email, name, picture, microsoft_id
+            )
+            user = dict(row)
+            org_name = name or email
+            org_slug = f"user-{user['id']}"
+            org_row = await conn.fetchrow(
+                """
+                INSERT INTO organizations (name, slug, bonus_credits)
+                VALUES ($1, $2, 100)
+                RETURNING id
+                """,
+                org_name, org_slug
+            )
+            org_id = org_row["id"]
+            await conn.execute(
+                "UPDATE users SET org_id = $2 WHERE id = $1",
+                user["id"], org_id
+            )
+            await conn.execute(
+                "INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')",
+                org_id, user["id"]
+            )
+            user["org_id"] = org_id
+            user["org_role"] = "admin"
+            user["org_name"] = org_name
+            user["org_slug"] = org_slug
+            user["org_credits"] = 100
+            user["org_stripe_customer_id"] = None
+            return user
 
 
 async def update_user_profile(
@@ -896,12 +1102,15 @@ async def reset_user_searches(user_id: int) -> None:
 
 
 async def get_user_usage(user_id: int) -> dict:
-    """Get user's current usage stats."""
+    """Get user's current usage stats (credits from org)."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT searches_used, bonus_credits, billing_period_start, subscription_status, is_admin
-            FROM users WHERE id = $1
+            SELECT u.searches_used, COALESCE(o.bonus_credits, u.bonus_credits) AS bonus_credits,
+                   u.billing_period_start, u.subscription_status, u.is_admin
+            FROM users u
+            LEFT JOIN organizations o ON o.id = u.org_id
+            WHERE u.id = $1
             """,
             user_id
         )
@@ -909,15 +1118,15 @@ async def get_user_usage(user_id: int) -> dict:
 
 
 async def add_credits(user_id: int, credits: int) -> int:
-    """Add credits to a user. Credits are in whole units (1 credit = 100 cents internally).
+    """Add credits to user's org. Credits are in whole units (1 credit = 100 cents internally).
     Returns new total in cents."""
     cents = credits * 100
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            UPDATE users
+            UPDATE organizations
             SET bonus_credits = bonus_credits + $2
-            WHERE id = $1
+            WHERE id = (SELECT org_id FROM users WHERE id = $1)
             RETURNING bonus_credits
             """,
             user_id, cents
@@ -926,14 +1135,14 @@ async def add_credits(user_id: int, credits: int) -> int:
 
 
 async def use_credit(user_id: int, cents: int = 100) -> bool:
-    """Use credits. Default 100 cents (1 credit). Enrichment = 50 cents.
+    """Use credits from user's org pool. Default 100 cents (1 credit). Enrichment = 50 cents.
     Returns True if successful, False if insufficient credits."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            UPDATE users
+            UPDATE organizations
             SET bonus_credits = bonus_credits - $2
-            WHERE id = $1 AND bonus_credits >= $2
+            WHERE id = (SELECT org_id FROM users WHERE id = $1) AND bonus_credits >= $2
             RETURNING bonus_credits
             """,
             user_id, cents
@@ -942,10 +1151,13 @@ async def use_credit(user_id: int, cents: int = 100) -> bool:
 
 
 async def refund_credit(user_id: int, cents: int = 100) -> None:
-    """Refund credits (e.g. when a reserved job fails)."""
+    """Refund credits to user's org pool (e.g. when a reserved job fails)."""
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE users SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+            """
+            UPDATE organizations SET bonus_credits = bonus_credits + $2
+            WHERE id = (SELECT org_id FROM users WHERE id = $1)
+            """,
             user_id, cents
         )
 
@@ -953,7 +1165,7 @@ async def refund_credit(user_id: int, cents: int = 100) -> None:
 async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
     """Idempotently fulfill a Stripe checkout session.
 
-    Inserts into fulfilled_sessions and adds credits in one transaction.
+    Inserts into fulfilled_sessions and adds credits to the user's org in one transaction.
     Returns True if credits were added, False if already fulfilled.
     """
     cents = credits * 100
@@ -967,7 +1179,10 @@ async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
             except asyncpg.exceptions.UniqueViolationError:
                 return False
             await conn.execute(
-                "UPDATE users SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+                """
+                UPDATE organizations SET bonus_credits = bonus_credits + $2
+                WHERE id = (SELECT org_id FROM users WHERE id = $1)
+                """,
                 user_id, cents,
             )
             return True
@@ -1314,15 +1529,16 @@ async def create_material(
     storage_key: str,
     material_type: str = "other"
 ) -> dict:
-    """Create a new material record."""
+    """Create a new material record (org-scoped)."""
     async with _pool.acquire() as conn:
+        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
-            INSERT INTO materials (user_id, filename, file_type, file_size, storage_key, material_type)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO materials (user_id, org_id, filename, file_type, file_size, storage_key, material_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             """,
-            user_id, filename, file_type, file_size, storage_key, material_type
+            user_id, org_id, filename, file_type, file_size, storage_key, material_type
         )
         return dict(row)
 
@@ -1346,14 +1562,16 @@ async def update_material_status(
 
 
 async def get_user_materials(user_id: int) -> list[dict]:
-    """Get all materials for a user."""
+    """Get all materials for a user's org (shared)."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, filename, file_type, file_size, material_type, status, chunk_count, error_message, created_at
-            FROM materials
-            WHERE user_id = $1
-            ORDER BY created_at DESC
+            SELECT m.id, m.filename, m.file_type, m.file_size, m.material_type,
+                   m.status, m.chunk_count, m.error_message, m.created_at
+            FROM materials m
+            WHERE m.org_id = (SELECT org_id FROM users WHERE id = $1)
+               OR (m.org_id IS NULL AND m.user_id = $1)
+            ORDER BY m.created_at DESC
             """,
             user_id
         )
@@ -1361,20 +1579,33 @@ async def get_user_materials(user_id: int) -> list[dict]:
 
 
 async def get_material(material_id: int, user_id: int) -> Optional[dict]:
-    """Get a material by ID (scoped to user)."""
+    """Get a material by ID (scoped to user's org)."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM materials WHERE id = $1 AND user_id = $2",
+            """
+            SELECT * FROM materials
+            WHERE id = $1 AND (
+                org_id = (SELECT org_id FROM users WHERE id = $2)
+                OR (org_id IS NULL AND user_id = $2)
+            )
+            """,
             material_id, user_id
         )
         return dict(row) if row else None
 
 
 async def delete_material(material_id: int, user_id: int) -> Optional[str]:
-    """Delete a material and return its storage key for R2 cleanup."""
+    """Delete a material and return its storage key for R2 cleanup (org-scoped)."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            "DELETE FROM materials WHERE id = $1 AND user_id = $2 RETURNING storage_key",
+            """
+            DELETE FROM materials
+            WHERE id = $1 AND (
+                org_id = (SELECT org_id FROM users WHERE id = $2)
+                OR (org_id IS NULL AND user_id = $2)
+            )
+            RETURNING storage_key
+            """,
             material_id, user_id
         )
         return row['storage_key'] if row else None
@@ -1391,6 +1622,7 @@ async def save_chunks(
 ) -> int:
     """Save chunks with embeddings. Returns count saved."""
     async with _pool.acquire() as conn:
+        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         for i, chunk in enumerate(chunks):
             # Convert embedding list to pgvector format
             embedding = chunk['embedding']
@@ -1398,10 +1630,10 @@ async def save_chunks(
 
             await conn.execute(
                 """
-                INSERT INTO material_chunks (material_id, user_id, chunk_index, content, embedding, section_title, material_type)
-                VALUES ($1, $2, $3, $4, $5::vector, $6, $7)
+                INSERT INTO material_chunks (material_id, user_id, org_id, chunk_index, content, embedding, section_title, material_type)
+                VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)
                 """,
-                material_id, user_id, i, chunk['content'], embedding_str,
+                material_id, user_id, org_id, i, chunk['content'], embedding_str,
                 chunk.get('section_title'), chunk.get('material_type')
             )
 
@@ -1413,7 +1645,7 @@ async def vector_search(
     query_embedding: list[float],
     limit: int = 5
 ) -> list[dict]:
-    """Search for similar chunks using vector similarity."""
+    """Search for similar chunks using vector similarity (org-scoped)."""
     async with _pool.acquire() as conn:
         # Convert Python list to pgvector format
         embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
@@ -1426,7 +1658,8 @@ async def vector_search(
                 material_type,
                 1 - (embedding <=> $2::vector) as similarity
             FROM material_chunks
-            WHERE user_id = $1
+            WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
+               OR (org_id IS NULL AND user_id = $1)
             ORDER BY embedding <=> $2::vector
             LIMIT $3
             """,
@@ -1537,17 +1770,18 @@ async def list_user_jobs(user_id: int, limit: int = 20) -> list[dict]:
 # =============================================================================
 
 async def upsert_webhook(user_id: int, url: str, secret: str) -> dict:
-    """Create or update user's webhook. Returns the webhook record."""
+    """Create or update user's webhook (org-scoped). Returns the webhook record."""
     async with _pool.acquire() as conn:
+        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
-            INSERT INTO webhooks (user_id, url, secret)
-            VALUES ($1, $2, $3)
+            INSERT INTO webhooks (user_id, url, secret, org_id)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (user_id) DO UPDATE
-            SET url = EXCLUDED.url, secret = EXCLUDED.secret, active = TRUE
+            SET url = EXCLUDED.url, secret = EXCLUDED.secret, active = TRUE, org_id = EXCLUDED.org_id
             RETURNING *
             """,
-            user_id, url, secret
+            user_id, url, secret, org_id
         )
         return dict(row)
 
@@ -1754,38 +1988,46 @@ async def finalize_bulk_job(bulk_job_id: int) -> dict:
 # =============================================================================
 
 async def create_list(user_id: int, api_key_id: int | None, name: str) -> dict:
-    """Create a new list. Returns the list record."""
+    """Create a new list (org-scoped). Returns the list record."""
     async with _pool.acquire() as conn:
+        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
-            INSERT INTO lists (user_id, api_key_id, name)
-            VALUES ($1, $2, $3)
+            INSERT INTO lists (user_id, api_key_id, name, org_id)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
             """,
-            user_id, api_key_id, name
+            user_id, api_key_id, name, org_id
         )
         return dict(row)
 
 
 async def get_list(list_id: int, user_id: int) -> dict | None:
-    """Get a list by ID (scoped to user)."""
+    """Get a list by ID (scoped to user's org)."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM lists WHERE id = $1 AND user_id = $2",
+            """
+            SELECT * FROM lists
+            WHERE id = $1 AND (
+                org_id = (SELECT org_id FROM users WHERE id = $2)
+                OR (org_id IS NULL AND user_id = $2)
+            )
+            """,
             list_id, user_id
         )
         return dict(row) if row else None
 
 
 async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
-    """List recent lists for a user (summaries)."""
+    """List recent lists for a user's org (shared)."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, name, status, total_accounts, analyzed_accounts,
                    failed_accounts, credits_reserved, created_at, updated_at
             FROM lists
-            WHERE user_id = $1
+            WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
+               OR (org_id IS NULL AND user_id = $1)
             ORDER BY created_at DESC
             LIMIT $2
             """,
@@ -1795,10 +2037,16 @@ async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
 
 
 async def delete_list(list_id: int, user_id: int) -> bool:
-    """Delete a list and all its accounts (scoped to user). Returns True if deleted."""
+    """Delete a list and all its accounts (org-scoped). Returns True if deleted."""
     async with _pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM lists WHERE id = $1 AND user_id = $2",
+            """
+            DELETE FROM lists
+            WHERE id = $1 AND (
+                org_id = (SELECT org_id FROM users WHERE id = $2)
+                OR (org_id IS NULL AND user_id = $2)
+            )
+            """,
             list_id, user_id
         )
         return result == "DELETE 1"
@@ -2327,3 +2575,254 @@ async def update_list_account_pushed(account_id: int, provider: str, push_data: 
             account_id,
             __import__('json').dumps({provider: push_data}),
         )
+
+
+# =============================================================================
+# Organization Operations
+# =============================================================================
+
+async def get_org(org_id: int) -> Optional[dict]:
+    """Get an organization by ID."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM organizations WHERE id = $1", org_id)
+        return dict(row) if row else None
+
+
+async def update_org_name(org_id: int, name: str) -> dict:
+    """Update org name."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE organizations SET name = $2 WHERE id = $1 RETURNING *",
+            org_id, name
+        )
+        return dict(row)
+
+
+async def update_org_stripe(org_id: int, stripe_customer_id: str) -> None:
+    """Set Stripe customer ID on an org."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE organizations SET stripe_customer_id = $2 WHERE id = $1",
+            org_id, stripe_customer_id
+        )
+
+
+async def get_org_members(org_id: int) -> list[dict]:
+    """Get all members of an org with user details."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.email, u.name, u.picture, om.role, om.joined_at
+            FROM org_members om
+            JOIN users u ON u.id = om.user_id
+            WHERE om.org_id = $1
+            ORDER BY om.joined_at
+            """,
+            org_id
+        )
+        return [dict(row) for row in rows]
+
+
+async def update_member_role(org_id: int, user_id: int, role: str) -> bool:
+    """Change a member's role. Returns True if updated."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE org_members SET role = $3 WHERE org_id = $1 AND user_id = $2",
+            org_id, user_id, role
+        )
+        return result == "UPDATE 1"
+
+
+async def remove_org_member(org_id: int, user_id: int) -> bool:
+    """Remove a member from an org. Returns True if removed."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM org_members WHERE org_id = $1 AND user_id = $2",
+            org_id, user_id
+        )
+        return result == "DELETE 1"
+
+
+async def create_org_invite(org_id: int, email: str, role: str, invited_by: int) -> dict:
+    """Create an invite to join an org. Returns the invite record."""
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    async with _pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO org_invites (org_id, email, role, token, invited_by, expires_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (org_id, email) DO UPDATE SET
+                    role = EXCLUDED.role,
+                    token = EXCLUDED.token,
+                    invited_by = EXCLUDED.invited_by,
+                    expires_at = EXCLUDED.expires_at,
+                    accepted_at = NULL,
+                    created_at = NOW()
+                RETURNING *
+                """,
+                org_id, email, role, token, invited_by, expires_at
+            )
+            return dict(row)
+        except Exception as e:
+            raise e
+
+
+async def get_pending_invites(org_id: int) -> list[dict]:
+    """Get pending (unaccepted, unexpired) invites for an org."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT oi.*, u.name AS invited_by_name
+            FROM org_invites oi
+            JOIN users u ON u.id = oi.invited_by
+            WHERE oi.org_id = $1 AND oi.accepted_at IS NULL AND oi.expires_at > NOW()
+            ORDER BY oi.created_at DESC
+            """,
+            org_id
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_invite_by_token(token: str) -> Optional[dict]:
+    """Get an invite by token (with org name)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT oi.*, o.name AS org_name
+            FROM org_invites oi
+            JOIN organizations o ON o.id = oi.org_id
+            WHERE oi.token = $1
+            """,
+            token
+        )
+        return dict(row) if row else None
+
+
+async def accept_invite(token: str, user_id: int) -> Optional[dict]:
+    """Accept an invite. Returns the invite record or None if invalid/expired."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            invite = await conn.fetchrow(
+                """
+                SELECT * FROM org_invites
+                WHERE token = $1 AND accepted_at IS NULL AND expires_at > NOW()
+                FOR UPDATE
+                """,
+                token
+            )
+            if not invite:
+                return None
+
+            # Mark invite as accepted
+            await conn.execute(
+                "UPDATE org_invites SET accepted_at = NOW() WHERE id = $1",
+                invite["id"]
+            )
+
+            # Add user to org
+            await conn.execute(
+                """
+                INSERT INTO org_members (org_id, user_id, role)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (org_id, user_id) DO UPDATE SET role = EXCLUDED.role
+                """,
+                invite["org_id"], user_id, invite["role"]
+            )
+
+            # Update user's org_id
+            await conn.execute(
+                "UPDATE users SET org_id = $2 WHERE id = $1",
+                user_id, invite["org_id"]
+            )
+
+            return dict(invite)
+
+
+async def revoke_invite(invite_id: int, org_id: int) -> bool:
+    """Revoke a pending invite. Returns True if deleted."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM org_invites WHERE id = $1 AND org_id = $2 AND accepted_at IS NULL",
+            invite_id, org_id
+        )
+        return result == "DELETE 1"
+
+
+async def get_pending_invites_for_email(email: str) -> list[dict]:
+    """Get pending invites for an email address."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT oi.*, o.name AS org_name
+            FROM org_invites oi
+            JOIN organizations o ON o.id = oi.org_id
+            WHERE oi.email = $1 AND oi.accepted_at IS NULL AND oi.expires_at > NOW()
+            ORDER BY oi.created_at DESC
+            """,
+            email
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_org_documents(org_id: int, limit: int = 50) -> list[dict]:
+    """Get all research documents across an org (for admin view)."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT rd.id, rd.company_url, rd.company_name, rd.created_at,
+                   rd.opportunity_score, rd.pain_score, rd.fit_score, rd.timing_score,
+                   u.name AS researcher_name, u.email AS researcher_email
+            FROM research_documents rd
+            JOIN users u ON u.id = rd.user_id
+            WHERE u.org_id = $1
+            ORDER BY rd.created_at DESC
+            LIMIT $2
+            """,
+            org_id, limit
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_org_usage_breakdown(org_id: int, days: int = 30) -> list[dict]:
+    """Get per-member usage breakdown for an org."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.name, u.email, u.picture, om.role,
+                   COUNT(rd.id) AS research_count,
+                   MAX(rd.created_at) AS last_activity
+            FROM org_members om
+            JOIN users u ON u.id = om.user_id
+            LEFT JOIN research_documents rd ON rd.user_id = u.id
+                AND rd.created_at > NOW() - make_interval(days => $2)
+            WHERE om.org_id = $1
+            GROUP BY u.id, u.name, u.email, u.picture, om.role
+            ORDER BY research_count DESC
+            """,
+            org_id, days
+        )
+        return [dict(row) for row in rows]
+
+
+async def user_has_data(user_id: int) -> bool:
+    """Check if a user has any research data (documents, lists, etc)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT EXISTS(SELECT 1 FROM research_documents WHERE user_id = $1) AS has_data",
+            user_id
+        )
+        return row["has_data"]
+
+
+async def delete_empty_org(org_id: int) -> bool:
+    """Delete an org if it has no members. Returns True if deleted."""
+    async with _pool.acquire() as conn:
+        member_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM org_members WHERE org_id = $1", org_id
+        )
+        if member_count == 0:
+            await conn.execute("DELETE FROM organizations WHERE id = $1", org_id)
+            return True
+        return False
