@@ -149,6 +149,10 @@ When referencing how another company solved a similar problem, describe them by 
 - "A B2B software company experienced this too"
 Do NOT invent company names or attribute results to real named companies. The prospect cannot verify these claims, and fabricated references destroy credibility.
 
+**CRITICAL: Write like a peer, not a researcher.**
+- NEVER cite sources: "according to SEC filings", "based on your 10-K", "your job postings show", "per your earnings call". State observations as things you noticed, not things you researched.
+- NEVER use "that combination" or "that combination usually means" as a transition phrase. It is a crutch. Find a direct, natural bridge between the observation and the implication.
+
 ---
 
 **THE PVP TEST**
@@ -169,6 +173,8 @@ Constraints:
 - 75 words max
 - No product mentions
 - End with a statement, not a question
+- NEVER use "that combination usually" or "that combination" as a transition — find a more natural bridge
+- NEVER cite your sources ("according to SEC filings", "based on your job postings", "your 10-K shows"). State what's happening as common knowledge. If you wouldn't say "according to SEC filings" in a real conversation, don't write it.
 
 Structure:
 - Lead with the BUSINESS initiative or outcome they care about (product launch, market move, growth milestone)
