@@ -82,6 +82,9 @@ You MUST use partial-signal patterns for this sequence:
 - Position insights as benchmarks, not diagnoses
 - Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
 - Frame the ASK as "yours regardless" or "useful either way"
+- When describing what you observed, use neutral discovery language ("I saw X", "your site uses Y") — never frame missing technology as a gap or deficiency
+- Describe only what you found, not what you didn't find. Let the prospect fill in the gaps themselves
+- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have"
 
 Refer to Section B (Examples 41-50) for tone and structure. Those are your primary models for this sequence.
 
