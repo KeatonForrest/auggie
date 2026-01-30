@@ -2,7 +2,7 @@ export const API_BASE_URL = 'https://auggie.tools/v1';
 export const WEB_APP_URL = 'https://auggie.tools';
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 export const POLL_INTERVAL_MS = 3000;
-export const MAX_POLL_ATTEMPTS = 60; // 3 min timeout
+export const MAX_POLL_ATTEMPTS = 200; // 10 min timeout
 
 export const EXCLUDED_DOMAINS = [
   'google.com',

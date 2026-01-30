@@ -67,15 +67,31 @@ function renderCompleted(data) {
   showState('completed');
 }
 
-// --- Show researching state with elapsed timer ---
+// --- Show researching state with elapsed timer + background check ---
 function showResearching(startedAt) {
   showState('researching');
   const elapsedEl = document.getElementById('elapsed');
   const tick = () => { elapsedEl.textContent = `${Math.round((Date.now() - startedAt) / 1000)}s`; };
   tick();
-  const timer = setInterval(tick, 1000);
-  // Store timer so we can clean up
-  showResearching._timer = timer;
+  if (showResearching._timer) clearInterval(showResearching._timer);
+  if (showResearching._checker) clearInterval(showResearching._checker);
+  showResearching._timer = setInterval(tick, 1000);
+
+  // Periodically check if background job is still active
+  showResearching._checker = setInterval(async () => {
+    const status = await chrome.runtime.sendMessage({ type: 'GET_JOB_STATUS', domain: currentDomain });
+    if (!status?.active) {
+      clearInterval(showResearching._timer);
+      clearInterval(showResearching._checker);
+      // Job ended — check cache for results
+      const cached = await getCachedResearch(currentDomain);
+      if (cached) {
+        renderCompleted(cached);
+      } else {
+        showError('Research timed out or failed. Please try again.');
+      }
+    }
+  }, 5000);
 }
 
 // --- Error handling ---
