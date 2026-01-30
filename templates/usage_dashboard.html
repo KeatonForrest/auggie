@@ -113,7 +113,6 @@
                             <th class="text-left px-4 py-2 font-medium text-gray-600">Company</th>
                             <th class="text-left px-4 py-2 font-medium text-gray-600">Model</th>
                             <th class="text-right px-4 py-2 font-medium text-gray-600">Score</th>
-                            <th class="text-left px-4 py-2 font-medium text-gray-600">Comment</th>
                             <th class="text-right px-4 py-2 font-medium text-gray-600">Date</th>
                         </tr>
                     </thead>
@@ -140,7 +139,6 @@
                             <td class="px-4 py-3 text-right font-medium text-gray-900">
                                 {% if fb.opportunity_score is not none %}{{ fb.opportunity_score }}{% else %}-{% endif %}
                             </td>
-                            <td class="px-4 py-3 text-gray-600 max-w-xs truncate">{{ fb.comment or '' }}</td>
                             <td class="px-4 py-3 text-right text-gray-500">{{ fb.created_at.strftime('%b %d') }}</td>
                         </tr>
                         {% endfor %}
