@@ -519,7 +519,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         message = self.client.messages.create(
             model="claude-opus-4-20250514",
             max_tokens=4000,
-            temperature=0,
+            temperature=0.2,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
