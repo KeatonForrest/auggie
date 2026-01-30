@@ -6,7 +6,7 @@ import asyncpg
 logger = logging.getLogger(__name__)
 import secrets
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -2681,7 +2681,7 @@ async def remove_org_member(org_id: int, user_id: int) -> bool:
 async def create_org_invite(org_id: int, email: str, role: str, invited_by: int) -> dict:
     """Create an invite to join an org. Returns the invite record."""
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     async with _pool.acquire() as conn:
         try:
             row = await conn.fetchrow(

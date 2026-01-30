@@ -1,7 +1,7 @@
 """Team routes: team settings, invite, remove, role change, revoke invite, usage dashboard, invite landing."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -110,7 +110,7 @@ async def invite_landing(request: Request, token: str):
         raise HTTPException(status_code=404, detail="Invite not found or expired")
     if invite.get("accepted_at"):
         raise HTTPException(status_code=400, detail="Invite already accepted")
-    if invite["expires_at"] < datetime.utcnow():
+    if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invite has expired")
 
     user = await get_current_user(request)

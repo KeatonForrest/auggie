@@ -4,7 +4,7 @@ import logging
 import jwt
 
 logger = logging.getLogger(__name__)
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from functools import wraps
 
@@ -67,8 +67,8 @@ def create_access_token(user_id: int) -> str:
     """Create a JWT token for the user."""
     payload = {
         "sub": str(user_id),
-        "exp": datetime.utcnow() + timedelta(days=JWT_EXPIRATION_DAYS),
-        "iat": datetime.utcnow(),
+        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRATION_DAYS),
+        "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

@@ -1,7 +1,9 @@
 """List routes: CSV upload, list view, export, bulk actions, retry, pipeline status, push-to integrations."""
 
+import csv
 import re
 import logging
+from io import StringIO
 
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
@@ -13,10 +15,19 @@ from database import (
     create_list, add_list_accounts, update_list_credits,
     list_lists, get_list, get_list_accounts,
     create_research_job, get_list_account, reset_list_account,
+    get_integration, update_list_account,
 )
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
-from routes._helpers import normalize_url, templates, logger
+from routes._helpers import (
+    normalize_url, templates, logger,
+    _push_contacts_to_integration, _push_drafts_to_integration, _execute_retry,
+)
+from routes.schemas import PushCampaignRequest, PushSequencesRequest, AccountIdsRequest
+from services.instantly import push_accounts_to_instantly
+from services.smartlead import push_accounts_to_smartlead
+from services.outreach import push_sequences_to_outreach
+from services.salesloft import push_sequences_to_salesloft
 
 router = APIRouter()
 
@@ -47,11 +58,9 @@ async def upload_list_csv(
 ):
     """Parse CSV, validate URLs, check credits, create list, start analysis."""
     from api.ratelimit import upload_limiter, get_client_ip
-    upload_limiter.check(get_client_ip(request))
-
-    import csv
-    from io import StringIO
     from api.jobs import run_list_analysis
+
+    upload_limiter.check(get_client_ip(request))
 
     # Validate file
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -155,7 +164,6 @@ async def view_list(
     usage = await get_user_usage(user["id"])
 
     # Check if integrations are connected
-    from database import get_integration
     instantly_integration = await get_integration(user["id"], "instantly")
     smartlead_integration = await get_integration(user["id"], "smartlead")
     outreach_integration = await get_integration(user["id"], "outreach")
@@ -196,9 +204,6 @@ async def export_list_csv(
     user: dict = Depends(require_onboarding),
 ):
     """Export list accounts as CSV."""
-    import csv
-    from io import StringIO
-
     lst = await get_list(list_id, user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
@@ -234,9 +239,6 @@ async def export_selected_csv(
     user: dict = Depends(require_onboarding),
 ):
     """Export selected list accounts as CSV."""
-    import csv
-    from io import StringIO
-
     body = await request.json()
     account_ids = body.get("account_ids", [])
     if not account_ids:
@@ -355,12 +357,8 @@ async def retry_selected_accounts(
     user: dict = Depends(require_onboarding),
 ):
     """Retry multiple failed list accounts."""
-    from api.jobs import _run_research_pipeline
-    from database import update_list_account
-
-    body = await request.json()
-    account_ids = body.get("account_ids", [])
-    if not account_ids:
+    body = AccountIdsRequest(**(await request.json()))
+    if not body.account_ids:
         return JSONResponse({"success": False, "error": "No accounts selected"}, status_code=400)
 
     lst = await get_list(list_id, user["id"])
@@ -368,7 +366,7 @@ async def retry_selected_accounts(
         raise HTTPException(status_code=404, detail="List not found")
 
     all_accounts = await get_list_accounts(list_id, limit=10000)
-    failed = [a for a in all_accounts if a["id"] in account_ids and a["status"] == "failed"]
+    failed = [a for a in all_accounts if a["id"] in body.account_ids and a["status"] == "failed"]
 
     if not failed:
         return JSONResponse({"success": False, "error": "No failed accounts in selection"}, status_code=400)
@@ -389,30 +387,10 @@ async def retry_selected_accounts(
         job = await create_research_job(user["id"], api_key_id=None, company_url=a["company_url"])
         await update_list_account(a["id"], "processing", research_job_id=job["id"])
 
-        async def _run_retry(account_id=a["id"], company_url=a["company_url"], job_id=job["id"]):
-            from database import update_job_status, get_document as get_doc
-            try:
-                doc_id = await _run_research_pipeline(user["id"], company_url)
-                await update_job_status(job_id, "completed", document_id=doc_id)
-                doc = await get_doc(doc_id, user["id"])
-                await update_list_account(
-                    account_id, "completed",
-                    document_id=doc_id,
-                    research_job_id=job_id,
-                    pain_score=doc.pain_score,
-                    fit_score=doc.fit_score,
-                    timing_score=doc.timing_score,
-                    composite_score=doc.opportunity_score,
-                    company_name=doc.company_name,
-                )
-            except Exception as e:
-                if not is_admin:
-                    await refund_credit(user["id"])
-                error_msg = str(e)[:500]
-                await update_job_status(job_id, "failed", error_message=error_msg)
-                await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)
-
-        create_tracked_task(_run_retry(), name=f"retry-{a['id']}")
+        create_tracked_task(
+            _execute_retry(user["id"], a["id"], a["company_url"], job["id"], is_admin),
+            name=f"retry-{a['id']}",
+        )
         retried += 1
 
     return JSONResponse({"success": True, "retried": retried})
@@ -425,8 +403,6 @@ async def retry_list_account(
     user: dict = Depends(require_onboarding),
 ):
     """Retry a failed list account."""
-    from api.jobs import run_research_job
-
     lst = await get_list(list_id, user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
@@ -447,40 +423,17 @@ async def retry_list_account(
     await reset_list_account(account_id)
 
     job = await create_research_job(user["id"], api_key_id=None, company_url=account["company_url"])
-
-    from database import update_list_account
     await update_list_account(account_id, "processing", research_job_id=job["id"])
 
-    async def _run_retry():
-        from api.jobs import _run_research_pipeline
-        from database import update_job_status, get_document as get_doc
-        try:
-            doc_id = await _run_research_pipeline(user["id"], account["company_url"])
-            await update_job_status(job["id"], "completed", document_id=doc_id)
-            doc = await get_doc(doc_id, user["id"])
-            await update_list_account(
-                account_id, "completed",
-                document_id=doc_id,
-                research_job_id=job["id"],
-                pain_score=doc.pain_score,
-                fit_score=doc.fit_score,
-                timing_score=doc.timing_score,
-                composite_score=doc.opportunity_score,
-                company_name=doc.company_name,
-            )
-        except Exception as e:
-            if not is_admin:
-                await refund_credit(user["id"])
-            error_msg = str(e)[:500]
-            await update_job_status(job["id"], "failed", error_message=error_msg)
-            await update_list_account(account_id, "failed", research_job_id=job["id"], error_message=error_msg)
-
-    create_tracked_task(_run_retry(), name=f"retry-{account_id}")
+    create_tracked_task(
+        _execute_retry(user["id"], account_id, account["company_url"], job["id"], is_admin),
+        name=f"retry-{account_id}",
+    )
     return JSONResponse({"success": True})
 
 
 # ==========================================================================
-# Push-to-integration routes (live on /lists/ paths but belong to lists flow)
+# Push-to-integration routes
 # ==========================================================================
 
 @router.post("/lists/{list_id}/push-instantly")
@@ -490,43 +443,10 @@ async def push_to_instantly(
     user: dict = Depends(require_onboarding),
 ):
     """Push selected accounts from a list to an Instantly campaign."""
-    from services.instantly import push_accounts_to_instantly
-
-    body = await request.json()
-    campaign_id = body.get("campaign_id")
-    account_ids = body.get("account_ids", [])
-
-    if not campaign_id:
-        raise HTTPException(status_code=400, detail="campaign_id is required")
-
-    # Verify list ownership (org-scoped)
-    lst = await get_list(list_id, user["id"])
-    if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
-
-    # Get accounts
-    all_accounts = await get_list_accounts(list_id)
-    if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
-    else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
-
-    if not accounts:
-        raise HTTPException(status_code=400, detail="No accounts to push")
-
-    # Get contacts for each account
-    contacts_by_account = {}
-    for account in accounts:
-        if account.get("document_id"):
-            contacts = await get_enriched_contacts(account["document_id"], user["id"])
-            if contacts:
-                contacts_by_account[account["id"]] = contacts
-
-    result = await push_accounts_to_instantly(
-        user["id"], campaign_id, accounts, contacts_by_account,
+    body = PushCampaignRequest(**(await request.json()))
+    return await _push_contacts_to_integration(
+        user, list_id, body.campaign_id, body.account_ids, push_accounts_to_instantly,
     )
-
-    return JSONResponse(result)
 
 
 @router.post("/lists/{list_id}/push-smartlead")
@@ -536,40 +456,10 @@ async def push_to_smartlead(
     user: dict = Depends(require_onboarding),
 ):
     """Push selected accounts from a list to a Smartlead campaign."""
-    from services.smartlead import push_accounts_to_smartlead
-
-    body = await request.json()
-    campaign_id = body.get("campaign_id")
-    account_ids = body.get("account_ids", [])
-
-    if not campaign_id:
-        raise HTTPException(status_code=400, detail="campaign_id is required")
-
-    lst = await get_list(list_id, user["id"])
-    if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
-
-    all_accounts = await get_list_accounts(list_id)
-    if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
-    else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
-
-    if not accounts:
-        raise HTTPException(status_code=400, detail="No accounts to push")
-
-    contacts_by_account = {}
-    for account in accounts:
-        if account.get("document_id"):
-            contacts = await get_enriched_contacts(account["document_id"], user["id"])
-            if contacts:
-                contacts_by_account[account["id"]] = contacts
-
-    result = await push_accounts_to_smartlead(
-        user["id"], campaign_id, accounts, contacts_by_account,
+    body = PushCampaignRequest(**(await request.json()))
+    return await _push_contacts_to_integration(
+        user, list_id, body.campaign_id, body.account_ids, push_accounts_to_smartlead,
     )
-
-    return JSONResponse(result)
 
 
 @router.post("/lists/{list_id}/push-outreach")
@@ -579,43 +469,10 @@ async def push_to_outreach(
     user: dict = Depends(require_onboarding),
 ):
     """Push Auggie-generated sequences to Outreach (sequences only, no contacts)."""
-    from services.outreach import push_sequences_to_outreach
-    from database import get_outreach_draft
-
-    body = await request.json()
-    account_ids = body.get("account_ids", [])
-
-    lst = await get_list(list_id, user["id"])
-    if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
-
-    all_accounts = await get_list_accounts(list_id)
-    if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
-    else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
-
-    if not accounts:
-        raise HTTPException(status_code=400, detail="No accounts to push")
-
-    drafts_by_account = {}
-    for account in accounts:
-        if account.get("document_id"):
-            draft = await get_outreach_draft(account["document_id"])
-            if draft and draft.get("content"):
-                content = draft["content"]
-                if isinstance(content, str):
-                    import json
-                    content = json.loads(content)
-                emails = content.get("emails", [])
-                if emails:
-                    drafts_by_account[account["id"]] = emails
-
-    if not drafts_by_account:
-        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
-
-    result = await push_sequences_to_outreach(user["id"], accounts, drafts_by_account)
-    return JSONResponse(result)
+    body = PushSequencesRequest(**(await request.json()))
+    return await _push_drafts_to_integration(
+        user, list_id, body.account_ids, push_sequences_to_outreach,
+    )
 
 
 @router.post("/lists/{list_id}/push-salesloft")
@@ -625,40 +482,7 @@ async def push_to_salesloft(
     user: dict = Depends(require_onboarding),
 ):
     """Push Auggie-generated sequences to SalesLoft as cadences (no contacts)."""
-    from services.salesloft import push_sequences_to_salesloft
-    from database import get_outreach_draft
-
-    body = await request.json()
-    account_ids = body.get("account_ids", [])
-
-    lst = await get_list(list_id, user["id"])
-    if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
-
-    all_accounts = await get_list_accounts(list_id)
-    if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
-    else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
-
-    if not accounts:
-        raise HTTPException(status_code=400, detail="No accounts to push")
-
-    drafts_by_account = {}
-    for account in accounts:
-        if account.get("document_id"):
-            draft = await get_outreach_draft(account["document_id"])
-            if draft and draft.get("content"):
-                content = draft["content"]
-                if isinstance(content, str):
-                    import json
-                    content = json.loads(content)
-                emails = content.get("emails", [])
-                if emails:
-                    drafts_by_account[account["id"]] = emails
-
-    if not drafts_by_account:
-        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
-
-    result = await push_sequences_to_salesloft(user["id"], accounts, drafts_by_account)
-    return JSONResponse(result)
+    body = PushSequencesRequest(**(await request.json()))
+    return await _push_drafts_to_integration(
+        user, list_id, body.account_ids, push_sequences_to_salesloft,
+    )

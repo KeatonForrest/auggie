@@ -1,11 +1,25 @@
 """Shared utilities used across route modules."""
 
+import json
 import logging
 import re
+import secrets
+from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from api.validation import validate_company_url
+from api.tasks import create_tracked_task
 from config import get_settings
+from database import (
+    get_user_usage, use_credit, refund_credit,
+    get_enriched_contacts,
+    create_list, add_list_accounts, update_list_credits,
+    create_research_job, get_list_accounts,
+    upsert_integration, delete_integration,
+)
 from services.materials import MaterialsService
 
 logger = logging.getLogger(__name__)
@@ -78,3 +92,237 @@ def _build_target_titles(user: dict) -> list[str]:
         titles = ["CTO", "VP Engineering", "VP Sales", "CEO"]
 
     return titles[:5]
+
+
+# ---------------------------------------------------------------------------
+# Generic OAuth connect / callback / API-key helpers
+# ---------------------------------------------------------------------------
+
+async def _oauth_connect(request: Request, provider: str, get_authorize_url_fn):
+    """Generic OAuth redirect: generate state, store in session, redirect."""
+    state = secrets.token_urlsafe(24)
+    request.session[f"_{provider}_state_"] = state
+    url = get_authorize_url_fn(state)
+    return RedirectResponse(url=url)
+
+
+async def _oauth_callback(
+    request: Request,
+    user: dict,
+    provider: str,
+    exchange_code_fn,
+    expires_in_default: int = 7200,
+    metadata_fn=None,
+):
+    """Generic OAuth callback: verify state, exchange code, upsert integration."""
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get(f"_{provider}_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    request.session.pop(f"_{provider}_state_", None)
+
+    token_data = await exchange_code_fn(code)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=token_data.get("expires_in", expires_in_default)
+    )
+
+    kwargs = dict(
+        user_id=user["id"],
+        provider=provider,
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+    )
+    if metadata_fn:
+        kwargs["metadata"] = metadata_fn(token_data)
+
+    await upsert_integration(**kwargs)
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+async def _apikey_connect(user: dict, provider: str, api_key: str, validate_fn, error_label: str):
+    """Generic API-key validation + save."""
+    api_key = api_key.strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+
+    valid = await validate_fn(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"Invalid {error_label}")
+
+    await upsert_integration(user_id=user["id"], provider=provider, access_token=api_key)
+    return JSONResponse({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Generic CRM import helper
+# ---------------------------------------------------------------------------
+
+async def _run_crm_import(
+    user: dict,
+    items: list,
+    list_name: str,
+    domain_extractor_fn,
+    source_metadata_fn=None,
+):
+    """Generic CRM import: validate domains, check credits, create list, start analysis.
+
+    domain_extractor_fn(item) -> (domain: str, extra_id: str | None)
+    source_metadata_fn(id_map) -> dict | None — called with the populated URL→ID map
+    """
+    from api.jobs import run_list_analysis
+    from database import set_list_source
+
+    if not items:
+        raise HTTPException(status_code=400, detail="No items selected")
+
+    valid_urls = []
+    id_map: dict[str, str] = {}
+    seen: set[str] = set()
+    for item in items:
+        domain, extra_id = domain_extractor_fn(item)
+        if not domain or domain in seen:
+            continue
+        url = normalize_url(domain)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        seen.add(domain)
+        valid_urls.append(url)
+        if extra_id is not None:
+            id_map[url] = extra_id
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found")
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}.",
+        )
+
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    lst = await create_list(user["id"], api_key_id=None, name=list_name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    if source_metadata_fn:
+        metadata = source_metadata_fn(id_map)
+        if metadata:
+            await set_list_source(lst["id"], metadata)
+
+    create_tracked_task(
+        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+        name=f"list-{lst['id']}",
+    )
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
+
+
+# ---------------------------------------------------------------------------
+# Push-to-integration helpers
+# ---------------------------------------------------------------------------
+
+async def _push_contacts_to_integration(user: dict, list_id: int, campaign_id: str, account_ids: list[int], push_fn):
+    """Push contacts to a campaign-based integration (Instantly, Smartlead)."""
+    from database import get_list
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_fn(user["id"], campaign_id, accounts, contacts_by_account)
+    return JSONResponse(result)
+
+
+async def _push_drafts_to_integration(user: dict, list_id: int, account_ids: list[int], push_fn):
+    """Push drafted sequences to a sequence-based integration (Outreach, SalesLoft)."""
+    from database import get_list, get_outreach_draft
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    drafts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
+
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
+
+    result = await push_fn(user["id"], accounts, drafts_by_account)
+    return JSONResponse(result)
+
+
+# ---------------------------------------------------------------------------
+# Retry helper
+# ---------------------------------------------------------------------------
+
+async def _execute_retry(user_id: int, account_id: int, company_url: str, job_id: int, is_admin: bool):
+    """Execute a single account retry (replaces inline closures)."""
+    from api.jobs import _run_research_pipeline
+    from database import update_job_status, get_document as get_doc, update_list_account
+
+    try:
+        doc_id = await _run_research_pipeline(user_id, company_url)
+        await update_job_status(job_id, "completed", document_id=doc_id)
+        doc = await get_doc(doc_id, user_id)
+        await update_list_account(
+            account_id, "completed",
+            document_id=doc_id,
+            research_job_id=job_id,
+            pain_score=doc.pain_score,
+            fit_score=doc.fit_score,
+            timing_score=doc.timing_score,
+            composite_score=doc.opportunity_score,
+            company_name=doc.company_name,
+        )
+    except Exception as e:
+        if not is_admin:
+            await refund_credit(user_id)
+        error_msg = str(e)[:500]
+        await update_job_status(job_id, "failed", error_message=error_msg)
+        await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)

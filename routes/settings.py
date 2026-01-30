@@ -1,6 +1,7 @@
 """Settings routes: onboarding, settings, API keys, webhook, materials, automations."""
 
 import logging
+import secrets as _secrets
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -11,8 +12,13 @@ from database import (
     update_user_profile, get_user_usage, get_user_materials,
     create_api_key_record, list_api_keys, revoke_api_key, get_api_key_usage_stats,
     get_user_webhook, upsert_webhook, delete_user_webhook,
+    get_automation_rules, get_automation_runs, get_integration,
+    create_automation_rule, update_automation_rule, delete_automation_rule,
+    get_material_preview, get_material,
 )
+from api.keys import generate_api_key
 from routes._helpers import templates, logger, parse_personas_string, get_materials_service
+from routes.schemas import AutomationCreateRequest, AutomationToggleRequest
 
 settings = get_settings()
 router = APIRouter()
@@ -181,7 +187,6 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
 @router.post("/api-keys/create")
 async def create_api_key_route(request: Request, name: str = Form("Default"), user: dict = Depends(require_auth)):
     """Create a new API key."""
-    from api.keys import generate_api_key
     raw_key, key_hash, prefix = generate_api_key()
     await create_api_key_record(user["id"], key_hash, prefix, name)
     return RedirectResponse(url=f"/api-keys?new_key={raw_key}", status_code=303)
@@ -197,7 +202,6 @@ async def revoke_api_key_route(key_id: int, user: dict = Depends(require_auth)):
 @router.post("/api-keys/webhook")
 async def create_webhook_route(request: Request, webhook_url: str = Form(...), user: dict = Depends(require_auth)):
     """Register a webhook URL."""
-    import secrets as _secrets
     secret = _secrets.token_hex(32)
     await upsert_webhook(user["id"], webhook_url, secret)
     return RedirectResponse(url=f"/api-keys?webhook_secret={secret}", status_code=303)
@@ -292,7 +296,6 @@ async def preview_material(
     user: dict = Depends(require_auth),
 ):
     """Return first 5 chunks of a material as preview text."""
-    from database import get_material_preview, get_material
     mat = await get_material(material_id, user["id"])
     if not mat:
         raise HTTPException(status_code=404, detail="Material not found")
@@ -336,13 +339,11 @@ async def api_list_materials(user: dict = Depends(require_auth)):
 @router.get("/automations", response_class=HTMLResponse)
 async def automations_page(request: Request, user: dict = Depends(require_onboarding)):
     """Automation rules management page."""
-    from database import get_automation_rules, get_automation_runs
     rules = await get_automation_rules(user["id"])
     runs = await get_automation_runs(user["id"], limit=50)
     usage = await get_user_usage(user["id"])
 
     # Check which integrations are connected for action config
-    from database import get_integration
     instantly_connected = await get_integration(user["id"], "instantly") is not None
     smartlead_connected = await get_integration(user["id"], "smartlead") is not None
     outreach_connected = await get_integration(user["id"], "outreach") is not None
@@ -375,14 +376,13 @@ async def automations_page(request: Request, user: dict = Depends(require_onboar
 @router.post("/automations")
 async def create_automation(request: Request, user: dict = Depends(require_onboarding)):
     """Create a new automation rule."""
-    from database import create_automation_rule
-    body = await request.json()
+    body = AutomationCreateRequest(**(await request.json()))
 
-    name = body.get("name", "").strip()
-    trigger_event = body.get("trigger_event", "")
-    conditions = body.get("conditions", {})
-    action = body.get("action", "")
-    action_config = body.get("action_config", {})
+    name = body.name.strip()
+    trigger_event = body.trigger_event
+    conditions = body.conditions
+    action = body.action
+    action_config = body.action_config
 
     if not name or not trigger_event or not action:
         raise HTTPException(status_code=400, detail="Name, trigger, and action are required")
@@ -403,9 +403,8 @@ async def create_automation(request: Request, user: dict = Depends(require_onboa
 @router.post("/automations/{rule_id}/toggle")
 async def toggle_automation(rule_id: int, request: Request, user: dict = Depends(require_onboarding)):
     """Enable or disable an automation rule."""
-    from database import update_automation_rule
-    body = await request.json()
-    enabled = body.get("enabled", True)
+    body = AutomationToggleRequest(**(await request.json()))
+    enabled = body.enabled
     result = await update_automation_rule(rule_id, user["id"], enabled=enabled)
     if not result:
         raise HTTPException(status_code=404, detail="Rule not found")
@@ -415,7 +414,6 @@ async def toggle_automation(rule_id: int, request: Request, user: dict = Depends
 @router.post("/automations/{rule_id}/delete")
 async def delete_automation(rule_id: int, user: dict = Depends(require_onboarding)):
     """Delete an automation rule."""
-    from database import delete_automation_rule
     deleted = await delete_automation_rule(rule_id, user["id"])
     if not deleted:
         raise HTTPException(status_code=404, detail="Rule not found")
