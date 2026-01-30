@@ -99,6 +99,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_POLL') {
     const { domain, jobId } = msg;
+    if (!domain || !jobId) { sendResponse({ ok: false, error: 'Missing domain or jobId' }); return true; }
     activeJobs[domain] = { jobId, startedAt: Date.now() };
     pollJob(domain, jobId);
     sendResponse({ ok: true });

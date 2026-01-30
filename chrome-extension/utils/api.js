@@ -21,7 +21,14 @@ async function request(path, key, options = {}) {
     err.status = res.status;
     throw err;
   }
-  const body = await res.json();
+  let body;
+  try {
+    body = await res.json();
+  } catch {
+    const err = new Error(`Failed to parse API response (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
   if (!res.ok) {
     const detail = Array.isArray(body.detail)
       ? body.detail.map(d => d.msg || JSON.stringify(d)).join('; ')

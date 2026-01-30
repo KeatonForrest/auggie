@@ -58,10 +58,11 @@ function renderCompleted(data) {
 
   document.getElementById('copyScores').onclick = () => {
     const text = `Composite: ${scores.composite ?? '—'} | Pain: ${scores.pain ?? '—'} | Fit: ${scores.fit ?? '—'} | Timing: ${scores.timing ?? '—'}`;
-    navigator.clipboard.writeText(text);
-    const toast = document.getElementById('toast');
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 1500);
+    navigator.clipboard.writeText(text).then(() => {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1500);
+    }).catch(() => {});
   };
 
   showState('completed');
@@ -79,17 +80,20 @@ function showResearching(startedAt) {
 
   // Periodically check if background job is still active
   showResearching._checker = setInterval(async () => {
-    const status = await chrome.runtime.sendMessage({ type: 'GET_JOB_STATUS', domain: currentDomain });
-    if (!status?.active) {
-      clearInterval(showResearching._timer);
-      clearInterval(showResearching._checker);
-      // Job ended — check cache for results
-      const cached = await getCachedResearch(currentDomain);
-      if (cached) {
-        renderCompleted(cached);
-      } else {
-        showError('Research timed out or failed. Please try again.');
+    try {
+      const status = await chrome.runtime.sendMessage({ type: 'GET_JOB_STATUS', domain: currentDomain });
+      if (!status?.active) {
+        clearTimers();
+        const cached = await getCachedResearch(currentDomain);
+        if (cached) {
+          renderCompleted(cached);
+        } else {
+          showError('Research timed out or failed. Please try again.');
+        }
       }
+    } catch {
+      // Extension context invalidated — clean up silently
+      clearTimers();
     }
   }, 5000);
 }
@@ -123,14 +127,20 @@ function updateProgress(stage) {
   });
 }
 
+// --- Clean up timers ---
+function clearTimers() {
+  if (showResearching._timer) { clearInterval(showResearching._timer); showResearching._timer = null; }
+  if (showResearching._checker) { clearInterval(showResearching._checker); showResearching._checker = null; }
+}
+
 // --- Listen for background job updates ---
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'JOB_COMPLETE' && msg.domain === currentDomain) {
-    if (showResearching._timer) clearInterval(showResearching._timer);
+    clearTimers();
     renderCompleted(msg.data);
   }
   if (msg.type === 'JOB_FAILED' && msg.domain === currentDomain) {
-    if (showResearching._timer) clearInterval(showResearching._timer);
+    clearTimers();
     showError(msg.error);
   }
   if (msg.type === 'JOB_PROGRESS' && msg.domain === currentDomain) {
