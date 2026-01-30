@@ -1,0 +1,664 @@
+"""List routes: CSV upload, list view, export, bulk actions, retry, pipeline status, push-to integrations."""
+
+import re
+import logging
+
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+
+from auth import require_auth, require_onboarding
+from database import (
+    get_user_usage, use_credit, refund_credit,
+    get_enriched_contacts,
+    create_list, add_list_accounts, update_list_credits,
+    list_lists, get_list, get_list_accounts,
+    create_research_job, get_list_account, reset_list_account,
+)
+from api.validation import validate_company_url
+from api.tasks import create_tracked_task
+from routes._helpers import normalize_url, templates, logger
+
+router = APIRouter()
+
+
+@router.get("/lists", response_class=HTMLResponse)
+async def lists_page(request: Request, user: dict = Depends(require_onboarding)):
+    """Upload page + table of user's recent lists."""
+    usage = await get_user_usage(user["id"])
+    recent = await list_lists(user["id"])
+    return templates.TemplateResponse(
+        "lists.html",
+        {
+            "request": request,
+            "user": user,
+            "lists": recent,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+        }
+    )
+
+
+@router.post("/lists/upload")
+async def upload_list_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    list_name: str = Form(""),
+    user: dict = Depends(require_onboarding),
+):
+    """Parse CSV, validate URLs, check credits, create list, start analysis."""
+    from api.ratelimit import upload_limiter, get_client_ip
+    upload_limiter.check(get_client_ip(request))
+
+    import csv
+    from io import StringIO
+    from api.jobs import run_list_analysis
+
+    # Validate file
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a .csv file.")
+
+    contents = await file.read()
+    if len(contents) > 1_048_576:
+        raise HTTPException(status_code=400, detail="File too large (max 1MB).")
+
+    # Parse CSV
+    text = contents.decode("utf-8", errors="replace")
+    reader = csv.reader(StringIO(text))
+    rows = list(reader)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV file is empty.")
+
+    # Detect domain column
+    header = rows[0]
+    domain_col = None
+    recognized = {"domain", "url", "website", "company_url", "company"}
+    for i, col in enumerate(header):
+        if col.strip().lower() in recognized:
+            domain_col = i
+            break
+
+    if domain_col is not None:
+        data_rows = rows[1:]  # skip header
+    else:
+        domain_col = 0  # treat first column as domains
+        # If first row looks like a URL/domain, include it
+        data_rows = rows
+
+    # Extract and normalize URLs
+    raw_urls = []
+    for row in data_rows:
+        if domain_col < len(row) and row[domain_col].strip():
+            raw_urls.append(row[domain_col].strip())
+
+    # Normalize and validate
+    valid_urls = []
+    seen = set()
+    for raw in raw_urls:
+        url = normalize_url(raw)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        if url not in seen:
+            seen.add(url)
+            valid_urls.append(url)
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in CSV.")
+
+    # Check credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100  # cents
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    # Reserve credits
+    if not is_admin:
+        await use_credit(user["id"], cents=needed)
+
+    # Create list
+    name = list_name.strip() or (file.filename.rsplit(".", 1)[0] if file.filename else "Uploaded List")
+    lst = await create_list(user["id"], api_key_id=None, name=name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    # Start analysis in background
+    create_tracked_task(run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin), name=f"list-{lst['id']}")
+
+    return RedirectResponse(url=f"/lists/{lst['id']}", status_code=303)
+
+
+@router.get("/lists/{list_id}", response_class=HTMLResponse)
+async def view_list(
+    request: Request,
+    list_id: int,
+    min_score: int = 0,
+    sort: str = "composite_score",
+    user: dict = Depends(require_onboarding),
+):
+    """Results page with sortable/filterable score table."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(
+        list_id,
+        min_composite=min_score if min_score > 0 else None,
+        sort_by=sort,
+    )
+    usage = await get_user_usage(user["id"])
+
+    # Check if integrations are connected
+    from database import get_integration
+    instantly_integration = await get_integration(user["id"], "instantly")
+    smartlead_integration = await get_integration(user["id"], "smartlead")
+    outreach_integration = await get_integration(user["id"], "outreach")
+    salesloft_integration = await get_integration(user["id"], "salesloft")
+
+    # Pipeline step counts (computed server-side)
+    scored_count = len([a for a in accounts if a.get("status") == "completed"])
+    enriched_count = len([a for a in accounts if a.get("enrichment_status") == "completed"])
+    written_count = len([a for a in accounts if a.get("outreach_status") == "completed"])
+    pushed_count = len([a for a in accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
+
+    return templates.TemplateResponse(
+        "list_view.html",
+        {
+            "request": request,
+            "user": user,
+            "list": lst,
+            "accounts": accounts,
+            "min_score": min_score,
+            "sort": sort,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+            "instantly_connected": instantly_integration is not None,
+            "smartlead_connected": smartlead_integration is not None,
+            "outreach_connected": outreach_integration is not None,
+            "salesloft_connected": salesloft_integration is not None,
+            "scored_count": scored_count,
+            "enriched_count": enriched_count,
+            "written_count": written_count,
+            "pushed_count": pushed_count,
+        }
+    )
+
+
+@router.get("/lists/{list_id}/export")
+async def export_list_csv(
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Export list accounts as CSV."""
+    import csv
+    from io import StringIO
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(list_id, limit=10000)
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    for a in accounts:
+        writer.writerow([
+            a.get("company_name") or "",
+            a.get("company_url", ""),
+            a.get("pain_score") if a.get("pain_score") is not None else "",
+            a.get("fit_score") if a.get("fit_score") is not None else "",
+            a.get("timing_score") if a.get("timing_score") is not None else "",
+            a.get("composite_score") if a.get("composite_score") is not None else "",
+            a.get("status", ""),
+        ])
+
+    safe_name = re.sub(r'[^\w\s\-.]', '', lst["name"])
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.csv"'},
+    )
+
+
+@router.post("/lists/{list_id}/export-selected")
+async def export_selected_csv(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Export selected list accounts as CSV."""
+    import csv
+    from io import StringIO
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+    if not account_ids:
+        raise HTTPException(status_code=400, detail="No accounts selected")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    selected = [a for a in all_accounts if a["id"] in account_ids]
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    for a in selected:
+        writer.writerow([
+            a.get("company_name") or "",
+            a.get("company_url", ""),
+            a.get("pain_score") if a.get("pain_score") is not None else "",
+            a.get("fit_score") if a.get("fit_score") is not None else "",
+            a.get("timing_score") if a.get("timing_score") is not None else "",
+            a.get("composite_score") if a.get("composite_score") is not None else "",
+            a.get("status", ""),
+        ])
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="selected_accounts.csv"'},
+    )
+
+
+@router.post("/lists/{list_id}/batch-write-sequences")
+async def batch_write_sequences(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Generate outreach sequences for accounts in a list."""
+    from api.jobs import run_batch_write_sequences
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account_ids = body.get("account_ids")
+
+    create_tracked_task(
+        run_batch_write_sequences(list_id, user["id"], account_ids=account_ids),
+        name=f"write-seq-{list_id}",
+    )
+
+    # Count how many will be processed
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    if account_ids:
+        queued = len([a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed" and a.get("document_id")])
+    else:
+        queued = len([a for a in all_accounts if a.get("status") == "completed" and a.get("document_id")])
+
+    return JSONResponse({"success": True, "queued_count": queued})
+
+
+@router.post("/lists/{list_id}/batch-enrich")
+async def batch_enrich(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Batch enrich contacts for accounts in a list."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    # Stub: enrichment provider not yet configured
+    return JSONResponse(
+        {"success": False, "error": "Contact enrichment is not yet available. This feature is coming soon."},
+        status_code=422,
+    )
+
+
+@router.get("/lists/{list_id}/pipeline-status")
+async def pipeline_status(
+    list_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Get pipeline step counts for a list."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    scored = len([a for a in all_accounts if a.get("status") == "completed"])
+    enriched = len([a for a in all_accounts if a.get("enrichment_status") == "completed"])
+    sequences_written = len([a for a in all_accounts if a.get("outreach_status") == "completed"])
+    pushed = len([a for a in all_accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
+    total = len(all_accounts)
+
+    return JSONResponse({
+        "scored": scored,
+        "enriched": enriched,
+        "sequences_written": sequences_written,
+        "pushed": pushed,
+        "total": total,
+    })
+
+
+@router.post("/lists/{list_id}/retry-selected")
+async def retry_selected_accounts(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Retry multiple failed list accounts."""
+    from api.jobs import _run_research_pipeline
+    from database import update_list_account
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+    if not account_ids:
+        return JSONResponse({"success": False, "error": "No accounts selected"}, status_code=400)
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id, limit=10000)
+    failed = [a for a in all_accounts if a["id"] in account_ids and a["status"] == "failed"]
+
+    if not failed:
+        return JSONResponse({"success": False, "error": "No failed accounts in selection"}, status_code=400)
+
+    # Reserve credits
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(failed) * 100
+    if not is_admin:
+        reserved = await use_credit(user["id"], cents=needed)
+        if not reserved:
+            return JSONResponse({"success": False, "error": "Not enough credits"}, status_code=402)
+
+    # Reset and start retries
+    retried = 0
+    for a in failed:
+        await reset_list_account(a["id"])
+        job = await create_research_job(user["id"], api_key_id=None, company_url=a["company_url"])
+        await update_list_account(a["id"], "processing", research_job_id=job["id"])
+
+        async def _run_retry(account_id=a["id"], company_url=a["company_url"], job_id=job["id"]):
+            from database import update_job_status, get_document as get_doc
+            try:
+                doc_id = await _run_research_pipeline(user["id"], company_url)
+                await update_job_status(job_id, "completed", document_id=doc_id)
+                doc = await get_doc(doc_id, user["id"])
+                await update_list_account(
+                    account_id, "completed",
+                    document_id=doc_id,
+                    research_job_id=job_id,
+                    pain_score=doc.pain_score,
+                    fit_score=doc.fit_score,
+                    timing_score=doc.timing_score,
+                    composite_score=doc.opportunity_score,
+                    company_name=doc.company_name,
+                )
+            except Exception as e:
+                if not is_admin:
+                    await refund_credit(user["id"])
+                error_msg = str(e)[:500]
+                await update_job_status(job_id, "failed", error_message=error_msg)
+                await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)
+
+        create_tracked_task(_run_retry(), name=f"retry-{a['id']}")
+        retried += 1
+
+    return JSONResponse({"success": True, "retried": retried})
+
+
+@router.post("/lists/{list_id}/accounts/{account_id}/retry")
+async def retry_list_account(
+    list_id: int,
+    account_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Retry a failed list account."""
+    from api.jobs import run_research_job
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    account = await get_list_account(account_id, list_id)
+    if not account:
+        return JSONResponse({"success": False, "error": "Account not found"}, status_code=404)
+    if account["status"] != "failed":
+        return JSONResponse({"success": False, "error": "Account is not in failed state"}, status_code=400)
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        reserved = await use_credit(user["id"])
+        if not reserved:
+            return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
+
+    await reset_list_account(account_id)
+
+    job = await create_research_job(user["id"], api_key_id=None, company_url=account["company_url"])
+
+    from database import update_list_account
+    await update_list_account(account_id, "processing", research_job_id=job["id"])
+
+    async def _run_retry():
+        from api.jobs import _run_research_pipeline
+        from database import update_job_status, get_document as get_doc
+        try:
+            doc_id = await _run_research_pipeline(user["id"], account["company_url"])
+            await update_job_status(job["id"], "completed", document_id=doc_id)
+            doc = await get_doc(doc_id, user["id"])
+            await update_list_account(
+                account_id, "completed",
+                document_id=doc_id,
+                research_job_id=job["id"],
+                pain_score=doc.pain_score,
+                fit_score=doc.fit_score,
+                timing_score=doc.timing_score,
+                composite_score=doc.opportunity_score,
+                company_name=doc.company_name,
+            )
+        except Exception as e:
+            if not is_admin:
+                await refund_credit(user["id"])
+            error_msg = str(e)[:500]
+            await update_job_status(job["id"], "failed", error_message=error_msg)
+            await update_list_account(account_id, "failed", research_job_id=job["id"], error_message=error_msg)
+
+    create_tracked_task(_run_retry(), name=f"retry-{account_id}")
+    return JSONResponse({"success": True})
+
+
+# ==========================================================================
+# Push-to-integration routes (live on /lists/ paths but belong to lists flow)
+# ==========================================================================
+
+@router.post("/lists/{list_id}/push-instantly")
+async def push_to_instantly(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to an Instantly campaign."""
+    from services.instantly import push_accounts_to_instantly
+
+    body = await request.json()
+    campaign_id = body.get("campaign_id")
+    account_ids = body.get("account_ids", [])
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id is required")
+
+    # Verify list ownership (org-scoped)
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    # Get accounts
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    # Get contacts for each account
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_instantly(
+        user["id"], campaign_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
+@router.post("/lists/{list_id}/push-smartlead")
+async def push_to_smartlead(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to a Smartlead campaign."""
+    from services.smartlead import push_accounts_to_smartlead
+
+    body = await request.json()
+    campaign_id = body.get("campaign_id")
+    account_ids = body.get("account_ids", [])
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id is required")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_smartlead(
+        user["id"], campaign_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
+@router.post("/lists/{list_id}/push-outreach")
+async def push_to_outreach(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push Auggie-generated sequences to Outreach (sequences only, no contacts)."""
+    from services.outreach import push_sequences_to_outreach
+    from database import get_outreach_draft
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    drafts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    import json
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
+
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
+
+    result = await push_sequences_to_outreach(user["id"], accounts, drafts_by_account)
+    return JSONResponse(result)
+
+
+@router.post("/lists/{list_id}/push-salesloft")
+async def push_to_salesloft(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push Auggie-generated sequences to SalesLoft as cadences (no contacts)."""
+    from services.salesloft import push_sequences_to_salesloft
+    from database import get_outreach_draft
+
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    drafts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    import json
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
+
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
+
+    result = await push_sequences_to_salesloft(user["id"], accounts, drafts_by_account)
+    return JSONResponse(result)
