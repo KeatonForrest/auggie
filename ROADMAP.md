@@ -454,137 +454,35 @@ Clay Table:
 
 ---
 
-## Phase 10: Bulk Workflows & Lists UI
-**Status:** Future (core to enterprise)
+## Phase 10: Pipeline UI + Workflow Automation
+**Status:** Complete
 
-### List Management UI
-- [ ] "Create New List" with import sources (Ocean, Clay, Apollo, CRMs, CSV)
-- [ ] List view with pain scores and status
-- [ ] Filter/sort by pain score, industry, stage
-- [ ] Bulk actions (research all, enrich all, write all, send all)
+Full pipeline stepper UI and automation rules engine. Users can visually step through the pipeline and set rules to automatically act on scored accounts.
 
-### Bulk Processing Pipeline
-Upload list → Analyze all → Enrich high-pain → Write sequences → Push to sequencer
+### Pipeline Stepper UI ✅
+- [x] Visual stepper bar: Score → Enrich → Write Sequences → Execute
+- [x] Clickable steps trigger batch operations on all eligible accounts
+- [x] Live counts with AJAX polling (scored, enriched, written, pushed)
+- [x] Enriched / Sequences columns in list accounts table
+- [x] Bulk toolbar buttons: Enrich Selected, Write Sequences
+- [x] `enrichment_status` and `outreach_status` columns on `list_accounts`
 
-**The full workflow:**
-```
-1. INGEST:  Import 500 accounts from Ocean.io
-2. ANALYZE: Research all, score by pain (async, parallel)
-3. FILTER:  User reviews, selects 87 high-pain accounts
-4. ENRICH:  Call LeadMagic for contacts on 87 accounts
-5. WRITE:   Generate sequences for 87 accounts
-6. EXECUTE: Push 87 sequences + contacts to Instantly
-```
+### Batch Operations ✅
+- [x] `POST /lists/{id}/batch-write-sequences` — generates email sequences for scored accounts
+- [x] `POST /lists/{id}/batch-enrich` — stub (returns 422 until enrichment provider configured)
+- [x] `GET /lists/{id}/pipeline-status` — JSON counts for stepper polling
 
-### Opportunity Scoring (Full tier only)
-
-Composite score built from data Auggie actually has. Not available on Free/Credits tiers.
-
-**Three factors:**
-
-**Pain (40%) - "Are they hurting?"**
-Data: Tech stack, job postings, news, website content
-- Existential data points (Data Cocktail combinations)
-- Roles open 4+ months
-- Competitor detected in stack
-- Scaling/performance signals
-- Deprecated tech detected
-
-**Fit (35%) - "Should we be selling to them?"**
-Data: User's onboarding ICP context + scraped company data
-- Industry matches ICP
-- Company size matches target
-- Target persona titles in job postings
-- Tech stack overlaps with product use case
-- Stated problems match what seller solves
-
-**Timing (25%) - "Should we call now or later?"**
-Data: News, job postings, investor relations
-- Funding announced in last 6 months
-- Hiring spike (5+ relevant roles)
-- Leadership change / reorg signals
-- Active vendor evaluation signals
-- Role age (new = building, old = struggling)
-
-**Composite formula:**
-```
-Opportunity Score = (Pain × 0.40) + (Fit × 0.35) + (Timing × 0.25)
-```
-
-**Output format:**
-```
-OPPORTUNITY SCORE: 8.1 / 10
-
-Pain:    9/10  (PostgreSQL scaling + 4mo backend role)
-Fit:     8/10  (mid-market SaaS, target personas present)
-Timing:  7/10  (Series B announced, hiring spike)
-
-Summary: Strong pain signals with high ICP fit.
-Recent Series B creates urgency.
-```
-
-**Implementation:**
-- [ ] Add scoring criteria to Claude research prompt
-- [ ] Parse structured score from research output
-- [ ] Add pain_score, fit_score, timing_score, opportunity_score to models
-- [ ] Add scoring columns to database
-- [ ] Display score on research document (Full tier only)
-- [ ] Gate scoring behind tier check
-- [ ] Make weights configurable per customer (future)
-- [ ] Prioritized list: "Call these 47 first"
-
-### API
-```
-POST /api/lists
-{ "name": "Q1 Targets", "source": "csv", "companies": [...] }
-→ { "list_id": "list_abc123" }
-
-POST /api/lists/{list_id}/analyze
-→ { "status": "processing", "completed": 47, "total": 500 }
-
-GET /api/lists/{list_id}/accounts?min_pain_score=7
-→ [{ "domain": "acme.com", "pain_score": 9, "research_id": "..." }, ...]
-
-POST /api/lists/{list_id}/enrich
-{ "account_ids": [...], "provider": "leadmagic" }
-
-POST /api/lists/{list_id}/execute
-{ "account_ids": [...], "destination": "instantly" }
-```
-
-### Database
-```sql
-CREATE TABLE lists (
-  id TEXT PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id),
-  name TEXT,
-  source TEXT,
-  status TEXT DEFAULT 'created',
-  total_accounts INTEGER DEFAULT 0,
-  analyzed INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE list_accounts (
-  id BIGSERIAL PRIMARY KEY,
-  list_id TEXT REFERENCES lists(id),
-  company_url TEXT,
-  pain_score INTEGER,
-  pain_categories JSONB,
-  document_id BIGINT REFERENCES research_documents(id),
-  contact_data JSONB,
-  sequence_id BIGINT,
-  status TEXT DEFAULT 'pending',
-  enriched_at TIMESTAMPTZ,
-  executed_at TIMESTAMPTZ
-);
-```
-
-### Other Advanced Features
-- [ ] Saved research templates
-- [ ] Competitor tracking over time
-- [ ] AI chat follow-up on research
-- [ ] PDF export
+### Automation Rules Engine ✅
+- [x] `automation_rules` table (trigger, conditions, action, config)
+- [x] CRUD routes: create, toggle, delete rules
+- [x] Automations management page with card-based UI
+- [x] Trigger events: `list_complete`, `account_scored`
+- [x] Condition filters: composite/pain/fit/timing score thresholds
+- [x] Actions: push to Instantly, write sequences, notify Slack
+- [x] `automation_runs` audit trail with status, error messages, matched counts
+- [x] Recent runs displayed on each rule card
+- [x] Rules evaluated automatically after list analysis and per-account scoring
+- [x] 36 tests covering automation CRUD, rule evaluation, pipeline status, and batch operations
 
 ---
 
@@ -753,8 +651,8 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
 | ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack |
 | Background | Phase 9 | Clay Marketplace onboarding (external process) |
-| Next | Phase 10 | Bulk workflows UI + remaining integrations |
-| Later | Phase 11 | Team accounts |
+| ✅ Done | Phase 10 | Pipeline UI + workflow automation |
+| Next | Phase 11 | Team accounts |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---
