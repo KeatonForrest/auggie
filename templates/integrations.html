@@ -79,6 +79,43 @@
         {% endif %}
     </div>
 
+    <!-- Smartlead -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Smartlead</h2>
+                    <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
+                </div>
+            </div>
+            {% if integrations.get('smartlead') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('smartlead') %}
+        <form method="post" action="/integrations/smartlead/disconnect" class="inline">
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                Disconnect
+            </button>
+        </form>
+        {% else %}
+        <div id="smartlead-form">
+            <div class="flex gap-3">
+                <input type="text" id="smartlead-key" placeholder="Enter your Smartlead API key"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                <button onclick="connectSmartlead()" id="smartlead-btn" class="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700">
+                    Connect
+                </button>
+            </div>
+            <p id="smartlead-error" class="mt-2 text-sm text-red-600 hidden"></p>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- Salesforce -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
@@ -832,6 +869,42 @@ function connectOcean() {
         else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
     })
     .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+// === Smartlead ===
+function connectSmartlead() {
+    var btn = document.getElementById('smartlead-btn');
+    var key = document.getElementById('smartlead-key').value.trim();
+    var errEl = document.getElementById('smartlead-error');
+    errEl.classList.add('hidden');
+
+    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Validating...';
+
+    fetch('/integrations/smartlead/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) {
+            window.location.reload();
+        } else {
+            errEl.textContent = res.data.detail || 'Invalid API key';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Connect';
+        }
+    })
+    .catch(function() {
+        errEl.textContent = 'Network error';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Connect';
+    });
 }
 
 // === Instantly ===

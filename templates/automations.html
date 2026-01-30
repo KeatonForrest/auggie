@@ -46,7 +46,7 @@
                         </p>
                         {% endif %}
                         <p><span class="font-medium text-gray-700">Then:</span>
-                            {% if rule.action == 'push_instantly' %}Push to Instantly{% elif rule.action == 'push_outreach' %}Push to Outreach{% elif rule.action == 'push_salesloft' %}Push to SalesLoft{% elif rule.action == 'write_sequences' %}Write sequences{% elif rule.action == 'notify_slack' %}Notify Slack{% else %}{{ rule.action }}{% endif %}
+                            {% if rule.action == 'push_instantly' %}Push to Instantly{% elif rule.action == 'push_smartlead' %}Push to Smartlead{% elif rule.action == 'push_outreach' %}Push to Outreach{% elif rule.action == 'push_salesloft' %}Push to SalesLoft{% elif rule.action == 'write_sequences' %}Write sequences{% elif rule.action == 'notify_slack' %}Notify Slack{% else %}{{ rule.action }}{% endif %}
                             {% set config = rule.action_config if rule.action_config is mapping else {} %}
                             {% if config.get('campaign_id') %}<span class="text-gray-400 text-xs ml-1">(campaign: {{ config.campaign_id[:12] }}...)</span>{% endif %}
                         </p>
@@ -137,6 +137,9 @@
                     {% if instantly_connected %}
                     <option value="push_instantly">Push to Instantly</option>
                     {% endif %}
+                    {% if smartlead_connected %}
+                    <option value="push_smartlead">Push to Smartlead</option>
+                    {% endif %}
                     {% if outreach_connected %}
                     <option value="push_outreach">Push to Outreach</option>
                     {% endif %}
@@ -175,11 +178,15 @@ function closeAddRule() {
 function updateActionConfig() {
     var action = document.getElementById('rule-action').value;
     var section = document.getElementById('action-config-section');
-    section.classList.toggle('hidden', action !== 'push_instantly' && action !== 'push_outreach' && action !== 'push_salesloft');
+    section.classList.toggle('hidden', action !== 'push_instantly' && action !== 'push_smartlead' && action !== 'push_outreach' && action !== 'push_salesloft');
     var label = document.querySelector('#action-config-section label');
     var input = document.getElementById('action-campaign-id');
     var hint = document.querySelector('#action-config-section .text-xs');
-    if (action === 'push_outreach') {
+    if (action === 'push_smartlead') {
+        label.textContent = 'Campaign ID';
+        input.placeholder = 'Smartlead campaign ID';
+        hint.textContent = 'Find this in your Smartlead dashboard';
+    } else if (action === 'push_outreach') {
         label.textContent = 'Sequence ID';
         input.placeholder = 'Outreach sequence ID';
         hint.textContent = 'Find this in your Outreach dashboard';
@@ -212,6 +219,9 @@ function saveRule() {
     if (action === 'push_instantly') {
         var campaignId = document.getElementById('action-campaign-id').value.trim();
         if (campaignId) actionConfig.campaign_id = campaignId;
+    } else if (action === 'push_smartlead') {
+        var slCampaignId = document.getElementById('action-campaign-id').value.trim();
+        if (slCampaignId) actionConfig.campaign_id = slCampaignId;
     } else if (action === 'push_outreach') {
         var seqId = document.getElementById('action-campaign-id').value.trim();
         if (seqId) actionConfig.sequence_id = seqId;

@@ -544,6 +544,95 @@ async def push_to_instantly(
     return JSONResponse(result)
 
 
+# --- Smartlead (API key) ---
+
+@app.post("/integrations/smartlead/connect")
+async def smartlead_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Smartlead API key after validation."""
+    from services.smartlead import validate_api_key
+    from database import upsert_integration
+
+    body = await request.json()
+    api_key = body.get("api_key", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+
+    valid = await validate_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Smartlead API key")
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="smartlead",
+        access_token=api_key,
+    )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/integrations/smartlead/disconnect")
+async def smartlead_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Smartlead integration."""
+    from database import delete_integration
+    await delete_integration(user["id"], "smartlead")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.get("/integrations/smartlead/campaigns")
+async def smartlead_campaigns(request: Request, user: dict = Depends(require_onboarding)):
+    """List Smartlead campaigns."""
+    from services.smartlead import list_campaigns
+    try:
+        campaigns = await list_campaigns(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Smartlead API error: {str(e)[:200]}")
+    return JSONResponse(campaigns)
+
+
+@app.post("/lists/{list_id}/push-smartlead")
+async def push_to_smartlead(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push selected accounts from a list to a Smartlead campaign."""
+    from services.smartlead import push_accounts_to_smartlead
+    from database import get_enriched_contacts
+
+    body = await request.json()
+    campaign_id = body.get("campaign_id")
+    account_ids = body.get("account_ids", [])
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id is required")
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    all_accounts = await get_list_accounts(list_id)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    contacts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            contacts = await get_enriched_contacts(account["document_id"], user["id"])
+            if contacts:
+                contacts_by_account[account["id"]] = contacts
+
+    result = await push_accounts_to_smartlead(
+        user["id"], campaign_id, accounts, contacts_by_account,
+    )
+
+    return JSONResponse(result)
+
+
 # --- Salesforce (OAuth) ---
 
 @app.get("/integrations/salesforce/connect")
@@ -2033,6 +2122,7 @@ async def view_list(
     # Check if Instantly is connected
     from database import get_integration
     instantly_integration = await get_integration(user["id"], "instantly")
+    smartlead_integration = await get_integration(user["id"], "smartlead")
     outreach_integration = await get_integration(user["id"], "outreach")
     salesloft_integration = await get_integration(user["id"], "salesloft")
 
@@ -2054,6 +2144,7 @@ async def view_list(
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "instantly_connected": instantly_integration is not None,
+            "smartlead_connected": smartlead_integration is not None,
             "outreach_connected": outreach_integration is not None,
             "salesloft_connected": salesloft_integration is not None,
             "scored_count": scored_count,
@@ -2490,6 +2581,7 @@ async def automations_page(request: Request, user: dict = Depends(require_onboar
     # Check which integrations are connected for action config
     from database import get_integration
     instantly_connected = await get_integration(user["id"], "instantly") is not None
+    smartlead_connected = await get_integration(user["id"], "smartlead") is not None
     outreach_connected = await get_integration(user["id"], "outreach") is not None
     salesloft_connected = await get_integration(user["id"], "salesloft") is not None
     slack_connected = await get_integration(user["id"], "slack") is not None
@@ -2509,6 +2601,7 @@ async def automations_page(request: Request, user: dict = Depends(require_onboar
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "instantly_connected": instantly_connected,
+            "smartlead_connected": smartlead_connected,
             "outreach_connected": outreach_connected,
             "salesloft_connected": salesloft_connected,
             "slack_connected": slack_connected,
