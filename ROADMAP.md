@@ -560,6 +560,7 @@ End-to-end testing of existing integrations before adding new ones.
 - [ ] Ocean.io — import lookalike audiences
 - [ ] Slack — webhook notifications (research complete, high-pain alert)
 - [ ] Webhooks — delivery + HMAC verification
+- [ ] Clay — sync enrichment endpoint, 24h caching
 - [ ] Chrome extension — full flow (research, poll, display scores)
 
 ---
