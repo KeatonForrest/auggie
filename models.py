@@ -23,7 +23,6 @@ class ScrapedContent(BaseModel):
     news: Optional[str] = None
     investor_relations: Optional[str] = None
     edgar_filings: Optional[str] = None
-    reviews: Optional[str] = None
     federal_regulations: Optional[str] = None
 
 

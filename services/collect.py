@@ -13,14 +13,12 @@ from config import get_settings
 from models import ScrapedContent
 from services.news import NewsService
 from services.edgar import EdgarService
-from services.reviews import ReviewsService
 from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
 
 # Module-level singletons (shared across callers within the same process)
 news_service = NewsService()
 edgar_service = EdgarService()
-reviews_service = ReviewsService()
 federal_register_service = FederalRegisterService()
 
 # Shared httpx client — created lazily on first use, reuses TCP connections
@@ -124,16 +122,6 @@ async def collect_enrichment_data(
                 print(f"Federal Register lookup failed (non-fatal): {e}")
             return None
 
-    async def _fetch_reviews():
-        if not settings.reviews_enabled:
-            return None
-        try:
-            return await reviews_service.get_reviews(company_name, client=client)
-        except Exception as e:
-            if verbose:
-                print(f"Reviews scraping failed (non-fatal): {e}")
-            return None
-
     async def _fetch_materials():
         retrieval = _get_retrieval_service()
         if not retrieval:
@@ -152,11 +140,10 @@ async def collect_enrichment_data(
     if verbose:
         print(f"Fetching enrichment data for {company_name} (parallel)...")
 
-    # Run EDGAR, news, reviews, materials in parallel
-    news_result, edgar_content, reviews_result, materials_result = await asyncio.gather(
+    # Run EDGAR, news, materials in parallel
+    news_result, edgar_content, materials_result = await asyncio.gather(
         _fetch_news(),
         _fetch_edgar(),
-        _fetch_reviews(),
         _fetch_materials(),
     )
 
@@ -176,9 +163,4 @@ async def collect_enrichment_data(
         scraped_content.federal_regulations = fed_content
         if verbose:
             print("Found relevant regulations")
-    if reviews_result:
-        scraped_content.reviews = reviews_result
-        if verbose:
-            print("Found review data")
-
     return materials_result

@@ -60,10 +60,29 @@ class ReviewsService:
         return "\n".join(sections)
 
     async def _scrape_g2(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
-        """Search for and scrape G2 product page."""
-        # Use Firecrawl search to find the G2 page
+        """Try direct G2 product URL first, fall back to Firecrawl search."""
         clean_name = self._clean_name(company_name)
+        slug = clean_name.lower().replace(" ", "-").replace(".", "-")
 
+        # Try direct scrape first (avoids expensive search API call)
+        direct_url = f"https://www.g2.com/products/{slug}/reviews"
+        try:
+            response = await client.post(
+                f"{self.firecrawl_url}/scrape",
+                headers=self.headers,
+                json={"url": direct_url, "formats": ["markdown"]},
+                timeout=20.0,
+            )
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                markdown = data.get("markdown", "")
+                if markdown and len(markdown) > 200:
+                    print(f"G2 direct hit: {direct_url}")
+                    return self._extract_g2_content(markdown, direct_url)
+        except Exception as e:
+            print(f"G2 direct scrape failed (will try search): {e}")
+
+        # Fall back to search
         try:
             response = await client.post(
                 f"{self.firecrawl_url}/search",
@@ -83,14 +102,12 @@ class ReviewsService:
             data = response.json()
             results = data.get("data", [])
 
-            # Find the main product page (not comparison or category pages)
             for result in results:
                 url = result.get("url", "")
                 markdown = result.get("markdown", "")
                 if "g2.com/products/" in url and markdown:
                     return self._extract_g2_content(markdown, url)
 
-            # Fall back to first result with content
             for result in results:
                 markdown = result.get("markdown", "")
                 url = result.get("url", "")
@@ -104,9 +121,29 @@ class ReviewsService:
             return None
 
     async def _scrape_capterra(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
-        """Search for and scrape Capterra product page."""
+        """Try direct Capterra URL first, fall back to Firecrawl search."""
         clean_name = self._clean_name(company_name)
+        slug = clean_name.lower().replace(" ", "-").replace(".", "-")
 
+        # Try direct scrape first
+        direct_url = f"https://www.capterra.com/p/{slug}/reviews/"
+        try:
+            response = await client.post(
+                f"{self.firecrawl_url}/scrape",
+                headers=self.headers,
+                json={"url": direct_url, "formats": ["markdown"]},
+                timeout=20.0,
+            )
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                markdown = data.get("markdown", "")
+                if markdown and len(markdown) > 200:
+                    print(f"Capterra direct hit: {direct_url}")
+                    return self._extract_capterra_content(markdown, direct_url)
+        except Exception as e:
+            print(f"Capterra direct scrape failed (will try search): {e}")
+
+        # Fall back to search
         try:
             response = await client.post(
                 f"{self.firecrawl_url}/search",

@@ -64,9 +64,6 @@ class Settings(BaseSettings):
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 
-    # G2/Capterra review scraping (uses Firecrawl credits)
-    reviews_enabled: bool = True
-
     # Federal Register API (free, no key needed)
     federal_register_enabled: bool = True
 

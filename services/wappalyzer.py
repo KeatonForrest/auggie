@@ -20,22 +20,11 @@ except ImportError as e:
 class WappalyzerService:
     """Service for detecting technologies on websites."""
 
-    # B2B SaaS subdomains
-    B2B_SUBDOMAINS = [
-        "app", "dashboard", "portal", "console", "platform",
-        "admin", "my", "account", "api", "web", "cloud",
-        "login", "sso", "auth", "id", "secure",
+    # High-signal subdomains that reveal tech stack (trimmed from 30+ to top 10)
+    COMMON_APP_SUBDOMAINS = [
+        "app", "api", "dashboard", "portal", "admin",
+        "login", "console", "platform", "shop", "store",
     ]
-
-    # B2C / Retail subdomains
-    B2C_SUBDOMAINS = [
-        "shop", "store", "checkout", "cart", "orders",
-        "member", "members", "rewards", "m", "mobile",
-        "www2", "secure", "pay", "payments",
-    ]
-
-    # Combined list
-    COMMON_APP_SUBDOMAINS = list(set(B2B_SUBDOMAINS + B2C_SUBDOMAINS))
 
     # Common authenticated paths to check on main domain
     COMMON_APP_PATHS = [
@@ -133,28 +122,45 @@ class WappalyzerService:
             return TechStack(technologies=[], scan_url=url)
 
     async def _check_url_exists(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
-        """Check if a URL exists via GET request (more reliable than HEAD)."""
+        """Check if a URL exists. HEAD first (cheap), GET fallback for ambiguous responses."""
+        _ua = {"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"}
         try:
-            # Use GET with limited content - some sites block HEAD requests
-            response = await client.get(
-                url,
-                follow_redirects=True,
-                timeout=8.0,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"}
+            response = await client.head(
+                url, follow_redirects=True, timeout=5.0, headers=_ua
             )
-            # Check for success and that we didn't get redirected to main site
-            if response.status_code < 400:
-                # Avoid false positives from redirects to homepage
-                final_url = str(response.url)
-                if not final_url.rstrip('/').endswith(('.com', '.org', '.net', '.io', '.co')):
-                    return url
-                # If it's a subdomain that stayed on subdomain, it's valid
-                if url.split('/')[2] == final_url.split('/')[2]:
-                    return url
+            if response.status_code >= 400:
+                return None
+            if response.status_code == 405:
+                # HEAD not allowed — fall through to GET
+                pass
+            else:
+                return self._validate_redirect(url, response)
         except (httpx.TimeoutException, httpx.ConnectError, httpx.ConnectTimeout):
-            pass
+            return None
         except Exception:
             pass
+
+        # GET fallback
+        try:
+            response = await client.get(
+                url, follow_redirects=True, timeout=6.0, headers=_ua
+            )
+            if response.status_code < 400:
+                return self._validate_redirect(url, response)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _validate_redirect(original_url: str, response: httpx.Response) -> Optional[str]:
+        """Return original_url if the response didn't redirect to a generic homepage."""
+        final_url = str(response.url)
+        # If it stayed on the same host, it's valid
+        if original_url.split('/')[2] == final_url.split('/')[2]:
+            return original_url
+        # If the final URL doesn't look like a bare domain root, accept it
+        if not final_url.rstrip('/').endswith(('.com', '.org', '.net', '.io', '.co')):
+            return original_url
         return None
 
     async def discover_subdomains(self, base_domain: str) -> list[str]:

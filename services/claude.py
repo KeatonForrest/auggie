@@ -54,13 +54,7 @@ The company data contains several types of information with different reliabilit
    - Filing dates and frequency indicate company activity and regulatory status
    - These are HIGH-CONFIDENCE signals — companies are legally obligated to report them accurately
 
-6. **G2/Capterra Reviews** - Third-party review data about the company's products:
-   - Star ratings and review volume indicate market presence and customer satisfaction
-   - Negative review themes reveal pain points (scaling issues, poor support, missing features)
-   - Competitor comparisons and "switching from/to" signals reveal competitive pressure
-   - Low ratings in specific categories suggest areas where they need help
-
-7. **Federal Register Regulations** - Upcoming compliance deadlines from the Federal Register:
+6. **Federal Register Regulations** - Upcoming compliance deadlines from the Federal Register:
    - Final Rules with effective dates create deadline-driven urgency
    - Proposed Rules signal upcoming compliance requirements
    - Match these to the company's industry to assess regulatory pressure
@@ -165,7 +159,7 @@ Cost/Survival:
 Technical Debt Bombs:
 - Deprecated technology in stack + no migration roles posted = ticking clock
 - Security incidents in news + outdated dependencies = vulnerability window
-- Performance complaints in reviews + monolithic architecture = refactor pressure
+- Monolithic architecture + no migration roles posted = refactor pressure
 
 Competitive Urgency:
 - Competitor funding/acquisition + feature gap = market pressure
@@ -476,12 +470,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("## SEC EDGAR Filings (Public Company)")
             sections.append("(From SEC.gov - official regulatory filings. 8-K = material events, Risk Factors = company-disclosed challenges)")
             sections.append(scraped.edgar_filings[:10000])
-            sections.append("")
-
-        if scraped.reviews:
-            sections.append("## G2/Capterra Reviews")
-            sections.append("(Third-party review data — ratings, pros/cons, competitor comparisons)")
-            sections.append(scraped.reviews[:8000])
             sections.append("")
 
         if scraped.federal_regulations:
