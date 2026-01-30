@@ -393,6 +393,7 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [x] 24h local cache by domain to avoid duplicate charges
 - [x] Domain exclusion list (google, linkedin, twitter, etc.)
 - [x] Copy scores to clipboard, open full research in auggie.tools
+- [x] Polish pass: timer memory leak fix, storage/API error hardening, input validation, clipboard safety
 
 ### Future Execute Integrations
 - [ ] Outreach — push sequences
