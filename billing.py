@@ -52,8 +52,10 @@ async def get_or_create_credit_pack_price():
 
 
 @router.get("/buy-credits")
-async def buy_credits(request: Request, user: dict = Depends(require_org_admin)):
+async def buy_credits(request: Request, user: dict = Depends(require_auth)):
     """Create a Stripe checkout session for credit purchase (admin only)."""
+    if user.get("org_role") != "admin":
+        raise HTTPException(status_code=403, detail="Only team admins can purchase credits. Ask your admin to buy credits or change your role.")
     price_id = await get_or_create_credit_pack_price()
 
     # Create or get Stripe customer on the org

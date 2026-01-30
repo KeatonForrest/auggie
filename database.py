@@ -479,6 +479,12 @@ async def init_database():
             )
         """)
 
+        # Add org_id to fulfilled_sessions for billing audit
+        try:
+            await conn.execute("ALTER TABLE fulfilled_sessions ADD COLUMN org_id BIGINT REFERENCES organizations(id)")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_lists_status_created
             ON lists(status, created_at DESC)
@@ -1171,19 +1177,17 @@ async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
     cents = credits * 100
     async with _pool.acquire() as conn:
         async with conn.transaction():
+            org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
             try:
                 await conn.execute(
-                    "INSERT INTO fulfilled_sessions (session_id, user_id, credits) VALUES ($1, $2, $3)",
-                    session_id, user_id, credits,
+                    "INSERT INTO fulfilled_sessions (session_id, user_id, credits, org_id) VALUES ($1, $2, $3, $4)",
+                    session_id, user_id, credits, org_id,
                 )
             except asyncpg.exceptions.UniqueViolationError:
                 return False
             await conn.execute(
-                """
-                UPDATE organizations SET bonus_credits = bonus_credits + $2
-                WHERE id = (SELECT org_id FROM users WHERE id = $1)
-                """,
-                user_id, cents,
+                "UPDATE organizations SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+                org_id, cents,
             )
             return True
 
@@ -1570,7 +1574,6 @@ async def get_user_materials(user_id: int) -> list[dict]:
                    m.status, m.chunk_count, m.error_message, m.created_at
             FROM materials m
             WHERE m.org_id = (SELECT org_id FROM users WHERE id = $1)
-               OR (m.org_id IS NULL AND m.user_id = $1)
             ORDER BY m.created_at DESC
             """,
             user_id
@@ -1584,10 +1587,7 @@ async def get_material(material_id: int, user_id: int) -> Optional[dict]:
         row = await conn.fetchrow(
             """
             SELECT * FROM materials
-            WHERE id = $1 AND (
-                org_id = (SELECT org_id FROM users WHERE id = $2)
-                OR (org_id IS NULL AND user_id = $2)
-            )
+            WHERE id = $1 AND org_id = (SELECT org_id FROM users WHERE id = $2)
             """,
             material_id, user_id
         )
@@ -1600,10 +1600,7 @@ async def delete_material(material_id: int, user_id: int) -> Optional[str]:
         row = await conn.fetchrow(
             """
             DELETE FROM materials
-            WHERE id = $1 AND (
-                org_id = (SELECT org_id FROM users WHERE id = $2)
-                OR (org_id IS NULL AND user_id = $2)
-            )
+            WHERE id = $1 AND org_id = (SELECT org_id FROM users WHERE id = $2)
             RETURNING storage_key
             """,
             material_id, user_id
@@ -1659,7 +1656,6 @@ async def vector_search(
                 1 - (embedding <=> $2::vector) as similarity
             FROM material_chunks
             WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
-               OR (org_id IS NULL AND user_id = $1)
             ORDER BY embedding <=> $2::vector
             LIMIT $3
             """,
@@ -2008,10 +2004,7 @@ async def get_list(list_id: int, user_id: int) -> dict | None:
         row = await conn.fetchrow(
             """
             SELECT * FROM lists
-            WHERE id = $1 AND (
-                org_id = (SELECT org_id FROM users WHERE id = $2)
-                OR (org_id IS NULL AND user_id = $2)
-            )
+            WHERE id = $1 AND org_id = (SELECT org_id FROM users WHERE id = $2)
             """,
             list_id, user_id
         )
@@ -2027,7 +2020,6 @@ async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
                    failed_accounts, credits_reserved, created_at, updated_at
             FROM lists
             WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
-               OR (org_id IS NULL AND user_id = $1)
             ORDER BY created_at DESC
             LIMIT $2
             """,
@@ -2042,10 +2034,7 @@ async def delete_list(list_id: int, user_id: int) -> bool:
         result = await conn.execute(
             """
             DELETE FROM lists
-            WHERE id = $1 AND (
-                org_id = (SELECT org_id FROM users WHERE id = $2)
-                OR (org_id IS NULL AND user_id = $2)
-            )
+            WHERE id = $1 AND org_id = (SELECT org_id FROM users WHERE id = $2)
             """,
             list_id, user_id
         )
