@@ -2105,6 +2105,42 @@ async def add_list_accounts(list_id: int, company_urls: list[str]) -> list[dict]
         return [dict(row) for row in rows]
 
 
+async def get_pipeline_counts(list_id: int) -> dict:
+    """Return pipeline step counts for a list in a single SQL query."""
+    query = """
+        SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'completed') AS scored,
+            COUNT(*) FILTER (WHERE enrichment_status = 'completed') AS enriched,
+            COUNT(*) FILTER (WHERE outreach_status = 'completed') AS sequences_written,
+            COUNT(*) FILTER (WHERE pushed_to IS NOT NULL AND pushed_to::text != '{}' AND pushed_to::text != 'null') AS pushed
+        FROM list_accounts
+        WHERE list_id = $1
+    """
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(query, list_id)
+        return dict(row)
+
+
+async def count_ready_accounts(list_id: int, account_ids: list[int] | None = None) -> int:
+    """Count completed accounts that have documents (ready for sequence writing)."""
+    if account_ids:
+        query = """
+            SELECT COUNT(*) FROM list_accounts
+            WHERE list_id = $1 AND status = 'completed' AND document_id IS NOT NULL
+              AND id = ANY($2)
+        """
+        async with _pool.acquire() as conn:
+            return await conn.fetchval(query, list_id, account_ids)
+    else:
+        query = """
+            SELECT COUNT(*) FROM list_accounts
+            WHERE list_id = $1 AND status = 'completed' AND document_id IS NOT NULL
+        """
+        async with _pool.acquire() as conn:
+            return await conn.fetchval(query, list_id)
+
+
 async def get_list_accounts(
     list_id: int,
     min_pain: int | None = None,
@@ -2113,6 +2149,8 @@ async def get_list_accounts(
     order: str = "desc",
     limit: int = 100,
     offset: int = 0,
+    status: str | None = None,
+    account_ids: list[int] | None = None,
 ) -> list[dict]:
     """Get accounts for a list with optional filtering and sorting."""
     allowed_sorts = {"pain_score", "composite_score", "fit_score", "timing_score", "company_name"}
@@ -2132,6 +2170,14 @@ async def get_list_accounts(
     if min_composite is not None:
         conditions.append(f"composite_score >= ${idx}")
         params.append(min_composite)
+        idx += 1
+    if status is not None:
+        conditions.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+    if account_ids is not None:
+        conditions.append(f"id = ANY(${idx})")
+        params.append(account_ids)
         idx += 1
 
     where = " AND ".join(conditions)

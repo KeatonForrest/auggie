@@ -14,6 +14,7 @@ from database import (
     get_enriched_contacts,
     create_list, add_list_accounts, update_list_credits,
     list_lists, get_list, get_list_accounts,
+    get_pipeline_counts, count_ready_accounts,
     create_research_job, get_list_account, reset_list_account,
     get_integration, update_list_account,
 )
@@ -169,11 +170,12 @@ async def view_list(
     outreach_integration = await get_integration(user["id"], "outreach")
     salesloft_integration = await get_integration(user["id"], "salesloft")
 
-    # Pipeline step counts (computed server-side)
-    scored_count = len([a for a in accounts if a.get("status") == "completed"])
-    enriched_count = len([a for a in accounts if a.get("enrichment_status") == "completed"])
-    written_count = len([a for a in accounts if a.get("outreach_status") == "completed"])
-    pushed_count = len([a for a in accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
+    # Pipeline step counts (single SQL query)
+    counts = await get_pipeline_counts(list_id)
+    scored_count = counts["scored"]
+    enriched_count = counts["enriched"]
+    written_count = counts["sequences_written"]
+    pushed_count = counts["pushed"]
 
     return templates.TemplateResponse(
         "list_view.html",
@@ -248,8 +250,7 @@ async def export_selected_csv(
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    all_accounts = await get_list_accounts(list_id, limit=10000)
-    selected = [a for a in all_accounts if a["id"] in account_ids]
+    selected = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
 
     output = StringIO()
     writer = csv.writer(output)
@@ -297,11 +298,7 @@ async def batch_write_sequences(
     )
 
     # Count how many will be processed
-    all_accounts = await get_list_accounts(list_id, limit=10000)
-    if account_ids:
-        queued = len([a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed" and a.get("document_id")])
-    else:
-        queued = len([a for a in all_accounts if a.get("status") == "completed" and a.get("document_id")])
+    queued = await count_ready_accounts(list_id, account_ids=account_ids)
 
     return JSONResponse({"success": True, "queued_count": queued})
 
@@ -334,19 +331,14 @@ async def pipeline_status(
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    all_accounts = await get_list_accounts(list_id, limit=10000)
-    scored = len([a for a in all_accounts if a.get("status") == "completed"])
-    enriched = len([a for a in all_accounts if a.get("enrichment_status") == "completed"])
-    sequences_written = len([a for a in all_accounts if a.get("outreach_status") == "completed"])
-    pushed = len([a for a in all_accounts if a.get("pushed_to") and isinstance(a["pushed_to"], dict) and a["pushed_to"] != {}])
-    total = len(all_accounts)
+    counts = await get_pipeline_counts(list_id)
 
     return JSONResponse({
-        "scored": scored,
-        "enriched": enriched,
-        "sequences_written": sequences_written,
-        "pushed": pushed,
-        "total": total,
+        "scored": counts["scored"],
+        "enriched": counts["enriched"],
+        "sequences_written": counts["sequences_written"],
+        "pushed": counts["pushed"],
+        "total": counts["total"],
     })
 
 
@@ -365,8 +357,7 @@ async def retry_selected_accounts(
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    all_accounts = await get_list_accounts(list_id, limit=10000)
-    failed = [a for a in all_accounts if a["id"] in body.account_ids and a["status"] == "failed"]
+    failed = await get_list_accounts(list_id, status="failed", account_ids=body.account_ids, limit=10000)
 
     if not failed:
         return JSONResponse({"success": False, "error": "No failed accounts in selection"}, status_code=400)

@@ -241,11 +241,10 @@ async def _push_contacts_to_integration(user: dict, list_id: int, campaign_id: s
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    all_accounts = await get_list_accounts(list_id)
     if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
+        accounts = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
     else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+        accounts = await get_list_accounts(list_id, status="completed", limit=10000)
 
     if not accounts:
         raise HTTPException(status_code=400, detail="No accounts to push")
@@ -269,11 +268,10 @@ async def _push_drafts_to_integration(user: dict, list_id: int, account_ids: lis
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    all_accounts = await get_list_accounts(list_id)
     if account_ids:
-        accounts = [a for a in all_accounts if a["id"] in account_ids]
+        accounts = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
     else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+        accounts = await get_list_accounts(list_id, status="completed", limit=10000)
 
     if not accounts:
         raise HTTPException(status_code=400, detail="No accounts to push")
