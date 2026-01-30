@@ -183,7 +183,7 @@ class EdgarService:
             else:
                 return await self._get_company_filings_impl(client, company_name)
         except Exception as e:
-            logger.error("EDGAR error (non-fatal): %s", e)
+            logger.warning("EDGAR error (non-fatal): %s", e)
             return None
 
     async def _get_company_filings_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:

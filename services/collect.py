@@ -98,7 +98,7 @@ async def collect_enrichment_data(
             return await news_service.get_company_news(company_name, client=client)
         except Exception as e:
             if verbose:
-                logger.error("News fetch failed (non-fatal): %s", e)
+                logger.warning("News fetch failed (non-fatal): %s", e)
             return None
 
     async def _fetch_edgar():
@@ -108,7 +108,7 @@ async def collect_enrichment_data(
             return await edgar_service.get_company_filings(company_name, client=client)
         except Exception as e:
             if verbose:
-                logger.error("EDGAR lookup failed (non-fatal): %s", e)
+                logger.warning("EDGAR lookup failed (non-fatal): %s", e)
             return None
 
     async def _fetch_fedreg():
@@ -123,7 +123,7 @@ async def collect_enrichment_data(
             )
         except Exception as e:
             if verbose:
-                logger.error("Federal Register lookup failed (non-fatal): %s", e)
+                logger.warning("Federal Register lookup failed (non-fatal): %s", e)
             return None
 
     async def _fetch_materials():
@@ -138,7 +138,7 @@ async def collect_enrichment_data(
             ) or ""
         except Exception as e:
             if verbose:
-                logger.error("Materials retrieval failed (non-fatal): %s", e)
+                logger.warning("Materials retrieval failed (non-fatal): %s", e)
             return ""
 
     if verbose:

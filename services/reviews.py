@@ -34,7 +34,7 @@ class ReviewsService:
             else:
                 return await self._get_reviews_impl(client, company_name)
         except Exception as e:
-            logger.error("Reviews scraping error (non-fatal): %s", e)
+            logger.warning("Reviews scraping error (non-fatal): %s", e)
             return None
 
     async def _get_reviews_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:

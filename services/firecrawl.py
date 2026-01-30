@@ -159,7 +159,7 @@ class FirecrawlService:
             return "\n\n---\n\n".join(job_content)
 
         # Fallback: web search for jobs if direct scraping failed
-        logger.error("No direct job boards found, searching web for %s jobs...", company_name)
+        logger.debug("No direct job boards found, searching web for %s jobs...", company_name)
         search_result = await self._web_search(
             client,
             f"{company_name} careers jobs hiring",
@@ -403,7 +403,7 @@ class FirecrawlService:
         existing_ir_urls = [url for url, exists in zip(ir_subdomains, exists_results) if exists]
 
         if not existing_ir_urls:
-            logger.error("No investor relations subdomain found for %s", domain)
+            logger.debug("No investor relations subdomain found for %s", domain)
             return None
 
         logger.debug("Found investor relations subdomain: %s", existing_ir_urls[0])
