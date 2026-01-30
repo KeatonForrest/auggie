@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Auggie — Settings</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body { width: auto; min-width: 480px; background: #f9fafb; padding: 32px; }
+    .options-wrap { max-width: 400px; margin: 0 auto; }
+    .input {
+      width: 100%; border: 1px solid #d1d5db; border-radius: 8px;
+      padding: 8px 12px; font-size: 14px; outline: none; margin-bottom: 4px;
+    }
+    .input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .btn-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .hint { font-size: 12px; color: #9ca3af; margin-bottom: 16px; }
+    .hint a { color: #2563eb; text-decoration: underline; }
+    .status { font-size: 14px; }
+    .status-ok { color: #16a34a; }
+    .status-err { color: #dc2626; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="options-wrap">
+    <h1 style="font-size:20px;font-weight:700;margin-bottom:4px;">Auggie Settings</h1>
+    <p class="text-sm color-gray-500 mb-4" style="margin-bottom:24px;">Connect your Auggie account to research companies from any website.</p>
+
+    <label class="text-sm font-medium mb-1" style="display:block;margin-bottom:4px;" for="apiKey">API Key</label>
+    <input id="apiKey" type="password" placeholder="sk_live_..." class="input" />
+    <p class="hint">Get your key at <a href="https://auggie.tools/api-keys" target="_blank">auggie.tools/api-keys</a></p>
+
+    <div class="btn-row">
+      <button id="saveBtn" class="btn btn-primary">Save</button>
+      <button id="testBtn" class="btn btn-outline">Test Connection</button>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

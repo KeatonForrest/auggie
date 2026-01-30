@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <span class="header-brand">Auggie</span>
+    <span id="headerDomain" class="header-domain"></span>
+  </div>
+
+  <!-- State: No API Key -->
+  <div id="stateNoKey" class="state px-4 py-8 text-center">
+    <p class="text-sm color-gray-600 mb-3">Configure your API key to get started.</p>
+    <button id="openOptions" class="btn btn-primary">Open Settings</button>
+  </div>
+
+  <!-- State: Loading -->
+  <div id="stateLoading" class="state px-4 py-8 text-center">
+    <div class="shimmer shimmer-block"></div>
+    <div class="shimmer shimmer-block-sm"></div>
+  </div>
+
+  <!-- State: Excluded domain -->
+  <div id="stateExcluded" class="state px-4 py-8 text-center">
+    <p class="text-sm color-gray-500">Can't research this page.</p>
+  </div>
+
+  <!-- State: Not Researched -->
+  <div id="stateNotResearched" class="state px-4 py-6 text-center">
+    <p id="nrDomain" class="text-base font-semibold mb-1"></p>
+    <p class="text-xs color-gray-400 mb-4">No research found for this company.</p>
+    <button id="startResearch" class="btn btn-primary">Research This Company</button>
+    <p class="text-xs color-gray-400 mt-2">Uses 1 credit ($1)</p>
+  </div>
+
+  <!-- State: Researching -->
+  <div id="stateResearching" class="state px-4 py-8 text-center">
+    <svg class="spinner" style="height:24px;width:24px;color:#2563eb;margin:0 auto 12px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle style="opacity:0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path style="opacity:0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+    <p class="text-sm color-gray-600">Researching…</p>
+    <p id="elapsed" class="text-xs color-gray-400 mt-1">0s</p>
+  </div>
+
+  <!-- State: Completed -->
+  <div id="stateCompleted" class="state px-4 py-4 completed-scroll">
+    <div class="scores-grid">
+      <div>
+        <div class="score-label"><span class="color-gray-500">Composite</span><span id="scoreComposite" class="font-semibold color-blue-600"></span></div>
+        <div class="bar-track"><div id="barComposite" class="bar-fill bar-blue"></div></div>
+      </div>
+      <div>
+        <div class="score-label"><span class="color-gray-500">Pain</span><span id="scorePain" class="font-semibold color-red-500"></span></div>
+        <div class="bar-track"><div id="barPain" class="bar-fill bar-red"></div></div>
+      </div>
+      <div>
+        <div class="score-label"><span class="color-gray-500">Fit</span><span id="scoreFit" class="font-semibold color-green-600"></span></div>
+        <div class="bar-track"><div id="barFit" class="bar-fill bar-green"></div></div>
+      </div>
+      <div>
+        <div class="score-label"><span class="color-gray-500">Timing</span><span id="scoreTiming" class="font-semibold color-yellow-600"></span></div>
+        <div class="bar-track"><div id="barTiming" class="bar-fill bar-yellow"></div></div>
+      </div>
+    </div>
+
+    <p id="summary" class="summary"></p>
+
+    <div class="mb-4">
+      <p class="section-label">Talking Points</p>
+      <ul id="tpList" class="tp-list"></ul>
+    </div>
+
+    <div class="actions">
+      <a id="viewFull" target="_blank" class="btn btn-primary btn-sm">View Full Research</a>
+      <button id="copyScores" class="btn btn-outline btn-sm">Copy Scores</button>
+    </div>
+  </div>
+
+  <!-- State: Error -->
+  <div id="stateError" class="state px-4 py-6 text-center">
+    <p id="errorMsg" class="text-sm color-red-600 mb-3"></p>
+    <button id="retryBtn" class="btn btn-outline">Retry</button>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast">Copied!</div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
