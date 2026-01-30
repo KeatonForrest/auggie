@@ -350,11 +350,13 @@ SCORING DISCIPLINE:
 
 IMPORTANT: You are scoring based on publicly available web data, not insider knowledge. Companies rarely publish their pain directly. Score based on what signals ARE detectable — job postings mentioning problems, tech stack gaps, scaling language on careers pages, etc. A single relevant signal from public data is meaningful and should score in the 50s, not the 30s.
 
+GROWTH-AS-PAIN RULE: Rapid growth is itself a pain signal when the company fits the seller's ICP. Fast-growing companies that match the ICP inevitably face scaling pressure in the seller's domain — even if they haven't publicly complained about it yet. If a company shows strong growth evidence (hiring velocity, funding, revenue growth, product expansion) AND fits the seller's ICP (Fit score would be 60+), treat growth as at least one clear pain signal. This floors the Pain score at 45 minimum. The stronger the growth evidence, the higher within the 45-64 range. Do NOT leave fast-growing ICP-fit companies in the 20-44 "speculative" bucket — growth at scale reliably produces the problems the seller solves.
+
 Calibration anchors:
 - 85-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals.
 - 65-84: 2+ pain signals with product relevance. Job postings mentioning relevant challenges (scaling, migration, performance). Hiring for roles that suggest unresolved problems in the seller's domain.
-- 45-64: 1 clear pain signal — a job posting mentioning a relevant problem, tech debt visible in stack, or data-intensive operations that imply infrastructure needs. This is the EXPECTED range for most prospects where you find something relevant.
-- 20-44: Speculative pain only. No job postings mention relevant problems. Pain is inferred purely from industry or company type, not observed.
+- 45-64: 1 clear pain signal — a job posting mentioning a relevant problem, tech debt visible in stack, data-intensive operations that imply infrastructure needs, OR rapid growth combined with ICP fit (growth-as-pain rule). This is the EXPECTED range for most prospects where you find something relevant.
+- 20-44: Speculative pain only. No job postings mention relevant problems. Pain is inferred purely from industry or company type, not observed. NOTE: If the company is clearly growing fast and fits the ICP, this bucket is wrong — apply the growth-as-pain rule and score 45+.
 - 0-19: No observable pain signals whatsoever. No relevant hiring, no tech indicators, nothing to suggest they need the seller's product.
 
 **Fit Score (35% weight):**
@@ -391,6 +393,7 @@ CONCRETE EXAMPLE (for a database product seller):
 - A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 85, Fit: 82, Timing: 79, Composite: 83
 - A SaaS platform (enterprise customers, right industry) hiring multiple backend engineers with postings mentioning "search infrastructure" and "recommendation systems," active product launches, but no confirmed database pain or long-open roles → Pain: 52, Fit: 71, Timing: 56, Composite: 60
 - A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 22, Fit: 43, Timing: 18, Composite: 28
+- A fast-growing enterprise healthcare company (strong ICP fit, data-intensive operations, recent product expansion, active hiring) but no explicit pain signals in job postings or public content → Pain: 48, Fit: 67, Timing: 52, Composite: 55. Growth-as-pain rule applies: rapid growth + ICP fit floors pain at 45+, not the 33 it would get from speculative inference alone.
 - A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 28, Fit: 36, Timing: 19, Composite: 28
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
