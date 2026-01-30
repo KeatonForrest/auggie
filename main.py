@@ -401,7 +401,8 @@ async def hubspot_companies(request: Request, user: dict = Depends(require_onboa
     try:
         data = await fetch_companies(user["id"], limit=100, after=after)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"HubSpot API error: {str(e)[:200]}")
+        logger.error("HubSpot API error: %s", e)
+        raise HTTPException(status_code=502, detail="HubSpot API error")
     return JSONResponse(data)
 
 
@@ -511,7 +512,8 @@ async def instantly_campaigns(request: Request, user: dict = Depends(require_onb
     try:
         campaigns = await list_campaigns(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Instantly API error: {str(e)[:200]}")
+        logger.error("Instantly API error: %s", e)
+        raise HTTPException(status_code=502, detail="Instantly API error")
     return JSONResponse(campaigns)
 
 
@@ -603,7 +605,8 @@ async def smartlead_campaigns(request: Request, user: dict = Depends(require_onb
     try:
         campaigns = await list_campaigns(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Smartlead API error: {str(e)[:200]}")
+        logger.error("Smartlead API error: %s", e)
+        raise HTTPException(status_code=502, detail="Smartlead API error")
     return JSONResponse(campaigns)
 
 
@@ -713,7 +716,8 @@ async def salesforce_accounts(request: Request, user: dict = Depends(require_onb
     try:
         data = await fetch_accounts(user["id"], limit=100, offset=offset)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Salesforce API error: {str(e)[:200]}")
+        logger.error("Salesforce API error: %s", e)
+        raise HTTPException(status_code=502, detail="Salesforce API error")
     return JSONResponse(data)
 
 
@@ -883,7 +887,8 @@ async def outreach_sequences(request: Request, user: dict = Depends(require_onbo
     try:
         sequences = await list_sequences(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Outreach API error: {str(e)[:200]}")
+        logger.error("Outreach API error: %s", e)
+        raise HTTPException(status_code=502, detail="Outreach API error")
     return JSONResponse(sequences)
 
 
@@ -990,7 +995,8 @@ async def salesloft_cadences(request: Request, user: dict = Depends(require_onbo
     try:
         cadences = await list_cadences(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"SalesLoft API error: {str(e)[:200]}")
+        logger.error("SalesLoft API error: %s", e)
+        raise HTTPException(status_code=502, detail="SalesLoft API error")
     return JSONResponse(cadences)
 
 
@@ -1035,7 +1041,8 @@ async def apollo_lists(request: Request, user: dict = Depends(require_onboarding
     try:
         lists = await list_saved_lists(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Apollo API error: {str(e)[:200]}")
+        logger.error("Apollo API error: %s", e)
+        raise HTTPException(status_code=502, detail="Apollo API error")
     return JSONResponse(lists)
 
 
@@ -1139,7 +1146,8 @@ async def ocean_audiences(request: Request, user: dict = Depends(require_onboard
     try:
         audiences = await list_audiences(user["id"])
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Ocean.io API error: {str(e)[:200]}")
+        logger.error("Ocean.io API error: %s", e)
+        raise HTTPException(status_code=502, detail="Ocean.io API error")
     return JSONResponse(audiences)
 
 
@@ -1673,7 +1681,7 @@ async def generate_outreach(
         logger.error("Error generating outreach: %s", e)
         return JSONResponse({
             "success": False,
-            "error": str(e),
+            "error": "Failed to generate outreach. Please try again.",
         }, status_code=500)
 
 
@@ -1730,7 +1738,7 @@ async def enrich_document_contacts(
         if not is_admin:
             await refund_credit(user["id"], cents=50)
         logger.error("Error enriching contacts: %s", e)
-        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"success": False, "error": "Failed to enrich contacts. Please try again."}, status_code=500)
 
 
 def _build_target_titles(user: dict) -> list[str]:
@@ -1817,9 +1825,10 @@ async def api_create_research(
         return ResearchResponse(success=True, document=document)
 
     except Exception as e:
+        logger.error("Research failed for %s: %s", company_url, e)
         if not is_admin:
             await refund_credit(user["id"])
-        return ResearchResponse(success=False, error=str(e))
+        return ResearchResponse(success=False, error="Research failed. Please try again.")
 
 
 @app.get("/api/documents", response_model=list[ResearchDocument])
