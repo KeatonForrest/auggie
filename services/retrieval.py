@@ -46,7 +46,7 @@ class RetrievalService:
         query = " ".join(query_parts)
 
         # Generate query embedding
-        query_embedding = self.embeddings.embed_text(query)
+        query_embedding = await self.embeddings.embed_text(query)
 
         # Vector search
         chunks = await database.vector_search(

@@ -15,9 +15,9 @@ class EmbeddingService:
 
     def __init__(self):
         settings = get_settings()
-        self.client = openai.OpenAI(api_key=settings.openai_api_key)
+        self.client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
 
-    def embed_text(self, text: str) -> list[float]:
+    async def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text.
 
         Args:
@@ -30,14 +30,14 @@ class EmbeddingService:
         if len(text) > self.MAX_CHARS:
             text = text[:self.MAX_CHARS]
 
-        response = self.client.embeddings.create(
+        response = await self.client.embeddings.create(
             model=self.MODEL,
             input=text
         )
 
         return response.data[0].embedding
 
-    def embed_batch(self, texts: list[str], batch_size: int = 100) -> list[list[float]]:
+    async def embed_batch(self, texts: list[str], batch_size: int = 100) -> list[list[float]]:
         """Generate embeddings for multiple texts.
 
         More efficient than calling embed_text in a loop.
@@ -62,7 +62,7 @@ class EmbeddingService:
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
 
-            response = self.client.embeddings.create(
+            response = await self.client.embeddings.create(
                 model=self.MODEL,
                 input=batch
             )

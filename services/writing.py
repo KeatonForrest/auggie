@@ -12,7 +12,7 @@ class WritingService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
 
     def _build_report(self, document: ResearchDocument, product_context: str) -> str:
         """Build the report content from research document."""
@@ -1551,7 +1551,7 @@ Present your final output in this format:
         prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
 
         # Call Sonnet
-        message = self.client.messages.create(
+        message = await self.client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}]

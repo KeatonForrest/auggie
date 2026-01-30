@@ -14,7 +14,7 @@ class ClaudeService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
@@ -546,7 +546,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 
         model = "claude-sonnet-4-20250514"
-        message = self.client.messages.create(
+        message = await self.client.messages.create(
             model=model,
             max_tokens=16000,
             temperature=1.0,

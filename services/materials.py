@@ -1,6 +1,7 @@
 """materials.py - Material upload and processing pipeline."""
 
 import asyncio
+import functools
 from typing import BinaryIO
 import logging
 
@@ -67,7 +68,10 @@ class MaterialsService:
 
         # Upload to R2
         file.seek(0)  # Reset file pointer
-        storage_key = self.storage.upload_file(file, user_id, filename)
+        loop = asyncio.get_event_loop()
+        storage_key = await loop.run_in_executor(
+            None, functools.partial(self.storage.upload_file, file, user_id, filename)
+        )
 
         # Create database record
         material = await database.create_material(
@@ -130,7 +134,10 @@ class MaterialsService:
         await database.update_material_status(material_id, 'processing')
 
         # Step 1: Parse document to extract text
-        text = self.parser.parse(file_bytes, file_type)
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(
+            None, functools.partial(self.parser.parse, file_bytes, file_type)
+        )
 
         if not text or not text.strip():
             await database.update_material_status(
@@ -155,7 +162,7 @@ class MaterialsService:
 
         # Step 3: Generate embeddings (batch for efficiency)
         chunk_texts = [c.content for c in chunks]
-        embeddings = self.embeddings.embed_batch(chunk_texts)
+        embeddings = await self.embeddings.embed_batch(chunk_texts)
 
         logger.info(f"Material {material_id}: Generated {len(embeddings)} embeddings")
 
@@ -197,7 +204,10 @@ class MaterialsService:
         if storage_key:
             # Delete from R2
             try:
-                self.storage.delete_file(storage_key)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, functools.partial(self.storage.delete_file, storage_key)
+                )
             except Exception as e:
                 # Log but don't fail - file might already be gone
                 logger.warning(f"Failed to delete R2 file {storage_key}: {e}")
@@ -223,7 +233,10 @@ class MaterialsService:
         await database.delete_chunks_for_material(material_id)
 
         # Download file from R2
-        file_bytes = self.storage.download_file(material['storage_key'])
+        loop = asyncio.get_event_loop()
+        file_bytes = await loop.run_in_executor(
+            None, functools.partial(self.storage.download_file, material['storage_key'])
+        )
 
         # Reprocess
         asyncio.create_task(
