@@ -95,6 +95,19 @@ function showError(msg) {
   showState('error');
 }
 
+// --- Progress rendering ---
+const PROGRESS_STAGES = ['scraping', 'analyzing', 'enriching', 'generating'];
+
+function updateProgress(stage) {
+  const steps = document.querySelectorAll('#progressSteps .step');
+  const idx = PROGRESS_STAGES.indexOf(stage);
+  steps.forEach((el, i) => {
+    el.classList.remove('done', 'active');
+    if (i < idx) el.classList.add('done');
+    else if (i === idx) el.classList.add('active');
+  });
+}
+
 // --- Listen for background job updates ---
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'JOB_COMPLETE' && msg.domain === currentDomain) {
@@ -104,6 +117,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'JOB_FAILED' && msg.domain === currentDomain) {
     if (showResearching._timer) clearInterval(showResearching._timer);
     showError(msg.error);
+  }
+  if (msg.type === 'JOB_PROGRESS' && msg.domain === currentDomain) {
+    updateProgress(msg.progress);
   }
 });
 

@@ -7,7 +7,7 @@ import httpx
 
 from database import (
     get_user_by_id, save_document, get_document,
-    record_api_usage, update_job_status, get_user_webhook,
+    record_api_usage, update_job_status, update_job_progress, get_user_webhook,
     create_webhook_delivery, update_delivery_status, refund_credit,
     create_research_job, get_bulk_job_items, update_bulk_job_item,
     finalize_bulk_job,
@@ -22,7 +22,7 @@ from api.webhooks import sign_payload
 logger = logging.getLogger(__name__)
 
 
-async def _run_research_pipeline(user_id: int, company_url: str) -> int:
+async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | None = None) -> int:
     """Execute the core research pipeline: scrape, analyze, save.
 
     Returns the document ID on success. Raises on failure.
@@ -31,17 +31,25 @@ async def _run_research_pipeline(user_id: int, company_url: str) -> int:
     if not user:
         raise RuntimeError("User not found")
 
+    if job_id:
+        await update_job_progress(job_id, "scraping")
     scraped_content = await firecrawl_service.scrape_company(company_url)
 
+    if job_id:
+        await update_job_progress(job_id, "analyzing")
     tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
         main_url=company_url,
         main_html=scraped_content.homepage_html,
     )
 
+    if job_id:
+        await update_job_progress(job_id, "enriching")
     retrieved_materials = await collect_enrichment_data(
         scraped_content, company_url, user_id,
     )
 
+    if job_id:
+        await update_job_progress(job_id, "generating")
     document = await claude_service.generate_research_document(
         company_url=company_url,
         scraped=scraped_content,
@@ -65,7 +73,7 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, co
     users get their credit refunded.
     """
     try:
-        doc_id = await _run_research_pipeline(user_id, company_url)
+        doc_id = await _run_research_pipeline(user_id, company_url, job_id=job_id)
 
         if api_key_id is not None:
             await record_api_usage(api_key_id, "/v1/research", 1)

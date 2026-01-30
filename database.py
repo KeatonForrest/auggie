@@ -340,6 +340,12 @@ async def init_database():
         except Exception:
             pass
 
+        # Add progress column for pipeline stage tracking
+        try:
+            await conn.execute("ALTER TABLE research_jobs ADD COLUMN progress TEXT")
+        except Exception:
+            pass
+
         # Mark stale processing jobs as failed (covers Railway redeploys)
         await conn.execute("""
             UPDATE research_jobs
@@ -1498,6 +1504,15 @@ async def update_job_status(
             WHERE id = $1
             """,
             job_id, status, document_id, error_message
+        )
+
+
+async def update_job_progress(job_id: int, progress: str) -> None:
+    """Update a job's progress stage (e.g. 'scraping', 'analyzing')."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE research_jobs SET progress = $2 WHERE id = $1",
+            job_id, progress
         )
 
 

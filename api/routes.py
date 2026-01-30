@@ -101,6 +101,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
     result = {
         "job_id": job["id"],
         "status": job["status"],
+        "progress": job.get("progress"),
         "company_url": job["company_url"],
         "created_at": job["created_at"].isoformat(),
         "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,

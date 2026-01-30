@@ -51,6 +51,11 @@ async function pollJob(domain, jobId) {
     attempts++;
     try {
       const res = await getResearchStatus(jobId, apiKey);
+      // Forward progress updates to popup
+      if (res.progress && res.progress !== activeJobs[domain]?.lastProgress) {
+        activeJobs[domain].lastProgress = res.progress;
+        chrome.runtime.sendMessage({ type: 'JOB_PROGRESS', domain, progress: res.progress }).catch(() => {});
+      }
       if (res.status === 'completed' || res.status === 'complete') {
         await setCachedResearch(domain, res);
         delete activeJobs[domain];
