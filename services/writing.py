@@ -106,7 +106,7 @@ BEFORE outputting your emails, re-read the PARTIAL-SIGNAL MODE block at the top.
 
 If any violations appear, rewrite those sentences before outputting. Do not output a first draft.
 """
-        return f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
+        prompt = f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
 
 Count words before submitting each email. If over the limit, rewrite shorter.
 
@@ -1458,6 +1458,24 @@ Present your final output in this format:
 </email3>
 </email_series>
 {low_confidence_closing}"""
+
+        # Strip Section A examples for low-score prospects so the model
+        # can't pattern-match off full-confidence examples.
+        if opportunity_score is not None and opportunity_score < 50:
+            # Find the section intro and Section A, replace with partial-signal header
+            section_a_start = "**ADDITIONAL PVP EXAMPLES**"
+            section_b_start = "**SECTION B: PARTIAL-SIGNAL PVP EXAMPLES**"
+            start_idx = prompt.find(section_a_start)
+            end_idx = prompt.find(section_b_start)
+            if start_idx != -1 and end_idx != -1:
+                replacement = (
+                    "**PARTIAL-SIGNAL PVP EXAMPLES**\n\n"
+                    "The following 10 examples show how to write valuable sequences "
+                    "when data is incomplete.\n\n---\n\n"
+                )
+                prompt = prompt[:start_idx] + replacement + prompt[end_idx:]
+
+        return prompt
 
     def _parse_emails(self, response: str) -> list[dict]:
         """Parse the email series from the response."""
