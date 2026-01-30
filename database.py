@@ -125,6 +125,12 @@ async def init_database():
         except asyncpg.exceptions.DuplicateColumnError:
             pass
 
+        # Add product_type column (saas or msp)
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN product_type TEXT DEFAULT 'saas'")
+        except asyncpg.exceptions.DuplicateColumnError:
+            pass
+
         # Make google_id nullable (for users who sign up with Microsoft only)
         try:
             await conn.execute("ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL")
@@ -991,6 +997,7 @@ async def update_user_profile(
     target_industries: str,
     target_personas: str,
     competitors: str,
+    product_type: str = "saas",
 ) -> dict:
     """Update user's onboarding profile with enhanced fields."""
     # Build a rich product_context string for Claude
@@ -1003,6 +1010,7 @@ async def update_user_profile(
         target_industries=target_industries,
         target_personas=target_personas,
         competitors=competitors,
+        product_type=product_type,
     )
 
     async with _pool.acquire() as conn:
@@ -1018,13 +1026,15 @@ async def update_user_profile(
                 target_company_size = $8,
                 target_industries = $9,
                 target_personas = $10,
-                competitors = $11
+                competitors = $11,
+                product_type = $12
             WHERE id = $1
             RETURNING *
             """,
             user_id, company_name, product_context,
             product_name, product_description, problems_solved, differentiators,
-            target_company_size, target_industries, target_personas, competitors
+            target_company_size, target_industries, target_personas, competitors,
+            product_type
         )
         return dict(row)
 
@@ -1038,6 +1048,7 @@ def build_product_context(
     target_industries: str,
     target_personas: str,
     competitors: str,
+    product_type: str = "saas",
 ) -> str:
     """Build a rich product context string for Claude from onboarding data.
 
@@ -1069,6 +1080,9 @@ def build_product_context(
 
     if competitors:
         parts.append(f"**Competitors:** {competitors}")
+
+    if product_type and product_type != "saas":
+        parts.append(f"**Product type:** {product_type}")
 
     # Ensure we always return something
     if not parts:

@@ -17,7 +17,8 @@ class ClaudeService:
         self.client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
-                               target_personas: str = "", target_industries: str = "", problems_solved: str = "") -> str:
+                               target_personas: str = "", target_industries: str = "", problems_solved: str = "",
+                               product_type: str = "saas") -> str:
         """Build the system prompt defining Claude's research analyst role."""
         base_prompt = f"""Follow every section in OUTPUT FORMAT exactly. Do not skip or merge sections. Output all SCORE_ fields at the end in the exact format specified.
 
@@ -296,6 +297,35 @@ Format: "I noticed [specific observation]. Companies in similar situations often
 PERSONA-AWARE STARTERS: Reference challenges specific to {target_personas}'s function, not just generic company observations. Connect observations to what these personas care about day-to-day.
 """
 
+        if product_type == "msp":
+            base_prompt += """
+
+MSP / IT SERVICES MODIFIER — READ BEFORE SCORING:
+
+You are researching on behalf of a Managed Service Provider (MSP) / IT Services company. This fundamentally changes how you interpret signals:
+
+**Research Focus:**
+- Look for location count, multi-site operations, compliance needs (HIPAA, PCI, SOC2, CMMC), absence of internal IT roles, legacy infrastructure, physical operations complexity, and regulated industry indicators.
+- Employee count in the 20-500 range with NO dedicated IT staff is a strong signal.
+
+**Pain Inversion:**
+- Absence of IT hiring is a POSITIVE pain signal — it means the company likely lacks internal IT capacity and needs managed services.
+- Do NOT penalize for lacking technical job postings. For MSP prospects, zero IT roles = maximum pain (they have no one managing their infrastructure).
+- Manual processes, compliance gaps, and operational complexity without IT support are critical pain indicators.
+
+**Fit Reframe:**
+- Traditional industries with physical operations (manufacturing, distribution, dealerships, healthcare, legal, construction, logistics) are HIGH fit. Do not penalize for lacking digital transformation signals — that IS the opportunity.
+- Multi-location businesses score higher — each location multiplies IT complexity.
+- Companies in regulated industries (healthcare, finance, legal) that lack IT staff face compliance risk — this is both pain and fit.
+
+**Timing Signals for MSP:**
+- Compliance deadlines (HIPAA audits, PCI recertification, cyber insurance renewals) are strong timing signals.
+- Lease renewals, office moves, location expansion = infrastructure refresh moments.
+- Insurance audit cycles, new regulatory requirements, and security incidents create urgency.
+- Leadership changes at non-tech companies often trigger IT modernization.
+
+"""
+
         base_prompt += """
 
 ## Recent News & Press
@@ -505,12 +535,13 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         target_personas: str = "",
         target_industries: str = "",
         problems_solved: str = "",
+        product_type: str = "saas",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(
             product_context, retrieved_materials, seller_company,
             target_personas=target_personas, target_industries=target_industries,
-            problems_solved=problems_solved,
+            problems_solved=problems_solved, product_type=product_type,
         )
         user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
 

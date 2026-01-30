@@ -377,6 +377,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
         emails = await writing_service.generate_email_sequence(
             document=document,
             product_context=api_user.get("product_context", ""),
+            product_type=api_user.get("product_type", "saas"),
         )
 
         await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)

@@ -65,7 +65,7 @@ class WritingService:
 
         return "\n".join(sections)
 
-    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None) -> str:
+    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None, product_type: str = "saas") -> str:
         """Build the full prompt with the report inserted."""
         low_confidence_block = ""
         low_confidence_closing = ""
@@ -119,7 +119,17 @@ These are requirements, not guidelines.
 
 ---
 
-{low_confidence_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
+{low_confidence_block}{"" if product_type != "msp" else """**MSP / IT SERVICES FRAMING — APPLY TO ALL EMAILS:**
+
+- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.
+- Frame around reliability, compliance, and freeing up leadership attention — not digital transformation or innovation.
+- The prospect is not a tech buyer — avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.
+- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.
+- Position managed services as removing a burden, not adding a capability.
+
+---
+
+"""}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
 **Your job:** Use research to demonstrate you understand their problem, then explain why you can help. The research is proof of understanding, not the point of the email.
 
@@ -1530,6 +1540,7 @@ Present your final output in this format:
         self,
         document: ResearchDocument,
         product_context: str,
+        product_type: str = "saas",
     ) -> list[dict]:
         """Generate a 3-email sequence from a research document."""
 
@@ -1537,7 +1548,7 @@ Present your final output in this format:
         report = self._build_report(document, product_context)
 
         # Build the full prompt
-        prompt = self._build_prompt(report, document.opportunity_score)
+        prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
 
         # Call Sonnet
         message = self.client.messages.create(

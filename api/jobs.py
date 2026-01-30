@@ -60,6 +60,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         target_personas=user.get("target_personas", ""),
         target_industries=user.get("target_industries", ""),
         problems_solved=user.get("problems_solved", ""),
+        product_type=user.get("product_type", "saas"),
     )
 
     doc_id = await save_document(document, user_id=user_id)
@@ -335,6 +336,7 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
                 emails = await writing_service.generate_email_sequence(
                     document=doc,
                     product_context=user.get("product_context", ""),
+                    product_type=user.get("product_type", "saas"),
                 )
                 await save_outreach_draft(account["document_id"], user_id, {"emails": emails})
                 await update_list_account_outreach(account_id, "completed")

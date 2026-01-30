@@ -1270,6 +1270,7 @@ async def complete_onboarding(
     target_industries: list[str] = Form([]),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
+    product_type: str = Form("saas"),
     user: dict = Depends(require_auth),
 ):
     """Save onboarding data and redirect to dashboard."""
@@ -1297,6 +1298,7 @@ async def complete_onboarding(
         target_industries=target_industries_str,
         target_personas=target_personas_str,
         competitors="",  # No longer collected in onboarding
+        product_type=product_type,
     )
     return RedirectResponse(url="/", status_code=302)
 
@@ -1354,6 +1356,7 @@ async def save_settings(
     target_industries: list[str] = Form([]),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
+    product_type: str = Form("saas"),
     user: dict = Depends(require_onboarding),
 ):
     """Save updated profile settings."""
@@ -1380,6 +1383,7 @@ async def save_settings(
         target_industries=target_industries_str,
         target_personas=target_personas_str,
         competitors="",
+        product_type=product_type,
     )
     return RedirectResponse(url="/settings?saved=true", status_code=302)
 
@@ -1640,6 +1644,7 @@ async def generate_outreach(
         emails = await writing_service.generate_email_sequence(
             document=document,
             product_context=user.get("product_context", ""),
+            product_type=user.get("product_type", "saas"),
         )
         return JSONResponse({
             "success": True,
@@ -1787,6 +1792,7 @@ async def api_create_research(
             target_personas=user.get("target_personas", ""),
             target_industries=user.get("target_industries", ""),
             problems_solved=user.get("problems_solved", ""),
+            product_type=user.get("product_type", "saas"),
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
