@@ -4,6 +4,8 @@ All three pipeline entry points (web UI, API endpoint, async jobs) call
 collect_enrichment_data() instead of duplicating the gather logic.
 """
 
+import logging
+
 import asyncio
 from typing import Optional
 
@@ -15,6 +17,8 @@ from services.news import NewsService
 from services.edgar import EdgarService
 from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
+
+logger = logging.getLogger(__name__)
 
 # Module-level singletons (shared across callers within the same process)
 news_service = NewsService()
@@ -94,7 +98,7 @@ async def collect_enrichment_data(
             return await news_service.get_company_news(company_name, client=client)
         except Exception as e:
             if verbose:
-                print(f"News fetch failed (non-fatal): {e}")
+                logger.error("News fetch failed (non-fatal): %s", e)
             return None
 
     async def _fetch_edgar():
@@ -104,7 +108,7 @@ async def collect_enrichment_data(
             return await edgar_service.get_company_filings(company_name, client=client)
         except Exception as e:
             if verbose:
-                print(f"EDGAR lookup failed (non-fatal): {e}")
+                logger.error("EDGAR lookup failed (non-fatal): %s", e)
             return None
 
     async def _fetch_fedreg():
@@ -119,7 +123,7 @@ async def collect_enrichment_data(
             )
         except Exception as e:
             if verbose:
-                print(f"Federal Register lookup failed (non-fatal): {e}")
+                logger.error("Federal Register lookup failed (non-fatal): %s", e)
             return None
 
     async def _fetch_materials():
@@ -134,11 +138,11 @@ async def collect_enrichment_data(
             ) or ""
         except Exception as e:
             if verbose:
-                print(f"Materials retrieval failed (non-fatal): {e}")
+                logger.error("Materials retrieval failed (non-fatal): %s", e)
             return ""
 
     if verbose:
-        print(f"Fetching enrichment data for {company_name} (parallel)...")
+        logger.debug("Fetching enrichment data for %s (parallel)...", company_name)
 
     # Run EDGAR, news, materials in parallel
     news_result, edgar_content, materials_result = await asyncio.gather(
@@ -154,13 +158,13 @@ async def collect_enrichment_data(
     if news_result:
         scraped_content.news = news_result
         if verbose:
-            print("Found recent news articles")
+            logger.debug("Found recent news articles")
     if edgar_content:
         scraped_content.edgar_filings = edgar_content
         if verbose:
-            print("Found SEC EDGAR filings")
+            logger.debug("Found SEC EDGAR filings")
     if fed_content:
         scraped_content.federal_regulations = fed_content
         if verbose:
-            print("Found relevant regulations")
+            logger.debug("Found relevant regulations")
     return materials_result

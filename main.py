@@ -6,11 +6,18 @@ Open: http://localhost:8000
 Docs: http://localhost:8000/docs
 """
 
+import logging
 import time
 from datetime import datetime
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Optional
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
@@ -57,7 +64,7 @@ class LatencyLoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration = time.monotonic() - start
         if duration > 1.0:
-            print(f"SLOW {request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
+            logger.warning("SLOW %s %s -> %s (%.2fs)", request.method, request.url.path, response.status_code, duration)
         return response
 
 
@@ -99,20 +106,17 @@ def normalize_url(url: str) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database on startup, close on shutdown."""
-    print("Initializing database...")
+    logger.info("Initializing database...")
     await init_database()
-    print("Database ready!")
+    logger.info("Database ready!")
     # Warn if default session secret is used in non-localhost mode
     if "localhost" not in settings.app_url and settings.session_secret == "dev-secret-change-in-production":
-        print("=" * 60)
-        print("WARNING: Using default session secret in production!")
-        print("Set SESSION_SECRET to a strong random value.")
-        print("=" * 60)
+        logger.warning("Using default session secret in production! Set SESSION_SECRET to a strong random value.")
     yield
-    print("Shutting down...")
+    logger.info("Shutting down...")
     await close_shared_http_client()
     await close_database()
-    print("Database connections closed.")
+    logger.info("Database connections closed.")
 
 
 app = FastAPI(
@@ -186,6 +190,20 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             status_code=exc.status_code,
         )
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "status_code": 500, "title": "Something Went Wrong", "detail": "Internal server error"},
+            status_code=500,
+        )
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
 
 # v2 Materials services (lazy init to avoid errors if not configured)
 materials_service = None
@@ -1652,7 +1670,7 @@ async def generate_outreach(
             "markdown": writing_service.format_emails_markdown(emails),
         })
     except Exception as e:
-        print(f"Error generating outreach: {e}")
+        logger.error("Error generating outreach: %s", e)
         return JSONResponse({
             "success": False,
             "error": str(e),
@@ -1711,7 +1729,7 @@ async def enrich_document_contacts(
     except Exception as e:
         if not is_admin:
             await refund_credit(user["id"], cents=50)
-        print(f"Error enriching contacts: {e}")
+        logger.error("Error enriching contacts: %s", e)
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
@@ -1924,7 +1942,7 @@ async def upload_material(
     except ValueError as e:
         return JSONResponse({"success": False, "error": str(e)})
     except Exception as e:
-        print(f"Material upload error: {e}")
+        logger.error("Material upload error: %s", e)
         return JSONResponse({"success": False, "error": "Upload failed. Please try again."})
 
 

@@ -1,9 +1,13 @@
 """federal_register.py - Federal Register API for upcoming compliance deadlines."""
 
+import logging
+
 import httpx
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # Map SIC codes to regulatory search terms
@@ -89,7 +93,7 @@ class FederalRegisterService:
             else:
                 return await self._get_regulations_impl(client, search_terms)
         except Exception as e:
-            print(f"Federal Register error (non-fatal): {e}")
+            logger.error("Federal Register error (non-fatal): %s", e)
             return None
 
     async def _get_regulations_impl(self, client: httpx.AsyncClient, search_terms: list[str]) -> Optional[str]:

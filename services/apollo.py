@@ -79,11 +79,11 @@ class ApolloService:
                 if orgs:
                     return orgs[0]
             else:
-                print(f"Apollo company search error: {response.status_code} - {response.text[:200]}")
+                logger.error("Apollo company search error: %s - %s", response.status_code, response.text[:200])
             return None
 
         except Exception as e:
-            print(f"Error searching Apollo organization: {e}")
+            logger.error("Error searching Apollo organization: %s", e)
             return None
 
     async def _search_contacts(
@@ -138,7 +138,7 @@ class ApolloService:
             )
 
             if response.status_code != 200:
-                print(f"Apollo people search error: {response.status_code} - {response.text[:200]}")
+                logger.error("Apollo people search error: %s - %s", response.status_code, response.text[:200])
                 return []
 
             data = response.json()
@@ -178,7 +178,7 @@ class ApolloService:
             return contacts
 
         except Exception as e:
-            print(f"Error searching Apollo contacts: {e}")
+            logger.error("Error searching Apollo contacts: %s", e)
             return []
 
     async def get_company_contacts(
@@ -194,7 +194,7 @@ class ApolloService:
             tuple of (organization_info, list of contacts)
         """
         if not self.settings.apollo_api_key:
-            print("Apollo API key not configured")
+            logger.warning("Apollo API key not configured")
             return None, []
 
         # Clean domain
@@ -210,8 +210,8 @@ class ApolloService:
             org_info, contacts = await asyncio.gather(org_task, contacts_task)
 
             if org_info:
-                print(f"Found Apollo org: {org_info.get('name', domain)}")
-            print(f"Found {len(contacts)} contacts from Apollo")
+                logger.debug("Found Apollo org: %s", org_info.get('name', domain))
+            logger.debug("Found %s contacts from Apollo", len(contacts))
 
             return org_info, contacts
 

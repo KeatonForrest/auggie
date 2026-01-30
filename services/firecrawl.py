@@ -1,5 +1,6 @@
 """firecrawl.py - Web scraping service using Firecrawl API."""
 
+import logging
 import httpx
 import asyncio
 from typing import Optional
@@ -8,6 +9,9 @@ from urllib.parse import urljoin, urlparse
 from models import ScrapedContent
 from config import get_settings
 from services.collect import get_shared_http_client
+
+
+logger = logging.getLogger(__name__)
 
 
 class FirecrawlService:
@@ -45,14 +49,14 @@ class FirecrawlService:
                     return (markdown, html)
                 return markdown
             else:
-                print(f"Firecrawl error for {url}: {response.status_code}")
+                logger.error("Firecrawl error for %s: %s", url, response.status_code)
                 return (None, None) if include_html else None
 
         except httpx.TimeoutException:
-            print(f"Timeout scraping {url}")
+            logger.debug("Timeout scraping %s", url)
             return (None, None) if include_html else None
         except Exception as e:
-            print(f"Error scraping {url}: {e}")
+            logger.error("Error scraping %s: %s", url, e)
             return (None, None) if include_html else None
 
     async def _crawl_site(self, client: httpx.AsyncClient, url: str, max_pages: int = 10) -> list[str]:
@@ -70,13 +74,13 @@ class FirecrawlService:
             )
 
             if response.status_code != 200:
-                print(f"Firecrawl crawl error: {response.status_code}")
+                logger.error("Firecrawl crawl error: %s", response.status_code)
                 return []
 
             data = response.json()
             crawl_id = data.get("id")
             if not crawl_id:
-                print("No crawl ID returned")
+                logger.error("No crawl ID returned")
                 return []
 
             # Poll for completion
@@ -98,14 +102,14 @@ class FirecrawlService:
                     pages = status_data.get("data", [])
                     return [p.get("markdown", "") for p in pages if p.get("markdown")]
                 elif status == "failed":
-                    print(f"Crawl failed: {status_data}")
+                    logger.error("Crawl failed: %s", status_data)
                     return []
 
-            print("Crawl timed out")
+            logger.error("Crawl timed out")
             return []
 
         except Exception as e:
-            print(f"Error crawling site: {e}")
+            logger.error("Error crawling site: %s", e)
             return []
 
     async def _scrape_job_board(
@@ -128,7 +132,7 @@ class FirecrawlService:
             f"https://jobs.ashbyhq.com/{company_slug}",
         ]
 
-        print(f"Checking {len(job_board_urls)} job board URLs...")
+        logger.debug("Checking %s job board URLs...", len(job_board_urls))
 
         # Check all URLs in parallel for speed
         tasks = [self._scrape_url(client, url) for url in job_board_urls]
@@ -146,7 +150,7 @@ class FirecrawlService:
                 if content_sig not in seen_content:
                     seen_content.add(content_sig)
                     job_content.append(f"## Jobs from {url}\n\n{content[:8000]}")
-                    print(f"Found job content at {url}")
+                    logger.debug("Found job content at %s", url)
                     # Limit to 3 sources to avoid token bloat
                     if len(job_content) >= 3:
                         break
@@ -155,7 +159,7 @@ class FirecrawlService:
             return "\n\n---\n\n".join(job_content)
 
         # Fallback: web search for jobs if direct scraping failed
-        print(f"No direct job boards found, searching web for {company_name} jobs...")
+        logger.error("No direct job boards found, searching web for %s jobs...", company_name)
         search_result = await self._web_search(
             client,
             f"{company_name} careers jobs hiring",
@@ -183,7 +187,7 @@ class FirecrawlService:
             )
 
             if response.status_code != 200:
-                print(f"Firecrawl search error: {response.status_code}")
+                logger.error("Firecrawl search error: %s", response.status_code)
                 return None
 
             data = response.json()
@@ -202,7 +206,7 @@ class FirecrawlService:
             return "\n\n---\n\n".join(content_parts) if content_parts else None
 
         except Exception as e:
-            print(f"Error in web search: {e}")
+            logger.error("Error in web search: %s", e)
             return None
 
     async def scrape_company(self, company_url: str) -> ScrapedContent:
@@ -215,10 +219,10 @@ class FirecrawlService:
         domain = parsed.netloc.replace("www.", "")
         company_name = domain.split(".")[0]
 
-        print(f"Starting comprehensive scrape for {domain}...")
+        logger.debug("Starting comprehensive scrape for %s...", domain)
 
         client = await get_shared_http_client()
-        print("Running all scraping tasks in parallel...")
+        logger.debug("Running all scraping tasks in parallel...")
 
         other_urls = {
             "about": urljoin(base_url, "/about"),
@@ -274,7 +278,7 @@ class FirecrawlService:
             additional_parts.append(docs_content)
         additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
 
-        print("Scraping complete!")
+        logger.debug("Scraping complete!")
 
         return ScrapedContent(
             homepage=homepage_markdown,
@@ -335,7 +339,7 @@ class FirecrawlService:
         if not existing_eng_urls:
             return None
 
-        print(f"Found engineering blog subdomain: {existing_eng_urls[0]}")
+        logger.debug("Found engineering blog subdomain: %s", existing_eng_urls[0])
 
         # Scrape the first existing engineering subdomain
         eng_url = existing_eng_urls[0]
@@ -368,7 +372,7 @@ class FirecrawlService:
         if not existing_doc_urls:
             return None
 
-        print(f"Found developer docs subdomain: {existing_doc_urls[0]}")
+        logger.debug("Found developer docs subdomain: %s", existing_doc_urls[0])
 
         # Scrape the first existing docs subdomain
         doc_url = existing_doc_urls[0]
@@ -399,10 +403,10 @@ class FirecrawlService:
         existing_ir_urls = [url for url, exists in zip(ir_subdomains, exists_results) if exists]
 
         if not existing_ir_urls:
-            print(f"No investor relations subdomain found for {domain}")
+            logger.error("No investor relations subdomain found for %s", domain)
             return None
 
-        print(f"Found investor relations subdomain: {existing_ir_urls[0]}")
+        logger.debug("Found investor relations subdomain: %s", existing_ir_urls[0])
 
         # Scrape the first existing IR subdomain
         ir_url = existing_ir_urls[0]
@@ -421,7 +425,7 @@ class FirecrawlService:
             if isinstance(content, str) and content and len(content) > 300:
                 # Truncate each page to avoid token bloat
                 content_parts.append(f"### {url}\n\n{content[:4000]}")
-                print(f"Scraped IR content from {url}")
+                logger.debug("Scraped IR content from %s", url)
 
         if content_parts:
             return "\n\n---\n\n".join(content_parts)

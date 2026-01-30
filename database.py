@@ -1,6 +1,9 @@
 """database.py - PostgreSQL database operations for research documents."""
 
+import logging
 import asyncpg
+
+logger = logging.getLogger(__name__)
 import secrets
 import re
 from datetime import datetime, timedelta
@@ -21,8 +24,8 @@ async def init_database():
 
     _pool = await asyncpg.create_pool(
         settings.database_url,
-        min_size=5,
-        max_size=20,
+        min_size=settings.db_pool_min,
+        max_size=settings.db_pool_max,
         statement_cache_size=0,  # Disable cache to handle schema changes
     )
 
@@ -32,8 +35,7 @@ async def init_database():
             try:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             except asyncpg.exceptions.FeatureNotSupportedError:
-                print("WARNING: pgvector extension not available. Materials feature will not work.")
-                print("To enable materials, install pgvector on your PostgreSQL server.")
+                logger.warning("pgvector extension not available. Materials feature will not work. Install pgvector on your PostgreSQL server.")
         # Create users table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -1036,6 +1038,9 @@ async def update_user_profile(
             target_company_size, target_industries, target_personas, competitors,
             product_type
         )
+        # Invalidate auth cache so the next request sees updated profile
+        from auth_cache import invalidate_user_cache
+        invalidate_user_cache(user_id)
         return dict(row)
 
 

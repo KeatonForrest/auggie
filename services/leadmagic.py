@@ -1,8 +1,12 @@
 """LeadMagic API client for contact enrichment."""
 
+import logging
+
 import httpx
 from typing import Optional
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class LeadMagicService:
@@ -37,10 +41,10 @@ class LeadMagicService:
                         "job_title": job_title,
                     },
                 )
-                print(f"[LeadMagic] role-finder for '{job_title}' at '{company_domain}': status={resp.status_code}")
+                logger.debug("[LeadMagic] role-finder for '%s' at '%s': status=%s", job_title, company_domain, resp.status_code)
                 if resp.status_code == 200:
                     data = resp.json()
-                    print(f"[LeadMagic] response: {data}")
+                    logger.debug("[LeadMagic] response: %s", data)
                     if data.get("message") == "Role Found" and data.get("name"):
                         return {
                             "name": data.get("name", ""),
@@ -51,10 +55,10 @@ class LeadMagicService:
                             "company_name": data.get("company_name", ""),
                         }
                 else:
-                    print(f"[LeadMagic] error response: {resp.text}")
+                    logger.error("[LeadMagic] error response: %s", resp.text)
                 return None
             except Exception as e:
-                print(f"LeadMagic role-finder error: {e}")
+                logger.error("LeadMagic role-finder error: %s", e)
                 return None
 
     async def find_email(self, first_name: str, last_name: str, domain: str) -> Optional[dict]:
@@ -85,7 +89,7 @@ class LeadMagicService:
                         }
                 return None
             except Exception as e:
-                print(f"LeadMagic email-finder error: {e}")
+                logger.error("LeadMagic email-finder error: %s", e)
                 return None
 
     async def enrich_contacts(self, company_domain: str, company_name: str, target_titles: list[str]) -> list[dict]:

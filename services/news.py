@@ -1,9 +1,13 @@
 """news.py - SerpAPI integration for fetching recent company news via Google News."""
 
+import logging
+
 import httpx
 from typing import Optional
 
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class NewsService:
@@ -37,7 +41,7 @@ class NewsService:
             else:
                 return await self._fetch_news(client, search_query, max_articles)
         except Exception as e:
-            print(f"SerpAPI error: {e}")
+            logger.error("SerpAPI error: %s", e)
             return None
 
     async def _fetch_news(self, client: httpx.AsyncClient, search_query: str, max_articles: int) -> Optional[str]:
@@ -53,7 +57,7 @@ class NewsService:
         )
 
         if response.status_code != 200:
-            print(f"SerpAPI error: {response.status_code} - {response.text}")
+            logger.error("SerpAPI error: %s - %s", response.status_code, response.text)
             return None
 
         data = response.json()

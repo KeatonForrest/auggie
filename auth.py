@@ -1,9 +1,14 @@
 """auth.py - Google OAuth authentication."""
 
+import logging
 import jwt
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 from typing import Optional
 from functools import wraps
+
+from auth_cache import get_cached_user, set_cached_user, invalidate_user_cache
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -82,24 +87,31 @@ async def get_current_user(request: Request) -> Optional[dict]:
     try:
         # Try session first (set by SessionMiddleware)
         user_id = request.session.get("user_id")
-        print(f"Session user_id: {user_id}")
+        logger.debug("Session lookup: found=%s", user_id is not None)
 
         if not user_id:
             # Fallback to cookie
             token = request.cookies.get("session")
             if token:
                 user_id = decode_access_token(token)
-                print(f"Cookie user_id: {user_id}")
+                logger.debug("Cookie lookup: found=%s", user_id is not None)
 
         if not user_id:
-            print("No user_id found in session or cookie")
+            logger.debug("No user_id found in session or cookie")
             return None
 
+        # Check cache first
+        cached = get_cached_user(user_id)
+        if cached is not None:
+            return cached
+
         user = await get_user_by_id(user_id)
-        print(f"Found user: {user.get('email') if user else None}")
+        logger.debug("User DB lookup: found=%s", user is not None)
+        if user:
+            set_cached_user(user_id, user)
         return user
     except Exception as e:
-        print(f"Error getting current user: {e}")
+        logger.error("Error getting current user: %s", e)
         return None
 
 
@@ -134,9 +146,9 @@ async def _auto_accept_invites(user: dict) -> None:
         if invites:
             # Accept the most recent invite
             await accept_invite(invites[0]["token"], user["id"])
-            print(f"Auto-accepted invite for {user['email']} to org {invites[0].get('org_name')}")
+            logger.info("Auto-accepted invite for %s to org %s", user["email"], invites[0].get("org_name"))
     except Exception as e:
-        print(f"Error auto-accepting invites: {e}")
+        logger.error("Error auto-accepting invites: %s", e)
 
 
 @router.get("/login")
@@ -154,7 +166,7 @@ async def callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        print(f"OAuth error: {e}")
+        logger.error("OAuth error: %s", e)
         raise HTTPException(status_code=400, detail="OAuth authentication failed")
     
     user_info = token.get("userinfo")
@@ -175,16 +187,16 @@ async def callback(request: Request):
             picture=picture,
             google_id=google_id,
         )
-        print(f"Created new user: {email}")
+        logger.info("Created new user: %s", email)
     else:
-        print(f"Existing user logged in: {email}")
+        logger.info("Existing user logged in: %s", email)
 
     # Auto-accept pending org invites
     await _auto_accept_invites(user)
 
     # Store user_id in session (managed by SessionMiddleware)
     request.session["user_id"] = user["id"]
-    print(f"Stored user_id {user['id']} in session")
+    logger.debug("Stored user_id in session")
 
     # Redirect based on onboarding status
     if user.get("product_context"):
@@ -192,7 +204,7 @@ async def callback(request: Request):
     else:
         redirect_url = "/onboarding"
 
-    print(f"Redirecting to {redirect_url}")
+    logger.debug("Redirecting to %s", redirect_url)
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
@@ -242,7 +254,7 @@ async def microsoft_callback(request: Request):
     # Verify state matches session (CSRF protection)
     session_state = request.session.get("_microsoft_authlib_state_")
     if state != session_state:
-        print(f"State mismatch: expected {session_state}, got {state}")
+        logger.error("Microsoft OAuth state mismatch")
         raise HTTPException(status_code=400, detail="Invalid state parameter")
 
     # Exchange code for tokens
@@ -264,7 +276,7 @@ async def microsoft_callback(request: Request):
         )
 
         if token_response.status_code != 200:
-            print(f"Token exchange failed: {token_response.text}")
+            logger.error("Microsoft token exchange failed: %s", token_response.status_code)
             raise HTTPException(status_code=400, detail="Failed to exchange code for token")
 
         token_data = token_response.json()
@@ -280,12 +292,12 @@ async def microsoft_callback(request: Request):
         )
 
         if userinfo_response.status_code != 200:
-            print(f"Userinfo fetch failed: {userinfo_response.text}")
+            logger.error("Microsoft userinfo fetch failed: %s", userinfo_response.status_code)
             raise HTTPException(status_code=502, detail="Failed to get user info from Microsoft")
         else:
             user_info = userinfo_response.json()
 
-    print(f"Microsoft user_info: {user_info}")
+    logger.debug("Microsoft OAuth callback completed")
 
     # Microsoft uses 'sub' as unique identifier in userinfo, 'oid' in id_token
     microsoft_id = user_info.get("sub") or user_info.get("oid")
@@ -307,16 +319,16 @@ async def microsoft_callback(request: Request):
             picture=picture,
             microsoft_id=microsoft_id,
         )
-        print(f"Created new user (Microsoft): {email}")
+        logger.info("Created new user (Microsoft): %s", email)
     else:
-        print(f"Existing user logged in (Microsoft): {email}")
+        logger.info("Existing user logged in (Microsoft): %s", email)
 
     # Auto-accept pending org invites
     await _auto_accept_invites(user)
 
     # Store user_id in session
     request.session["user_id"] = user["id"]
-    print(f"Stored user_id {user['id']} in session")
+    logger.debug("Stored user_id in session")
 
     # Redirect based on onboarding status
     if user.get("product_context"):
@@ -324,7 +336,7 @@ async def microsoft_callback(request: Request):
     else:
         redirect_url = "/onboarding"
 
-    print(f"Redirecting to {redirect_url}")
+    logger.debug("Redirecting to %s", redirect_url)
     return RedirectResponse(url=redirect_url, status_code=302)
 
 

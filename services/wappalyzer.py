@@ -8,13 +8,16 @@ from urllib.parse import urlparse
 from models import TechStack, DetectedTechnology
 from services.collect import get_shared_http_client
 
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     from Wappalyzer import Wappalyzer, WebPage
     WAPPALYZER_AVAILABLE = True
-    print("Wappalyzer module imported successfully")
+    logger.debug("Wappalyzer module imported successfully")
 except ImportError as e:
     WAPPALYZER_AVAILABLE = False
-    print(f"Wappalyzer import failed: {e}")
+    logger.error("Wappalyzer import failed: %s", e)
 
 
 class WappalyzerService:
@@ -34,16 +37,16 @@ class WappalyzerService:
 
     def __init__(self):
         if not WAPPALYZER_AVAILABLE:
-            print("WARNING: python-Wappalyzer not installed. Tech detection disabled.")
+            logger.warning("python-Wappalyzer not installed. Tech detection disabled.")
             self.wappalyzer = None
         else:
             try:
                 self.wappalyzer = Wappalyzer.latest()
-                print("Wappalyzer initialized successfully")
+                logger.debug("Wappalyzer initialized successfully")
             except Exception as e:
                 import traceback
-                print(f"ERROR: Failed to initialize Wappalyzer: {e}")
-                print(f"Traceback: {traceback.format_exc()}")
+                logger.error("Failed to initialize Wappalyzer: %s", e)
+                logger.error("Traceback: %s", traceback.format_exc())
                 self.wappalyzer = None
 
     def _parse_technologies(self, results: dict, url: str) -> TechStack:
@@ -75,21 +78,21 @@ class WappalyzerService:
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._sync_analyze_url, url)
         except Exception as e:
-            print(f"Error analyzing {url}: {e}")
+            logger.error("Error analyzing %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     def _sync_analyze_url(self, url: str) -> TechStack:
         """Synchronous URL analysis (runs in thread pool)."""
         try:
-            print(f"Wappalyzer: Fetching {url}...")
+            logger.debug("Wappalyzer: Fetching %s...", url)
             webpage = WebPage.new_from_url(url)
-            print(f"Wappalyzer: Analyzing {url}...")
+            logger.debug("Wappalyzer: Analyzing %s...", url)
             results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
             tech_count = len(results) if results else 0
-            print(f"Wappalyzer: Found {tech_count} technologies on {url}")
+            logger.debug("Wappalyzer: Found %s technologies on %s", tech_count, url)
             return self._parse_technologies(results, url)
         except Exception as e:
-            print(f"Wappalyzer ERROR for {url}: {e}")
+            logger.error("Wappalyzer error for %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     async def analyze_html(
@@ -108,7 +111,7 @@ class WappalyzerService:
                 None, self._sync_analyze_html, html, url, headers or {}
             )
         except Exception as e:
-            print(f"Error analyzing HTML from {url}: {e}")
+            logger.error("Error analyzing HTML from %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     def _sync_analyze_html(self, html: str, url: str, headers: dict) -> TechStack:
@@ -118,7 +121,7 @@ class WappalyzerService:
             results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
             return self._parse_technologies(results, url)
         except Exception as e:
-            print(f"Wappalyzer HTML error for {url}: {e}")
+            logger.error("Wappalyzer HTML error for %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     async def _check_url_exists(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
@@ -170,7 +173,7 @@ class WappalyzerService:
 
         urls_to_check = [f"https://{sub}.{base_domain}" for sub in self.COMMON_APP_SUBDOMAINS]
 
-        print(f"Checking {len(urls_to_check)} potential app subdomains...")
+        logger.debug("Checking %s potential app subdomains...", len(urls_to_check))
 
         client = await get_shared_http_client()
         tasks = [self._check_url_exists(client, url) for url in urls_to_check]
@@ -179,9 +182,9 @@ class WappalyzerService:
         found = [url for url in results if url is not None]
 
         if found:
-            print(f"Found {len(found)} app subdomains: {found}")
+            logger.debug("Found %s app subdomains: %s", len(found), found)
         else:
-            print("No app subdomains found")
+            logger.debug("No app subdomains found")
 
         return found
 
@@ -193,7 +196,7 @@ class WappalyzerService:
 
         urls_to_check = [f"{base_url}{path}" for path in self.COMMON_APP_PATHS]
 
-        print(f"Checking {len(urls_to_check)} potential app paths...")
+        logger.debug("Checking %s potential app paths...", len(urls_to_check))
 
         client = await get_shared_http_client()
         tasks = [self._check_url_exists(client, url) for url in urls_to_check]
@@ -202,7 +205,7 @@ class WappalyzerService:
         found = [url for url in results if url is not None]
 
         if found:
-            print(f"Found {len(found)} app paths: {found}")
+            logger.debug("Found %s app paths: %s", len(found), found)
 
         return found
 
@@ -215,19 +218,19 @@ class WappalyzerService:
         results = {}
 
         if not self.wappalyzer:
-            print("Wappalyzer: SKIPPING - wappalyzer not initialized")
+            logger.debug("Wappalyzer: SKIPPING - wappalyzer not initialized")
             return results
 
         parsed = urlparse(main_url if main_url.startswith("http") else f"https://{main_url}")
         base_domain = parsed.netloc.replace("www.", "")
         full_main_url = f"https://{base_domain}"
 
-        print(f"Wappalyzer: Analyzing main domain: {full_main_url}")
+        logger.debug("Wappalyzer: Analyzing main domain: %s", full_main_url)
         if main_html:
             main_tech = await self.analyze_html(main_html, full_main_url)
         else:
             main_tech = await self.analyze_url(full_main_url)
-        print(f"Wappalyzer: Main domain result - {len(main_tech.technologies)} technologies")
+        logger.debug("Wappalyzer: Main domain result - %s technologies", len(main_tech.technologies))
 
         # Always include main domain in results (even if empty)
         results[base_domain] = main_tech
@@ -240,13 +243,13 @@ class WappalyzerService:
 
         # Analyze discovered subdomains
         if subdomains:
-            print(f"Analyzing {len(subdomains)} subdomains...")
+            logger.debug("Analyzing %s subdomains...", len(subdomains))
             tasks = [self.analyze_url(url) for url in subdomains]
             subdomain_results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for url, tech in zip(subdomains, subdomain_results):
                 if isinstance(tech, Exception):
-                    print(f"Error analyzing {url}: {tech}")
+                    logger.error("Error analyzing %s: %s", url, tech)
                     continue
                 if tech.technologies:
                     subdomain_name = urlparse(url).netloc
@@ -254,13 +257,13 @@ class WappalyzerService:
 
         # Analyze discovered app paths (can reveal different tech than homepage)
         if app_paths:
-            print(f"Analyzing {len(app_paths)} app paths...")
+            logger.debug("Analyzing %s app paths...", len(app_paths))
             tasks = [self.analyze_url(url) for url in app_paths]
             path_results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for url, tech in zip(app_paths, path_results):
                 if isinstance(tech, Exception):
-                    print(f"Error analyzing {url}: {tech}")
+                    logger.error("Error analyzing %s: %s", url, tech)
                     continue
                 if tech.technologies:
                     # Use path as key, e.g., "rei.com/account"

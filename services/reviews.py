@@ -1,9 +1,13 @@
 """reviews.py - G2 and Capterra review scraping for competitive intelligence."""
 
+import logging
+
 import httpx
 from typing import Optional
 
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class ReviewsService:
@@ -30,7 +34,7 @@ class ReviewsService:
             else:
                 return await self._get_reviews_impl(client, company_name)
         except Exception as e:
-            print(f"Reviews scraping error (non-fatal): {e}")
+            logger.error("Reviews scraping error (non-fatal): %s", e)
             return None
 
     async def _get_reviews_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
@@ -77,10 +81,10 @@ class ReviewsService:
                 data = response.json().get("data", {})
                 markdown = data.get("markdown", "")
                 if markdown and len(markdown) > 200:
-                    print(f"G2 direct hit: {direct_url}")
+                    logger.debug("G2 direct hit: %s", direct_url)
                     return self._extract_g2_content(markdown, direct_url)
         except Exception as e:
-            print(f"G2 direct scrape failed (will try search): {e}")
+            logger.debug("G2 direct scrape failed (will try search): %s", e)
 
         # Fall back to search
         try:
@@ -96,7 +100,7 @@ class ReviewsService:
             )
 
             if response.status_code != 200:
-                print(f"G2 search failed: {response.status_code}")
+                logger.debug("G2 search failed: %s", response.status_code)
                 return None
 
             data = response.json()
@@ -117,7 +121,7 @@ class ReviewsService:
             return None
 
         except Exception as e:
-            print(f"G2 scrape error: {e}")
+            logger.error("G2 scrape error: %s", e)
             return None
 
     async def _scrape_capterra(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
@@ -138,10 +142,10 @@ class ReviewsService:
                 data = response.json().get("data", {})
                 markdown = data.get("markdown", "")
                 if markdown and len(markdown) > 200:
-                    print(f"Capterra direct hit: {direct_url}")
+                    logger.debug("Capterra direct hit: %s", direct_url)
                     return self._extract_capterra_content(markdown, direct_url)
         except Exception as e:
-            print(f"Capterra direct scrape failed (will try search): {e}")
+            logger.debug("Capterra direct scrape failed (will try search): %s", e)
 
         # Fall back to search
         try:
@@ -157,7 +161,7 @@ class ReviewsService:
             )
 
             if response.status_code != 200:
-                print(f"Capterra search failed: {response.status_code}")
+                logger.debug("Capterra search failed: %s", response.status_code)
                 return None
 
             data = response.json()
@@ -172,7 +176,7 @@ class ReviewsService:
             return None
 
         except Exception as e:
-            print(f"Capterra scrape error: {e}")
+            logger.error("Capterra scrape error: %s", e)
             return None
 
     def _extract_g2_content(self, markdown: str, url: str) -> str:

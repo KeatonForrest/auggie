@@ -1,5 +1,7 @@
 """edgar.py - SEC EDGAR integration for public company filings and financial data."""
 
+import logging
+
 import asyncio
 import json
 import httpx
@@ -7,6 +9,8 @@ import os
 import re
 import time
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # 8-K item codes that indicate meaningful trigger events
@@ -90,7 +94,7 @@ class EdgarService:
         # Try disk cache first
         disk_data = self._load_disk_cache()
         if disk_data is not None:
-            print("EDGAR: Loaded tickers from disk cache")
+            logger.debug("EDGAR: Loaded tickers from disk cache")
             self._tickers_cache = self._build_lookup(disk_data)
             return self._tickers_cache
 
@@ -179,7 +183,7 @@ class EdgarService:
             else:
                 return await self._get_company_filings_impl(client, company_name)
         except Exception as e:
-            print(f"EDGAR error (non-fatal): {e}")
+            logger.error("EDGAR error (non-fatal): %s", e)
             return None
 
     async def _get_company_filings_impl(self, client: httpx.AsyncClient, company_name: str) -> Optional[str]:
@@ -192,7 +196,7 @@ class EdgarService:
 
         cik = match["cik"]
         ticker = match["ticker"]
-        print(f"EDGAR: Found {match['title']} ({ticker}) — CIK {cik}")
+        logger.debug("EDGAR: Found %s (%s) — CIK %s", match['title'], ticker, cik)
 
         # Step 2: Get submissions (company metadata + all filings)
         submissions = await self._get_submissions(client, cik)
@@ -242,7 +246,7 @@ class EdgarService:
             timeout=15.0,
         )
         if response.status_code != 200:
-            print(f"EDGAR: Submissions request failed: {response.status_code}")
+            logger.error("EDGAR: Submissions request failed: %s", response.status_code)
             return None
         return response.json()
 
@@ -347,12 +351,12 @@ class EdgarService:
                     follow_redirects=True,
                 )
                 if response.status_code != 200:
-                    print(f"EDGAR: 10-K fetch failed: {response.status_code}")
+                    logger.error("EDGAR: 10-K fetch failed: %s", response.status_code)
                     return None
 
                 return await asyncio.to_thread(self._parse_risk_factors, response.text)
             except Exception as e:
-                print(f"EDGAR: 10-K fetch error: {e}")
+                logger.error("EDGAR: 10-K fetch error: %s", e)
                 return None
 
         return None

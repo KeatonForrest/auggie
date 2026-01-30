@@ -1,6 +1,9 @@
 """billing.py - Stripe credit purchases."""
 
+import logging
 import stripe
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 
@@ -31,7 +34,7 @@ async def get_or_create_credit_pack_price():
             prices = stripe.Price.list(product=product.id, active=True, limit=1)
             if prices.data:
                 CREDIT_PACK_PRICE_ID = prices.data[0].id
-                print(f"Found existing credit pack price: {CREDIT_PACK_PRICE_ID}")
+                logger.info("Found existing credit pack price: %s", CREDIT_PACK_PRICE_ID)
                 return CREDIT_PACK_PRICE_ID
 
     # Create new product and price
@@ -47,7 +50,7 @@ async def get_or_create_credit_pack_price():
     )
 
     CREDIT_PACK_PRICE_ID = price.id
-    print(f"Created new credit pack price: {CREDIT_PACK_PRICE_ID}")
+    logger.info("Created new credit pack price: %s", CREDIT_PACK_PRICE_ID)
     return CREDIT_PACK_PRICE_ID
 
 
@@ -129,8 +132,8 @@ async def stripe_webhook(request: Request):
             user_id = int(session.metadata.get("user_id"))
             added = await fulfill_session(session.id, user_id, credits)
             if added:
-                print(f"[Webhook] Fulfilled {credits} credits for user {user_id} (session {session.id})")
+                logger.info("[Webhook] Fulfilled %d credits for user %d (session %s)", credits, user_id, session.id)
             else:
-                print(f"[Webhook] Session {session.id} already fulfilled, skipping")
+                logger.info("[Webhook] Session %s already fulfilled, skipping", session.id)
 
     return {"status": "success"}
