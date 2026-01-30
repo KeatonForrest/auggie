@@ -50,7 +50,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 
 ---
 
-## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API + CHROME EXTENSION
+## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API + CHROME EXTENSION + TEAM ACCOUNTS
 - Core research generation working (Claude Opus 4, temperature 0.25)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
@@ -59,6 +59,9 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 - Public API with async jobs, webhooks, rate limiting, sequence generation
 - Chrome extension with real-time progress tracking and background polling
 - Scoring recalibrated: raised Fit cap (65→80), shifted anchors up ~10pts, removed sync research route
+- Team accounts: orgs, invites, role-based access, shared credits, usage dashboard
+- G2/Capterra review scraping removed (low signal-to-cost ratio)
+- Wappalyzer optimized: trimmed subdomain list, HEAD-first discovery
 - Live at https://auggie.tools
 
 ---
@@ -321,12 +324,10 @@ New data sources to strengthen scoring. Trigger events, compliance deadlines, an
 - [x] Feed into Claude prompt as high-confidence data source
 - [x] All data feeds into Pain score (Risk Factors) and Timing score (8-K events)
 
-### G2 / Capterra Review Scraping ✅
-- [x] Search and scrape G2 product pages via Firecrawl search
-- [x] Search and scrape Capterra product pages via Firecrawl search
-- [x] Run G2 and Capterra lookups in parallel
-- [x] Feed ratings, pros/cons, and competitor comparisons into Claude prompt
-- [x] Competitive pressure signals feed into Pain score
+### G2 / Capterra Review Scraping (Removed)
+- [x] ~~Search and scrape G2 product pages via Firecrawl search~~
+- [x] ~~Search and scrape Capterra product pages via Firecrawl search~~
+- Removed in Phase 11 work — low signal-to-cost ratio. Firecrawl search calls ($0.04 each) rarely returned useful competitive data. EDGAR + Federal Register provide higher-confidence signals.
 
 ### Federal Register API (free — compliance deadlines) ✅
 - [x] Integrate Federal Register API for rules and proposed rules
@@ -506,16 +507,47 @@ Full pipeline stepper UI and automation rules engine. Users can visually step th
 ---
 
 ## Phase 11: Team Accounts
-**Status:** Planned
+**Status:** Complete
 
 Enable businesses to have multiple users under one organization.
 
-- [ ] Org/team data model
-- [ ] Invite team members
-- [ ] Role-based access (Admin, Member, Viewer)
-- [ ] Centralized billing (one bill per org)
-- [ ] Shared materials library
-- [ ] Usage dashboard (who researched what)
+### Sub-Phase A: Org Data Model + Migration ✅
+- [x] `organizations`, `org_members`, `org_invites` tables
+- [x] Auto-wrap every existing user in a 1-person org (race-safe with `SELECT ... FOR UPDATE`)
+- [x] Credits moved from `users.bonus_credits` to `organizations.bonus_credits` (org is single source of truth)
+- [x] `get_user_by_id()` JOINs org context (role, name, credits, stripe customer)
+- [x] New user signup auto-creates 1-person org
+- [x] OAuth callbacks auto-accept pending invites
+- [x] Billing operations (buy, fulfill, use, refund) all operate on org level
+- [x] `org_id` tracked on `fulfilled_sessions` for audit trail
+- [x] Admin-only credit purchasing with clear error message for non-admins
+
+### Sub-Phase B: Team Management UI + Invites ✅
+- [x] `/settings/team` — members list, pending invites, invite form
+- [x] Invite flow: admin enters email + role → 7-day expiry token → invite link
+- [x] Accept invite landing page with auto-join on login
+- [x] Remove member, change role, revoke invite (admin only)
+- [x] Nav: "Team" link in Settings
+
+### Sub-Phase C: Org-Scoped Shared Data ✅
+- [x] `org_id` column on `materials`, `material_chunks`, `lists`, `webhooks`
+- [x] All org-scoped queries use clean `WHERE org_id = ...` (no NULL fallbacks)
+- [x] Research documents remain private (creator-owned); admins can browse all team research
+- [x] Integrations remain user-scoped (each user connects their own CRM)
+
+### Sub-Phase D: Usage Dashboard ✅
+- [x] `/settings/team/usage` — per-member research count, last activity, total org credits
+
+### API Routes ✅
+- [x] `GET /v1/team` — list members
+- [x] `POST /v1/team/invite` — invite
+- [x] `DELETE /v1/team/members/{id}` — remove
+- [x] `PATCH /v1/team/members/{id}` — change role
+
+### Also completed during Phase 11
+- [x] Nav cleanup: collapsed to 4 primary links + "More" dropdown
+- [x] G2/Capterra review scraping removed (low signal-to-cost)
+- [x] Wappalyzer optimized: subdomain list cut from 30+ to 10, HEAD-first discovery
 
 ---
 
@@ -621,7 +653,7 @@ UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
 General infrastructure hardening and operational improvements. Not a phase — just a running list to tackle as needed.
 
 ### Pipeline Performance ✅
-- [x] Parallel data collection via `asyncio.gather` (news, EDGAR+FedReg, reviews, materials)
+- [x] Parallel data collection via `asyncio.gather` (news, EDGAR+FedReg, materials)
 - [x] Shared `collect_enrichment_data()` function — single source of truth across all 3 pipelines
 - [x] Shared httpx client with connection pooling (eliminates per-request TCP/TLS handshake)
 - [x] EDGAR tickers disk cache with 24h TTL (cold start: seconds → milliseconds)
@@ -668,13 +700,13 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 6 | Bulk research, lists API, docs, SDK |
 | ✅ Done | Phase 7 | Clay Marketplace (technical integration) |
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
-| ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, G2/Capterra, Federal Register) |
+| ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, Federal Register; G2/Capterra removed) |
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
 | ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack, Chrome Extension |
 | ✅ Done | Phase 7.5 Step 6 | Score recalibration (temperature, anchors, Fit cap) |
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
-| Next | Phase 11 | Team accounts |
+| ✅ Done | Phase 11 | Team accounts (orgs, invites, roles, shared credits, usage dashboard) |
 | Next | — | Speed: evaluate Sonnet 4 for research generation |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
