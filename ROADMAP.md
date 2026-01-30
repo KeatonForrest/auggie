@@ -649,6 +649,8 @@ $0.50 more unlocks scoring, contact, and full personalization.
 | **Revenue** | **$1.00** |
 | **Margin** | **18-38%** |
 
+_Note: G2/Capterra removal saved ~$0.08/research (2x Firecrawl search calls). Actual COGS closer to $0.54-0.74, margin ~26-46%._
+
 **Full ($1.50):**
 | Cost Component | Estimate |
 |----------------|----------|
@@ -660,6 +662,8 @@ $0.50 more unlocks scoring, contact, and full personalization.
 | **COGS** | **$0.75-1.07** |
 | **Revenue** | **$1.50** |
 | **Margin** | **29-50%** |
+
+_Note: G2/Capterra removal saved ~$0.08/research. Actual COGS closer to $0.67-0.99, margin ~34-55%._
 
 Positive margin on every research. No utilization risk. No subscription management.
 
