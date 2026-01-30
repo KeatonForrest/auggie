@@ -51,7 +51,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 ---
 
 ## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API + CHROME EXTENSION + TEAM ACCOUNTS
-- Core research generation working (Claude Opus 4, temperature 0.25)
+- Core research generation working (Claude Sonnet 4, temperature 0.25)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
 - Consumption pricing (5 free, $10 for 10 credits) working
@@ -62,6 +62,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 - Team accounts: orgs, invites, role-based access, shared credits, usage dashboard
 - G2/Capterra review scraping removed (low signal-to-cost ratio)
 - Wappalyzer optimized: trimmed subdomain list, HEAD-first discovery
+- Writing calibration: partial-signal mode strips Section A examples for low-score prospects, bans condescending qualifiers
 - Live at https://auggie.tools
 
 ---
@@ -451,6 +452,7 @@ Complete the Clay marketplace onboarding. Technical integration is done (Phase 7
 - [ ] Publish to Clay marketplace
 - [ ] Create Clay workflow template: "Problem-Signal Prospecting"
 - [ ] Feed PVP examples into outreach generation prompt — give the writing service concrete pain-value proposition examples so generated emails follow proven messaging patterns instead of generic output
+- [ ] EmailBison — API integration, push sequences
 
 ### Auggie as a Clay Column
 ```
@@ -548,6 +550,25 @@ Enable businesses to have multiple users under one organization.
 
 ---
 
+## Phase 3.5: Writing Calibration — Partial-Signal Mode
+**Status:** Complete
+
+When opportunity_score < 50, the model was producing confident-tone emails because it pattern-matched off the 40 full-confidence examples (Section A) and ignored the partial-signal directive. Fixed by stripping examples and tightening banned phrases.
+
+### Changes
+- [x] Strip Section A (40 full-confidence examples) from prompt when score < 50 — model only sees Section B (10 partial-signal examples)
+- [x] Add partial-signal header replacing the full examples intro
+- [x] Ban condescending stack qualifiers: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now"
+- [x] Ban vague closers: "worth knowing the pattern"
+- [x] Expand self-review closing block with same condescension checks
+- [x] Add `test_writing.py` — 24 tests covering prompt assembly, section stripping, boundary conditions, email parsing
+
+### Verified
+- Trident Seafoods (low score): neutral tone, no condescension, conditional framing
+- Outreach.io (high score): confident tone preserved, Section A patterns intact
+
+---
+
 ## Phase 11.5: Integration Testing
 **Status:** In Progress
 
@@ -569,13 +590,12 @@ End-to-end testing of existing integrations after Phase 11 org-scoped changes.
 ---
 
 ## Phase 11.75: Sequencer Integrations
-**Status:** Planned
+**Status:** Complete
 
 Add outbound sequencer integrations so users can push sequences directly from Auggie.
 
-- [ ] Outreach — OAuth connection, push contacts + sequences to Outreach
-- [ ] Salesloft — OAuth connection, push contacts + sequences to Salesloft
-- [ ] EmailBison — API integration, push sequences
+- [x] Outreach — OAuth connection, push contacts + sequences to Outreach
+- [x] Salesloft — OAuth connection, push contacts + sequences to Salesloft
 
 ---
 
@@ -692,6 +712,17 @@ General infrastructure hardening and operational improvements. Not a phase — j
 - [x] Removed blocking sync `POST /research` route — all research now async via background jobs
 - [x] Real-time pipeline progress tracking (`progress` column on research_jobs table)
 
+### Code Hygiene ✅
+- [x] Fix Pydantic deprecation warning — migrated `class Config` to `model_config = SettingsConfigDict`
+- [x] Fix pre-existing test failure (`test_push_rejects_wrong_user` — mock returned truthy dict instead of None)
+- [x] Configure git committer identity
+- [x] Add `test_writing.py` (24 tests for WritingService)
+- [ ] Replace `print()` with Python `logging` module
+- [ ] Refactor `main.py` (2,567 lines) into API routers
+- [ ] Refactor `database.py` (2,892 lines) into smaller modules
+- [ ] Add consistent type hints across codebase
+- [ ] Pull hardcoded thresholds (score < 50, timeouts, credit amounts) into config
+
 ### Cloudflare
 - [ ] Proxy app through Cloudflare (orange cloud) — DDoS protection, SSL termination, caching
 - [ ] Set up Cloudflare DNS for auggie.app / auggie.tools
@@ -737,9 +768,9 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
 | ✅ Done | Phase 11 | Team accounts (orgs, invites, roles, shared credits, usage dashboard) |
+| ✅ Done | Phase 3.5 | Writing calibration (partial-signal mode, Section A stripping, banned phrases) |
 | Active | Phase 11.5 | Integration testing (manual end-to-end verification) |
-| Next | Phase 11.75 | Sequencer integrations (Outreach, Salesloft, EmailBison) |
-| Next | — | Speed: evaluate Sonnet 4 for research generation |
+| ✅ Done | Phase 11.75 | Sequencer integrations (Outreach, Salesloft) |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---
