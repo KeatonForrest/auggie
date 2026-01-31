@@ -3,7 +3,7 @@
 import csv
 import re
 import logging
-from io import StringIO
+from io import StringIO, BytesIO
 
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
@@ -66,17 +66,27 @@ async def upload_list_csv(
     upload_limiter.check(get_client_ip(request))
 
     # Validate file
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Please upload a .csv file.")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Please upload a .csv, .xlsx, or .xls file.")
+    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    if ext not in ("csv", "xlsx", "xls"):
+        raise HTTPException(status_code=400, detail="Please upload a .csv, .xlsx, or .xls file.")
 
     contents = await file.read()
     if len(contents) > 1_048_576:
         raise HTTPException(status_code=400, detail="File too large (max 1MB).")
 
-    # Parse CSV
-    text = contents.decode("utf-8", errors="replace")
-    reader = csv.reader(StringIO(text))
-    rows = list(reader)
+    # Parse file into rows
+    if ext in ("xlsx", "xls"):
+        import openpyxl
+        wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
+        ws = wb.active
+        rows = [[str(cell) if cell is not None else "" for cell in row] for row in ws.iter_rows(values_only=True)]
+        wb.close()
+    else:
+        text = contents.decode("utf-8", errors="replace")
+        reader = csv.reader(StringIO(text))
+        rows = list(reader)
     if not rows:
         raise HTTPException(status_code=400, detail="CSV file is empty.")
 

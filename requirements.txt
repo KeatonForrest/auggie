@@ -68,3 +68,6 @@ pgvector>=0.2.0
 
 # TTL caching for auth lookups
 cachetools>=5.3.0
+
+# Excel file parsing
+openpyxl>=3.1.0
