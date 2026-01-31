@@ -1,21 +1,15 @@
-"""Tracked asyncio task creation with exception logging."""
+"""Tracked task creation — enqueues to durable PostgreSQL task queue."""
 
 import asyncio
 import logging
 
+from db.task_queue import enqueue
+
 _logger = logging.getLogger("background_tasks")
 
 
-def create_tracked_task(coro, *, name: str = None):
-    """Create an asyncio task with exception logging on completion."""
-    task = asyncio.create_task(coro, name=name)
-
-    def _done_callback(t):
-        if t.cancelled():
-            return
-        exc = t.exception()
-        if exc:
-            _logger.error("Background task %s failed: %s", t.get_name(), exc, exc_info=exc)
-
-    task.add_done_callback(_done_callback)
-    return task
+async def create_tracked_task(task_type: str, payload: dict, *, name: str = None) -> int:
+    """Enqueue a task to the durable queue. Returns the queue task ID."""
+    task_id = await enqueue(task_type, payload)
+    _logger.info("Enqueued task %s (id=%d, name=%s)", task_type, task_id, name)
+    return task_id

@@ -192,10 +192,9 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
                     company_name=doc.company_name,
                 )
 
-                # Fire account_scored automation rules
+                # Fire account_scored automation rules (enqueue to avoid blocking)
                 try:
-                    from services.automation import evaluate_rules
-                    from api.tasks import create_tracked_task
+                    from db.task_queue import enqueue
                     scored_account = {
                         "id": account_id,
                         "status": "completed",
@@ -206,13 +205,11 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
                         "composite_score": doc.opportunity_score,
                         "company_name": doc.company_name,
                     }
-                    create_tracked_task(
-                        evaluate_rules(user_id, "account_scored", {
-                            "list_id": list_id,
-                            "accounts": [scored_account],
-                        }),
-                        name=f"automation-scored-{account_id}",
-                    )
+                    await enqueue("automation", {
+                        "user_id": user_id,
+                        "trigger_event": "account_scored",
+                        "context": {"list_id": list_id, "accounts": [scored_account]},
+                    })
                 except Exception:
                     logger.exception("account_scored automation failed for account %s", account_id)
 
@@ -281,27 +278,51 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("Slack notification failed for list %d", list_id)
 
-    # Automation rules engine (runs in background to avoid blocking webhooks)
+    # Automation rules engine (enqueued to avoid blocking webhooks)
     try:
-        from services.automation import evaluate_rules
-        from api.tasks import create_tracked_task
+        from db.task_queue import enqueue
         all_accounts_for_rules = await get_list_accounts(list_id)
         completed_for_rules = [
             a for a in all_accounts_for_rules if a.get("status") == "completed"
         ]
         if completed_for_rules:
-            create_tracked_task(
-                evaluate_rules(user_id, "list_complete", {
-                    "list_id": list_id,
-                    "accounts": completed_for_rules,
-                }),
-                name=f"automation-{list_id}",
-            )
+            await enqueue("automation", {
+                "user_id": user_id,
+                "trigger_event": "list_complete",
+                "context": {"list_id": list_id, "accounts": completed_for_rules},
+            })
     except Exception:
         logger.exception("Automation rules failed for list %d", list_id)
 
     # Fire webhook for list completion
     await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)
+
+
+async def run_retry_account(user_id: int, account_id: int, company_url: str, job_id: int, is_admin: bool = False):
+    """Retry a single list account: run pipeline + update list_account row."""
+    try:
+        doc_id = await _run_research_pipeline(user_id, company_url, job_id=job_id)
+        await update_job_status(job_id, "completed", document_id=doc_id)
+        doc = await get_document(doc_id, user_id)
+        from database import update_list_account
+        await update_list_account(
+            account_id, "completed",
+            document_id=doc_id,
+            research_job_id=job_id,
+            pain_score=doc.pain_score,
+            fit_score=doc.fit_score,
+            timing_score=doc.timing_score,
+            composite_score=doc.opportunity_score,
+            company_name=doc.company_name,
+        )
+    except Exception as e:
+        logger.exception("Retry account %s failed", account_id)
+        if not is_admin:
+            await refund_credit(user_id)
+        error_msg = str(e)[:500]
+        await update_job_status(job_id, "failed", error_message=error_msg)
+        from database import update_list_account
+        await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)
 
 
 async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: list[int] | None = None):

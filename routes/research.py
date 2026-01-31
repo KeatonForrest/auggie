@@ -14,9 +14,10 @@ from database import (
     save_document, get_document, get_all_documents,
     get_user_usage, use_credit, refund_credit,
     save_enriched_contacts, get_enriched_contacts,
-    create_research_job, get_research_job, check_duplicate_research,
+    get_research_job, check_duplicate_research,
     save_feedback, get_feedback,
 )
+from db.jobs import create_job_with_credit, create_research_job
 from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service
 from services.collect import collect_enrichment_data
 from api.validation import validate_company_url
@@ -44,15 +45,16 @@ async def start_research(
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
-        reserved = await use_credit(user["id"])
-        if not reserved:
+        try:
+            job = await create_job_with_credit(user["id"], api_key_id=None, company_url=company_url)
+        except ValueError:
             return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
+    else:
+        job = await create_research_job(user["id"], api_key_id=None, company_url=company_url)
 
-    job = await create_research_job(user["id"], api_key_id=None, company_url=company_url)
-
-    from api.jobs import run_research_job
-    create_tracked_task(
-        run_research_job(job["id"], user["id"], api_key_id=None, company_url=company_url, is_admin=is_admin),
+    await create_tracked_task(
+        "research",
+        {"job_id": job["id"], "user_id": user["id"], "api_key_id": None, "company_url": company_url, "is_admin": is_admin},
         name=f"web-research-{job['id']}",
     )
 

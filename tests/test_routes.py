@@ -24,16 +24,13 @@ async def test_home_page_loads(async_client):
 @pytest.mark.asyncio
 async def test_research_creates_document(authed_client, mock_services, sample_research_document):
     """POST /research/start should create a job and redirect to progress page."""
-    with patch("main.save_document", new_callable=AsyncMock) as mock_save, \
-         patch("main.get_all_documents", new_callable=AsyncMock) as mock_get_docs, \
-         patch("main.get_user_usage", new_callable=AsyncMock) as mock_usage, \
-         patch("main.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
-         patch("main.use_credit", new_callable=AsyncMock), \
-         patch("main.create_research_job", new_callable=AsyncMock) as mock_create_job, \
-         patch("main.create_tracked_task") as mock_task:
+    with patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
+         patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
+         patch("routes.research.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
+         patch("routes.research.create_job_with_credit", new_callable=AsyncMock) as mock_create_job, \
+         patch("routes.research.create_tracked_task", new_callable=AsyncMock) as mock_task:
 
         mock_save.return_value = 1
-        mock_get_docs.return_value = [sample_research_document]
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
         mock_dup.return_value = None
         mock_create_job.return_value = {"id": 42}
@@ -54,14 +51,13 @@ async def test_research_creates_document(authed_client, mock_services, sample_re
 @pytest.mark.asyncio
 async def test_view_document(authed_client, sample_research_document):
     """GET /document/{id} should return the document."""
-    with patch("main.get_document", new_callable=AsyncMock) as mock_get_doc, \
-         patch("main.get_all_documents", new_callable=AsyncMock) as mock_get_docs, \
-         patch("main.get_user_usage", new_callable=AsyncMock) as mock_usage, \
-         patch("main.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts, \
-         patch("main.get_feedback", new_callable=AsyncMock) as mock_feedback:
+    with patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
+         patch("routes.research.get_all_documents", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
+         patch("routes.research.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts, \
+         patch("routes.research.get_feedback", new_callable=AsyncMock) as mock_feedback:
 
         mock_get_doc.return_value = sample_research_document
-        mock_get_docs.return_value = [sample_research_document]
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
         mock_contacts.return_value = []
         mock_feedback.return_value = None
@@ -75,7 +71,7 @@ async def test_view_document(authed_client, sample_research_document):
 @pytest.mark.asyncio
 async def test_document_not_found(authed_client):
     """GET /document/{id} should return 404 for missing documents."""
-    with patch("main.get_document", new_callable=AsyncMock) as mock_get_doc:
+    with patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc:
         mock_get_doc.return_value = None
 
         response = await authed_client.get("/document/999")
@@ -86,11 +82,11 @@ async def test_document_not_found(authed_client):
 @pytest.mark.asyncio
 async def test_api_research(authed_client, mock_services, sample_research_document):
     """POST /api/research should return JSON response."""
-    with patch("main.save_document", new_callable=AsyncMock) as mock_save, \
-         patch("main.get_user_usage", new_callable=AsyncMock) as mock_usage, \
-         patch("main.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
-         patch("main.use_credit", new_callable=AsyncMock), \
-         patch("main.collect_enrichment_data", new_callable=AsyncMock, return_value=""):
+    with patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
+         patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
+         patch("routes.research.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
+         patch("routes.research.use_credit", new_callable=AsyncMock), \
+         patch("routes.research.collect_enrichment_data", new_callable=AsyncMock, return_value=""):
 
         mock_save.return_value = 1
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
@@ -112,7 +108,7 @@ async def test_api_research(authed_client, mock_services, sample_research_docume
 @pytest.mark.asyncio
 async def test_api_list_documents(authed_client, sample_research_document):
     """GET /api/documents should return list of documents."""
-    with patch("main.get_all_documents", new_callable=AsyncMock) as mock_get_docs:
+    with patch("routes.research.get_all_documents", new_callable=AsyncMock) as mock_get_docs:
         mock_get_docs.return_value = [sample_research_document]
 
         response = await authed_client.get("/api/documents")
@@ -126,7 +122,7 @@ async def test_api_list_documents(authed_client, sample_research_document):
 @pytest.mark.asyncio
 async def test_download_markdown(authed_client, sample_research_document):
     """GET /document/{id}/markdown should return markdown file."""
-    with patch("main.get_document", new_callable=AsyncMock) as mock_get_doc:
+    with patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc:
         mock_get_doc.return_value = sample_research_document
 
         response = await authed_client.get("/document/1/markdown")

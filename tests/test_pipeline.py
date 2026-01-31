@@ -20,10 +20,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.mark.asyncio
 async def test_automations_page_loads(authed_client):
     """GET /automations should render the page."""
-    with patch("database.get_automation_rules", new_callable=AsyncMock, return_value=[]), \
-         patch("database.get_automation_runs", new_callable=AsyncMock, return_value=[]), \
-         patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
-         patch("database.get_integration", new_callable=AsyncMock, return_value=None):
+    with patch("routes.settings.get_automation_rules", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.settings.get_automation_runs", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.settings.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
+         patch("routes.settings.get_integration", new_callable=AsyncMock, return_value=None):
         response = await authed_client.get("/automations")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
@@ -36,7 +36,7 @@ async def test_create_automation_rule(authed_client):
     fake_rule = {"id": 1, "name": "Test", "trigger_event": "list_complete",
                  "conditions": {}, "action": "write_sequences", "action_config": {},
                  "enabled": True}
-    with patch("database.create_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
+    with patch("routes.settings.create_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
         response = await authed_client.post("/automations", json={
             "name": "Test Rule",
             "trigger_event": "list_complete",
@@ -87,7 +87,7 @@ async def test_create_automation_rule_invalid_action(authed_client):
 async def test_toggle_automation_rule(authed_client):
     """POST /automations/{id}/toggle should toggle enabled state."""
     fake_rule = {"id": 1, "enabled": False}
-    with patch("database.update_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
+    with patch("routes.settings.update_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
         response = await authed_client.post("/automations/1/toggle", json={"enabled": False})
         assert response.status_code == 200
         assert response.json()["success"] is True
@@ -96,7 +96,7 @@ async def test_toggle_automation_rule(authed_client):
 @pytest.mark.asyncio
 async def test_toggle_nonexistent_rule(authed_client):
     """POST /automations/{id}/toggle for missing rule should return 404."""
-    with patch("database.update_automation_rule", new_callable=AsyncMock, return_value=None):
+    with patch("routes.settings.update_automation_rule", new_callable=AsyncMock, return_value=None):
         response = await authed_client.post("/automations/999/toggle", json={"enabled": True})
         assert response.status_code == 404
 
@@ -104,7 +104,7 @@ async def test_toggle_nonexistent_rule(authed_client):
 @pytest.mark.asyncio
 async def test_delete_automation_rule(authed_client):
     """POST /automations/{id}/delete should delete the rule."""
-    with patch("database.delete_automation_rule", new_callable=AsyncMock, return_value=True):
+    with patch("routes.settings.delete_automation_rule", new_callable=AsyncMock, return_value=True):
         response = await authed_client.post("/automations/1/delete")
         assert response.status_code == 200
         assert response.json()["success"] is True
@@ -113,7 +113,7 @@ async def test_delete_automation_rule(authed_client):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_rule(authed_client):
     """POST /automations/{id}/delete for missing rule should return 404."""
-    with patch("database.delete_automation_rule", new_callable=AsyncMock, return_value=False):
+    with patch("routes.settings.delete_automation_rule", new_callable=AsyncMock, return_value=False):
         response = await authed_client.post("/automations/999/delete")
         assert response.status_code == 404
 
@@ -301,10 +301,10 @@ class TestAutomationsPageWithRuns:
             "rule_name": "Test Rule",
         }]
 
-        with patch("database.get_automation_rules", new_callable=AsyncMock, return_value=fake_rules), \
-             patch("database.get_automation_runs", new_callable=AsyncMock, return_value=fake_runs), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
-             patch("database.get_integration", new_callable=AsyncMock, return_value=None):
+        with patch("routes.settings.get_automation_rules", new_callable=AsyncMock, return_value=fake_rules), \
+             patch("routes.settings.get_automation_runs", new_callable=AsyncMock, return_value=fake_runs), \
+             patch("routes.settings.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
+             patch("routes.settings.get_integration", new_callable=AsyncMock, return_value=None):
             response = await authed_client.get("/automations")
             assert response.status_code == 200
             assert "Recent runs" in response.text
@@ -328,13 +328,9 @@ async def test_pipeline_status(authed_client):
     """GET /lists/{id}/pipeline-status should return step counts."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 3, "analyzed_accounts": 3, "failed_accounts": 0}
-    fake_accounts = [
-        {"id": 1, "status": "completed", "enrichment_status": "completed", "outreach_status": "completed", "pushed_to": {"instantly": {}}},
-        {"id": 2, "status": "completed", "enrichment_status": "none", "outreach_status": "completed", "pushed_to": {}},
-        {"id": 3, "status": "completed", "enrichment_status": "none", "outreach_status": "none", "pushed_to": {}},
-    ]
-    with patch("main.get_list", new_callable=AsyncMock, return_value=fake_list), \
-         patch("main.get_list_accounts", new_callable=AsyncMock, return_value=fake_accounts):
+    fake_counts = {"scored": 3, "enriched": 1, "sequences_written": 2, "pushed": 1, "total": 3}
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
+         patch("routes.lists.get_pipeline_counts", new_callable=AsyncMock, return_value=fake_counts):
         response = await authed_client.get("/lists/1/pipeline-status")
         assert response.status_code == 200
         data = response.json()
@@ -348,7 +344,7 @@ async def test_pipeline_status(authed_client):
 @pytest.mark.asyncio
 async def test_pipeline_status_list_not_found(authed_client):
     """GET /lists/{id}/pipeline-status for missing list should 404."""
-    with patch("main.get_list", new_callable=AsyncMock, return_value=None):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=None):
         response = await authed_client.get("/lists/999/pipeline-status")
         assert response.status_code == 404
 
@@ -362,7 +358,7 @@ async def test_batch_enrich_returns_unavailable(authed_client):
     """POST /lists/{id}/batch-enrich should return 422 with message."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 5, "analyzed_accounts": 5, "failed_accounts": 0}
-    with patch("main.get_list", new_callable=AsyncMock, return_value=fake_list):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list):
         response = await authed_client.post("/lists/1/batch-enrich", json={"account_ids": [1, 2]})
         assert response.status_code == 422
         data = response.json()
@@ -373,7 +369,7 @@ async def test_batch_enrich_returns_unavailable(authed_client):
 @pytest.mark.asyncio
 async def test_batch_enrich_list_not_found(authed_client):
     """POST /lists/{id}/batch-enrich for missing list should 404."""
-    with patch("main.get_list", new_callable=AsyncMock, return_value=None):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=None):
         response = await authed_client.post("/lists/999/batch-enrich", json={})
         assert response.status_code == 404
 
@@ -387,19 +383,14 @@ async def test_batch_write_sequences_route(authed_client):
     """POST /lists/{id}/batch-write-sequences should queue the job."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 2, "analyzed_accounts": 2, "failed_accounts": 0}
-    fake_accounts = [
-        {"id": 1, "status": "completed", "document_id": 10},
-        {"id": 2, "status": "completed", "document_id": 20},
-        {"id": 3, "status": "failed", "document_id": None},
-    ]
-    with patch("main.get_list", new_callable=AsyncMock, return_value=fake_list), \
-         patch("main.get_list_accounts", new_callable=AsyncMock, return_value=fake_accounts), \
-         patch("main.create_tracked_task"):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
+         patch("routes.lists.count_ready_accounts", new_callable=AsyncMock, return_value=2), \
+         patch("routes.lists.create_tracked_task", new_callable=AsyncMock):
         response = await authed_client.post("/lists/1/batch-write-sequences", json={})
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["queued_count"] == 2  # only completed with document_id
+        assert data["queued_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -407,13 +398,9 @@ async def test_batch_write_sequences_with_selection(authed_client):
     """POST /lists/{id}/batch-write-sequences with account_ids filters correctly."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 2, "analyzed_accounts": 2, "failed_accounts": 0}
-    fake_accounts = [
-        {"id": 1, "status": "completed", "document_id": 10},
-        {"id": 2, "status": "completed", "document_id": 20},
-    ]
-    with patch("main.get_list", new_callable=AsyncMock, return_value=fake_list), \
-         patch("main.get_list_accounts", new_callable=AsyncMock, return_value=fake_accounts), \
-         patch("main.create_tracked_task"):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
+         patch("routes.lists.count_ready_accounts", new_callable=AsyncMock, return_value=1), \
+         patch("routes.lists.create_tracked_task", new_callable=AsyncMock):
         response = await authed_client.post("/lists/1/batch-write-sequences", json={"account_ids": [1]})
         assert response.status_code == 200
         assert response.json()["queued_count"] == 1
@@ -422,7 +409,7 @@ async def test_batch_write_sequences_with_selection(authed_client):
 @pytest.mark.asyncio
 async def test_batch_write_sequences_list_not_found(authed_client):
     """POST /lists/{id}/batch-write-sequences for missing list should 404."""
-    with patch("main.get_list", new_callable=AsyncMock, return_value=None):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=None):
         response = await authed_client.post("/lists/999/batch-write-sequences", json={})
         assert response.status_code == 404
 

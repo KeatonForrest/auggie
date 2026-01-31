@@ -10,7 +10,7 @@ from api.auth import require_api_key
 from database import (
     get_user_usage, get_document,
     save_enriched_contacts, get_enriched_contacts,
-    create_research_job, get_research_job, list_user_jobs,
+    get_research_job, list_user_jobs,
     use_credit, refund_credit, record_api_usage,
     create_bulk_job, get_bulk_job, list_bulk_jobs,
     create_bulk_job_items, get_bulk_job_items,
@@ -21,8 +21,9 @@ from database import (
     try_start_list_analysis,
 )
 from api.validation import validate_company_url
-from api.jobs import run_research_job, run_bulk_job, run_list_analysis, _run_research_pipeline
+from api.jobs import _run_research_pipeline
 from api.tasks import create_tracked_task
+from db.jobs import create_job_with_credit, create_research_job
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
 router = APIRouter(prefix="/v1", tags=["v1"])
@@ -62,28 +63,25 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
     """Start an async research job. Returns immediately with a job_id."""
     research_limiter.check(api_user["api_key_id"])
 
-    # Check and reserve credits upfront (refunded on failure)
-    usage = await get_user_usage(api_user["id"])
-    is_admin = usage.get("is_admin", False)
-    if not is_admin:
-        if usage.get("bonus_credits", 0) <= 0:
-            raise HTTPException(status_code=402, detail="No credits remaining")
-        reserved = await use_credit(api_user["id"])
-        if not reserved:
-            raise HTTPException(status_code=402, detail="No credits remaining")
-
     try:
         company_url = validate_company_url(body.company_url)
     except ValueError as e:
-        # Refund if we reserved
-        if not is_admin:
-            await refund_credit(api_user["id"])
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
+    # Atomically reserve credit + create job
+    usage = await get_user_usage(api_user["id"])
+    is_admin = usage.get("is_admin", False)
+    if not is_admin:
+        try:
+            job = await create_job_with_credit(api_user["id"], api_user["api_key_id"], company_url)
+        except ValueError:
+            raise HTTPException(status_code=402, detail="No credits remaining")
+    else:
+        job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
-    create_tracked_task(
-        run_research_job(job["id"], api_user["id"], api_user["api_key_id"], company_url, is_admin=is_admin),
+    await create_tracked_task(
+        "research",
+        {"job_id": job["id"], "user_id": api_user["id"], "api_key_id": api_user["api_key_id"], "company_url": company_url, "is_admin": is_admin},
         name=f"research-{job['id']}",
     )
 
@@ -302,18 +300,16 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
         return _build_clay_response(cached_doc, cached=True)
 
-    # Check and reserve credits
+    # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
-        if usage.get("bonus_credits", 0) <= 0:
+        try:
+            job = await create_job_with_credit(api_user["id"], api_user["api_key_id"], company_url)
+        except ValueError:
             return JSONResponse(content={"success": False, "error": "No credits remaining"})
-        reserved = await use_credit(api_user["id"])
-        if not reserved:
-            return JSONResponse(content={"success": False, "error": "No credits remaining"})
-
-    # Create research job for tracking
-    job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
+    else:
+        job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
     # Run pipeline synchronously
     start = time.monotonic()
@@ -418,23 +414,22 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
         except ValueError as e:
             raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
 
-    # Reserve credits upfront
+    # Reserve credits upfront atomically
     n = len(validated_urls)
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
         credits_needed = n * 100  # cents
-        if usage.get("bonus_credits", 0) < credits_needed:
+        ok = await use_credit(api_user["id"], cents=credits_needed)
+        if not ok:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(api_user["id"], cents=credits_needed)
-        if not reserved:
-            raise HTTPException(status_code=402, detail="Insufficient credits")
 
     bulk_job = await create_bulk_job(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
     await create_bulk_job_items(bulk_job["id"], validated_urls)
 
-    create_tracked_task(
-        run_bulk_job(bulk_job["id"], api_user["id"], api_user["api_key_id"], is_admin=is_admin),
+    await create_tracked_task(
+        "bulk",
+        {"bulk_job_id": bulk_job["id"], "user_id": api_user["id"], "api_key_id": api_user["api_key_id"], "is_admin": is_admin},
         name=f"bulk-{bulk_job['id']}",
     )
 
@@ -537,14 +532,12 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
 
-    # Reserve credits if analyzing immediately
+    # Reserve credits atomically if analyzing immediately
     if body.analyze and not is_admin:
         credits_needed = n * 100
-        if usage.get("bonus_credits", 0) < credits_needed:
+        ok = await use_credit(api_user["id"], cents=credits_needed)
+        if not ok:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(api_user["id"], cents=credits_needed)
-        if not reserved:
-            raise HTTPException(status_code=402, detail="Insufficient credits")
 
     lst = await create_list(api_user["id"], api_user["api_key_id"], body.name.strip())
     await add_list_accounts(lst["id"], validated_urls)
@@ -552,8 +545,9 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     if body.analyze:
         await update_list_credits(lst["id"], n * 100)
         await update_list_status(lst["id"], "analyzing")
-        create_tracked_task(
-            run_list_analysis(lst["id"], api_user["id"], api_user["api_key_id"], is_admin=is_admin),
+        await create_tracked_task(
+            "list_analysis",
+            {"list_id": lst["id"], "user_id": api_user["id"], "api_key_id": api_user["api_key_id"], "is_admin": is_admin},
             name=f"list-{lst['id']}",
         )
         status = "analyzing"
@@ -592,15 +586,14 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
 
     if not is_admin:
         credits_needed = n * 100
-        if usage.get("bonus_credits", 0) < credits_needed:
+        ok = await use_credit(api_user["id"], cents=credits_needed)
+        if not ok:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
-        reserved = await use_credit(api_user["id"], cents=credits_needed)
-        if not reserved:
-            raise HTTPException(status_code=402, detail="Insufficient credits")
 
     await update_list_credits(list_id, (lst["credits_reserved"] or 0) + n * 100)
-    create_tracked_task(
-        run_list_analysis(list_id, api_user["id"], api_user["api_key_id"], is_admin=is_admin),
+    await create_tracked_task(
+        "list_analysis",
+        {"list_id": list_id, "user_id": api_user["id"], "api_key_id": api_user["api_key_id"], "is_admin": is_admin},
         name=f"list-analyze-{list_id}",
     )
 

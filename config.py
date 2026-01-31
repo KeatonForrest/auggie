@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     # Database pool sizing
     db_pool_min: int = 5
     db_pool_max: int = 20
+    db_pool_acquire_timeout: int = 10
+    db_statement_timeout: int = 30
 
     # Feature flags
     materials_enabled: bool = False

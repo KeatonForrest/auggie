@@ -599,7 +599,7 @@ class TestValidateWebhookUrl:
 class TestSalesforceConnectRoute:
     @pytest.mark.asyncio
     async def test_redirects_to_salesforce(self, authed_client):
-        with patch("services.salesforce.get_authorize_url", return_value="https://login.salesforce.com/services/oauth2/authorize?test=1"):
+        with patch("routes.integrations.salesforce_authorize_url", return_value="https://login.salesforce.com/services/oauth2/authorize?test=1"):
             response = await authed_client.get("/integrations/salesforce/connect", follow_redirects=False)
 
         assert response.status_code in (302, 307)
@@ -609,7 +609,7 @@ class TestSalesforceConnectRoute:
 class TestSalesforceDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect_deletes_integration(self, authed_client):
-        with patch("database.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
             response = await authed_client.post("/integrations/salesforce/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
@@ -619,13 +619,13 @@ class TestSalesforceDisconnectRoute:
 class TestSalesforceImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("main.use_credit", new_callable=AsyncMock), \
-             patch("main.create_list", new_callable=AsyncMock, return_value={"id": 55}), \
-             patch("main.add_list_accounts", new_callable=AsyncMock), \
-             patch("main.update_list_credits", new_callable=AsyncMock), \
+        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 55}), \
+             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
+             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
              patch("database.set_list_source", new_callable=AsyncMock) as mock_source, \
-             patch("main.create_tracked_task"):
+             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
                 "/integrations/salesforce/import",
@@ -657,7 +657,7 @@ class TestSalesforceImportRoute:
 
     @pytest.mark.asyncio
     async def test_import_rejects_insufficient_credits(self, authed_client):
-        with patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
+        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
             response = await authed_client.post(
                 "/integrations/salesforce/import",
                 json={"accounts": [{"id": "001xx1", "website": "acme.com"}], "name": "Test"},
@@ -672,8 +672,8 @@ class TestSalesforceImportRoute:
 class TestApolloConnectRoute:
     @pytest.mark.asyncio
     async def test_valid_key_connects(self, authed_client):
-        with patch("services.apollo.validate_integration_api_key", new_callable=AsyncMock, return_value=True), \
-             patch("database.upsert_integration", new_callable=AsyncMock) as mock_upsert:
+        with patch("routes.integrations.apollo_validate", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
 
             response = await authed_client.post(
                 "/integrations/apollo/connect",
@@ -686,7 +686,7 @@ class TestApolloConnectRoute:
 
     @pytest.mark.asyncio
     async def test_invalid_key_rejected(self, authed_client):
-        with patch("services.apollo.validate_integration_api_key", new_callable=AsyncMock, return_value=False):
+        with patch("routes.integrations.apollo_validate", new_callable=AsyncMock, return_value=False):
             response = await authed_client.post(
                 "/integrations/apollo/connect",
                 json={"api_key": "bad-key"},
@@ -706,7 +706,7 @@ class TestApolloConnectRoute:
 class TestApolloDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect(self, authed_client):
-        with patch("database.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
             response = await authed_client.post("/integrations/apollo/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
@@ -722,12 +722,12 @@ class TestApolloImportRoute:
                      {"id": "org2", "primary_domain": "beta.com"},
                  ],
              }), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("main.use_credit", new_callable=AsyncMock), \
-             patch("main.create_list", new_callable=AsyncMock, return_value={"id": 60}), \
-             patch("main.add_list_accounts", new_callable=AsyncMock), \
-             patch("main.update_list_credits", new_callable=AsyncMock), \
-             patch("main.create_tracked_task"):
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 60}), \
+             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
+             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
+             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
                 "/integrations/apollo/import",
@@ -755,8 +755,8 @@ class TestApolloImportRoute:
 class TestOceanConnectRoute:
     @pytest.mark.asyncio
     async def test_valid_key_connects(self, authed_client):
-        with patch("services.ocean.validate_api_key", new_callable=AsyncMock, return_value=True), \
-             patch("database.upsert_integration", new_callable=AsyncMock) as mock_upsert:
+        with patch("routes.integrations.ocean_validate", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
 
             response = await authed_client.post(
                 "/integrations/ocean/connect",
@@ -769,7 +769,7 @@ class TestOceanConnectRoute:
 
     @pytest.mark.asyncio
     async def test_invalid_key_rejected(self, authed_client):
-        with patch("services.ocean.validate_api_key", new_callable=AsyncMock, return_value=False):
+        with patch("routes.integrations.ocean_validate", new_callable=AsyncMock, return_value=False):
             response = await authed_client.post(
                 "/integrations/ocean/connect",
                 json={"api_key": "bad-key"},
@@ -781,7 +781,7 @@ class TestOceanConnectRoute:
 class TestOceanDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect(self, authed_client):
-        with patch("database.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
             response = await authed_client.post("/integrations/ocean/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
@@ -797,12 +797,12 @@ class TestOceanImportRoute:
                      {"id": "c2", "domain": "beta.com"},
                  ],
              }), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("main.use_credit", new_callable=AsyncMock), \
-             patch("main.create_list", new_callable=AsyncMock, return_value={"id": 70}), \
-             patch("main.add_list_accounts", new_callable=AsyncMock), \
-             patch("main.update_list_credits", new_callable=AsyncMock), \
-             patch("main.create_tracked_task"):
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 70}), \
+             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
+             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
+             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
                 "/integrations/ocean/import",
@@ -830,8 +830,8 @@ class TestOceanImportRoute:
 class TestSlackConnectRoute:
     @pytest.mark.asyncio
     async def test_valid_webhook_connects(self, authed_client):
-        with patch("services.notifications.validate_webhook_url", new_callable=AsyncMock, return_value=True), \
-             patch("database.upsert_integration", new_callable=AsyncMock) as mock_upsert:
+        with patch("routes.integrations.validate_webhook_url", new_callable=AsyncMock, return_value=True), \
+             patch("routes.integrations.upsert_integration", new_callable=AsyncMock) as mock_upsert:
 
             response = await authed_client.post(
                 "/integrations/slack/connect",
@@ -844,7 +844,7 @@ class TestSlackConnectRoute:
 
     @pytest.mark.asyncio
     async def test_invalid_webhook_rejected(self, authed_client):
-        with patch("services.notifications.validate_webhook_url", new_callable=AsyncMock, return_value=False):
+        with patch("routes.integrations.validate_webhook_url", new_callable=AsyncMock, return_value=False):
             response = await authed_client.post(
                 "/integrations/slack/connect",
                 json={"webhook_url": "https://bad-url.com"},
@@ -864,7 +864,7 @@ class TestSlackConnectRoute:
 class TestSlackDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect(self, authed_client):
-        with patch("database.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
             response = await authed_client.post("/integrations/slack/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
@@ -874,8 +874,8 @@ class TestSlackDisconnectRoute:
 class TestSlackTestRoute:
     @pytest.mark.asyncio
     async def test_sends_test_message(self, authed_client):
-        with patch("database.get_integration", new_callable=AsyncMock, return_value={"access_token": "https://hooks.slack.com/test"}), \
-             patch("services.notifications.send_slack_notification", new_callable=AsyncMock, return_value=True):
+        with patch("routes.integrations.get_integration", new_callable=AsyncMock, return_value={"access_token": "https://hooks.slack.com/test"}), \
+             patch("routes.integrations.send_slack_notification", new_callable=AsyncMock, return_value=True):
 
             response = await authed_client.post("/integrations/slack/test")
 
@@ -884,7 +884,7 @@ class TestSlackTestRoute:
 
     @pytest.mark.asyncio
     async def test_fails_when_not_connected(self, authed_client):
-        with patch("database.get_integration", new_callable=AsyncMock, return_value=None):
+        with patch("routes.integrations.get_integration", new_callable=AsyncMock, return_value=None):
             response = await authed_client.post("/integrations/slack/test")
 
         assert response.status_code == 400
@@ -897,8 +897,8 @@ class TestSlackTestRoute:
 class TestIntegrationsPageNewProviders:
     @pytest.mark.asyncio
     async def test_page_shows_new_providers(self, authed_client):
-        with patch("database.get_user_integrations", new_callable=AsyncMock, return_value=[]), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[]), \
+             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
 
             response = await authed_client.get("/integrations")
 
@@ -914,8 +914,8 @@ class TestIntegrationsPageNewProviders:
             {"provider": "salesforce", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
             {"provider": "slack", "access_token": "url", "created_at": datetime.now(), "updated_at": datetime.now()},
         ]
-        with patch("database.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
+             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
 
             response = await authed_client.get("/integrations")
 

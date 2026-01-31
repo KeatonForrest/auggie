@@ -395,8 +395,8 @@ class TestInstantlyPushAccounts:
 class TestIntegrationsPage:
     @pytest.mark.asyncio
     async def test_integrations_page_loads(self, authed_client):
-        with patch("database.get_user_integrations", new_callable=AsyncMock, return_value=[]), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[]), \
+             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
 
             response = await authed_client.get("/integrations")
 
@@ -409,8 +409,8 @@ class TestIntegrationsPage:
         integrations = [
             {"provider": "hubspot", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
         ]
-        with patch("database.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
-             patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
+             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
 
             response = await authed_client.get("/integrations")
 
@@ -421,7 +421,7 @@ class TestIntegrationsPage:
 class TestHubSpotConnectRoute:
     @pytest.mark.asyncio
     async def test_redirects_to_hubspot(self, authed_client):
-        with patch("services.hubspot.get_authorize_url", return_value="https://app.hubspot.com/oauth/authorize?test=1"):
+        with patch("routes.integrations.hubspot_authorize_url", return_value="https://app.hubspot.com/oauth/authorize?test=1"):
             response = await authed_client.get("/integrations/hubspot/connect", follow_redirects=False)
 
         assert response.status_code in (302, 307)
@@ -431,7 +431,7 @@ class TestHubSpotConnectRoute:
 class TestHubSpotDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect_deletes_integration(self, authed_client):
-        with patch("database.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
             response = await authed_client.post("/integrations/hubspot/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
@@ -441,8 +441,8 @@ class TestHubSpotDisconnectRoute:
 class TestInstantlyConnectRoute:
     @pytest.mark.asyncio
     async def test_valid_key_connects(self, authed_client):
-        with patch("services.instantly.validate_api_key", new_callable=AsyncMock, return_value=True), \
-             patch("database.upsert_integration", new_callable=AsyncMock) as mock_upsert:
+        with patch("routes.integrations.instantly_validate", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
 
             response = await authed_client.post(
                 "/integrations/instantly/connect",
@@ -456,7 +456,7 @@ class TestInstantlyConnectRoute:
 
     @pytest.mark.asyncio
     async def test_invalid_key_rejected(self, authed_client):
-        with patch("services.instantly.validate_api_key", new_callable=AsyncMock, return_value=False):
+        with patch("routes.integrations.instantly_validate", new_callable=AsyncMock, return_value=False):
             response = await authed_client.post(
                 "/integrations/instantly/connect",
                 json={"api_key": "bad-key"},
@@ -476,13 +476,13 @@ class TestInstantlyConnectRoute:
 class TestHubSpotImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("main.use_credit", new_callable=AsyncMock), \
-             patch("main.create_list", new_callable=AsyncMock, return_value={"id": 42}), \
-             patch("main.add_list_accounts", new_callable=AsyncMock), \
-             patch("main.update_list_credits", new_callable=AsyncMock), \
+        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
+             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 42}), \
+             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
+             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
              patch("database.set_list_source", new_callable=AsyncMock) as mock_source, \
-             patch("main.create_tracked_task"):
+             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
                 "/integrations/hubspot/import",
@@ -514,7 +514,7 @@ class TestHubSpotImportRoute:
 
     @pytest.mark.asyncio
     async def test_import_rejects_insufficient_credits(self, authed_client):
-        with patch("main.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
+        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
             response = await authed_client.post(
                 "/integrations/hubspot/import",
                 json={
@@ -528,14 +528,14 @@ class TestHubSpotImportRoute:
 class TestPushToInstantlyRoute:
     @pytest.mark.asyncio
     async def test_push_succeeds(self, authed_client):
-        with patch("main.get_list", new_callable=AsyncMock, return_value={"id": 1, "user_id": 1}), \
-             patch("main.get_list_accounts", new_callable=AsyncMock, return_value=[
+        with patch("database.get_list", new_callable=AsyncMock, return_value={"id": 1, "user_id": 1}), \
+             patch("routes._helpers.get_list_accounts", new_callable=AsyncMock, return_value=[
                  {"id": 10, "status": "completed", "document_id": 100, "company_name": "Acme", "company_url": "https://acme.com"},
              ]), \
-             patch("database.get_enriched_contacts", new_callable=AsyncMock, return_value=[
+             patch("routes._helpers.get_enriched_contacts", new_callable=AsyncMock, return_value=[
                  {"email": "john@acme.com", "first_name": "John", "last_name": "Doe", "title": "CEO"},
              ]), \
-             patch("services.instantly.push_accounts_to_instantly", new_callable=AsyncMock, return_value={"pushed": 1, "skipped": 0, "errors": 0}) as mock_push:
+             patch("routes.lists.push_accounts_to_instantly", new_callable=AsyncMock, return_value={"pushed": 1, "skipped": 0, "errors": 0}) as mock_push:
 
             response = await authed_client.post(
                 "/lists/1/push-instantly",
@@ -557,7 +557,7 @@ class TestPushToInstantlyRoute:
 
     @pytest.mark.asyncio
     async def test_push_rejects_wrong_user(self, authed_client):
-        with patch("main.get_list", new_callable=AsyncMock, return_value=None):
+        with patch("database.get_list", new_callable=AsyncMock, return_value=None):
             response = await authed_client.post(
                 "/lists/1/push-instantly",
                 json={"campaign_id": "camp-1"},

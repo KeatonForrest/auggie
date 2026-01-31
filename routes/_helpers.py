@@ -210,7 +210,9 @@ async def _run_crm_import(
         )
 
     if not is_admin:
-        await use_credit(user["id"], cents=needed)
+        ok = await use_credit(user["id"], cents=needed)
+        if not ok:
+            return JSONResponse({"success": False, "error": "Not enough credits"}, status_code=402)
 
     lst = await create_list(user["id"], api_key_id=None, name=list_name)
     await add_list_accounts(lst["id"], valid_urls)
@@ -221,8 +223,9 @@ async def _run_crm_import(
         if metadata:
             await set_list_source(lst["id"], metadata)
 
-    create_tracked_task(
-        run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin),
+    await create_tracked_task(
+        "list_analysis",
+        {"list_id": lst["id"], "user_id": user["id"], "api_key_id": None, "is_admin": is_admin},
         name=f"list-{lst['id']}",
     )
 
@@ -299,28 +302,3 @@ async def _push_drafts_to_integration(user: dict, list_id: int, account_ids: lis
 # Retry helper
 # ---------------------------------------------------------------------------
 
-async def _execute_retry(user_id: int, account_id: int, company_url: str, job_id: int, is_admin: bool):
-    """Execute a single account retry (replaces inline closures)."""
-    from api.jobs import _run_research_pipeline
-    from database import update_job_status, get_document as get_doc, update_list_account
-
-    try:
-        doc_id = await _run_research_pipeline(user_id, company_url)
-        await update_job_status(job_id, "completed", document_id=doc_id)
-        doc = await get_doc(doc_id, user_id)
-        await update_list_account(
-            account_id, "completed",
-            document_id=doc_id,
-            research_job_id=job_id,
-            pain_score=doc.pain_score,
-            fit_score=doc.fit_score,
-            timing_score=doc.timing_score,
-            composite_score=doc.opportunity_score,
-            company_name=doc.company_name,
-        )
-    except Exception as e:
-        if not is_admin:
-            await refund_credit(user_id)
-        error_msg = str(e)[:500]
-        await update_job_status(job_id, "failed", error_message=error_msg)
-        await update_list_account(account_id, "failed", research_job_id=job_id, error_message=error_msg)

@@ -15,14 +15,15 @@ from database import (
     create_list, add_list_accounts, update_list_credits,
     list_lists, get_list, get_list_accounts,
     get_pipeline_counts, count_ready_accounts,
-    create_research_job, get_list_account, reset_list_account,
+    get_list_account, reset_list_account,
     get_integration, update_list_account,
 )
+from db.jobs import create_job_with_credit, create_research_job
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
 from routes._helpers import (
     normalize_url, templates, logger,
-    _push_contacts_to_integration, _push_drafts_to_integration, _execute_retry,
+    _push_contacts_to_integration, _push_drafts_to_integration,
 )
 from routes.schemas import PushCampaignRequest, PushSequencesRequest, AccountIdsRequest
 from services.instantly import push_accounts_to_instantly
@@ -128,9 +129,11 @@ async def upload_list_csv(
             detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
         )
 
-    # Reserve credits
+    # Reserve credits atomically
     if not is_admin:
-        await use_credit(user["id"], cents=needed)
+        ok = await use_credit(user["id"], cents=needed)
+        if not ok:
+            raise HTTPException(status_code=402, detail=f"Not enough credits.")
 
     # Create list
     name = list_name.strip() or (file.filename.rsplit(".", 1)[0] if file.filename else "Uploaded List")
@@ -139,7 +142,7 @@ async def upload_list_csv(
     await update_list_credits(lst["id"], needed)
 
     # Start analysis in background
-    create_tracked_task(run_list_analysis(lst["id"], user["id"], api_key_id=None, is_admin=is_admin), name=f"list-{lst['id']}")
+    await create_tracked_task("list_analysis", {"list_id": lst["id"], "user_id": user["id"], "api_key_id": None, "is_admin": is_admin}, name=f"list-{lst['id']}")
 
     return RedirectResponse(url=f"/lists/{lst['id']}", status_code=303)
 
@@ -292,8 +295,9 @@ async def batch_write_sequences(
         body = {}
     account_ids = body.get("account_ids")
 
-    create_tracked_task(
-        run_batch_write_sequences(list_id, user["id"], account_ids=account_ids),
+    await create_tracked_task(
+        "batch_write",
+        {"list_id": list_id, "user_id": user["id"], "account_ids": account_ids},
         name=f"write-seq-{list_id}",
     )
 
@@ -362,13 +366,13 @@ async def retry_selected_accounts(
     if not failed:
         return JSONResponse({"success": False, "error": "No failed accounts in selection"}, status_code=400)
 
-    # Reserve credits
+    # Reserve credits atomically
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
     needed = len(failed) * 100
     if not is_admin:
-        reserved = await use_credit(user["id"], cents=needed)
-        if not reserved:
+        ok = await use_credit(user["id"], cents=needed)
+        if not ok:
             return JSONResponse({"success": False, "error": "Not enough credits"}, status_code=402)
 
     # Reset and start retries
@@ -378,8 +382,9 @@ async def retry_selected_accounts(
         job = await create_research_job(user["id"], api_key_id=None, company_url=a["company_url"])
         await update_list_account(a["id"], "processing", research_job_id=job["id"])
 
-        create_tracked_task(
-            _execute_retry(user["id"], a["id"], a["company_url"], job["id"], is_admin),
+        await create_tracked_task(
+            "retry",
+            {"user_id": user["id"], "account_id": a["id"], "company_url": a["company_url"], "job_id": job["id"], "is_admin": is_admin},
             name=f"retry-{a['id']}",
         )
         retried += 1
@@ -407,17 +412,19 @@ async def retry_list_account(
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
-        reserved = await use_credit(user["id"])
-        if not reserved:
+        try:
+            job = await create_job_with_credit(user["id"], api_key_id=None, company_url=account["company_url"])
+        except ValueError:
             return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
+    else:
+        job = await create_research_job(user["id"], api_key_id=None, company_url=account["company_url"])
 
     await reset_list_account(account_id)
-
-    job = await create_research_job(user["id"], api_key_id=None, company_url=account["company_url"])
     await update_list_account(account_id, "processing", research_job_id=job["id"])
 
-    create_tracked_task(
-        _execute_retry(user["id"], account_id, account["company_url"], job["id"], is_admin),
+    await create_tracked_task(
+        "retry",
+        {"user_id": user["id"], "account_id": account_id, "company_url": account["company_url"], "job_id": job["id"], "is_admin": is_admin},
         name=f"retry-{account_id}",
     )
     return JSONResponse({"success": True})
