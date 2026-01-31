@@ -76,9 +76,9 @@ def sample_research_document():
 @pytest.fixture
 def mock_services(sample_scraped_content, sample_tech_stack, sample_research_document):
     """Mock all three services at once."""
-    with patch("main.firecrawl_service") as mock_firecrawl, \
-         patch("main.wappalyzer_service") as mock_wappalyzer, \
-         patch("main.claude_service") as mock_claude:
+    with patch("routes.research.firecrawl_service") as mock_firecrawl, \
+         patch("routes.research.wappalyzer_service") as mock_wappalyzer, \
+         patch("routes.research.claude_service") as mock_claude:
 
         # Configure mock return values
         mock_firecrawl.scrape_company = AsyncMock(return_value=sample_scraped_content)

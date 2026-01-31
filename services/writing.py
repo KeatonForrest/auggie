@@ -71,7 +71,7 @@ class WritingService:
         low_confidence_closing = ""
         if opportunity_score is not None and opportunity_score < 50:
             low_confidence_block = f"""
-**LOW-CONFIDENCE RESEARCH — PARTIAL-SIGNAL MODE**
+**LOW-CONFIDENCE RESEARCH -- PARTIAL-SIGNAL MODE**
 
 The research score for this prospect is {opportunity_score}/100. The data is thin, ambiguous, or unconfirmed.
 
@@ -83,9 +83,9 @@ You MUST use partial-signal patterns for this sequence:
 - Position insights as benchmarks, not diagnoses
 - Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
 - Frame the ASK as "yours regardless" or "useful either way"
-- Lead with business initiatives, product launches, or market moves — not tech stack details
+- Lead with business initiatives, product launches, or market moves -- not tech stack details
 - Never reference what your research did or didn't uncover. Talk about what the prospect is DOING, not what your search turned up. Do not narrate the research process.
-- If you only have partial signals, lead with the business activity and pivot to the value question: "You're expanding into X — curious whether Y is on your radar."
+- If you only have partial signals, lead with the business activity and pivot to the value question: "You're expanding into X -- curious whether Y is on your radar."
 - Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
 - Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
 
@@ -98,15 +98,29 @@ Refer to Section B (Examples 41-50) for tone and structure. Those are your prima
 
 ---
 
-**FINAL CHECK — PARTIAL-SIGNAL MODE**
+**FINAL CHECK -- PARTIAL-SIGNAL MODE**
 
 BEFORE outputting your emails, re-read the PARTIAL-SIGNAL MODE block at the top. Then scan every sentence you wrote for:
 - Banned phrases: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "that combination"
-- Any sentence describing what your research did NOT find — rewrite to state only what you observed
-- Any condescending framing: "basic", "simple", "limited", "rudimentary", "might work fine", "works fine for now", "worth knowing" — describe their stack neutrally without grading it
+- Any sentence describing what your research did NOT find -- rewrite to state only what you observed
+- Any condescending framing: "basic", "simple", "limited", "rudimentary", "might work fine", "works fine for now", "worth knowing" -- describe their stack neutrally without grading it
 
 If any violations appear, rewrite those sentences before outputting. Do not output a first draft.
 """
+        msp_block = ""
+        if product_type == "msp":
+            msp_block = (
+                "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**\n"
+                "\n"
+                "- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.\n"
+                "- Frame around reliability, compliance, and freeing up leadership attention -- not digital transformation or innovation.\n"
+                "- The prospect is not a tech buyer -- avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.\n"
+                "- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.\n"
+                "- Position managed services as removing a burden, not adding a capability.\n"
+                "\n"
+                "---\n"
+                "\n"
+            )
         prompt = f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
 
 Count words before submitting each email. If over the limit, rewrite shorter.
@@ -119,17 +133,7 @@ These are requirements, not guidelines.
 
 ---
 
-{low_confidence_block}{"" if product_type != "msp" else """**MSP / IT SERVICES FRAMING — APPLY TO ALL EMAILS:**
-
-- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.
-- Frame around reliability, compliance, and freeing up leadership attention — not digital transformation or innovation.
-- The prospect is not a tech buyer — avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.
-- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.
-- Position managed services as removing a burden, not adding a capability.
-
----
-
-"""}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
+{low_confidence_block}{msp_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
 **Your job:** Use research to demonstrate you understand their problem, then explain why you can help. The research is proof of understanding, not the point of the email.
 
@@ -189,7 +193,7 @@ Constraints:
 - 75 words max
 - No product mentions
 - End with a statement, not a question
-- NEVER use "that combination usually" or "that combination" as a transition — find a more natural bridge
+- NEVER use "that combination usually" or "that combination" as a transition -- find a more natural bridge
 - NEVER cite your sources ("according to SEC filings", "based on your job postings", "your 10-K shows"). State what's happening as common knowledge. If you wouldn't say "according to SEC filings" in a real conversation, don't write it.
 
 Structure:
@@ -204,7 +208,7 @@ Structure:
 - Think "you're launching X" not "your stack uses Y"
 
 Bad: "I noticed your product domains show jQuery and Bootstrap across the board while you're hiring AI Engineers."
-Good: "You're launching Deal Intelligence while scaling your AI team — the companies shipping AI products fastest have found a way to avoid the frontend rewrite that usually slows things down."
+Good: "You're launching Deal Intelligence while scaling your AI team -- the companies shipping AI products fastest have found a way to avoid the frontend rewrite that usually slows things down."
 
 Bad: "I noticed you're running Postgres and Redis while migrating to microservices."
 Good: "You're breaking your monolith into services while keeping release velocity up. Most teams in that transition hit a data layer bottleneck they don't see coming."
@@ -256,9 +260,9 @@ MongoDB handles the mixed workload pattern your AI agents need. Worth a short co
 
 The following 50 examples show the PEA framework in action. They are split into two sections:
 
-**Section A (Examples 1-40): Full-Confidence PVPs** — Multiple confirming signals triangulate to a specific pain. Use these as patterns for standard outreach.
+**Section A (Examples 1-40): Full-Confidence PVPs** -- Multiple confirming signals triangulate to a specific pain. Use these as patterns for standard outreach.
 
-**Section B (Examples 41-50): Partial-Signal PVPs** — Only one signal available, signal is ambiguous, stale, or lacks company-specific confirmation. These demonstrate how to write valuable sequences when data is incomplete.
+**Section B (Examples 41-50): Partial-Signal PVPs** -- Only one signal available, signal is ambiguous, stale, or lacks company-specific confirmation. These demonstrate how to write valuable sequences when data is incomplete.
 
 ---
 
@@ -1206,8 +1210,8 @@ When Auggie has incomplete, ambiguous, or unconfirmed data, use these patterns. 
 - Use when: only 1 signal available, signal older than 60 days, signal has multiple interpretations, only industry/stage data without company-specific confirmation
 
 Example 41: Single Signal, Multiple Interpretations
-Signal quality: Low-Confidence — Single job posting
-What Auggie found: Job posting for "Data Engineer" — no other signals
+Signal quality: Low-Confidence -- Single job posting
+What Auggie found: Job posting for "Data Engineer" -- no other signals
 What's missing: Supporting context (pipeline issues, data product plans, infrastructure scaling)
 Hedging pattern: Names multiple interpretations, offers value for one, gives permission to ignore for others
 
@@ -1230,8 +1234,8 @@ We build the data reliability layer that helped that company clear their debt. I
 ---
 
 Example 42: Signal Present, Severity Unknown
-Signal quality: Low-Confidence — Unconfirmed severity
-What Auggie found: G2 reviews mention "steep learning curve" — no other confirmation
+Signal quality: Low-Confidence -- Unconfirmed severity
+What Auggie found: G2 reviews mention "steep learning curve" -- no other confirmation
 What's missing: Activation rate data, volume of affected users, CS team response
 Hedging pattern: Acknowledges inability to gauge severity from outside, offers benchmark value either way
 
@@ -1254,7 +1258,7 @@ We build the onboarding analytics layer that helped that company find their stal
 ---
 
 Example 43: Timing-Based Hedge
-Signal quality: Low-Confidence — Pain may not have materialized yet
+Signal quality: Low-Confidence -- Pain may not have materialized yet
 What Auggie found: Series B announcement, expanding to enterprise segment
 What's missing: Confirmation that security questionnaires or procurement friction have started
 Hedging pattern: Acknowledges it might be too early, offers value tied to a specific future trigger
@@ -1278,7 +1282,7 @@ We help companies prepare for enterprise security requirements before deals stal
 ---
 
 Example 44: Industry Pressure Without Company Confirmation
-Signal quality: Low-Confidence — Industry trend only, no company-specific signal
+Signal quality: Low-Confidence -- Industry trend only, no company-specific signal
 What Auggie found: Company is in healthcare IT, no specific pain signals
 What's missing: Any company-specific indicator of compliance pressure, audit burden, or security review friction
 Hedging pattern: Leads with industry context, explicitly states uncertainty about company-specific relevance
@@ -1302,8 +1306,8 @@ We build the compliance automation layer that helped that company scale their au
 ---
 
 Example 45: Role Hire Without Context
-Signal quality: Low-Confidence — Leadership hire with ambiguous intent
-What Auggie found: Hired VP of Customer Success (LinkedIn) — no other signals
+Signal quality: Low-Confidence -- Leadership hire with ambiguous intent
+What Auggie found: Hired VP of Customer Success (LinkedIn) -- no other signals
 What's missing: NRR data, churn indicators, expansion metrics, or team maturity signals
 Hedging pattern: Names three possible interpretations, offers value for one, explicitly opts out of the others
 
@@ -1326,7 +1330,7 @@ We build the customer intelligence layer that helped that company find their NRR
 ---
 
 Example 46: Competitor Signal Only
-Signal quality: Low-Confidence — External market event, no company-specific reaction
+Signal quality: Low-Confidence -- External market event, no company-specific reaction
 What Auggie found: Competitor just raised Series C, likely creating pressure
 What's missing: Any indication the company is changing strategy, accelerating spend, or feeling competitive pressure
 Hedging pattern: Frames as market context, explicitly acknowledges it may not be changing anything for the company
@@ -1350,7 +1354,7 @@ We help companies build efficient GTM motions. If you're evaluating any changes 
 ---
 
 Example 47: Partial Funnel Visibility
-Signal quality: Low-Confidence — Conflicting public signals
+Signal quality: Low-Confidence -- Conflicting public signals
 What Auggie found: High traffic (SimilarWeb) but low app store ratings with friction themes
 What's missing: Actual conversion data, activation rates, whether ratings reflect current or legacy experience
 Hedging pattern: Names the ambiguity between traffic and ratings, offers framework rather than diagnosis
@@ -1374,8 +1378,8 @@ We build the product analytics layer that helped that company find their drop-of
 ---
 
 Example 48: Stale Signal
-Signal quality: Low-Confidence — Signal older than 60 days
-What Auggie found: Job posting from 3 months ago for "Revenue Operations Manager" — may be filled
+Signal quality: Low-Confidence -- Signal older than 60 days
+What Auggie found: Job posting from 3 months ago for "Revenue Operations Manager" -- may be filled
 What's missing: Confirmation role is still open, whether the hire has ramped, current state of pipeline visibility
 Hedging pattern: Acknowledges the signal may be outdated, offers value that's useful even if the problem is being solved
 
@@ -1398,9 +1402,9 @@ We build the revenue intelligence layer that helped that company fix their forec
 ---
 
 Example 49: Inferred Pain From Funding Stage
-Signal quality: Low-Confidence — Stage-based inference only
+Signal quality: Low-Confidence -- Stage-based inference only
 What Auggie found: Series A announced, 30 employees on LinkedIn
-What's missing: Any specific operational pain signal — just stage and size
+What's missing: Any specific operational pain signal -- just stage and size
 Hedging pattern: Frames as stage-typical patterns, explicitly invites self-selection on which pain resonates
 
 Email 1 - PREVIEW
@@ -1422,8 +1426,8 @@ We help companies build the ops foundation that scales past 30 people. If any of
 ---
 
 Example 50: Public Metric Without Context
-Signal quality: Low-Confidence — Visible metric without trend data
-What Auggie found: NPS score visible on website (42) — no trend data
+Signal quality: Low-Confidence -- Visible metric without trend data
+What Auggie found: NPS score visible on website (42) -- no trend data
 What's missing: Historical trend, segment breakdown, whether the score is improving or declining
 Hedging pattern: Acknowledges the number without judging it, offers context that's valuable regardless of direction
 

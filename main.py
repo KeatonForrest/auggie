@@ -23,6 +23,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+import pydantic
+
 from config import get_settings
 from database import init_database, close_database, get_all_documents, get_user_usage, get_user_materials
 from services.collect import close_shared_http_client
@@ -165,6 +167,11 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             status_code=exc.status_code,
         )
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(pydantic.ValidationError)
+async def pydantic_validation_handler(request: Request, exc: pydantic.ValidationError):
+    return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
 @app.exception_handler(Exception)
