@@ -70,6 +70,10 @@ async def _dispatch(task: dict) -> None:
         logger.error("Task %d (%s) failed: %s", task_id, task_type, e, exc_info=True)
         exhausted = await task_queue.fail(task_id, str(e)[:2000])
         if exhausted:
+            # Refund credit for research jobs whose retries are fully exhausted
+            if task_type == "research" and not payload.get("is_admin"):
+                from database import refund_credit
+                await refund_credit(payload["user_id"])
             try:
                 from services.notifications import send_task_failure_alert
                 await send_task_failure_alert(task_id, task_type, str(e)[:2000])
