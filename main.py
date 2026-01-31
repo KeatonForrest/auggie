@@ -86,7 +86,25 @@ async def lifespan(app: FastAPI):
     # Warn if default session secret is used in non-localhost mode
     if "localhost" not in settings.app_url and settings.session_secret == "dev-secret-change-in-production":
         logger.warning("Using default session secret in production! Set SESSION_SECRET to a strong random value.")
+
+    # Start the task queue worker in-process
+    from worker import _poll_loop, _shutdown, MAX_CONCURRENT, WORKER_ID
+    import asyncio as _asyncio
+    _sem = _asyncio.Semaphore(MAX_CONCURRENT)
+    _worker_task = _asyncio.create_task(_poll_loop(_sem))
+    logger.info("In-process worker %s started", WORKER_ID)
+
     yield
+
+    # Shut down worker gracefully
+    logger.info("Shutting down worker...")
+    _shutdown.set()
+    _worker_task.cancel()
+    try:
+        await _worker_task
+    except _asyncio.CancelledError:
+        pass
+
     logger.info("Shutting down...")
     await close_shared_http_client()
     await close_database()
