@@ -5,6 +5,7 @@ import hashlib
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 import httpx
 
@@ -136,3 +137,50 @@ async def search_companies(user_id: int, query: str, page: int = 1) -> list[dict
             "country": c.get("country", ""),
         })
     return results
+
+
+async def get_firmographics(user_id: int, domain: str) -> Optional[str]:
+    """Fetch firmographic data from ZoomInfo for scoring.
+
+    Returns formatted string for Claude prompt, or None if not connected/no match.
+    """
+    try:
+        integration = await get_integration(user_id, "zoominfo")
+        if not integration:
+            return None
+
+        domain = domain.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+        results = await search_companies(user_id, domain)
+        if not results:
+            return None
+
+        # Best-match by domain similarity
+        best = None
+        for r in results:
+            website = (r.get("website") or "").replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+            if website.lower() == domain.lower():
+                best = r
+                break
+        if not best:
+            best = results[0]
+
+        lines = []
+        lines.append(f"**Company:** {best.get('name', domain)}")
+        if best.get("employeeCount"):
+            lines.append(f"**Employees:** {best['employeeCount']:,}")
+        if best.get("revenue"):
+            lines.append(f"**Revenue:** ${best['revenue']:,.0f}")
+        if best.get("city") or best.get("state") or best.get("country"):
+            location_parts = [p for p in [best.get("city"), best.get("state"), best.get("country")] if p]
+            lines.append(f"**Location:** {', '.join(location_parts)}")
+
+        if len(lines) <= 1:
+            return None
+
+        lines.append("")
+        lines.append("(This is CONFIRMED firmographic data from ZoomInfo — use it to validate or override inferred company size/industry for Fit scoring.)")
+        return "\n".join(lines)
+
+    except Exception as e:
+        logger.warning("ZoomInfo firmographics fetch failed (non-fatal): %s", e)
+        return None

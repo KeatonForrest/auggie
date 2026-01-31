@@ -464,6 +464,11 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("Marketing sites often use different tech than the product itself.")
             sections.append("")
 
+        if scraped.firmographics:
+            sections.append("## CONFIRMED Firmographic Data (from connected data provider)")
+            sections.append(scraped.firmographics)
+            sections.append("")
+
         if scraped.homepage:
             sections.append("## Homepage Content")
             sections.append(scraped.homepage[:5000])

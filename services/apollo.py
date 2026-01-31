@@ -327,6 +327,78 @@ class ApolloService:
 # Integration functions (API key connect, saved list import)
 # =============================================================================
 
+async def get_firmographics_for_user(user_id: int, domain: str) -> Optional[str]:
+    """Fetch firmographic data using a user's connected Apollo API key.
+
+    Returns formatted string for Claude prompt, or None if not connected/no data.
+    """
+    try:
+        integration = await get_integration(user_id, "apollo")
+        if not integration:
+            return None
+
+        api_key = integration["access_token"]
+        domain = domain.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.apollo.io/v1/mixed_companies/search",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "api_key": api_key,
+                    "q_organization_domains": domain,
+                    "page": 1,
+                    "per_page": 1,
+                },
+            )
+            if response.status_code != 200:
+                return None
+
+            data = response.json()
+            orgs = data.get("organizations", []) or data.get("accounts", [])
+            if not orgs:
+                return None
+
+            org = orgs[0]
+
+        lines = []
+        lines.append(f"**Company:** {org.get('name', domain)}")
+        if org.get("industry"):
+            lines.append(f"**Industry:** {org['industry']}")
+        if org.get("estimated_num_employees"):
+            lines.append(f"**Employees:** {org['estimated_num_employees']}")
+        if org.get("annual_revenue_printed"):
+            lines.append(f"**Revenue:** {org['annual_revenue_printed']}")
+        if org.get("annual_revenue"):
+            lines.append(f"**Revenue (raw):** ${org['annual_revenue']:,.0f}")
+        if org.get("founded_year"):
+            lines.append(f"**Founded:** {org['founded_year']}")
+        if org.get("total_funding"):
+            lines.append(f"**Total Funding:** ${org['total_funding']:,.0f}")
+        if org.get("total_funding_printed"):
+            lines.append(f"**Total Funding:** {org['total_funding_printed']}")
+        if org.get("latest_funding_round_date"):
+            lines.append(f"**Latest Funding Round:** {org['latest_funding_round_date']}")
+        if org.get("latest_funding_stage"):
+            lines.append(f"**Latest Funding Stage:** {org['latest_funding_stage']}")
+        if org.get("latest_funding_round_amount"):
+            lines.append(f"**Latest Round Amount:** ${org['latest_funding_round_amount']:,.0f}")
+        if org.get("publicly_traded_symbol"):
+            lines.append(f"**Ticker:** {org['publicly_traded_symbol']}")
+            lines.append(f"**Publicly Traded:** Yes")
+
+        if len(lines) <= 1:
+            return None
+
+        lines.append("")
+        lines.append("(This is CONFIRMED firmographic data from Apollo.io — use it to validate or override inferred company size/industry for Fit scoring.)")
+        return "\n".join(lines)
+
+    except Exception as e:
+        logger.warning("Apollo firmographics fetch failed (non-fatal): %s", e)
+        return None
+
+
 APOLLO_API_BASE = "https://api.apollo.io/v1"
 
 

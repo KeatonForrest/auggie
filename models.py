@@ -24,6 +24,7 @@ class ScrapedContent(BaseModel):
     investor_relations: Optional[str] = None
     edgar_filings: Optional[str] = None
     federal_regulations: Optional[str] = None
+    firmographics: Optional[str] = None
 
 
 class DetectedTechnology(BaseModel):

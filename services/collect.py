@@ -17,6 +17,9 @@ from services.news import NewsService
 from services.edgar import EdgarService
 from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
+from database import get_integration
+from services.zoominfo import get_firmographics as zoominfo_get_firmographics
+from services.apollo import get_firmographics_for_user as apollo_get_firmographics
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +129,23 @@ async def collect_enrichment_data(
                 logger.warning("Federal Register lookup failed (non-fatal): %s", e)
             return None
 
+    async def _fetch_firmographics():
+        """Fetch firmographic data from connected providers (ZoomInfo preferred)."""
+        try:
+            zi = await get_integration(user_id, "zoominfo")
+            if zi:
+                result = await zoominfo_get_firmographics(user_id, company_name)
+                if result:
+                    return result
+            ap = await get_integration(user_id, "apollo")
+            if ap:
+                return await apollo_get_firmographics(user_id, company_name)
+            return None
+        except Exception as e:
+            if verbose:
+                logger.warning("Firmographics fetch failed (non-fatal): %s", e)
+            return None
+
     async def _fetch_materials():
         retrieval = _get_retrieval_service()
         if not retrieval:
@@ -145,10 +165,11 @@ async def collect_enrichment_data(
         logger.debug("Fetching enrichment data for %s (parallel)...", company_name)
 
     # Run EDGAR, news, materials in parallel
-    news_result, edgar_content, materials_result = await asyncio.gather(
+    news_result, edgar_content, materials_result, firmographics_result = await asyncio.gather(
         _fetch_news(),
         _fetch_edgar(),
         _fetch_materials(),
+        _fetch_firmographics(),
     )
 
     # Federal Register depends on EDGAR's SIC code, so run after EDGAR completes
@@ -167,4 +188,8 @@ async def collect_enrichment_data(
         scraped_content.federal_regulations = fed_content
         if verbose:
             logger.debug("Found relevant regulations")
+    if firmographics_result:
+        scraped_content.firmographics = firmographics_result
+        if verbose:
+            logger.debug("Found firmographic data from connected provider")
     return materials_result
