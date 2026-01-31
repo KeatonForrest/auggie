@@ -10,7 +10,7 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
     """Get a user by their Google ID."""
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM users WHERE google_id = $1",
+            "SELECT id, org_id FROM users WHERE google_id = $1",
             google_id
         )
         return dict(row) if row else None
@@ -20,7 +20,7 @@ async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
     """Get a user by their Microsoft ID."""
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM users WHERE microsoft_id = $1",
+            "SELECT id, org_id FROM users WHERE microsoft_id = $1",
             microsoft_id
         )
         return dict(row) if row else None

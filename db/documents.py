@@ -188,7 +188,7 @@ async def get_recent_document_by_url(user_id: int, company_url: str, hours: int 
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT * FROM research_documents
+            SELECT id, company_name, created_at FROM research_documents
             WHERE user_id = $1 AND company_url = $2
               AND created_at > NOW() - make_interval(hours => $3)
             ORDER BY created_at DESC
