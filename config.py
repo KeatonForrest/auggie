@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     # Slack webhook for internal failure alerts (task exhausted retries)
     slack_webhook_url: str = ""
 
+    # Redis (unused for now — placeholder for future rate limiter backend)
+    redis_url: str = ""
+
     # Feature flags
     materials_enabled: bool = False
 

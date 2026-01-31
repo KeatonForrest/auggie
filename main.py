@@ -8,12 +8,45 @@ Docs: http://localhost:8000/docs
 
 import logging
 import time
+import uuid
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    level=logging.INFO,
-)
+from config import get_settings as _get_settings
+
+_boot_settings = _get_settings()
+_is_production = "localhost" not in _boot_settings.app_url
+
+# --- Request ID context var (available to logging filter) ---
+_request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class _RequestIDFilter(logging.Filter):
+    """Inject request_id into every log record."""
+    def filter(self, record):
+        record.request_id = _request_id_ctx.get("-")
+        return True
+
+
+# --- Logging setup ---
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+_root.addFilter(_RequestIDFilter())
+
+if _is_production:
+    from pythonjsonlogger import jsonlogger
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(jsonlogger.JsonFormatter(
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s %(request_id)s",
+        rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+    ))
+    _root.addHandler(_handler)
+else:
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s %(name)s [%(request_id)s] %(message)s",
+        level=logging.INFO,
+    )
+
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request
@@ -28,6 +61,16 @@ import pydantic
 
 from config import get_settings
 from database import init_database, close_database, get_all_documents, get_user_usage, get_user_materials
+
+# --- Request ID middleware ---
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        request.state.request_id = request_id
+        _request_id_ctx.set(request_id)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 from services.collect import close_shared_http_client
 from auth import router as auth_router, get_current_user
 from billing import router as billing_router
@@ -138,7 +181,10 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Latency logging (outermost = first to run)
+# Request ID (outermost = first to run)
+app.add_middleware(RequestIDMiddleware)
+
+# Latency logging
 app.add_middleware(LatencyLoggingMiddleware)
 
 # Security headers
