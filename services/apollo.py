@@ -106,8 +106,8 @@ class ApolloService:
                         person_titles.extend(["Engineering Manager", "VP Engineering", "CTO", "Head of Engineering", "Director of Engineering"])
                     if "product" in persona:
                         person_titles.extend(["Product Manager", "VP Product", "Head of Product", "CPO", "Director of Product"])
-                    if "data" in persona:
-                        person_titles.extend(["Data Engineer", "Head of Data", "VP Data", "Chief Data Officer"])
+                    if "data" in persona or "bi" in persona or "analytics" in persona:
+                        person_titles.extend(["Data Engineer", "Head of Data", "VP Data", "Chief Data Officer", "Data Scientist", "Director of Analytics", "Head of BI", "BI Engineer"])
                     if "devops" in persona or "infrastructure" in persona or "platform" in persona:
                         person_titles.extend(["DevOps", "Platform Engineer", "Infrastructure", "SRE"])
                     if "security" in persona:

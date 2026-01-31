@@ -71,14 +71,17 @@ def _build_target_titles(user: dict) -> list[str]:
     title_map = {
         "C-Suite": {"Sales / Revenue": "CRO", "Marketing": "CMO", "Engineering / Product": "CTO",
                      "Finance / Accounting": "CFO", "Operations": "COO", "IT / Security": "CISO",
-                     "HR / People": "CHRO", "Customer Success": "CCO", "Legal": "General Counsel"},
+                     "HR / People": "CHRO", "Customer Success": "CCO", "Data Science / BI": "Chief Data Officer",
+                     "Legal": "General Counsel"},
         "VP": {"Sales / Revenue": "VP Sales", "Marketing": "VP Marketing", "Engineering / Product": "VP Engineering",
                "Finance / Accounting": "VP Finance", "Operations": "VP Operations", "IT / Security": "VP IT",
-               "HR / People": "VP People", "Customer Success": "VP Customer Success", "Legal": "VP Legal"},
+               "HR / People": "VP People", "Customer Success": "VP Customer Success",
+               "Data Science / BI": "VP Data", "Legal": "VP Legal"},
         "Director": {"Sales / Revenue": "Director of Sales", "Marketing": "Director of Marketing",
                      "Engineering / Product": "Director of Engineering", "Finance / Accounting": "Director of Finance",
                      "Operations": "Director of Operations", "IT / Security": "Director of IT",
-                     "HR / People": "Director of HR", "Customer Success": "Director of Customer Success"},
+                     "HR / People": "Director of HR", "Customer Success": "Director of Customer Success",
+                     "Data Science / BI": "Director of Analytics"},
     }
 
     titles = []
