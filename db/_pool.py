@@ -35,15 +35,15 @@ async def init_database():
         # Disable statement_timeout for schema setup (DDL + migrations can be slow)
         await conn.execute("SET statement_timeout = 0")
 
-        # Run SQL migrations (all schema DDL lives in migrations/)
-        await run_migrations(conn)
-
-        # Enable pgvector extension for materials feature (only if enabled)
+        # Enable pgvector extension before migrations (001 references vector type)
         if settings.materials_enabled:
             try:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             except asyncpg.exceptions.FeatureNotSupportedError:
                 logger.warning("pgvector extension not available. Materials feature will not work. Install pgvector on your PostgreSQL server.")
+
+        # Run SQL migrations (all schema DDL lives in migrations/)
+        await run_migrations(conn)
 
         # Mark stale processing jobs as failed (covers Railway redeploys)
         await conn.execute("""
