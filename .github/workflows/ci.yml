@@ -24,3 +24,10 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -x -q
+        env:
+          FIRECRAWL_API_KEY: test
+          ANTHROPIC_API_KEY: test
+          DATABASE_URL: postgresql://localhost/test
+          GOOGLE_CLIENT_ID: test
+          GOOGLE_CLIENT_SECRET: test
+          STRIPE_SECRET_KEY: test
