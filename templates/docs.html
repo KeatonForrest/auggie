@@ -15,6 +15,7 @@
             <a href="#lists" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Lists</a>
             <a href="#webhooks" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Webhooks</a>
             <a href="#clay-integration" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Clay Integration</a>
+            <a href="#integrations" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Integrations</a>
             <a href="#error-codes" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Error Codes</a>
             <a href="#rate-limits" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Rate Limits</a>
         </nav>
@@ -727,6 +728,88 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
 
                 <div class="mt-6">
                     <a href="/guides/clay-problem-signal-prospecting" class="text-blue-600 hover:underline font-medium">Full step-by-step Clay guide &rarr;</a>
+                </div>
+            </section>
+
+            <!-- Integrations Setup -->
+            <section id="integrations">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Integrations</h2>
+                <p class="text-gray-700 mb-6">Auggie connects to your sales tools so you can push sequences and contacts directly from your lists. Connect integrations from the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a>.</p>
+
+                <!-- OAuth integrations -->
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">One-click integrations</h3>
+                <p class="text-gray-600 text-sm mb-4">These integrations connect with a single click via OAuth. No API key needed.</p>
+                <div class="grid md:grid-cols-3 gap-4 mb-8">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-900 mb-1">Outreach</h4>
+                        <p class="text-sm text-gray-600">Click <strong>Connect</strong>, sign in to Outreach, and authorize Auggie. Sequences are pushed as Outreach sequences with email steps.</p>
+                    </div>
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-900 mb-1">SalesLoft</h4>
+                        <p class="text-sm text-gray-600">Click <strong>Connect</strong>, sign in to SalesLoft, and authorize Auggie. Sequences are pushed as SalesLoft cadences.</p>
+                    </div>
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-900 mb-1">ZoomInfo</h4>
+                        <p class="text-sm text-gray-600">Click <strong>Connect</strong> and sign in to ZoomInfo. Used for company search and list import.</p>
+                    </div>
+                </div>
+
+                <!-- API key integrations -->
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">API key integrations</h3>
+                <p class="text-gray-600 text-sm mb-4">These integrations require an API key from the provider. Here's where to find each one.</p>
+
+                <div class="space-y-6">
+                    <!-- Apollo -->
+                    <div class="border rounded-lg p-5">
+                        <h4 class="font-semibold text-gray-900 mb-2">Apollo</h4>
+                        <p class="text-sm text-gray-600 mb-3">Used for list import, firmographic enrichment, and pushing sequences.</p>
+                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                            <li>Log in to <a href="https://app.apollo.io" target="_blank" class="text-blue-600 hover:underline">app.apollo.io</a></li>
+                            <li>Click your avatar in the bottom-left corner, then <strong>Settings</strong></li>
+                            <li>Navigate to <strong>Integrations &rarr; API Keys</strong> in the left sidebar</li>
+                            <li>Click <strong>Create API Key</strong>, give it a name, and copy the key</li>
+                            <li>Paste the key into the Apollo field on the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a></li>
+                        </ol>
+                    </div>
+
+                    <!-- Instantly -->
+                    <div class="border rounded-lg p-5">
+                        <h4 class="font-semibold text-gray-900 mb-2">Instantly</h4>
+                        <p class="text-sm text-gray-600 mb-3">Used for pushing enriched contacts to Instantly campaigns.</p>
+                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                            <li>Log in to <a href="https://app.instantly.ai" target="_blank" class="text-blue-600 hover:underline">app.instantly.ai</a></li>
+                            <li>Click the <strong>Settings</strong> gear icon in the left sidebar</li>
+                            <li>Go to <strong>API</strong> under the Integrations section</li>
+                            <li>Copy your API key (or generate one if you haven't already)</li>
+                            <li>Paste the key into the Instantly field on the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a></li>
+                        </ol>
+                    </div>
+
+                    <!-- Smartlead -->
+                    <div class="border rounded-lg p-5">
+                        <h4 class="font-semibold text-gray-900 mb-2">Smartlead</h4>
+                        <p class="text-sm text-gray-600 mb-3">Used for pushing enriched contacts to Smartlead campaigns.</p>
+                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                            <li>Log in to <a href="https://app.smartlead.ai" target="_blank" class="text-blue-600 hover:underline">app.smartlead.ai</a></li>
+                            <li>Click your profile icon in the top-right corner</li>
+                            <li>Select <strong>Settings</strong>, then go to <strong>API Keys</strong></li>
+                            <li>Copy your API key</li>
+                            <li>Paste the key into the Smartlead field on the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a></li>
+                        </ol>
+                    </div>
+
+                    <!-- Ocean.io -->
+                    <div class="border rounded-lg p-5">
+                        <h4 class="font-semibold text-gray-900 mb-2">Ocean.io</h4>
+                        <p class="text-sm text-gray-600 mb-3">Used for lookalike company search and list import.</p>
+                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                            <li>Log in to <a href="https://app.ocean.io" target="_blank" class="text-blue-600 hover:underline">app.ocean.io</a></li>
+                            <li>Click your name in the bottom-left corner and select <strong>Settings</strong></li>
+                            <li>Navigate to the <strong>API</strong> tab</li>
+                            <li>Copy your API key</li>
+                            <li>Paste the key into the Ocean.io field on the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a></li>
+                        </ol>
+                    </div>
                 </div>
             </section>
 
