@@ -7,383 +7,515 @@
     <h1 class="text-2xl font-bold text-gray-900 mb-2">Integrations</h1>
     <p class="text-gray-600 mb-8">Connect external tools to import data and push results.</p>
 
-    <!-- HubSpot -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 6.2V3.8a1.5 1.5 0 10-1-.01V6.2a3.48 3.48 0 00-1.94 1.17L10.1 4.92a2.25 2.25 0 10-.97.77l4.37 2.4A3.5 3.5 0 0013 10.5v.28l-4.15 2.4a2.5 2.5 0 101 .72l4.12-2.38a3.5 3.5 0 103.53-5.32zM7.5 17a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9.5-4a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">HubSpot</h2>
-                    <p class="text-sm text-gray-500">Import companies and write scores back to CRM</p>
-                </div>
-            </div>
-            {% if integrations.get('hubspot') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
-
+    <!-- CRM & Data Sources -->
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">CRM & Data Sources</h2>
+    <p class="text-sm text-gray-500 mb-4">Import companies and enrich your pipeline</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+        <!-- HubSpot (connected first) -->
         {% if integrations.get('hubspot') %}
-        <div class="flex items-center gap-3">
-            <button onclick="openHubSpotImport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-                Import Companies
-            </button>
-            <form method="post" action="/integrations/hubspot/disconnect" class="inline">
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                    Disconnect
-                </button>
-            </form>
-        </div>
-        {% else %}
-        <a href="/integrations/hubspot/connect" class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
-            Connect HubSpot
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- Instantly -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 6.2V3.8a1.5 1.5 0 10-1-.01V6.2a3.48 3.48 0 00-1.94 1.17L10.1 4.92a2.25 2.25 0 10-.97.77l4.37 2.4A3.5 3.5 0 0013 10.5v.28l-4.15 2.4a2.5 2.5 0 101 .72l4.12-2.38a3.5 3.5 0 103.53-5.32zM7.5 17a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9.5-4a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">HubSpot</h3>
+                        <p class="text-sm text-gray-500">Import companies and write scores back to CRM</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Instantly</h2>
-                    <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
-                </div>
-            </div>
-            {% if integrations.get('instantly') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
-
-        {% if integrations.get('instantly') %}
-        <form method="post" action="/integrations/instantly/disconnect" class="inline">
-            <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                Disconnect
-            </button>
-        </form>
-        {% else %}
-        <div id="instantly-form">
-            <div class="flex gap-3">
-                <input type="text" id="instantly-key" placeholder="Enter your Instantly API key"
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
-                <button onclick="connectInstantly()" id="instantly-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700">
-                    Connect
+                <button onclick="openHubSpotImport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                    Import Companies
                 </button>
+                <form method="post" action="/integrations/hubspot/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
             </div>
-            <p id="instantly-error" class="mt-2 text-sm text-red-600 hidden"></p>
         </div>
         {% endif %}
-    </div>
-
-    <!-- Smartlead -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Smartlead</h2>
-                    <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
-                </div>
-            </div>
-            {% if integrations.get('smartlead') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
-
-        {% if integrations.get('smartlead') %}
-        <form method="post" action="/integrations/smartlead/disconnect" class="inline">
-            <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                Disconnect
-            </button>
-        </form>
-        {% else %}
-        <div id="smartlead-form">
-            <div class="flex gap-3">
-                <input type="text" id="smartlead-key" placeholder="Enter your Smartlead API key"
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 focus:border-sky-500 outline-none">
-                <button onclick="connectSmartlead()" id="smartlead-btn" class="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700">
-                    Connect
-                </button>
-            </div>
-            <p id="smartlead-error" class="mt-2 text-sm text-red-600 hidden"></p>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Salesforce -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.1 3.5c-.8 0-1.5.2-2.2.5C12.2 3 11.1 2.5 10 2.5c-2.2 0-4 1.8-4 4 0 .3 0 .5.1.8C4.3 7.9 3 9.5 3 11.5c0 2.5 2 4.5 4.5 4.5h.3c.5 1.2 1.7 2 3.2 2 1.2 0 2.3-.7 2.9-1.7.5.1 1 .2 1.6.2 2.5 0 4.5-2 4.5-4.5 0-1-.3-1.9-.9-2.7.2-.5.4-1.1.4-1.8 0-2.2-1.8-4-4.4-4z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Salesforce</h2>
-                    <p class="text-sm text-gray-500">Import accounts and write scores back to CRM</p>
-                </div>
-            </div>
-            {% if integrations.get('salesforce') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
 
         {% if integrations.get('salesforce') %}
-        <div class="flex items-center gap-3">
-            <button onclick="openSalesforceImport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-                Import Accounts
-            </button>
-            <form method="post" action="/integrations/salesforce/disconnect" class="inline">
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                    Disconnect
-                </button>
-            </form>
-        </div>
-        {% else %}
-        <a href="/integrations/salesforce/connect" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-            Connect Salesforce
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- ZoomInfo -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.1 3.5c-.8 0-1.5.2-2.2.5C12.2 3 11.1 2.5 10 2.5c-2.2 0-4 1.8-4 4 0 .3 0 .5.1.8C4.3 7.9 3 9.5 3 11.5c0 2.5 2 4.5 4.5 4.5h.3c.5 1.2 1.7 2 3.2 2 1.2 0 2.3-.7 2.9-1.7.5.1 1 .2 1.6.2 2.5 0 4.5-2 4.5-4.5 0-1-.3-1.9-.9-2.7.2-.5.4-1.1.4-1.8 0-2.2-1.8-4-4.4-4z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Salesforce</h3>
+                        <p class="text-sm text-gray-500">Import accounts and write scores back to CRM</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">ZoomInfo</h2>
-                    <p class="text-sm text-gray-500">Search and import companies from ZoomInfo</p>
-                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            {% if integrations.get('zoominfo') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
+            <div class="flex items-center gap-3">
+                <button onclick="openSalesforceImport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                    Import Accounts
+                </button>
+                <form method="post" action="/integrations/salesforce/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
         </div>
+        {% endif %}
 
         {% if integrations.get('zoominfo') %}
-        <div class="flex items-center gap-3">
-            <button onclick="openZoomInfoImport()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
-                Search &amp; Import
-            </button>
-            <form method="post" action="/integrations/zoominfo/disconnect" class="inline">
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                    Disconnect
-                </button>
-            </form>
-        </div>
-        {% else %}
-        <a href="/integrations/zoominfo/connect" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
-            Connect ZoomInfo
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- Apollo -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">ZoomInfo</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from ZoomInfo</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Apollo</h2>
-                    <p class="text-sm text-gray-500">Import saved company lists from Apollo.io</p>
-                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            {% if integrations.get('apollo') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
+            <div class="flex items-center gap-3">
+                <button onclick="openZoomInfoImport()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                    Search &amp; Import
+                </button>
+                <form method="post" action="/integrations/zoominfo/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
         </div>
+        {% endif %}
 
         {% if integrations.get('apollo') %}
-        <div class="flex items-center gap-3">
-            <button onclick="openApolloImport()" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
-                Import from List
-            </button>
-            <form method="post" action="/integrations/apollo/disconnect" class="inline">
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                    Disconnect
-                </button>
-            </form>
-        </div>
-        {% else %}
-        <div id="apollo-form">
-            <div class="flex gap-3">
-                <input type="text" id="apollo-key" placeholder="Enter your Apollo API key"
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-600 focus:border-yellow-600 outline-none">
-                <button onclick="connectApollo()" id="apollo-btn" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
-                    Connect
-                </button>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Apollo</h3>
+                        <p class="text-sm text-gray-500">Import saved company lists from Apollo.io</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            <p id="apollo-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            <div class="flex items-center gap-3">
+                <button onclick="openApolloImport()" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
+                    Import from List
+                </button>
+                <form method="post" action="/integrations/apollo/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
         </div>
         {% endif %}
-    </div>
-
-    <!-- Ocean.io -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Ocean.io</h2>
-                    <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
-                </div>
-            </div>
-            {% if integrations.get('ocean') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
 
         {% if integrations.get('ocean') %}
-        <div class="flex items-center gap-3">
-            <button onclick="openOceanImport()" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
-                Import Audience
-            </button>
-            <form method="post" action="/integrations/ocean/disconnect" class="inline">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Ocean.io</h3>
+                        <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openOceanImport()" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                    Import Audience
+                </button>
+                <form method="post" action="/integrations/ocean/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Unconnected CRM cards -->
+        {% if not integrations.get('hubspot') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 6.2V3.8a1.5 1.5 0 10-1-.01V6.2a3.48 3.48 0 00-1.94 1.17L10.1 4.92a2.25 2.25 0 10-.97.77l4.37 2.4A3.5 3.5 0 0013 10.5v.28l-4.15 2.4a2.5 2.5 0 101 .72l4.12-2.38a3.5 3.5 0 103.53-5.32zM7.5 17a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9.5-4a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">HubSpot</h3>
+                        <p class="text-sm text-gray-500">Import companies and write scores back to CRM</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/hubspot/connect" class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+                Connect HubSpot
+            </a>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('salesforce') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.1 3.5c-.8 0-1.5.2-2.2.5C12.2 3 11.1 2.5 10 2.5c-2.2 0-4 1.8-4 4 0 .3 0 .5.1.8C4.3 7.9 3 9.5 3 11.5c0 2.5 2 4.5 4.5 4.5h.3c.5 1.2 1.7 2 3.2 2 1.2 0 2.3-.7 2.9-1.7.5.1 1 .2 1.6.2 2.5 0 4.5-2 4.5-4.5 0-1-.3-1.9-.9-2.7.2-.5.4-1.1.4-1.8 0-2.2-1.8-4-4.4-4z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Salesforce</h3>
+                        <p class="text-sm text-gray-500">Import accounts and write scores back to CRM</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/salesforce/connect" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                Connect Salesforce
+            </a>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('zoominfo') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">ZoomInfo</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from ZoomInfo</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/zoominfo/connect" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                Connect ZoomInfo
+            </a>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('apollo') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Apollo</h3>
+                        <p class="text-sm text-gray-500">Import saved company lists from Apollo.io</p>
+                    </div>
+                </div>
+            </div>
+            <div id="apollo-form">
+                <div class="flex gap-3">
+                    <input type="text" id="apollo-key" placeholder="Enter your Apollo API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-600 focus:border-yellow-600 outline-none">
+                    <button onclick="connectApollo()" id="apollo-btn" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
+                        Connect
+                    </button>
+                </div>
+                <p id="apollo-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('ocean') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Ocean.io</h3>
+                        <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
+                    </div>
+                </div>
+            </div>
+            <div id="ocean-form">
+                <div class="flex gap-3">
+                    <input type="text" id="ocean-key" placeholder="Enter your Ocean.io API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                    <button onclick="connectOcean()" id="ocean-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="ocean-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sales Engagement -->
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Sales Engagement</h2>
+    <p class="text-sm text-gray-500 mb-4">Push messaging and sequences to outbound tools</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+        {% if integrations.get('outreach') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Outreach</h3>
+                        <p class="text-sm text-gray-500">Push messaging to Outreach sequences</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <form method="post" action="/integrations/outreach/disconnect" class="inline">
                 <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
                     Disconnect
                 </button>
             </form>
         </div>
-        {% else %}
-        <div id="ocean-form">
-            <div class="flex gap-3">
-                <input type="text" id="ocean-key" placeholder="Enter your Ocean.io API key"
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
-                <button onclick="connectOcean()" id="ocean-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
-                    Connect
-                </button>
-            </div>
-            <p id="ocean-error" class="mt-2 text-sm text-red-600 hidden"></p>
-        </div>
         {% endif %}
-    </div>
-
-    <!-- Outreach -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Outreach</h2>
-                    <p class="text-sm text-gray-500">Push messaging to Outreach sequences</p>
-                </div>
-            </div>
-            {% if integrations.get('outreach') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
-
-        {% if integrations.get('outreach') %}
-        <form method="post" action="/integrations/outreach/disconnect" class="inline">
-            <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                Disconnect
-            </button>
-        </form>
-        {% else %}
-        <a href="/integrations/outreach/connect" class="inline-flex items-center px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">
-            Connect Outreach
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- SalesLoft -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">SalesLoft</h2>
-                    <p class="text-sm text-gray-500">Push messaging to SalesLoft cadences</p>
-                </div>
-            </div>
-            {% if integrations.get('salesloft') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
 
         {% if integrations.get('salesloft') %}
-        <form method="post" action="/integrations/salesloft/disconnect" class="inline">
-            <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                Disconnect
-            </button>
-        </form>
-        {% else %}
-        <a href="/integrations/salesloft/connect" class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">
-            Connect SalesLoft
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- Slack -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.124 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120 8.834a2.528 2.528 0 01-2.521 2.521h-2.521V8.834zm-1.272 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521V2.522A2.528 2.528 0 0111.165 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.124a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521v-2.521h2.521zm0-1.272a2.528 2.528 0 01-2.521-2.521 2.528 2.528 0 012.521-2.521h6.313A2.528 2.528 0 0124 11.165a2.528 2.528 0 01-2.522 2.521h-6.313z"/></svg>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">SalesLoft</h3>
+                        <p class="text-sm text-gray-500">Push messaging to SalesLoft cadences</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Slack</h2>
-                    <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
-                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            {% if integrations.get('slack') %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            {% endif %}
-        </div>
-
-        {% if integrations.get('slack') %}
-        <div class="flex items-center gap-3">
-            <button onclick="testSlack()" id="slack-test-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
-                Send Test Message
-            </button>
-            <form method="post" action="/integrations/slack/disconnect" class="inline">
+            <form method="post" action="/integrations/salesloft/disconnect" class="inline">
                 <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
                     Disconnect
                 </button>
             </form>
         </div>
-        {% else %}
-        <div id="slack-form">
-            <div class="flex gap-3">
-                <input type="text" id="slack-url" placeholder="https://hooks.slack.com/services/..."
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500 outline-none">
-                <button onclick="connectSlack()" id="slack-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
-                    Connect
-                </button>
+        {% endif %}
+
+        {% if integrations.get('instantly') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Instantly</h3>
+                        <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            <p id="slack-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            <form method="post" action="/integrations/instantly/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if integrations.get('smartlead') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Smartlead</h3>
+                        <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <form method="post" action="/integrations/smartlead/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Unconnected Sales Engagement cards -->
+        {% if not integrations.get('outreach') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Outreach</h3>
+                        <p class="text-sm text-gray-500">Push messaging to Outreach sequences</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/outreach/connect" class="inline-flex items-center px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">
+                Connect Outreach
+            </a>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('salesloft') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">SalesLoft</h3>
+                        <p class="text-sm text-gray-500">Push messaging to SalesLoft cadences</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/salesloft/connect" class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">
+                Connect SalesLoft
+            </a>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('instantly') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Instantly</h3>
+                        <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
+                    </div>
+                </div>
+            </div>
+            <div id="instantly-form">
+                <div class="flex gap-3">
+                    <input type="text" id="instantly-key" placeholder="Enter your Instantly API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+                    <button onclick="connectInstantly()" id="instantly-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="instantly-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('smartlead') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Smartlead</h3>
+                        <p class="text-sm text-gray-500">Push contacts and sequences to email campaigns</p>
+                    </div>
+                </div>
+            </div>
+            <div id="smartlead-form">
+                <div class="flex gap-3">
+                    <input type="text" id="smartlead-key" placeholder="Enter your Smartlead API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                    <button onclick="connectSmartlead()" id="smartlead-btn" class="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="smartlead-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
         </div>
         {% endif %}
     </div>
 
-    <!-- Clay (existing) -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    <!-- Notifications -->
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Notifications</h2>
+    <p class="text-sm text-gray-500 mb-4">Get alerts when tasks complete</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+        {% if integrations.get('slack') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.124 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120 8.834a2.528 2.528 0 01-2.521 2.521h-2.521V8.834zm-1.272 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521V2.522A2.528 2.528 0 0111.165 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.124a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521v-2.521h2.521zm0-1.272a2.528 2.528 0 01-2.521-2.521 2.528 2.528 0 012.521-2.521h6.313A2.528 2.528 0 0124 11.165a2.528 2.528 0 01-2.522 2.521h-6.313z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Slack</h3>
+                        <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
-            <div>
-                <h2 class="text-lg font-semibold text-gray-900">Clay</h2>
-                <p class="text-sm text-gray-500">Use Auggie as an HTTP enrichment column in Clay</p>
+            <div class="flex items-center gap-3">
+                <button onclick="testSlack()" id="slack-test-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                    Send Test Message
+                </button>
+                <form method="post" action="/integrations/slack/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
             </div>
         </div>
-        <a href="/integrations/clay" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View Setup Guide &rarr;</a>
+        {% endif %}
+
+        {% if not integrations.get('slack') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.124 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120 8.834a2.528 2.528 0 01-2.521 2.521h-2.521V8.834zm-1.272 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521V2.522A2.528 2.528 0 0111.165 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.124a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521v-2.521h2.521zm0-1.272a2.528 2.528 0 01-2.521-2.521 2.528 2.528 0 012.521-2.521h6.313A2.528 2.528 0 0124 11.165a2.528 2.528 0 01-2.522 2.521h-6.313z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Slack</h3>
+                        <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
+                    </div>
+                </div>
+            </div>
+            <div id="slack-form">
+                <div class="flex gap-3">
+                    <input type="text" id="slack-url" placeholder="https://hooks.slack.com/services/..."
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500 outline-none">
+                    <button onclick="connectSlack()" id="slack-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="slack-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Other -->
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Other</h2>
+    <p class="text-sm text-gray-500 mb-4">Additional tools and integrations</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Clay</h3>
+                    <p class="text-sm text-gray-500">Use Auggie as an HTTP enrichment column in Clay</p>
+                </div>
+            </div>
+            <a href="/integrations/clay" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View Setup Guide &rarr;</a>
+        </div>
     </div>
 </div>
 
