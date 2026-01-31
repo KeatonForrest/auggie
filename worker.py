@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 WORKER_ID = f"worker-{uuid.uuid4().hex[:8]}"
 POLL_INTERVAL = 2  # seconds
 STALE_CHECK_INTERVAL = 60  # seconds
-MAX_CONCURRENT = 5
+MAX_CONCURRENT = 10
 
 _shutdown = asyncio.Event()
 
