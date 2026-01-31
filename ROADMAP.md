@@ -712,6 +712,11 @@ General infrastructure hardening and operational improvements. Not a phase — j
 - [x] Removed blocking sync `POST /research` route — all research now async via background jobs
 - [x] Real-time pipeline progress tracking (`progress` column on research_jobs table)
 
+### Task Queue ✅ (partial)
+- [x] Bulk `enqueue_many` — replace serial INSERT loop with chunked `executemany` (500/batch)
+- [x] Cursor-based async generators for `iter_bulk_job_items` / `iter_pending_list_accounts`
+- [ ] Stream async generators directly into chunked enqueue for 10k+ lists (skip full materialization)
+
 ### Code Hygiene ✅
 - [x] Fix Pydantic deprecation warning — migrated `class Config` to `model_config = SettingsConfigDict`
 - [x] Fix pre-existing test failure (`test_push_rejects_wrong_user` — mock returned truthy dict instead of None)
