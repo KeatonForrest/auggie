@@ -34,6 +34,9 @@ async def init_database():
     )
 
     async with _pool.acquire() as conn:
+        # Disable statement_timeout for schema setup (DDL + migrations can be slow)
+        await conn.execute("SET statement_timeout = 0")
+
         # Enable pgvector extension for materials feature (only if enabled)
         if settings.materials_enabled:
             try:
