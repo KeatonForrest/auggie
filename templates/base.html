@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Auggie{% endblock %}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Markdown content styling */
@@ -34,7 +36,10 @@
     <nav class="bg-white shadow-sm border-b">
         <div class="max-w-7xl mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
-                <a href="/" class="text-xl font-bold text-gray-900">Auggie</a>
+                <a href="/" class="flex items-center gap-2 text-xl font-bold text-gray-900">
+                    <img src="/static/logo.png" alt="Auggie" class="w-7 h-7">
+                    Auggie
+                </a>
                 {% if user %}
                 <!-- Mobile menu button -->
                 <button id="mobile-menu-btn" class="sm:hidden p-2 text-gray-600 hover:text-gray-900" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">

@@ -17,6 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -134,6 +135,8 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/openapi-docs",
 )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Latency logging (outermost = first to run)
 app.add_middleware(LatencyLoggingMiddleware)
