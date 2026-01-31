@@ -9,6 +9,18 @@ import db._pool as _db
 logger = logging.getLogger(__name__)
 
 
+async def enqueue_many(task_type: str, payloads: list[dict]) -> int:
+    """Bulk-insert tasks. Returns count inserted."""
+    if not payloads:
+        return 0
+    async with _db._pool.acquire() as conn:
+        await conn.executemany(
+            "INSERT INTO task_queue (task_type, payload) VALUES ($1, $2::jsonb)",
+            [(task_type, json.dumps(p)) for p in payloads],
+        )
+        return len(payloads)
+
+
 async def enqueue(task_type: str, payload: dict) -> int:
     """Insert a task into the queue. Returns the task ID."""
     async with _db._pool.acquire() as conn:

@@ -67,11 +67,16 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     return doc_id
 
 
-async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, company_url: str, *, is_admin: bool = False):
+async def run_research_job(
+    job_id: int, user_id: int, api_key_id: int | None, company_url: str,
+    *, is_admin: bool = False,
+):
     """Execute the research pipeline in the background and update job status.
 
-    Credit is reserved before this function is called. On failure, non-admin
-    users get their credit refunded.
+    Credit is reserved before this function is called. On failure this function
+    updates the job row and fires the webhook, then re-raises so the task queue
+    can track retries. The caller is responsible for refunding credits once
+    retries are exhausted.
     """
     try:
         doc_id = await _run_research_pipeline(user_id, company_url, job_id=job_id)
@@ -106,29 +111,36 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, co
 
     except Exception as e:
         logger.exception("Research job %s failed", job_id)
-        if not is_admin:
-            await refund_credit(user_id)
         error_msg = str(e)[:500]
         await update_job_status(job_id, "failed", error_message=error_msg)
         await _deliver_webhook(user_id, job_id, "failed", None, error_msg)
+        raise
+
+
+async def _fan_out(task_type: str, items: list[dict], shared_payload: dict, label: str) -> None:
+    """Enqueue one child task per item with shared context fields.
+
+    Each item dict is merged with shared_payload plus an account_index key.
+    Inserts in chunks of 500 via bulk enqueue to avoid serial round-trips.
+    """
+    from db.task_queue import enqueue_many
+
+    CHUNK = 500
+    for start in range(0, len(items), CHUNK):
+        chunk = items[start:start + CHUNK]
+        payloads = [{**shared_payload, **item, "account_index": start + i} for i, item in enumerate(chunk)]
+        await enqueue_many(task_type, payloads)
+    logger.info("%s: enqueued %d child tasks", label, len(items))
 
 
 async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin: bool = False):
     """Fan out: enqueue one bulk_item task per account, then return immediately."""
-    from db.task_queue import enqueue
-
     items = await get_bulk_job_items(bulk_job_id)
-    for idx, item in enumerate(items):
-        await enqueue("bulk_item", {
-            "bulk_job_id": bulk_job_id,
-            "item_id": item["id"],
-            "company_url": item["company_url"],
-            "user_id": user_id,
-            "api_key_id": api_key_id,
-            "is_admin": is_admin,
-            "account_index": idx,
-        })
-    logger.info("Bulk job %d: enqueued %d child tasks", bulk_job_id, len(items))
+    await _fan_out("bulk_item", [
+        {"bulk_job_id": bulk_job_id, "item_id": it["id"], "company_url": it["company_url"]}
+        for it in items
+    ], {"user_id": user_id, "api_key_id": api_key_id, "is_admin": is_admin},
+        f"Bulk job {bulk_job_id}")
 
 
 async def run_bulk_item(
@@ -166,20 +178,12 @@ async def run_bulk_item(
 
 async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None = None, is_admin: bool = False):
     """Fan out: enqueue one list_item task per pending account, then return immediately."""
-    from db.task_queue import enqueue
-
     accounts = await get_pending_list_accounts(list_id)
-    for idx, account in enumerate(accounts):
-        await enqueue("list_item", {
-            "list_id": list_id,
-            "account_id": account["id"],
-            "company_url": account["company_url"],
-            "user_id": user_id,
-            "api_key_id": api_key_id,
-            "is_admin": is_admin,
-            "account_index": idx,
-        })
-    logger.info("List %d: enqueued %d child tasks", list_id, len(accounts))
+    await _fan_out("list_item", [
+        {"list_id": list_id, "account_id": a["id"], "company_url": a["company_url"]}
+        for a in accounts
+    ], {"user_id": user_id, "api_key_id": api_key_id, "is_admin": is_admin},
+        f"List {list_id}")
 
 
 async def run_list_item(
@@ -386,16 +390,6 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
     for batch_start in range(0, len(accounts), BATCH_SIZE):
         batch = accounts[batch_start:batch_start + BATCH_SIZE]
         await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
-
-
-async def run_batch_enrich_contacts(list_id: int, user_id: int, account_ids: list[int] | None = None):
-    """Stub: batch enrich contacts for accounts in a list.
-
-    Currently a no-op since no enrichment provider is configured.
-    When a provider is integrated, only the inner processing logic needs to change.
-    Raises RuntimeError so the calling route can return an appropriate message.
-    """
-    raise RuntimeError("Contact enrichment provider not yet configured")
 
 
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):

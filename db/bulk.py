@@ -58,20 +58,29 @@ async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]
         return [dict(row) for row in rows]
 
 
+async def iter_bulk_job_items(bulk_job_id: int, page_size: int = 500):
+    """Async generator that yields bulk job items in pages."""
+    last_id = 0
+    async with _db._pool.acquire() as conn:
+        while True:
+            rows = await conn.fetch(
+                """SELECT id, bulk_job_id, research_job_id, company_url, status,
+                          document_id, error_message, created_at, completed_at
+                   FROM bulk_job_items
+                   WHERE bulk_job_id = $1 AND id > $2
+                   ORDER BY id LIMIT $3""",
+                bulk_job_id, last_id, page_size,
+            )
+            if not rows:
+                break
+            for row in rows:
+                yield dict(row)
+            last_id = rows[-1]["id"]
+
+
 async def get_bulk_job_items(bulk_job_id: int) -> list[dict]:
     """Get all items for a bulk job."""
-    async with _db._pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, bulk_job_id, research_job_id, company_url, status,
-                   document_id, error_message, created_at, completed_at
-            FROM bulk_job_items
-            WHERE bulk_job_id = $1
-            ORDER BY id
-            """,
-            bulk_job_id
-        )
-        return [dict(row) for row in rows]
+    return [item async for item in iter_bulk_job_items(bulk_job_id)]
 
 
 async def update_bulk_job_item(

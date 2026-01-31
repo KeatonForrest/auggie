@@ -16,15 +16,15 @@ async def test_run_bulk_job_enqueues_children():
         {"id": 11, "company_url": "https://b.com"},
     ]
     with patch("api.jobs.get_bulk_job_items", new_callable=AsyncMock, return_value=items), \
-         patch("db.task_queue.enqueue", new_callable=AsyncMock, return_value=1) as mock_enqueue:
+         patch("db.task_queue.enqueue_many", new_callable=AsyncMock, return_value=2) as mock_enqueue_many:
         from api.jobs import run_bulk_job
         await run_bulk_job(bulk_job_id=5, user_id=1, api_key_id=2, is_admin=False)
 
-        assert mock_enqueue.call_count == 2
-        first_call = mock_enqueue.call_args_list[0]
-        assert first_call[0][0] == "bulk_item"
-        assert first_call[0][1]["bulk_job_id"] == 5
-        assert first_call[0][1]["item_id"] == 10
+        assert mock_enqueue_many.call_count == 1
+        call_args = mock_enqueue_many.call_args
+        assert call_args[0][0] == "bulk_item"
+        assert call_args[0][1][0]["bulk_job_id"] == 5
+        assert call_args[0][1][0]["item_id"] == 10
 
 
 @pytest.mark.asyncio
@@ -33,13 +33,13 @@ async def test_run_list_analysis_enqueues_children():
         {"id": 20, "company_url": "https://c.com"},
     ]
     with patch("api.jobs.get_pending_list_accounts", new_callable=AsyncMock, return_value=accounts), \
-         patch("db.task_queue.enqueue", new_callable=AsyncMock, return_value=1) as mock_enqueue:
+         patch("db.task_queue.enqueue_many", new_callable=AsyncMock, return_value=1) as mock_enqueue_many:
         from api.jobs import run_list_analysis
         await run_list_analysis(list_id=3, user_id=1)
 
-        assert mock_enqueue.call_count == 1
-        assert mock_enqueue.call_args[0][0] == "list_item"
-        assert mock_enqueue.call_args[0][1]["account_id"] == 20
+        assert mock_enqueue_many.call_count == 1
+        assert mock_enqueue_many.call_args[0][0] == "list_item"
+        assert mock_enqueue_many.call_args[0][1][0]["account_id"] == 20
 
 
 # ---------------------------------------------------------------------------

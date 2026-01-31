@@ -298,14 +298,27 @@ async def reset_list_account(account_id: int) -> None:
             )
 
 
+async def iter_pending_list_accounts(list_id: int, page_size: int = 500):
+    """Async generator that yields pending list accounts in pages."""
+    last_id = 0
+    async with _db._pool.acquire() as conn:
+        while True:
+            rows = await conn.fetch(
+                """SELECT id, company_url FROM list_accounts
+                   WHERE list_id = $1 AND status = 'pending' AND id > $2
+                   ORDER BY id LIMIT $3""",
+                list_id, last_id, page_size,
+            )
+            if not rows:
+                break
+            for row in rows:
+                yield dict(row)
+            last_id = rows[-1]["id"]
+
+
 async def get_pending_list_accounts(list_id: int) -> list[dict]:
     """Get all pending accounts for a list."""
-    async with _db._pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM list_accounts WHERE list_id = $1 AND status = 'pending' ORDER BY id",
-            list_id
-        )
-        return [dict(row) for row in rows]
+    return [item async for item in iter_pending_list_accounts(list_id)]
 
 
 async def get_list_source(list_id: int) -> dict | None:
