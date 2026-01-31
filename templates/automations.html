@@ -78,7 +78,7 @@
                             {% if run.error_message %}
                             <span class="text-red-500 truncate max-w-[200px]" title="{{ run.error_message }}">{{ run.error_message[:40] }}{% if run.error_message|length > 40 %}...{% endif %}</span>
                             {% endif %}
-                            <span class="text-gray-400">{{ run.created_at.strftime('%b %d, %H:%M') }}</span>
+                            <span class="text-gray-400"><time datetime="{{ run.created_at.isoformat() }}" data-format="compact">{{ run.created_at.strftime('%b %d, %H:%M') }}</time></span>
                         </div>
                     </div>
                     {% endfor %}

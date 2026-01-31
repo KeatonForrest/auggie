@@ -72,7 +72,7 @@
                         {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed
                         {% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ lst.created_at.strftime('%b %d, %Y') }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500"><time datetime="{{ lst.created_at.isoformat() }}" data-format="short">{{ lst.created_at.strftime('%b %d, %Y') }}</time></td>
                     <td class="px-6 py-4 text-right">
                         <a href="/lists/{{ lst.id }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</a>
                     </td>
@@ -100,7 +100,7 @@
                 </div>
                 <div class="text-xs text-gray-500">
                     {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed{% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
-                    &middot; {{ lst.created_at.strftime('%b %d') }}
+                    &middot; <time datetime="{{ lst.created_at.isoformat() }}" data-format="short-noyr">{{ lst.created_at.strftime('%b %d') }}</time>
                 </div>
             </a>
             {% endfor %}

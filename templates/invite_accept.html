@@ -29,7 +29,7 @@
             {% endif %}
 
             <p class="text-xs text-gray-400 mt-4">
-                This invite expires {{ invite.expires_at.strftime('%B %d, %Y') if invite.expires_at else 'soon' }}.
+                This invite expires {% if invite.expires_at %}<time datetime="{{ invite.expires_at.isoformat() }}" data-format="short">{{ invite.expires_at.strftime('%B %d, %Y') }}</time>{% else %}soon{% endif %}.
             </p>
         </div>
     </div>

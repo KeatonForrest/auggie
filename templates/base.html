@@ -236,6 +236,24 @@
         })();
     </script>
 
+    <script>
+    (function() {
+        var formats = {
+            'short': {month: 'short', day: 'numeric', year: 'numeric'},
+            'short-noyr': {month: 'short', day: 'numeric'},
+            'long': {month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'},
+            'compact': {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false}
+        };
+        document.querySelectorAll('time[data-format]').forEach(function(el) {
+            var dt = new Date(el.getAttribute('datetime'));
+            if (isNaN(dt)) return;
+            var opts = formats[el.getAttribute('data-format')];
+            if (!opts) return;
+            el.textContent = new Intl.DateTimeFormat(undefined, opts).format(dt);
+        });
+    })();
+    </script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

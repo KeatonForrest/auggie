@@ -66,7 +66,7 @@
                             <td class="px-4 py-3 text-right font-medium text-gray-900">{{ member.research_count }}</td>
                             <td class="px-4 py-3 text-right text-gray-500">
                                 {% if member.last_activity %}
-                                {{ member.last_activity.strftime('%b %d, %Y') }}
+                                <time datetime="{{ member.last_activity.isoformat() }}" data-format="short">{{ member.last_activity.strftime('%b %d, %Y') }}</time>
                                 {% else %}
                                 <span class="text-gray-400">Never</span>
                                 {% endif %}
@@ -139,7 +139,7 @@
                             <td class="px-4 py-3 text-right font-medium text-gray-900">
                                 {% if fb.opportunity_score is not none %}{{ fb.opportunity_score }}{% else %}-{% endif %}
                             </td>
-                            <td class="px-4 py-3 text-right text-gray-500">{{ fb.created_at.strftime('%b %d') }}</td>
+                            <td class="px-4 py-3 text-right text-gray-500"><time datetime="{{ fb.created_at.isoformat() }}" data-format="short-noyr">{{ fb.created_at.strftime('%b %d') }}</time></td>
                         </tr>
                         {% endfor %}
                     </tbody>
