@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     outreach_client_id: str = ""
     outreach_client_secret: str = ""
 
+    # ZoomInfo (data enrichment)
+    zoominfo_client_id: str = ""
+    zoominfo_client_secret: str = ""
+
     # SalesLoft (sales engagement)
     salesloft_client_id: str = ""
     salesloft_client_secret: str = ""

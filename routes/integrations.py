@@ -17,7 +17,7 @@ from routes._helpers import (
 )
 from routes.schemas import (
     ApiKeyConnectRequest, HubSpotImportRequest, SalesforceImportRequest,
-    ApolloImportRequest, OceanImportRequest, SlackConnectRequest,
+    ZoomInfoImportRequest, ApolloImportRequest, OceanImportRequest, SlackConnectRequest,
 )
 from services.hubspot import get_authorize_url as hubspot_authorize_url, exchange_code as hubspot_exchange_code
 from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
@@ -298,6 +298,91 @@ async def salesloft_cadences(request: Request, user: dict = Depends(require_onbo
         logger.error("SalesLoft API error: %s", e)
         raise HTTPException(status_code=502, detail="SalesLoft API error")
     return JSONResponse(cadences)
+
+
+# ==========================================================================
+# ZoomInfo
+# ==========================================================================
+
+@router.get("/integrations/zoominfo/connect")
+async def zoominfo_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to ZoomInfo OAuth with PKCE."""
+    import secrets as _secrets
+    from services.zoominfo import generate_pkce_pair, get_authorize_url
+    state = _secrets.token_urlsafe(24)
+    code_verifier, code_challenge = generate_pkce_pair()
+    request.session["_zoominfo_state_"] = state
+    request.session["_zoominfo_verifier_"] = code_verifier
+    url = get_authorize_url(state, code_challenge)
+    return RedirectResponse(url=url)
+
+
+@router.get("/integrations/zoominfo/callback")
+async def zoominfo_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle ZoomInfo OAuth callback with PKCE verifier."""
+    from services.zoominfo import exchange_code as zi_exchange_code
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+
+    if not code or state != request.session.get("_zoominfo_state_"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+
+    code_verifier = request.session.pop("_zoominfo_verifier_", "")
+    request.session.pop("_zoominfo_state_", None)
+
+    token_data = await zi_exchange_code(code, code_verifier)
+    from datetime import datetime, timezone, timedelta
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=token_data.get("expires_in", 86400)
+    )
+
+    await upsert_integration(
+        user_id=user["id"],
+        provider="zoominfo",
+        access_token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_expires_at=expires_at,
+    )
+    return RedirectResponse(url="/integrations", status_code=302)
+
+
+@router.post("/integrations/zoominfo/disconnect")
+async def zoominfo_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect ZoomInfo integration."""
+    await delete_integration(user["id"], "zoominfo")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@router.get("/integrations/zoominfo/companies")
+async def zoominfo_companies(request: Request, user: dict = Depends(require_onboarding)):
+    """Search companies via ZoomInfo API."""
+    from services.zoominfo import search_companies
+    q = request.query_params.get("q", "").strip()
+    if not q:
+        return JSONResponse([])
+    page = int(request.query_params.get("page", "1"))
+    try:
+        results = await search_companies(user["id"], q, page=page)
+    except Exception as e:
+        logger.error("ZoomInfo API error: %s", e)
+        raise HTTPException(status_code=502, detail="ZoomInfo API error")
+    return JSONResponse(results)
+
+
+@router.post("/integrations/zoominfo/import")
+async def zoominfo_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import selected ZoomInfo companies into an Auggie list."""
+    body = ZoomInfoImportRequest(**(await request.json()))
+
+    def extractor(c):
+        website = (c.get("website") or "").strip()
+        zi_id = str(c.get("id", ""))
+        return website, zi_id
+
+    return await _run_crm_import(
+        user, body.companies, body.name, extractor,
+        source_metadata_fn=lambda m: {"provider": "zoominfo", "zoominfo_company_map": m},
+    )
 
 
 # ==========================================================================

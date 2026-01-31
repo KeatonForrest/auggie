@@ -17,6 +17,11 @@ class SalesforceImportRequest(BaseModel):
     name: str = "Salesforce Import"
 
 
+class ZoomInfoImportRequest(BaseModel):
+    companies: list[dict]
+    name: str = "ZoomInfo Import"
+
+
 class ApolloImportRequest(BaseModel):
     list_id: str
     name: str = "Apollo Import"

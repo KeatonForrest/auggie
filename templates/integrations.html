@@ -151,6 +151,41 @@
         {% endif %}
     </div>
 
+    <!-- ZoomInfo -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">ZoomInfo</h2>
+                    <p class="text-sm text-gray-500">Search and import companies from ZoomInfo</p>
+                </div>
+            </div>
+            {% if integrations.get('zoominfo') %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            {% endif %}
+        </div>
+
+        {% if integrations.get('zoominfo') %}
+        <div class="flex items-center gap-3">
+            <button onclick="openZoomInfoImport()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                Search &amp; Import
+            </button>
+            <form method="post" action="/integrations/zoominfo/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <a href="/integrations/zoominfo/connect" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+            Connect ZoomInfo
+        </a>
+        {% endif %}
+    </div>
+
     <!-- Apollo -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
@@ -415,6 +450,34 @@
     </div>
 </div>
 
+<!-- ZoomInfo Import Modal -->
+<div id="zoominfo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from ZoomInfo</h2>
+            <button onclick="closeZoomInfoImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div class="mb-4">
+                <input type="text" id="zi-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div id="zi-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
+            <div id="zi-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
+            <div id="zi-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search ZoomInfo</div>
+            <div id="zi-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-between items-center">
+            <span id="zi-selected-count" class="text-sm text-gray-500">0 selected</span>
+            <div class="flex gap-3">
+                <input type="text" id="zi-list-name" placeholder="List name" value="ZoomInfo Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
+                <button onclick="importZiSelected()" id="zi-import-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50" disabled>
+                    Import & Analyze
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Apollo Import Modal -->
 <div id="apollo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
     <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
@@ -670,6 +733,111 @@ function importSfSelected() {
         else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
     })
     .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+// === ZoomInfo ===
+var ziResults = [];
+var ziSelected = new Set();
+var ziSearchTimer = null;
+
+function openZoomInfoImport() {
+    document.getElementById('zoominfo-modal').classList.remove('hidden');
+    document.getElementById('zi-empty').classList.remove('hidden');
+    document.getElementById('zi-results').innerHTML = '';
+    ziResults = [];
+    ziSelected = new Set();
+    updateZiCount();
+}
+
+function closeZoomInfoImport() {
+    document.getElementById('zoominfo-modal').classList.add('hidden');
+}
+
+function searchZoomInfo(query) {
+    if (!query || query.length < 2) {
+        document.getElementById('zi-results').innerHTML = '';
+        document.getElementById('zi-empty').classList.remove('hidden');
+        document.getElementById('zi-loading').classList.add('hidden');
+        return;
+    }
+    document.getElementById('zi-empty').classList.add('hidden');
+    document.getElementById('zi-loading').classList.remove('hidden');
+    document.getElementById('zi-error').classList.add('hidden');
+
+    fetch('/integrations/zoominfo/companies?q=' + encodeURIComponent(query))
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(data) {
+            document.getElementById('zi-loading').classList.add('hidden');
+            ziResults = data || [];
+            renderZiResults();
+        })
+        .catch(function() {
+            document.getElementById('zi-loading').classList.add('hidden');
+            document.getElementById('zi-error').classList.remove('hidden');
+            document.getElementById('zi-error').textContent = 'Failed to search ZoomInfo.';
+        });
+}
+
+function renderZiResults() {
+    var container = document.getElementById('zi-results');
+    container.innerHTML = '';
+    if (ziResults.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
+        return;
+    }
+    ziResults.forEach(function(c) {
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (ziSelected.has(c.id) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50');
+        var details = [c.website || '', c.city, c.state, c.country].filter(Boolean).join(', ');
+        var meta = [];
+        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
+        if (c.revenue) meta.push('$' + (c.revenue / 1e6).toFixed(0) + 'M rev');
+        div.innerHTML = '<input type="checkbox" ' + (ziSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-indigo-600">'
+            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
+            + '<div class="text-xs text-gray-500">' + details + '</div>'
+            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
+            + '</div>';
+        div.querySelector('input').addEventListener('change', function(e) {
+            if (e.target.checked) ziSelected.add(c.id);
+            else ziSelected.delete(c.id);
+            updateZiCount();
+            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (ziSelected.has(c.id) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50');
+        });
+        container.appendChild(div);
+    });
+}
+
+function updateZiCount() {
+    document.getElementById('zi-selected-count').textContent = ziSelected.size + ' selected';
+    document.getElementById('zi-import-btn').disabled = ziSelected.size === 0;
+}
+
+document.getElementById('zi-search') && document.getElementById('zi-search').addEventListener('input', function() {
+    clearTimeout(ziSearchTimer);
+    var q = this.value.trim();
+    ziSearchTimer = setTimeout(function() { searchZoomInfo(q); }, 400);
+});
+
+function importZiSelected() {
+    var btn = document.getElementById('zi-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    var companies = ziResults.filter(function(c) { return ziSelected.has(c.id); }).map(function(c) {
+        return { id: c.id, website: c.website || '', name: c.name || '' };
+    });
+
+    fetch('/integrations/zoominfo/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companies: companies, name: document.getElementById('zi-list-name').value || 'ZoomInfo Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { window.location.href = '/lists/' + data.list_id; }
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast(data.detail || 'Import failed', 'error'); }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast('Network error', 'error'); });
 }
 
 // === Apollo ===
