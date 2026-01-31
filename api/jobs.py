@@ -114,131 +114,149 @@ async def run_research_job(job_id: int, user_id: int, api_key_id: int | None, co
 
 
 async def run_bulk_job(bulk_job_id: int, user_id: int, api_key_id: int, is_admin: bool = False):
-    """Process all items in a bulk job with bounded concurrency."""
+    """Fan out: enqueue one bulk_item task per account, then return immediately."""
+    from db.task_queue import enqueue
+
     items = await get_bulk_job_items(bulk_job_id)
-    semaphore = asyncio.Semaphore(5)
+    for idx, item in enumerate(items):
+        await enqueue("bulk_item", {
+            "bulk_job_id": bulk_job_id,
+            "item_id": item["id"],
+            "company_url": item["company_url"],
+            "user_id": user_id,
+            "api_key_id": api_key_id,
+            "is_admin": is_admin,
+            "account_index": idx,
+        })
+    logger.info("Bulk job %d: enqueued %d child tasks", bulk_job_id, len(items))
 
-    async def process_item(item: dict):
-        async with semaphore:
-            item_id = item["id"]
-            company_url = item["company_url"]
 
-            # Create a research job for tracking
-            job = await create_research_job(user_id, api_key_id, company_url)
-            await update_bulk_job_item(item_id, "processing", research_job_id=job["id"])
+async def run_bulk_item(
+    bulk_job_id: int, item_id: int, company_url: str,
+    user_id: int, api_key_id: int, is_admin: bool = False,
+    account_index: int = 0,
+):
+    """Process a single bulk job item, then check if we're the last child."""
+    from db.task_queue import check_no_pending_siblings
 
-            try:
-                doc_id = await _run_research_pipeline(user_id, company_url)
+    job = await create_research_job(user_id, api_key_id, company_url)
+    await update_bulk_job_item(item_id, "processing", research_job_id=job["id"])
 
-                await record_api_usage(api_key_id, "/v1/research", 1)
-                await update_job_status(job["id"], "completed", document_id=doc_id)
-                await update_bulk_job_item(item_id, "completed", research_job_id=job["id"], document_id=doc_id)
+    try:
+        doc_id = await _run_research_pipeline(user_id, company_url)
+        await record_api_usage(api_key_id, "/v1/research", 1)
+        await update_job_status(job["id"], "completed", document_id=doc_id)
+        await update_bulk_job_item(item_id, "completed", research_job_id=job["id"], document_id=doc_id)
+    except Exception as e:
+        logger.exception("Bulk item %s failed for %s", item_id, company_url)
+        error_msg = str(e)[:500]
+        await update_job_status(job["id"], "failed", error_message=error_msg)
+        await update_bulk_job_item(item_id, "failed", research_job_id=job["id"], error_message=error_msg)
 
-            except Exception as e:
-                logger.exception("Bulk item %s failed for %s", item_id, company_url)
-                error_msg = str(e)[:500]
-                await update_job_status(job["id"], "failed", error_message=error_msg)
-                await update_bulk_job_item(item_id, "failed", research_job_id=job["id"], error_message=error_msg)
-
-    # Process in batches of 20 to limit memory usage
-    BATCH_SIZE = 20
-    for batch_start in range(0, len(items), BATCH_SIZE):
-        batch = items[batch_start:batch_start + BATCH_SIZE]
-        results = await asyncio.gather(*(process_item(item) for item in batch), return_exceptions=True)
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error("Bulk item %s raised unhandled exception: %s", batch[i]["id"], result)
-
-    # Finalize and refund failed credits
-    final = await finalize_bulk_job(bulk_job_id)
-    failed_count = final["failed_items"]
-    if failed_count > 0 and not is_admin:
-        await refund_credit(user_id, cents=failed_count * 100)
-
-    # Fire webhook for bulk completion
-    await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
+    # Check if all siblings are done — if so, finalize parent (advisory-locked)
+    all_done = await check_no_pending_siblings("bulk_job_id", str(bulk_job_id), bulk_job_id)
+    if all_done:
+        logger.info("Bulk job %d: all children done, finalizing", bulk_job_id)
+        final = await finalize_bulk_job(bulk_job_id)
+        failed_count = final["failed_items"]
+        if failed_count > 0 and not is_admin:
+            await refund_credit(user_id, cents=failed_count * 100)
+        await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
 
 
 async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None = None, is_admin: bool = False):
-    """Process all pending accounts in a list with bounded concurrency."""
+    """Fan out: enqueue one list_item task per pending account, then return immediately."""
+    from db.task_queue import enqueue
+
     accounts = await get_pending_list_accounts(list_id)
-    semaphore = asyncio.Semaphore(5)
+    for idx, account in enumerate(accounts):
+        await enqueue("list_item", {
+            "list_id": list_id,
+            "account_id": account["id"],
+            "company_url": account["company_url"],
+            "user_id": user_id,
+            "api_key_id": api_key_id,
+            "is_admin": is_admin,
+            "account_index": idx,
+        })
+    logger.info("List %d: enqueued %d child tasks", list_id, len(accounts))
 
-    async def process_account(account: dict):
-        async with semaphore:
-            account_id = account["id"]
-            company_url = account["company_url"]
 
-            job = await create_research_job(user_id, api_key_id, company_url)
-            await update_list_account(account_id, "processing", research_job_id=job["id"])
+async def run_list_item(
+    list_id: int, account_id: int, company_url: str,
+    user_id: int, api_key_id: int | None = None, is_admin: bool = False,
+    account_index: int = 0,
+):
+    """Process a single list account, then check if we're the last child."""
+    from db.task_queue import enqueue, check_no_pending_siblings
 
-            try:
-                doc_id = await _run_research_pipeline(user_id, company_url)
+    job = await create_research_job(user_id, api_key_id, company_url)
+    await update_list_account(account_id, "processing", research_job_id=job["id"])
 
-                if api_key_id is not None:
-                    await record_api_usage(api_key_id, "/v1/research", 1)
-                await update_job_status(job["id"], "completed", document_id=doc_id)
+    try:
+        doc_id = await _run_research_pipeline(user_id, company_url)
 
-                # Extract scores from the saved document
-                doc = await get_document(doc_id, user_id)
-                await update_list_account(
-                    account_id, "completed",
-                    document_id=doc_id,
-                    research_job_id=job["id"],
-                    pain_score=doc.pain_score,
-                    fit_score=doc.fit_score,
-                    timing_score=doc.timing_score,
-                    composite_score=doc.opportunity_score,
-                    company_name=doc.company_name,
-                )
+        if api_key_id is not None:
+            await record_api_usage(api_key_id, "/v1/research", 1)
+        await update_job_status(job["id"], "completed", document_id=doc_id)
 
-                # Fire account_scored automation rules (enqueue to avoid blocking)
-                try:
-                    from db.task_queue import enqueue
-                    scored_account = {
-                        "id": account_id,
-                        "status": "completed",
-                        "document_id": doc_id,
-                        "pain_score": doc.pain_score,
-                        "fit_score": doc.fit_score,
-                        "timing_score": doc.timing_score,
-                        "composite_score": doc.opportunity_score,
-                        "company_name": doc.company_name,
-                    }
-                    await enqueue("automation", {
-                        "user_id": user_id,
-                        "trigger_event": "account_scored",
-                        "context": {"list_id": list_id, "accounts": [scored_account]},
-                    })
-                except Exception:
-                    logger.exception("account_scored automation failed for account %s", account_id)
+        doc = await get_document(doc_id, user_id)
+        await update_list_account(
+            account_id, "completed",
+            document_id=doc_id,
+            research_job_id=job["id"],
+            pain_score=doc.pain_score,
+            fit_score=doc.fit_score,
+            timing_score=doc.timing_score,
+            composite_score=doc.opportunity_score,
+            company_name=doc.company_name,
+        )
 
-            except Exception as e:
-                logger.exception("List account %s failed for %s", account_id, company_url)
-                error_msg = str(e)[:500]
-                await update_job_status(job["id"], "failed", error_message=error_msg)
-                await update_list_account(
-                    account_id, "failed",
-                    research_job_id=job["id"],
-                    error_message=error_msg,
-                )
+        # Fire account_scored automation rules
+        try:
+            scored_account = {
+                "id": account_id,
+                "status": "completed",
+                "document_id": doc_id,
+                "pain_score": doc.pain_score,
+                "fit_score": doc.fit_score,
+                "timing_score": doc.timing_score,
+                "composite_score": doc.opportunity_score,
+                "company_name": doc.company_name,
+            }
+            await enqueue("automation", {
+                "user_id": user_id,
+                "trigger_event": "account_scored",
+                "context": {"list_id": list_id, "accounts": [scored_account]},
+            })
+        except Exception:
+            logger.exception("account_scored automation failed for account %s", account_id)
 
-    # Process in batches of 20 to limit memory usage
-    BATCH_SIZE = 20
-    for batch_start in range(0, len(accounts), BATCH_SIZE):
-        batch = accounts[batch_start:batch_start + BATCH_SIZE]
-        results = await asyncio.gather(*(process_account(a) for a in batch), return_exceptions=True)
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error("List account %s raised unhandled exception: %s", batch[i]["id"], result)
+    except Exception as e:
+        logger.exception("List account %s failed for %s", account_id, company_url)
+        error_msg = str(e)[:500]
+        await update_job_status(job["id"], "failed", error_message=error_msg)
+        await update_list_account(
+            account_id, "failed",
+            research_job_id=job["id"],
+            error_message=error_msg,
+        )
 
-    # Finalize and refund failed credits
+    # Check if all siblings are done — if so, finalize parent (advisory-locked)
+    all_done = await check_no_pending_siblings("list_id", str(list_id), list_id)
+    if all_done:
+        logger.info("List %d: all children done, finalizing", list_id)
+        await _finalize_list_parent(list_id, user_id, is_admin)
+
+
+async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
+    """Run all list finalization: status, refunds, CRM writeback, Slack, automation, webhook."""
     final = await finalize_list(list_id)
     failed_count = final["failed_accounts"]
     if failed_count > 0 and not is_admin:
         await refund_credit(user_id, cents=failed_count * 100)
 
-    # HubSpot writeback: if list was imported from HubSpot, push scores back
+    # HubSpot writeback
     try:
         source = await get_list_source(list_id)
         if source and source.get("provider") == "hubspot":
@@ -249,10 +267,9 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("HubSpot writeback failed for list %d", list_id)
 
-    # Salesforce writeback: if list was imported from Salesforce, push scores back
+    # Salesforce writeback
     try:
-        if not source:
-            source = await get_list_source(list_id)
+        source = await get_list_source(list_id)
         if source and source.get("provider") == "salesforce":
             from services.salesforce import write_list_scores_to_salesforce
             all_accounts = await get_list_accounts(list_id)
@@ -261,7 +278,7 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("Salesforce writeback failed for list %d", list_id)
 
-    # Slack notification for list completion
+    # Slack notification
     try:
         from services.notifications import send_slack_notification
         from database import get_integration as _get_integ
@@ -278,7 +295,7 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("Slack notification failed for list %d", list_id)
 
-    # Automation rules engine (enqueued to avoid blocking webhooks)
+    # Automation rules
     try:
         from db.task_queue import enqueue
         all_accounts_for_rules = await get_list_accounts(list_id)
@@ -294,7 +311,7 @@ async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None =
     except Exception:
         logger.exception("Automation rules failed for list %d", list_id)
 
-    # Fire webhook for list completion
+    # Webhook
     await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)
 
 

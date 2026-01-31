@@ -37,6 +37,7 @@ from routes.lists import router as lists_router
 from routes.research import router as research_router
 from routes.team import router as team_router
 from routes.settings import router as settings_router
+from routes.admin import router as admin_router
 from routes._helpers import templates
 
 settings = get_settings()
@@ -88,22 +89,37 @@ async def lifespan(app: FastAPI):
         logger.warning("Using default session secret in production! Set SESSION_SECRET to a strong random value.")
 
     # Start the task queue worker in-process
-    from worker import _poll_loop, _shutdown, MAX_CONCURRENT, WORKER_ID
     import asyncio as _asyncio
-    _sem = _asyncio.Semaphore(MAX_CONCURRENT)
-    _worker_task = _asyncio.create_task(_poll_loop(_sem))
-    logger.info("In-process worker %s started", WORKER_ID)
+    _worker_task = None
+    if settings.worker_enabled:
+        from worker import _poll_loop, _shutdown, WORKER_ID
+        _sem = _asyncio.Semaphore(settings.worker_concurrency)
+        _worker_task = _asyncio.create_task(_poll_loop(_sem))
+        logger.info("In-process worker %s started", WORKER_ID)
 
     yield
 
     # Shut down worker gracefully
-    logger.info("Shutting down worker...")
-    _shutdown.set()
-    _worker_task.cancel()
-    try:
-        await _worker_task
-    except _asyncio.CancelledError:
-        pass
+    if _worker_task is not None:
+        from worker import _shutdown
+        logger.info("Shutting down worker...")
+        _shutdown.set()
+        # Wait for the poll loop to exit
+        try:
+            await _asyncio.wait_for(_worker_task, timeout=5)
+        except (_asyncio.TimeoutError, _asyncio.CancelledError):
+            _worker_task.cancel()
+            try:
+                await _worker_task
+            except _asyncio.CancelledError:
+                pass
+        # Wait for in-flight dispatched tasks to drain
+        logger.info("Waiting for in-flight tasks to complete...")
+        try:
+            for _ in range(settings.worker_concurrency):
+                await _asyncio.wait_for(_sem.acquire(), timeout=30)
+        except _asyncio.TimeoutError:
+            logger.warning("In-flight tasks did not finish within 30s")
 
     logger.info("Shutting down...")
     await close_shared_http_client()
@@ -152,6 +168,7 @@ app.include_router(lists_router)
 app.include_router(research_router)
 app.include_router(team_router)
 app.include_router(settings_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")

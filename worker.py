@@ -16,10 +16,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from config import get_settings
+
 WORKER_ID = f"worker-{uuid.uuid4().hex[:8]}"
-POLL_INTERVAL = 2  # seconds
 STALE_CHECK_INTERVAL = 60  # seconds
-MAX_CONCURRENT = 10
+
+_settings = get_settings()
+POLL_INTERVAL = _settings.worker_poll_interval
+MAX_CONCURRENT = _settings.worker_concurrency
 
 _shutdown = asyncio.Event()
 
@@ -32,7 +36,7 @@ def _handle_signal():
 async def _dispatch(task: dict) -> None:
     """Route a claimed task to the appropriate job function."""
     from db import task_queue
-    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_retry_account
+    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_retry_account, run_bulk_item, run_list_item
     from services.automation import evaluate_rules
 
     task_id = task["id"]
@@ -48,6 +52,10 @@ async def _dispatch(task: dict) -> None:
             await run_list_analysis(**payload)
         elif task_type == "bulk":
             await run_bulk_job(**payload)
+        elif task_type == "bulk_item":
+            await run_bulk_item(**payload)
+        elif task_type == "list_item":
+            await run_list_item(**payload)
         elif task_type == "batch_write":
             await run_batch_write_sequences(**payload)
         elif task_type == "automation":
@@ -60,7 +68,13 @@ async def _dispatch(task: dict) -> None:
 
     except Exception as e:
         logger.error("Task %d (%s) failed: %s", task_id, task_type, e, exc_info=True)
-        await task_queue.fail(task_id, str(e)[:2000])
+        exhausted = await task_queue.fail(task_id, str(e)[:2000])
+        if exhausted:
+            try:
+                from services.notifications import send_task_failure_alert
+                await send_task_failure_alert(task_id, task_type, str(e)[:2000])
+            except Exception:
+                logger.exception("Failed to send failure alert for task %d", task_id)
 
 
 async def _poll_loop(semaphore: asyncio.Semaphore) -> None:

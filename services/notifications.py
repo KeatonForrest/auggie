@@ -83,6 +83,33 @@ async def send_slack_notification(webhook_url: str, event: str, data: dict) -> b
         return False
 
 
+async def send_task_failure_alert(task_id: int, task_type: str, error: str) -> None:
+    """Post to the internal Slack webhook when a task exhausts all retries.
+
+    No-op if slack_webhook_url is not configured.
+    """
+    from config import get_settings
+    settings = get_settings()
+    url = settings.slack_webhook_url
+    if not url:
+        return
+    message = {
+        "blocks": [
+            {"type": "header", "text": {"type": "plain_text", "text": "Task Failed (retries exhausted)"}},
+            {"type": "section", "fields": [
+                {"type": "mrkdwn", "text": f"*Task ID:* {task_id}"},
+                {"type": "mrkdwn", "text": f"*Type:* {task_type}"},
+            ]},
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Error:*\n```{error[:1000]}```"}},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json=message)
+    except Exception:
+        logger.exception("Failed to send task failure alert to Slack")
+
+
 async def validate_webhook_url(url: str) -> bool:
     """Validate a Slack webhook URL by sending a test message."""
     test_message = {

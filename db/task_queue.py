@@ -64,10 +64,13 @@ async def complete(task_id: int) -> None:
         )
 
 
-async def fail(task_id: int, error: str) -> None:
-    """Mark a task as failed. If attempts < max_attempts, requeue as pending."""
+async def fail(task_id: int, error: str) -> bool:
+    """Mark a task as failed. If attempts < max_attempts, requeue as pending.
+
+    Returns True if retries are exhausted (terminal failure).
+    """
     async with _db._pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """
             UPDATE task_queue
             SET status = CASE WHEN attempts < max_attempts THEN 'pending' ELSE 'failed' END,
@@ -76,9 +79,11 @@ async def fail(task_id: int, error: str) -> None:
                 started_at = NULL,
                 claimed_by = NULL
             WHERE id = $1
+            RETURNING (attempts >= max_attempts) AS exhausted
             """,
             task_id, error[:2000] if error else None,
         )
+        return bool(row and row["exhausted"])
 
 
 async def requeue_stale(timeout_minutes: int = 15) -> int:
@@ -101,4 +106,72 @@ async def requeue_stale(timeout_minutes: int = 15) -> int:
         count = int(result.split()[-1])
         if count:
             logger.info("Requeued %d stale tasks", count)
+
+        # Clean up finalization markers older than 24 hours
+        await conn.execute(
+            """
+            DELETE FROM task_queue
+            WHERE task_type LIKE '_finalize_%'
+              AND completed_at < now() - interval '24 hours'
+            """
+        )
+
         return count
+
+
+async def check_no_pending_siblings(job_key: str, job_value: str, lock_id: int) -> bool:
+    """Atomically check whether all sibling tasks are terminal and claim finalization.
+
+    Uses pg_advisory_xact_lock to serialize concurrent children. Inside the
+    locked transaction, inserts a one-off "finalize_<key>_<id>" task as a
+    claim marker. If the marker already exists, another child already won —
+    return False. Otherwise, if count=0, return True.
+
+    This guarantees exactly-once finalization even when two children finish
+    at the same instant.
+    """
+    LOCK_NAMESPACE = 737_000
+    marker_type = f"_finalize_{job_key}_{job_value}"
+    async with _db._pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock($1, $2)",
+                LOCK_NAMESPACE, lock_id,
+            )
+            # Check if another child already claimed finalization
+            existing = await conn.fetchrow(
+                "SELECT id FROM task_queue WHERE task_type = $1 LIMIT 1",
+                marker_type,
+            )
+            if existing:
+                return False
+
+            row = await conn.fetchrow(
+                """
+                SELECT count(*) AS cnt FROM task_queue
+                WHERE payload->>$1 = $2
+                  AND status NOT IN ('completed', 'failed')
+                """,
+                job_key, job_value,
+            )
+            if row["cnt"] != 0:
+                return False
+
+            # Claim finalization by inserting a marker (immediately completed)
+            await conn.execute(
+                """
+                INSERT INTO task_queue (task_type, payload, status, completed_at)
+                VALUES ($1, '{}'::jsonb, 'completed', now())
+                """,
+                marker_type,
+            )
+            return True
+
+
+async def get_queue_stats() -> dict[str, int]:
+    """Return task counts grouped by status."""
+    async with _db._pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT status, count(*)::int AS cnt FROM task_queue WHERE task_type NOT LIKE '_finalize_%' GROUP BY status"
+        )
+        return {row["status"]: row["cnt"] for row in rows}

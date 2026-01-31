@@ -87,8 +87,16 @@ class Settings(BaseSettings):
     db_pool_acquire_timeout: int = 10
     db_statement_timeout: int = 30
 
+    # Slack webhook for internal failure alerts (task exhausted retries)
+    slack_webhook_url: str = ""
+
     # Feature flags
     materials_enabled: bool = False
+
+    # In-process worker
+    worker_enabled: bool = True
+    worker_concurrency: int = 10
+    worker_poll_interval: int = 2
 
     @property
     def r2_endpoint_url(self) -> str:
