@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def create_material(
@@ -14,7 +14,7 @@ async def create_material(
     material_type: str = "other"
 ) -> dict:
     """Create a new material record (org-scoped)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
@@ -34,7 +34,7 @@ async def update_material_status(
     error_message: str = None
 ) -> None:
     """Update material processing status."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE materials
@@ -47,7 +47,7 @@ async def update_material_status(
 
 async def get_user_materials(user_id: int) -> list[dict]:
     """Get all materials for a user's org (shared)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT m.id, m.filename, m.file_type, m.file_size, m.material_type,
@@ -63,7 +63,7 @@ async def get_user_materials(user_id: int) -> list[dict]:
 
 async def get_material(material_id: int, user_id: int) -> Optional[dict]:
     """Get a material by ID (scoped to user's org)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT * FROM materials
@@ -76,7 +76,7 @@ async def get_material(material_id: int, user_id: int) -> Optional[dict]:
 
 async def delete_material(material_id: int, user_id: int) -> Optional[str]:
     """Delete a material and return its storage key for R2 cleanup (org-scoped)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             DELETE FROM materials
@@ -94,7 +94,7 @@ async def save_chunks(
     chunks: list[dict],
 ) -> int:
     """Save chunks with embeddings. Returns count saved."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         for i, chunk in enumerate(chunks):
             # Convert embedding list to pgvector format
@@ -119,7 +119,7 @@ async def vector_search(
     limit: int = 5
 ) -> list[dict]:
     """Search for similar chunks using vector similarity (org-scoped)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         # Convert Python list to pgvector format
         embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
 
@@ -143,7 +143,7 @@ async def vector_search(
 
 async def get_material_preview(material_id: int, user_id: int, limit: int = 5) -> str:
     """Fetch first N chunks by chunk_index and return concatenated content."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT content FROM material_chunks
@@ -158,7 +158,7 @@ async def get_material_preview(material_id: int, user_id: int, limit: int = 5) -
 
 async def delete_chunks_for_material(material_id: int) -> None:
     """Delete all chunks for a material."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "DELETE FROM material_chunks WHERE material_id = $1",
             material_id

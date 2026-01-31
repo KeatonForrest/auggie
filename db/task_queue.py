@@ -4,14 +4,14 @@ import json
 import logging
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 logger = logging.getLogger(__name__)
 
 
 async def enqueue(task_type: str, payload: dict) -> int:
     """Insert a task into the queue. Returns the task ID."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO task_queue (task_type, payload)
@@ -28,7 +28,7 @@ async def claim_next(worker_id: str) -> Optional[dict]:
 
     Returns the task record or None if nothing is available.
     """
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE task_queue
@@ -57,7 +57,7 @@ async def claim_next(worker_id: str) -> Optional[dict]:
 
 async def complete(task_id: int) -> None:
     """Mark a task as completed."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE task_queue SET status = 'completed', completed_at = now() WHERE id = $1",
             task_id,
@@ -66,7 +66,7 @@ async def complete(task_id: int) -> None:
 
 async def fail(task_id: int, error: str) -> None:
     """Mark a task as failed. If attempts < max_attempts, requeue as pending."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE task_queue
@@ -86,7 +86,7 @@ async def requeue_stale(timeout_minutes: int = 15) -> int:
 
     Returns the number of tasks requeued.
     """
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             """
             UPDATE task_queue

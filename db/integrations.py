@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def upsert_integration(
@@ -15,7 +15,7 @@ async def upsert_integration(
     metadata: dict | None = None,
 ) -> dict:
     """Create or update an integration for a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO integrations (user_id, provider, access_token, refresh_token, token_expires_at, metadata)
@@ -36,7 +36,7 @@ async def upsert_integration(
 
 async def get_integration(user_id: int, provider: str) -> dict | None:
     """Get a user's integration for a provider."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM integrations WHERE user_id = $1 AND provider = $2",
             user_id, provider,
@@ -46,7 +46,7 @@ async def get_integration(user_id: int, provider: str) -> dict | None:
 
 async def get_user_integrations(user_id: int) -> list[dict]:
     """Get all integrations for a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM integrations WHERE user_id = $1 ORDER BY provider",
             user_id,
@@ -56,7 +56,7 @@ async def get_user_integrations(user_id: int) -> list[dict]:
 
 async def delete_integration(user_id: int, provider: str) -> bool:
     """Delete a user's integration. Returns True if deleted."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM integrations WHERE user_id = $1 AND provider = $2",
             user_id, provider,
@@ -72,7 +72,7 @@ async def update_integration_tokens(
     token_expires_at: datetime | None = None,
 ) -> None:
     """Update tokens for an integration (used by refresh flow)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE integrations SET

@@ -2,12 +2,12 @@
 
 import json
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def create_automation_rule(user_id: int, name: str, trigger_event: str, conditions: dict, action: str, action_config: dict) -> dict:
     """Create an automation rule."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO automation_rules (user_id, name, trigger_event, conditions, action, action_config)
@@ -21,7 +21,7 @@ async def create_automation_rule(user_id: int, name: str, trigger_event: str, co
 
 async def get_automation_rules(user_id: int) -> list[dict]:
     """Get all automation rules for a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM automation_rules WHERE user_id = $1 ORDER BY created_at DESC",
             user_id,
@@ -50,14 +50,14 @@ async def update_automation_rule(rule_id: int, user_id: int, **fields) -> dict |
         return None
 
     query = f"UPDATE automation_rules SET {', '.join(updates)} WHERE id = $1 AND user_id = $2 RETURNING *"
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(query, rule_id, user_id, *params)
         return dict(row) if row else None
 
 
 async def delete_automation_rule(rule_id: int, user_id: int) -> bool:
     """Delete an automation rule."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM automation_rules WHERE id = $1 AND user_id = $2",
             rule_id, user_id,
@@ -67,7 +67,7 @@ async def delete_automation_rule(rule_id: int, user_id: int) -> bool:
 
 async def get_enabled_rules(user_id: int, trigger_event: str) -> list[dict]:
     """Get enabled automation rules for a user and trigger event."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM automation_rules WHERE user_id = $1 AND trigger_event = $2 AND enabled = TRUE ORDER BY id",
             user_id, trigger_event,
@@ -77,7 +77,7 @@ async def get_enabled_rules(user_id: int, trigger_event: str) -> list[dict]:
 
 async def create_automation_run(rule_id: int, user_id: int, list_id: int, matched_accounts: int) -> dict:
     """Create an automation run audit record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO automation_runs (rule_id, user_id, list_id, matched_accounts)
@@ -91,7 +91,7 @@ async def create_automation_run(rule_id: int, user_id: int, list_id: int, matche
 
 async def complete_automation_run(run_id: int, status: str, error_message: str = None) -> None:
     """Mark an automation run as completed or failed."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE automation_runs
@@ -104,7 +104,7 @@ async def complete_automation_run(run_id: int, status: str, error_message: str =
 
 async def get_automation_runs(user_id: int, rule_id: int = None, limit: int = 20) -> list[dict]:
     """Get recent automation runs, optionally filtered by rule."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         if rule_id:
             rows = await conn.fetch(
                 """

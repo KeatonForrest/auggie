@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def _use_credit_conn(conn, user_id: int, cents: int = 100) -> bool:
@@ -42,7 +42,7 @@ async def create_job_with_credit(
 
     Returns the job record. Raises ValueError if insufficient credits.
     """
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             ok = await _use_credit_conn(conn, user_id, cents)
             if not ok:
@@ -53,7 +53,7 @@ async def create_job_with_credit(
 
 async def create_research_job(user_id: int, api_key_id: int | None, company_url: str) -> dict:
     """Create a new research job. Returns the job record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO research_jobs (user_id, api_key_id, company_url)
@@ -67,7 +67,7 @@ async def create_research_job(user_id: int, api_key_id: int | None, company_url:
 
 async def get_research_job(job_id: int, user_id: int) -> Optional[dict]:
     """Get a research job by ID (scoped to user)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM research_jobs WHERE id = $1 AND user_id = $2",
             job_id, user_id
@@ -82,7 +82,7 @@ async def update_job_status(
     error_message: str = None,
 ) -> None:
     """Update a job's status and optional result fields."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE research_jobs
@@ -96,7 +96,7 @@ async def update_job_status(
 
 async def update_job_progress(job_id: int, progress: str) -> None:
     """Update a job's progress stage (e.g. 'scraping', 'analyzing')."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE research_jobs SET progress = $2 WHERE id = $1",
             job_id, progress
@@ -105,7 +105,7 @@ async def update_job_progress(job_id: int, progress: str) -> None:
 
 async def list_user_jobs(user_id: int, limit: int = 20) -> list[dict]:
     """List recent research jobs for a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, company_url, status, document_id, error_message, created_at, completed_at

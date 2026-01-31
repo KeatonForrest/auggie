@@ -3,12 +3,12 @@
 import asyncpg
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def get_user_by_google_id(google_id: str) -> Optional[dict]:
     """Get a user by their Google ID."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM users WHERE google_id = $1",
             google_id
@@ -18,7 +18,7 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
 
 async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
     """Get a user by their Microsoft ID."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM users WHERE microsoft_id = $1",
             microsoft_id
@@ -28,7 +28,7 @@ async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
 
 async def get_user_by_id(user_id: int) -> Optional[dict]:
     """Get a user by their ID, including org context."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT u.*,
@@ -49,7 +49,7 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
 
 async def create_user(email: str, name: str, picture: str, google_id: str) -> dict:
     """Create a new user from Google OAuth data with auto-created org."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
@@ -91,7 +91,7 @@ async def create_user(email: str, name: str, picture: str, google_id: str) -> di
 
 async def create_user_microsoft(email: str, name: str, picture: str, microsoft_id: str) -> dict:
     """Create a new user from Microsoft OAuth data with auto-created org."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
@@ -157,7 +157,7 @@ async def update_user_profile(
         product_type=product_type,
     )
 
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE users
@@ -245,7 +245,7 @@ async def update_user_stripe(
     subscription_status: str = 'none'
 ) -> dict:
     """Update user's Stripe billing info."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE users
@@ -262,7 +262,7 @@ async def update_user_stripe(
 
 async def increment_user_searches(user_id: int) -> int:
     """Increment search count and return new value."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE users
@@ -277,7 +277,7 @@ async def increment_user_searches(user_id: int) -> int:
 
 async def reset_user_searches(user_id: int) -> None:
     """Reset search count for new billing period."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE users
@@ -290,7 +290,7 @@ async def reset_user_searches(user_id: int) -> None:
 
 async def get_user_usage(user_id: int) -> dict:
     """Get user's current usage stats (credits from org)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT u.searches_used, COALESCE(o.bonus_credits, u.bonus_credits) AS bonus_credits,
@@ -308,7 +308,7 @@ async def add_credits(user_id: int, credits: int) -> int:
     """Add credits to user's org. Credits are in whole units (1 credit = 100 cents internally).
     Returns new total in cents."""
     cents = credits * 100
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE organizations
@@ -324,7 +324,7 @@ async def add_credits(user_id: int, credits: int) -> int:
 async def use_credit(user_id: int, cents: int = 100) -> bool:
     """Use credits from user's org pool. Default 100 cents (1 credit). Enrichment = 50 cents.
     Returns True if successful, False if insufficient credits."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE organizations
@@ -339,7 +339,7 @@ async def use_credit(user_id: int, cents: int = 100) -> bool:
 
 async def refund_credit(user_id: int, cents: int = 100) -> None:
     """Refund credits to user's org pool (e.g. when a reserved job fails)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE organizations SET bonus_credits = bonus_credits + $2
@@ -356,7 +356,7 @@ async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
     Returns True if credits were added, False if already fulfilled.
     """
     cents = credits * 100
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
             try:
@@ -378,7 +378,7 @@ async def try_start_list_analysis(list_id: int) -> bool:
 
     Returns True if the transition succeeded, False if already analyzing.
     """
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "UPDATE lists SET status = 'analyzing', updated_at = NOW() WHERE id = $1 AND status != 'analyzing' RETURNING id",
             list_id,
@@ -388,7 +388,7 @@ async def try_start_list_analysis(list_id: int) -> bool:
 
 async def set_admin(email: str, is_admin: bool = True) -> bool:
     """Set admin status for a user by email. Returns True if updated."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             """
             UPDATE users

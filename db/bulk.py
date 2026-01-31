@@ -1,11 +1,11 @@
 """Bulk job database operations."""
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def create_bulk_job(user_id: int, api_key_id: int, name: str | None, total_items: int, credits_reserved: int) -> dict:
     """Create a new bulk job. Returns the job record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO bulk_jobs (user_id, api_key_id, name, total_items, credits_reserved)
@@ -19,7 +19,7 @@ async def create_bulk_job(user_id: int, api_key_id: int, name: str | None, total
 
 async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
     """Get a bulk job by ID (scoped to user)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM bulk_jobs WHERE id = $1 AND user_id = $2",
             bulk_job_id, user_id
@@ -29,7 +29,7 @@ async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
 
 async def list_bulk_jobs(user_id: int, limit: int = 20) -> list[dict]:
     """List recent bulk jobs for a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, name, status, total_items, completed_items, failed_items,
@@ -46,7 +46,7 @@ async def list_bulk_jobs(user_id: int, limit: int = 20) -> list[dict]:
 
 async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]:
     """Batch-insert items for a bulk job. Returns list of item records."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.executemany(
             "INSERT INTO bulk_job_items (bulk_job_id, company_url) VALUES ($1, $2)",
             [(bulk_job_id, url) for url in urls],
@@ -60,7 +60,7 @@ async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]
 
 async def get_bulk_job_items(bulk_job_id: int) -> list[dict]:
     """Get all items for a bulk job."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, bulk_job_id, research_job_id, company_url, status,
@@ -82,7 +82,7 @@ async def update_bulk_job_item(
     error_message: str | None = None,
 ) -> None:
     """Update a bulk job item and atomically increment parent counters."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             # Update the item
             await conn.execute(
@@ -116,7 +116,7 @@ async def update_bulk_job_item(
 
 async def finalize_bulk_job(bulk_job_id: int) -> dict:
     """Set final status and completed_at on a bulk job. Returns updated record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 "SELECT total_items, completed_items, failed_items FROM bulk_jobs WHERE id = $1 FOR UPDATE",

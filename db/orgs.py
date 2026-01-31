@@ -4,19 +4,19 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def get_org(org_id: int) -> Optional[dict]:
     """Get an organization by ID."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM organizations WHERE id = $1", org_id)
         return dict(row) if row else None
 
 
 async def update_org_name(org_id: int, name: str) -> dict:
     """Update org name."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "UPDATE organizations SET name = $2 WHERE id = $1 RETURNING *",
             org_id, name
@@ -26,7 +26,7 @@ async def update_org_name(org_id: int, name: str) -> dict:
 
 async def update_org_stripe(org_id: int, stripe_customer_id: str) -> None:
     """Set Stripe customer ID on an org."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE organizations SET stripe_customer_id = $2 WHERE id = $1",
             org_id, stripe_customer_id
@@ -35,7 +35,7 @@ async def update_org_stripe(org_id: int, stripe_customer_id: str) -> None:
 
 async def get_org_members(org_id: int) -> list[dict]:
     """Get all members of an org with user details."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT u.id, u.email, u.name, u.picture, om.role, om.joined_at
@@ -51,7 +51,7 @@ async def get_org_members(org_id: int) -> list[dict]:
 
 async def update_member_role(org_id: int, user_id: int, role: str) -> bool:
     """Change a member's role. Returns True if updated."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "UPDATE org_members SET role = $3 WHERE org_id = $1 AND user_id = $2",
             org_id, user_id, role
@@ -61,7 +61,7 @@ async def update_member_role(org_id: int, user_id: int, role: str) -> bool:
 
 async def remove_org_member(org_id: int, user_id: int) -> bool:
     """Remove a member from an org. Returns True if removed."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM org_members WHERE org_id = $1 AND user_id = $2",
             org_id, user_id
@@ -73,7 +73,7 @@ async def create_org_invite(org_id: int, email: str, role: str, invited_by: int)
     """Create an invite to join an org. Returns the invite record."""
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         try:
             row = await conn.fetchrow(
                 """
@@ -97,7 +97,7 @@ async def create_org_invite(org_id: int, email: str, role: str, invited_by: int)
 
 async def get_pending_invites(org_id: int) -> list[dict]:
     """Get pending (unaccepted, unexpired) invites for an org."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT oi.*, u.name AS invited_by_name
@@ -113,7 +113,7 @@ async def get_pending_invites(org_id: int) -> list[dict]:
 
 async def get_invite_by_token(token: str) -> Optional[dict]:
     """Get an invite by token (with org name)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT oi.*, o.name AS org_name
@@ -128,7 +128,7 @@ async def get_invite_by_token(token: str) -> Optional[dict]:
 
 async def accept_invite(token: str, user_id: int) -> Optional[dict]:
     """Accept an invite. Returns the invite record or None if invalid/expired."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             invite = await conn.fetchrow(
                 """
@@ -168,7 +168,7 @@ async def accept_invite(token: str, user_id: int) -> Optional[dict]:
 
 async def revoke_invite(invite_id: int, org_id: int) -> bool:
     """Revoke a pending invite. Returns True if deleted."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM org_invites WHERE id = $1 AND org_id = $2 AND accepted_at IS NULL",
             invite_id, org_id
@@ -178,7 +178,7 @@ async def revoke_invite(invite_id: int, org_id: int) -> bool:
 
 async def get_pending_invites_for_email(email: str) -> list[dict]:
     """Get pending invites for an email address."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT oi.*, o.name AS org_name
@@ -194,7 +194,7 @@ async def get_pending_invites_for_email(email: str) -> list[dict]:
 
 async def get_org_documents(org_id: int, limit: int = 50) -> list[dict]:
     """Get all research documents across an org (for admin view)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT rd.id, rd.company_url, rd.company_name, rd.created_at,
@@ -213,7 +213,7 @@ async def get_org_documents(org_id: int, limit: int = 50) -> list[dict]:
 
 async def get_org_usage_breakdown(org_id: int, days: int = 30) -> list[dict]:
     """Get per-member usage breakdown for an org."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT u.id, u.name, u.email, u.picture, om.role,
@@ -234,7 +234,7 @@ async def get_org_usage_breakdown(org_id: int, days: int = 30) -> list[dict]:
 
 async def user_has_data(user_id: int) -> bool:
     """Check if a user has any research data (documents, lists, etc)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT EXISTS(SELECT 1 FROM research_documents WHERE user_id = $1) AS has_data",
             user_id
@@ -244,7 +244,7 @@ async def user_has_data(user_id: int) -> bool:
 
 async def delete_empty_org(org_id: int) -> bool:
     """Delete an org if it has no members. Returns True if deleted."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         member_count = await conn.fetchval(
             "SELECT COUNT(*) FROM org_members WHERE org_id = $1", org_id
         )

@@ -3,12 +3,12 @@
 import json
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def create_list(user_id: int, api_key_id: int | None, name: str) -> dict:
     """Create a new list (org-scoped). Returns the list record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
@@ -23,7 +23,7 @@ async def create_list(user_id: int, api_key_id: int | None, name: str) -> dict:
 
 async def get_list(list_id: int, user_id: int) -> dict | None:
     """Get a list by ID (scoped to user's org)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT * FROM lists
@@ -36,7 +36,7 @@ async def get_list(list_id: int, user_id: int) -> dict | None:
 
 async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
     """List recent lists for a user's org (shared)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, name, status, total_accounts, analyzed_accounts,
@@ -53,7 +53,7 @@ async def list_lists(user_id: int, limit: int = 20) -> list[dict]:
 
 async def delete_list(list_id: int, user_id: int) -> bool:
     """Delete a list and all its accounts (org-scoped). Returns True if deleted."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             """
             DELETE FROM lists
@@ -66,7 +66,7 @@ async def delete_list(list_id: int, user_id: int) -> bool:
 
 async def add_list_accounts(list_id: int, company_urls: list[str]) -> list[dict]:
     """Batch-insert accounts for a list. Updates total_accounts on parent. Returns account records."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.executemany(
             "INSERT INTO list_accounts (list_id, company_url) VALUES ($1, $2)",
             [(list_id, url) for url in company_urls],
@@ -94,7 +94,7 @@ async def get_pipeline_counts(list_id: int) -> dict:
         FROM list_accounts
         WHERE list_id = $1
     """
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(query, list_id)
         return dict(row)
 
@@ -107,14 +107,14 @@ async def count_ready_accounts(list_id: int, account_ids: list[int] | None = Non
             WHERE list_id = $1 AND status = 'completed' AND document_id IS NOT NULL
               AND id = ANY($2)
         """
-        async with _pool.acquire() as conn:
+        async with _db._pool.acquire() as conn:
             return await conn.fetchval(query, list_id, account_ids)
     else:
         query = """
             SELECT COUNT(*) FROM list_accounts
             WHERE list_id = $1 AND status = 'completed' AND document_id IS NOT NULL
         """
-        async with _pool.acquire() as conn:
+        async with _db._pool.acquire() as conn:
             return await conn.fetchval(query, list_id)
 
 
@@ -171,7 +171,7 @@ async def get_list_accounts(
     """
     params.extend([limit, offset])
 
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
         return [dict(row) for row in rows]
 
@@ -189,7 +189,7 @@ async def update_list_account(
     error_message: str | None = None,
 ) -> None:
     """Update a list account and atomically increment parent counters."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
                 """
@@ -224,7 +224,7 @@ async def update_list_account(
 
 async def finalize_list(list_id: int) -> dict:
     """Set final status on a list. Returns updated record."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 "SELECT total_accounts, analyzed_accounts, failed_accounts FROM lists WHERE id = $1 FOR UPDATE",
@@ -250,7 +250,7 @@ async def finalize_list(list_id: int) -> dict:
 
 async def update_list_status(list_id: int, status: str) -> None:
     """Update the status of a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE lists SET status = $2, updated_at = NOW() WHERE id = $1",
             list_id, status
@@ -259,7 +259,7 @@ async def update_list_status(list_id: int, status: str) -> None:
 
 async def update_list_credits(list_id: int, credits_reserved: int) -> None:
     """Update credits reserved on a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE lists SET credits_reserved = $2, updated_at = NOW() WHERE id = $1",
             list_id, credits_reserved
@@ -268,7 +268,7 @@ async def update_list_credits(list_id: int, credits_reserved: int) -> None:
 
 async def get_list_account(account_id: int, list_id: int) -> dict | None:
     """Get a single list account by ID scoped to a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM list_accounts WHERE id = $1 AND list_id = $2",
             account_id, list_id
@@ -278,7 +278,7 @@ async def get_list_account(account_id: int, list_id: int) -> dict | None:
 
 async def reset_list_account(account_id: int) -> None:
     """Reset a failed list account to pending for retry."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
                 """
@@ -300,7 +300,7 @@ async def reset_list_account(account_id: int) -> None:
 
 async def get_pending_list_accounts(list_id: int) -> list[dict]:
     """Get all pending accounts for a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM list_accounts WHERE list_id = $1 AND status = 'pending' ORDER BY id",
             list_id
@@ -310,7 +310,7 @@ async def get_pending_list_accounts(list_id: int) -> list[dict]:
 
 async def get_list_source(list_id: int) -> dict | None:
     """Get the source metadata for a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT source FROM lists WHERE id = $1",
             list_id,
@@ -322,7 +322,7 @@ async def get_list_source(list_id: int) -> dict | None:
 
 async def set_list_source(list_id: int, source: dict) -> None:
     """Set the source metadata for a list."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE lists SET source = $2::jsonb, updated_at = NOW() WHERE id = $1",
             list_id, __import__('json').dumps(source),
@@ -331,7 +331,7 @@ async def set_list_source(list_id: int, source: dict) -> None:
 
 async def update_list_account_enrichment(account_id: int, status: str, error_message: str = None) -> None:
     """Update the enrichment_status of a list account."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE list_accounts SET enrichment_status = $2, error_message = COALESCE($3, error_message) WHERE id = $1",
             account_id, status, error_message,
@@ -340,7 +340,7 @@ async def update_list_account_enrichment(account_id: int, status: str, error_mes
 
 async def update_list_account_outreach(account_id: int, status: str) -> None:
     """Update the outreach_status of a list account."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             "UPDATE list_accounts SET outreach_status = $2 WHERE id = $1",
             account_id, status,
@@ -349,7 +349,7 @@ async def update_list_account_outreach(account_id: int, status: str) -> None:
 
 async def update_list_account_pushed(account_id: int, provider: str, push_data: dict) -> None:
     """Mark a list account as pushed to a provider."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE list_accounts SET pushed_to = pushed_to || $2::jsonb

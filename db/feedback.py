@@ -2,12 +2,12 @@
 
 from typing import Optional
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def save_feedback(document_id: int, user_id: int, is_positive: bool, comment: Optional[str] = None):
     """Upsert feedback for a document (one per user per document)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.execute(
             """
             INSERT INTO research_feedback (document_id, user_id, is_positive, comment)
@@ -21,7 +21,7 @@ async def save_feedback(document_id: int, user_id: int, is_positive: bool, comme
 
 async def get_feedback(document_id: int, user_id: int) -> Optional[dict]:
     """Get existing feedback for a document by a user."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT is_positive, comment FROM research_feedback WHERE document_id = $1 AND user_id = $2",
             document_id, user_id,
@@ -33,7 +33,7 @@ async def get_feedback(document_id: int, user_id: int) -> Optional[dict]:
 
 async def get_all_feedback(limit: int = 100) -> list[dict]:
     """Get all feedback joined with document model_used and scores for A/B analysis."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT f.id, f.document_id, f.user_id, f.is_positive, f.comment, f.created_at,

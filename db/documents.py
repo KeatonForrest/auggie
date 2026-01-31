@@ -4,12 +4,12 @@ import asyncpg
 from typing import Optional
 
 from models import ResearchDocument
-from db._pool import _pool
+import db._pool as _db
 
 
 async def save_document(doc: ResearchDocument, user_id: int) -> int:
     """Save a research document and return its ID."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO research_documents (
@@ -56,7 +56,7 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
 
 async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
     """Retrieve a research document by ID (scoped to user)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM research_documents WHERE id = $1 AND user_id = $2",
             doc_id, user_id
@@ -66,7 +66,7 @@ async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
 
 async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocument]:
     """Get all research documents for a user, most recent first (summary only)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, user_id, company_url, company_name, created_at,
@@ -88,7 +88,7 @@ async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocum
 
 async def search_documents(user_id: int, query: str) -> list[ResearchDocument]:
     """Search documents by company name or URL (scoped to user)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         search_term = f"%{query}%"
         rows = await conn.fetch(
             """
@@ -111,7 +111,7 @@ async def search_documents(user_id: int, query: str) -> list[ResearchDocument]:
 
 async def delete_document(doc_id: int, user_id: int) -> bool:
     """Delete a document (scoped to user). Returns True if deleted."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM research_documents WHERE id = $1 AND user_id = $2",
             doc_id, user_id
@@ -185,7 +185,7 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
 
 async def get_recent_document_by_url(user_id: int, company_url: str, hours: int = 24) -> Optional[ResearchDocument]:
     """Find a recent research document for this URL within the time window."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT * FROM research_documents
@@ -201,7 +201,7 @@ async def get_recent_document_by_url(user_id: int, company_url: str, hours: int 
 
 async def check_duplicate_research(user_id: int, company_url: str, days: int = 7) -> dict | None:
     """Check if a research document exists for this URL within the last N days."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT id, company_name, created_at

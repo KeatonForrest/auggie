@@ -1,11 +1,11 @@
 """Enriched contacts database operations."""
 
-from db._pool import _pool
+import db._pool as _db
 
 
 async def save_enriched_contacts(document_id: int, user_id: int, contacts: list[dict]):
     """Save enriched contacts for a research document."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         await conn.executemany(
             """
             INSERT INTO enriched_contacts
@@ -26,7 +26,7 @@ async def save_enriched_contacts(document_id: int, user_id: int, contacts: list[
 
 async def get_enriched_contacts(document_id: int, user_id: int) -> list[dict]:
     """Get enriched contacts for a document (scoped to user)."""
-    async with _pool.acquire() as conn:
+    async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM enriched_contacts WHERE document_id = $1 AND user_id = $2 ORDER BY id",
             document_id, user_id
