@@ -30,6 +30,7 @@ from services.instantly import push_accounts_to_instantly
 from services.smartlead import push_accounts_to_smartlead
 from services.outreach import push_sequences_to_outreach
 from services.salesloft import push_sequences_to_salesloft
+from services.apollo import push_sequences_to_apollo
 
 router = APIRouter()
 
@@ -172,6 +173,7 @@ async def view_list(
     smartlead_integration = await get_integration(user["id"], "smartlead")
     outreach_integration = await get_integration(user["id"], "outreach")
     salesloft_integration = await get_integration(user["id"], "salesloft")
+    apollo_integration = await get_integration(user["id"], "apollo")
 
     # Pipeline step counts (single SQL query)
     counts = await get_pipeline_counts(list_id)
@@ -195,6 +197,7 @@ async def view_list(
             "smartlead_connected": smartlead_integration is not None,
             "outreach_connected": outreach_integration is not None,
             "salesloft_connected": salesloft_integration is not None,
+            "apollo_connected": apollo_integration is not None,
             "scored_count": scored_count,
             "enriched_count": enriched_count,
             "written_count": written_count,
@@ -483,4 +486,17 @@ async def push_to_salesloft(
     body = PushSequencesRequest(**(await request.json()))
     return await _push_drafts_to_integration(
         user, list_id, body.account_ids, push_sequences_to_salesloft,
+    )
+
+
+@router.post("/lists/{list_id}/push-apollo")
+async def push_to_apollo(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push Auggie-generated sequences to Apollo as emailer campaigns (no contacts)."""
+    body = PushSequencesRequest(**(await request.json()))
+    return await _push_drafts_to_integration(
+        user, list_id, body.account_ids, push_sequences_to_apollo,
     )

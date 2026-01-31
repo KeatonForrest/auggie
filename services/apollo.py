@@ -402,6 +402,101 @@ async def get_firmographics_for_user(user_id: int, domain: str) -> Optional[str]
 APOLLO_API_BASE = "https://api.apollo.io/v1"
 
 
+def _plain_to_html(text: str) -> str:
+    """Convert plain text to simple HTML paragraphs."""
+    import html as html_mod
+    escaped = html_mod.escape(text)
+    return escaped.replace("\n\n", "</p><p>").replace("\n", "<br>")
+
+
+async def _create_apollo_sequence_with_emails(
+    api_key: str,
+    company_name: str,
+    emails: list[dict],
+) -> str | None:
+    """Create an Apollo sequence (emailer_campaign) with email steps.
+
+    Returns the campaign ID, or None on failure.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Create the sequence / emailer campaign
+        seq_resp = await client.post(
+            f"{APOLLO_API_BASE}/emailer_campaigns",
+            headers={"Content-Type": "application/json"},
+            json={
+                "api_key": api_key,
+                "name": f"Auggie – {company_name}",
+            },
+        )
+        if seq_resp.status_code >= 400:
+            logger.warning("Apollo sequence create failed: %s", seq_resp.text[:200])
+            return None
+        campaign_id = seq_resp.json().get("emailer_campaign", {}).get("id")
+        if not campaign_id:
+            logger.warning("Apollo sequence create returned no ID: %s", seq_resp.text[:200])
+            return None
+
+        # 2. Add email steps
+        for i, email in enumerate(emails):
+            step_resp = await client.post(
+                f"{APOLLO_API_BASE}/emailer_steps",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "api_key": api_key,
+                    "emailer_campaign_id": campaign_id,
+                    "priority": "A",
+                    "type": "auto_email",
+                    "wait_days": 3 if i > 0 else 0,
+                    "subject": email.get("subject", ""),
+                    "body": f"<p>{_plain_to_html(email.get('body', ''))}</p>",
+                },
+            )
+            if step_resp.status_code >= 400:
+                logger.warning("Apollo step create failed: %s", step_resp.text[:200])
+
+    return campaign_id
+
+
+async def push_sequences_to_apollo(
+    user_id: int,
+    accounts: list[dict],
+    drafts_by_account: dict[int, list[dict]],
+) -> dict:
+    """Create Apollo sequences with Auggie-generated email content.
+
+    Creates one emailer_campaign per account.
+
+    Returns {"sequences_created": int, "skipped": int, "errors": int, "created_ids": [...]}.
+    """
+    api_key = await _get_integration_api_key(user_id)
+    sequences_created = 0
+    skipped = 0
+    errors = 0
+    created_ids = []
+
+    for account in accounts:
+        emails = drafts_by_account.get(account["id"])
+        if not emails:
+            skipped += 1
+            continue
+
+        created_id = await _create_apollo_sequence_with_emails(
+            api_key, account.get("company_name", "Unknown"), emails,
+        )
+        if created_id:
+            sequences_created += 1
+            created_ids.append(created_id)
+        else:
+            errors += 1
+
+    return {
+        "sequences_created": sequences_created,
+        "skipped": skipped,
+        "errors": errors,
+        "created_ids": created_ids,
+    }
+
+
 async def validate_integration_api_key(api_key: str) -> bool:
     """Validate an Apollo API key by making a test call."""
     async with httpx.AsyncClient(timeout=15.0) as client:
