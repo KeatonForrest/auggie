@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS task_queue (
     error TEXT,
     claimed_by TEXT
 );
-CREATE INDEX idx_task_queue_pending ON task_queue (status, created_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_task_queue_pending ON task_queue (status, created_at) WHERE status = 'pending';
