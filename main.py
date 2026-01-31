@@ -229,6 +229,18 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 # Home page + static pages
 # =============================================================================
 
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    """Privacy policy page."""
+    return templates.TemplateResponse("privacy.html", {"request": request})
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page(request: Request):
+    """Terms of service page."""
+    return templates.TemplateResponse("terms.html", {"request": request})
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page - shows login or dashboard based on auth state."""
