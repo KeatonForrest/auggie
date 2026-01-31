@@ -23,6 +23,7 @@ from services.hubspot import get_authorize_url as hubspot_authorize_url, exchang
 from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
 from services.outreach import get_authorize_url as outreach_authorize_url, exchange_code as outreach_exchange_code
 from services.salesloft import get_authorize_url as salesloft_authorize_url, exchange_code as salesloft_exchange_code
+from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
 from services.instantly import validate_api_key as instantly_validate
 from services.smartlead import validate_api_key as smartlead_validate
 from services.apollo import validate_integration_api_key as apollo_validate
@@ -526,6 +527,32 @@ async def slack_test(request: Request, user: dict = Depends(require_auth)):
         raise HTTPException(status_code=502, detail="Failed to send test message")
 
     return JSONResponse({"success": True})
+
+
+# ==========================================================================
+# Google Sheets
+# ==========================================================================
+
+@router.get("/integrations/google_sheets/connect")
+async def google_sheets_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to Google OAuth for Sheets access."""
+    return await _oauth_connect(request, "google_sheets", gsheets_authorize_url)
+
+
+@router.get("/integrations/google_sheets/callback")
+async def google_sheets_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle Google Sheets OAuth callback."""
+    return await _oauth_callback(
+        request, user, "google_sheets", gsheets_exchange_code,
+        expires_in_default=3600,
+    )
+
+
+@router.post("/integrations/google_sheets/disconnect")
+async def google_sheets_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Google Sheets integration."""
+    await delete_integration(user["id"], "google_sheets")
+    return RedirectResponse(url="/integrations", status_code=303)
 
 
 # ==========================================================================

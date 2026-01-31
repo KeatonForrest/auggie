@@ -231,6 +231,52 @@
         </div>
         {% endif %}
 
+        {% if integrations.get('google_sheets') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Google Sheets</h3>
+                        <p class="text-sm text-gray-500">Import lists directly from Google Sheets</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="/lists" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                    Import on Lists Page
+                </a>
+                <form method="post" action="/integrations/google_sheets/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('google_sheets') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Google Sheets</h3>
+                        <p class="text-sm text-gray-500">Import lists directly from Google Sheets</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/google_sheets/connect" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                Connect Google Sheets
+            </a>
+        </div>
+        {% endif %}
+
         {% if not integrations.get('ocean') %}
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between mb-4">

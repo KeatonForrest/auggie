@@ -34,6 +34,32 @@
         </form>
     </div>
 
+    <!-- Import from Google Sheets -->
+    <div class="bg-white shadow rounded-lg p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Import from Google Sheets</h2>
+        {% if google_sheets_connected %}
+        <p class="text-sm text-gray-500 mb-4">Paste a Google Sheets URL to import domains. Same column detection as file upload.</p>
+        <div class="flex flex-col sm:flex-row gap-4 sm:items-end">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Google Sheets URL</label>
+                <input type="text" id="gsheet-url" placeholder="https://docs.google.com/spreadsheets/d/..."
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div class="sm:w-64">
+                <label class="block text-sm font-medium text-gray-700 mb-1">List Name (optional)</label>
+                <input type="text" id="gsheet-name" placeholder="e.g. Q1 Target Accounts"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500">
+            </div>
+            <button onclick="importGoogleSheet()" id="gsheet-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium whitespace-nowrap">
+                Import & Analyze
+            </button>
+        </div>
+        <p id="gsheet-error" class="mt-2 text-sm text-red-600 hidden"></p>
+        {% else %}
+        <p class="text-sm text-gray-500">Connect Google Sheets on the <a href="/integrations" class="text-blue-600 hover:text-blue-800 font-medium">Integrations page</a> to import directly from a spreadsheet URL.</p>
+        {% endif %}
+    </div>
+
     <!-- Recent Lists -->
     <div class="bg-white shadow rounded-lg overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -112,4 +138,43 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function importGoogleSheet() {
+    var btn = document.getElementById('gsheet-btn');
+    var url = document.getElementById('gsheet-url').value.trim();
+    var name = document.getElementById('gsheet-name').value.trim();
+    var errEl = document.getElementById('gsheet-error');
+    errEl.classList.add('hidden');
+
+    if (!url) { errEl.textContent = 'Please enter a Google Sheets URL'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Importing...';
+
+    fetch('/lists/import-google-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url, list_name: name || 'Google Sheets Import' })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) {
+            window.location.href = '/lists/' + res.data.list_id;
+        } else {
+            errEl.textContent = res.data.detail || 'Import failed';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Import & Analyze';
+        }
+    })
+    .catch(function() {
+        errEl.textContent = 'Network error';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Import & Analyze';
+    });
+}
+</script>
 {% endblock %}

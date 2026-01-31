@@ -40,6 +40,7 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
     """Upload page + table of user's recent lists."""
     usage = await get_user_usage(user["id"])
     recent = await list_lists(user["id"])
+    gsheets_integration = await get_integration(user["id"], "google_sheets")
     return templates.TemplateResponse(
         "lists.html",
         {
@@ -48,8 +49,97 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
             "lists": recent,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
+            "google_sheets_connected": gsheets_integration is not None,
         }
     )
+
+
+@router.post("/lists/import-google-sheet")
+async def import_google_sheet(
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Import rows from a Google Sheets URL, same logic as CSV upload."""
+    from api.ratelimit import upload_limiter, get_client_ip
+    from api.jobs import run_list_analysis
+    from services.google_sheets import extract_spreadsheet_id, fetch_sheet_rows
+    from routes.schemas import GoogleSheetsImportRequest
+
+    upload_limiter.check(get_client_ip(request))
+
+    body = GoogleSheetsImportRequest(**(await request.json()))
+    spreadsheet_id = extract_spreadsheet_id(body.url)
+    if not spreadsheet_id:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL.")
+
+    try:
+        rows = await fetch_sheet_rows(user["id"], spreadsheet_id)
+    except Exception as e:
+        logger.error("Google Sheets API error: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to read Google Sheet. Make sure it's shared or you've connected Google Sheets.")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="Sheet is empty.")
+
+    # Detect domain column (same logic as CSV upload)
+    header = rows[0]
+    domain_col = None
+    recognized = {"domain", "url", "website", "company_url", "company"}
+    for i, col in enumerate(header):
+        if col.strip().lower() in recognized:
+            domain_col = i
+            break
+
+    if domain_col is not None:
+        data_rows = rows[1:]
+    else:
+        domain_col = 0
+        data_rows = rows
+
+    raw_urls = []
+    for row in data_rows:
+        if domain_col < len(row) and row[domain_col].strip():
+            raw_urls.append(row[domain_col].strip())
+
+    valid_urls = []
+    seen = set()
+    for raw in raw_urls:
+        url = normalize_url(raw)
+        try:
+            url = validate_company_url(url)
+        except ValueError:
+            continue
+        if url not in seen:
+            seen.add(url)
+            valid_urls.append(url)
+        if len(valid_urls) >= 100:
+            break
+
+    if not valid_urls:
+        raise HTTPException(status_code=400, detail="No valid domains found in the sheet.")
+
+    usage = await get_user_usage(user["id"])
+    is_admin = usage.get("is_admin", False)
+    needed = len(valid_urls) * 100
+    if not is_admin and usage.get("bonus_credits", 0) < needed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough credits. Need {len(valid_urls)}, have {usage.get('bonus_credits', 0) // 100}."
+        )
+
+    if not is_admin:
+        ok = await use_credit(user["id"], cents=needed)
+        if not ok:
+            raise HTTPException(status_code=402, detail="Not enough credits.")
+
+    name = body.list_name.strip() or "Google Sheets Import"
+    lst = await create_list(user["id"], api_key_id=None, name=name)
+    await add_list_accounts(lst["id"], valid_urls)
+    await update_list_credits(lst["id"], needed)
+
+    await create_tracked_task("list_analysis", {"list_id": lst["id"], "user_id": user["id"], "api_key_id": None, "is_admin": is_admin}, name=f"list-{lst['id']}")
+
+    return JSONResponse({"success": True, "list_id": lst["id"]})
 
 
 @router.post("/lists/upload")

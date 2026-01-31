@@ -32,6 +32,11 @@ class OceanImportRequest(BaseModel):
     name: str = "Ocean.io Import"
 
 
+class GoogleSheetsImportRequest(BaseModel):
+    url: str
+    list_name: str = "Google Sheets Import"
+
+
 class SlackConnectRequest(BaseModel):
     webhook_url: str
 
