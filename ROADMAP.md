@@ -754,6 +754,42 @@ General infrastructure hardening and operational improvements. Not a phase — j
 
 ---
 
+## Fix Timezone Handling
+**Status:** Planned
+
+Fix timezone bugs across the app — timestamps displaying incorrectly, UTC vs local mismatches, etc.
+
+- [ ] Audit all timestamp columns and ensure consistent UTC storage
+- [ ] Fix frontend display to convert to user's local timezone
+- [ ] Verify created_at / completed_at / analyzed_at render correctly in lists, documents, and jobs
+
+---
+
+## Master Admin Portal
+**Status:** Planned
+
+Centralized admin dashboard for internal operations — beyond the current `/admin/queue` endpoint.
+
+- [ ] User management (view all users, orgs, credits, usage)
+- [ ] Job monitoring (view/cancel running jobs, retry failed)
+- [ ] System health dashboard (queue depth, error rates, latency)
+- [ ] Credit management (grant/revoke credits, view transactions)
+- [ ] Integration status overview (connected accounts, OAuth token health)
+
+---
+
+## ZoomInfo Import
+**Status:** Planned
+
+Add ZoomInfo as an ingest source (same pattern as Apollo/Ocean.io).
+
+- [ ] ZoomInfo API integration — OAuth or API key connection flow
+- [ ] Import companies/accounts from ZoomInfo lists
+- [ ] Create Auggie list from imported companies, trigger analysis
+- [ ] Add to integrations page UI
+
+---
+
 ## Priority Timeline
 
 | Timeframe | Phase | Goal |
@@ -776,6 +812,9 @@ General infrastructure hardening and operational improvements. Not a phase — j
 | ✅ Done | Phase 3.5 | Writing calibration (partial-signal mode, Section A stripping, banned phrases) |
 | Active | Phase 11.5 | Integration testing (manual end-to-end verification) |
 | ✅ Done | Phase 11.75 | Sequencer integrations (Outreach, Salesloft) |
+| Planned | — | Fix timezone handling across the app |
+| Planned | — | Master admin portal |
+| Planned | — | ZoomInfo import integration |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---
