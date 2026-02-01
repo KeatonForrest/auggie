@@ -316,6 +316,17 @@ Good examples:
 - "Your app stack shows Redis but your job posting mentions caching problems"
 
 Do NOT include generic statements like "You are a fast-growing fintech" or "Companies like yours often struggle with X."
+
+CRITICAL — AUDIENCE FILTER FOR TALKING POINTS:
+Opening hooks and conversation starters must resonate with the BUYER, not just be technically true. Apply these filters:
+
+1. **Security details are for security buyers only.** Do NOT lead with security header grades, missing DKIM/SPF/DMARC, certificate expiry, or security posture scores UNLESS the seller's product is a security product or the target persona is a security role (CISO, security engineer, etc.). These signals are valuable for the Existential Data Points section but make terrible opening hooks for non-security buyers — they come across as a vulnerability scan, not a sales conversation.
+
+2. **Match signal to buyer's domain.** An engineering leader cares about tech debt, scaling pressure, and hiring gaps. A marketing leader cares about analytics sprawl and identity fragmentation. A CTO cares about architecture and platform decisions. Choose hooks that match what the buyer thinks about daily.
+
+3. **No duplicate signals.** Each opening hook should surface a DIFFERENT insight. Do not use security headers in one hook and DKIM in another — those are the same signal reworded. Spread hooks across different categories (engineering, operations, business, competitive).
+
+4. **Business impact > technical detail.** "50% staff reduction while maintaining 29M users" is a strong hook. "Missing DKIM authentication" is not — unless you are selling email security.
 """
 
         if target_personas:
@@ -489,7 +500,7 @@ Output the scores in this EXACT format at the very end of your response (after a
 ## Opportunity Score
 
 SCORE_PAIN: [0-100]
-SCORE_PAIN_EVIDENCE: [Bullet list of specific signals that justify the pain score. If none, write "No pain signals found."]
+SCORE_PAIN_EVIDENCE: [Bullet list of specific signals that justify the pain score. Prioritize signals relevant to the seller's product. Security infrastructure gaps (headers, DKIM, certs) should only be listed if the seller's product addresses security. If none, write "No pain signals found."]
 SCORE_FIT: [0-100]
 SCORE_FIT_EVIDENCE: [Bullet list of specific signals that justify the fit score. If none, write "No fit signals found."]
 SCORE_TIMING: [0-100]
