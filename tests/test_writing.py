@@ -12,8 +12,8 @@ from services.writing import WritingService
 def writing_service():
     """WritingService with mocked API client."""
     with patch("services.writing.get_settings") as mock_settings:
-        mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
-        with patch("services.writing.anthropic.AsyncAnthropic"):
+        mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
+        with patch("services.writing.AsyncOpenAI"):
             service = WritingService()
     return service
 
@@ -341,24 +341,24 @@ class TestGenerateEmailSequence:
     async def test_generate_sequence_basic(self, sample_document):
         """Test uncovered lines 1569-1587: generate_email_sequence method."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
 
-            # Mock the Anthropic client
             mock_message = MagicMock()
-            mock_message.content = [MagicMock(text="""
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = """
 <email_series>
 <subject>Following up on database scaling</subject>
 <email1>Hi, noticed you're growing fast. Curious how you're handling data scale.</email1>
 <email2>Following up on my previous note about scaling.</email2>
 <email3>Last check-in - still interested in discussing database performance?</email3>
 </email_series>
-""")]
+"""
 
             mock_client = AsyncMock()
-            mock_client.messages.create = AsyncMock(return_value=mock_message)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
 
-            with patch("services.writing.anthropic.AsyncAnthropic") as mock_anthropic:
-                mock_anthropic.return_value = mock_client
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
 
                 service = WritingService()
                 emails = await service.generate_email_sequence(
@@ -371,9 +371,9 @@ class TestGenerateEmailSequence:
         assert "growing fast" in emails[0]["body"]
 
         # Verify the API call was made correctly
-        mock_client.messages.create.assert_called_once()
-        call_args = mock_client.messages.create.call_args
-        assert call_args.kwargs["model"] == "claude-sonnet-4-20250514"
+        mock_client.chat.completions.create.assert_called_once()
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs["model"] == "mistralai/mistral-medium-3.1"
         assert call_args.kwargs["max_tokens"] == 2000
         assert len(call_args.kwargs["messages"]) == 1
         assert call_args.kwargs["messages"][0]["role"] == "user"
@@ -382,23 +382,24 @@ class TestGenerateEmailSequence:
     async def test_generate_sequence_with_all_parameters(self, full_document):
         """Test generate_email_sequence with all optional parameters."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
 
             mock_message = MagicMock()
-            mock_message.content = [MagicMock(text="""
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = """
 <email_series>
 <subject>Test</subject>
 <email1>Body 1</email1>
 <email2>Body 2</email2>
 <email3>Body 3</email3>
 </email_series>
-""")]
+"""
 
             mock_client = AsyncMock()
-            mock_client.messages.create = AsyncMock(return_value=mock_message)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
 
-            with patch("services.writing.anthropic.AsyncAnthropic") as mock_anthropic:
-                mock_anthropic.return_value = mock_client
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
 
                 service = WritingService()
                 emails = await service.generate_email_sequence(
@@ -413,7 +414,7 @@ class TestGenerateEmailSequence:
         assert len(emails) == 3
 
         # Verify the prompt includes all the optional parameters
-        call_args = mock_client.messages.create.call_args
+        call_args = mock_client.chat.completions.create.call_args
         prompt = call_args.kwargs["messages"][0]["content"]
         assert "MongoDB Inc" in prompt
         assert "Scalability, Performance" in prompt
@@ -423,23 +424,24 @@ class TestGenerateEmailSequence:
     async def test_generate_sequence_msp_type(self, sample_document):
         """Test generate_email_sequence with MSP product type."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
 
             mock_message = MagicMock()
-            mock_message.content = [MagicMock(text="""
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = """
 <email_series>
 <subject>IT management overhead</subject>
 <email1>Body 1</email1>
 <email2>Body 2</email2>
 <email3>Body 3</email3>
 </email_series>
-""")]
+"""
 
             mock_client = AsyncMock()
-            mock_client.messages.create = AsyncMock(return_value=mock_message)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
 
-            with patch("services.writing.anthropic.AsyncAnthropic") as mock_anthropic:
-                mock_anthropic.return_value = mock_client
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
 
                 service = WritingService()
                 emails = await service.generate_email_sequence(
@@ -449,7 +451,7 @@ class TestGenerateEmailSequence:
                 )
 
         # Verify MSP framing was included in the prompt
-        call_args = mock_client.messages.create.call_args
+        call_args = mock_client.chat.completions.create.call_args
         prompt = call_args.kwargs["messages"][0]["content"]
         assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in prompt
 

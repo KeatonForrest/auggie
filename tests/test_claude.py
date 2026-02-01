@@ -12,8 +12,8 @@ from models import ScrapedContent, TechStack, DetectedTechnology, ResearchDocume
 def claude_service():
     """Create a ClaudeService instance with mocked settings and client."""
     with patch("services.claude.get_settings") as mock_settings:
-        mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
-        with patch("services.claude.anthropic.AsyncAnthropic"):
+        mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+        with patch("services.claude.AsyncOpenAI"):
             service = ClaudeService()
             return service
 
@@ -649,11 +649,10 @@ class TestGenerateResearchDocument:
     @pytest.mark.asyncio
     async def test_generate_research_document(self):
         """Test the full generate_research_document method with mocked API."""
-        # Create a mock response
+        # Create a mock response (OpenAI SDK shape)
         mock_response = MagicMock()
-        mock_response.content = [
-            MagicMock(type="thinking", thinking="Thinking about the company..."),
-            MagicMock(type="text", text="""## Company Overview
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = """## Company Overview
 Acme Corp is a fintech startup.
 
 ## Specific Projects & Initiatives
@@ -697,16 +696,15 @@ SCORE_TIMING: 60
 SCORE_TIMING_EVIDENCE: - Recent funding
 SCORE_COMPOSITE: 74
 SCORE_SUMMARY: Strong opportunity.
-""")
-        ]
+"""
 
         # Create service with mocked client
         with patch("services.claude.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
-            with patch("services.claude.anthropic.AsyncAnthropic") as mock_anthropic:
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
                 mock_client = AsyncMock()
-                mock_client.messages.create = AsyncMock(return_value=mock_response)
-                mock_anthropic.return_value = mock_client
+                mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+                mock_openai.return_value = mock_client
 
                 service = ClaudeService()
 
@@ -749,26 +747,27 @@ SCORE_SUMMARY: Strong opportunity.
                 assert "Recent funding" in result.timing_evidence
 
                 # Check metadata
-                assert result.thinking_content == "Thinking about the company..."
-                assert result.model_used == "claude-sonnet-4-20250514"
+                assert result.thinking_content is None or result.thinking_content == ""
+                assert result.model_used == "google/gemini-2.5-flash"
                 assert isinstance(result.created_at, datetime)
 
                 # Verify API was called correctly
-                mock_client.messages.create.assert_called_once()
-                call_kwargs = mock_client.messages.create.call_args[1]
-                assert call_kwargs["model"] == "claude-sonnet-4-20250514"
+                mock_client.chat.completions.create.assert_called_once()
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                assert call_kwargs["model"] == "google/gemini-2.5-flash"
                 assert call_kwargs["max_tokens"] == 16000
                 assert call_kwargs["temperature"] == 1.0
-                assert "thinking" in call_kwargs
-                assert "Database software" in call_kwargs["system"]
-                assert "acme.com" in call_kwargs["messages"][0]["content"]
+                # System prompt is now in messages array
+                assert call_kwargs["messages"][0]["role"] == "system"
+                assert "Database software" in call_kwargs["messages"][0]["content"]
+                assert "acme.com" in call_kwargs["messages"][1]["content"]
 
     @pytest.mark.asyncio
     async def test_generate_research_document_with_all_parameters(self):
         """Test generate_research_document with all optional parameters."""
         mock_response = MagicMock()
-        mock_response.content = [
-            MagicMock(type="text", text="""## Company Overview
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = """## Company Overview
 Test company
 
 ## Opportunity Score
@@ -777,15 +776,14 @@ SCORE_FIT: 60
 SCORE_TIMING: 40
 SCORE_COMPOSITE: 51
 SCORE_SUMMARY: Medium opportunity
-""")
-        ]
+"""
 
         with patch("services.claude.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(anthropic_api_key="test-key")
-            with patch("services.claude.anthropic.AsyncAnthropic") as mock_anthropic:
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
                 mock_client = AsyncMock()
-                mock_client.messages.create = AsyncMock(return_value=mock_response)
-                mock_anthropic.return_value = mock_client
+                mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+                mock_openai.return_value = mock_client
 
                 service = ClaudeService()
 
@@ -810,8 +808,8 @@ SCORE_SUMMARY: Medium opportunity
                 )
 
                 # Verify all parameters were passed to system prompt
-                call_kwargs = mock_client.messages.create.call_args[1]
-                system_prompt = call_kwargs["system"]
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                system_prompt = call_kwargs["messages"][0]["content"]
                 assert "Database" in system_prompt
                 assert "Case study 1" in system_prompt
                 assert "Seller Co" in system_prompt
@@ -821,6 +819,6 @@ SCORE_SUMMARY: Medium opportunity
                 assert "MSP / IT SERVICES MODIFIER" in system_prompt
 
                 # Verify tech stack in user prompt
-                user_prompt = call_kwargs["messages"][0]["content"]
+                user_prompt = call_kwargs["messages"][1]["content"]
                 assert "VERIFIED Technologies" in user_prompt
                 assert "React" in user_prompt
