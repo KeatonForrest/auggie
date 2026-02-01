@@ -202,10 +202,27 @@ async def generate_outreach(
         raise HTTPException(status_code=404, detail="Document not found")
 
     try:
+        # Retrieve relevant materials (non-fatal if unavailable)
+        materials = ""
+        try:
+            from services.collect import _get_retrieval_service
+            retrieval = _get_retrieval_service()
+            if retrieval:
+                materials = await retrieval.get_relevant_context(
+                    user_id=user["id"],
+                    company_name=document.company_name,
+                    company_description=document.company_overview[:500] if document.company_overview else "",
+                ) or ""
+        except Exception:
+            pass
+
         emails = await writing_service.generate_email_sequence(
             document=document,
             product_context=user.get("product_context", ""),
             product_type=user.get("product_type", "saas"),
+            retrieved_materials=materials,
+            seller_company=user.get("company_name", ""),
+            problems_solved=user.get("problems_solved", ""),
         )
         return JSONResponse({
             "success": True,

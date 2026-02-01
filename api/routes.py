@@ -370,10 +370,27 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
     from services.instances import writing_service
 
     try:
+        # Retrieve relevant materials (non-fatal if unavailable)
+        materials = ""
+        try:
+            from services.collect import _get_retrieval_service
+            retrieval = _get_retrieval_service()
+            if retrieval:
+                materials = await retrieval.get_relevant_context(
+                    user_id=api_user["id"],
+                    company_name=document.company_name,
+                    company_description=document.company_overview[:500] if document.company_overview else "",
+                ) or ""
+        except Exception:
+            pass
+
         emails = await writing_service.generate_email_sequence(
             document=document,
             product_context=api_user.get("product_context", ""),
             product_type=api_user.get("product_type", "saas"),
+            retrieved_materials=materials,
+            seller_company=api_user.get("company_name", ""),
+            problems_solved=api_user.get("problems_solved", ""),
         )
 
         await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)
