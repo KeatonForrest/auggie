@@ -40,6 +40,9 @@ class TechStack(BaseModel):
     technologies: list[DetectedTechnology] = []
     scan_url: Optional[str] = None
 
+    # Categories that are noise or false positives — exclude from prompts
+    _EXCLUDED_CATEGORIES = {"Cryptominers"}
+
     def to_prompt_text(self) -> str:
         """Format for inclusion in Claude's prompt."""
         if not self.technologies:
@@ -47,6 +50,8 @@ class TechStack(BaseModel):
 
         lines = []
         for tech in self.technologies:
+            if tech.category and any(c.strip() in self._EXCLUDED_CATEGORIES for c in tech.category.split(",")):
+                continue
             entry = f"- {tech.name}"
             if tech.version:
                 entry += f" {tech.version}"
