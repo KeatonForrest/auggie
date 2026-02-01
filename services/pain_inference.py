@@ -1,7 +1,7 @@
 """Pain inference engine — derive actionable pain signals from collected data."""
 
 from typing import Optional
-from models import SignalBundle, PainInference, TechStack
+from models import SignalBundle, PainInference, TechStack, SellerContext
 
 
 class PainInferenceEngine:
@@ -28,12 +28,20 @@ class PainInferenceEngine:
 
     CACHE_NAMES = {"redis", "memcached", "varnish", "hazelcast"}
 
+    CATEGORY_KEYWORDS: dict[str, list[str]] = {
+        "security": ["security", "compliance", "soc2", "gdpr", "vulnerability", "firewall", "identity", "auth", "zero trust", "siem", "threat", "encryption", "pentest"],
+        "engineering": ["developer", "engineering", "devops", "ci/cd", "deployment", "code", "api", "platform", "infrastructure", "scaling", "performance", "database", "backend", "frontend", "sdk"],
+        "operations": ["operations", "cloud", "monitoring", "observability", "itsm", "helpdesk", "ticketing", "asset", "network", "incident", "uptime"],
+        "marketing": ["marketing", "analytics", "cdp", "attribution", "tracking", "advertising", "seo", "crm", "customer data", "personalization", "campaign"],
+        "data": ["data", "warehouse", "etl", "pipeline", "bi", "machine learning", "ml", "lakehouse", "dbt", "snowflake", "databricks", "ai"],
+    }
+
     AUTH_PROVIDER_NAMES = {
         "auth0", "okta", "firebase auth", "cognito", "clerk", "onelogin",
         "ping identity", "azure ad", "keycloak",
     }
 
-    def evaluate(self, bundle: SignalBundle) -> list[PainInference]:
+    def evaluate(self, bundle: SignalBundle, seller: Optional[SellerContext] = None) -> list[PainInference]:
         rules = [
             self._identity_fragmentation,
             self._tech_debt,
@@ -61,6 +69,8 @@ class PainInferenceEngine:
                 results.append(inference)
         self._evaluate_compounds(results)
         self._apply_dampeners(results, bundle)
+        if seller is not None:
+            self._apply_seller_weighting(results, seller)
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
 
@@ -630,3 +640,38 @@ class PainInferenceEngine:
         for r in results:
             if r.confidence < 10:
                 r.confidence = 10
+
+    def _compute_category_relevance(self, seller: SellerContext) -> dict[str, int]:
+        """Check problems_solved for substring matches per category. Return hit counts."""
+        text = seller.problems_solved.lower()
+        relevance: dict[str, int] = {}
+        for category, keywords in self.CATEGORY_KEYWORDS.items():
+            hits = sum(1 for kw in keywords if kw in text)
+            relevance[category] = hits
+        return relevance
+
+    def _apply_seller_weighting(self, results: list[PainInference], seller: SellerContext) -> None:
+        """Boost/dampen confidence based on seller's product relevance to each category."""
+        relevance = self._compute_category_relevance(seller)
+        max_hits = max(relevance.values()) if relevance else 0
+        if max_hits == 0:
+            return
+
+        for r in results:
+            if not r.category:
+                continue
+            hits = relevance.get(r.category, 0)
+            if hits >= 1:
+                r.confidence += 15
+            elif max_hits >= 2:
+                r.confidence -= 10
+
+        # MSP bonus
+        if seller.product_type == "msp":
+            for r in results:
+                if r.category in ("operations", "security"):
+                    r.confidence += 5
+
+        # Clamp all to [10, 95]
+        for r in results:
+            r.confidence = max(10, min(95, r.confidence))

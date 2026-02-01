@@ -5,6 +5,7 @@ from services.pain_inference import PainInferenceEngine
 from models import (
     SignalBundle, DNSProfile, SSLProfile, SecurityPosture,
     RobotsSignals, JobSignals, TechMention, TechStack, DetectedTechnology,
+    SellerContext,
 )
 
 
@@ -683,3 +684,75 @@ class TestEvaluate:
     def test_empty_bundle(self, engine):
         results = engine.evaluate(SignalBundle())
         assert results == []
+
+
+class TestSellerWeighting:
+    def test_seller_weighting_boosts_relevant(self, engine):
+        """Security seller → security signals get +15."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        # Without seller
+        base_results = engine.evaluate(bundle)
+        base_conf = next(r.confidence for r in base_results if r.rule_id == "email_risk")
+
+        # With security seller
+        seller = SellerContext(problems_solved="We help with security compliance and threat detection")
+        seller_results = engine.evaluate(bundle, seller=seller)
+        seller_conf = next(r.confidence for r in seller_results if r.rule_id == "email_risk")
+        assert seller_conf == base_conf + 15
+
+    def test_seller_weighting_dampens_irrelevant(self, engine):
+        """Security-focused seller → marketing signals get -10 when max hits >= 2."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(
+                ("GA4", "analytics"), ("Hotjar", "analytics"),
+                ("Mixpanel", "analytics"), ("GTM", "tag manager"),
+                ("FB Pixel", "advertising"), ("LinkedIn", "advertising"),
+            )},
+        )
+        # Without seller
+        base_results = engine.evaluate(bundle)
+        base_conf = next(r.confidence for r in base_results if r.rule_id == "tag_bloat")
+
+        # With security seller (multiple security keyword hits → max_hits >= 2)
+        seller = SellerContext(problems_solved="security compliance soc2 gdpr threat encryption")
+        seller_results = engine.evaluate(bundle, seller=seller)
+        seller_conf = next(r.confidence for r in seller_results if r.rule_id == "tag_bloat")
+        assert seller_conf == base_conf - 10
+
+    def test_seller_weighting_noop_no_seller(self, engine):
+        """No seller = unchanged results."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        results_no_seller = engine.evaluate(bundle)
+        results_none = engine.evaluate(bundle, seller=None)
+        assert [r.confidence for r in results_no_seller] == [r.confidence for r in results_none]
+
+    def test_seller_weighting_msp_bonus(self, engine):
+        """MSP product_type → +5 on operations/security on top of relevance boost."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        # Security seller, saas
+        seller_saas = SellerContext(product_type="saas", problems_solved="security compliance threat")
+        results_saas = engine.evaluate(bundle, seller=seller_saas)
+        conf_saas = next(r.confidence for r in results_saas if r.rule_id == "email_risk")
+
+        # Security seller, msp
+        seller_msp = SellerContext(product_type="msp", problems_solved="security compliance threat")
+        results_msp = engine.evaluate(bundle, seller=seller_msp)
+        conf_msp = next(r.confidence for r in results_msp if r.rule_id == "email_risk")
+
+        assert conf_msp == conf_saas + 5
+
+    def test_seller_weighting_empty_problems_solved(self, engine):
+        """Empty problems_solved string = no-op (same as no seller)."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        results_no_seller = engine.evaluate(bundle)
+        seller = SellerContext(problems_solved="")
+        results_empty = engine.evaluate(bundle, seller=seller)
+        assert [r.confidence for r in results_no_seller] == [r.confidence for r in results_empty]

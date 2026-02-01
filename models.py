@@ -115,6 +115,11 @@ class PainInference(BaseModel):
     category: str = ""
 
 
+class SellerContext(BaseModel):
+    product_type: str = "saas"
+    problems_solved: str = ""
+
+
 class SignalBundle(BaseModel):
     domain: str = ""
     tech_by_domain: dict = {}

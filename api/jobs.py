@@ -21,7 +21,7 @@ from services.instances import (
     firecrawl_service, claude_service, wappalyzer_service,
     dns_analyzer, ssl_analyzer, job_parser, pain_engine,
 )
-from models import SignalBundle
+from models import SignalBundle, SellerContext
 from config import get_settings
 from api.webhooks import sign_payload
 
@@ -76,7 +76,11 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         security_posture=security_posture, robots_signals=robots_signals,
         job_signals=job_signals,
     )
-    pain_inferences = pain_engine.evaluate(bundle)
+    seller_context = SellerContext(
+        product_type=user.get("product_type", "saas"),
+        problems_solved=user.get("problems_solved", ""),
+    )
+    pain_inferences = pain_engine.evaluate(bundle, seller=seller_context)
     pain_ms = (time.monotonic() - t0) * 1000
     logger.info("[pipeline %s] pain inference: %.0fms (%d signals)", domain, pain_ms, len(pain_inferences))
 
