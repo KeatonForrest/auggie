@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     )
 
     firecrawl_api_key: str
-    anthropic_api_key: str
+    anthropic_api_key: str = ""
+    openrouter_api_key: str = ""
+    research_model: str = "google/gemini-2.5-flash-preview"
+    writing_model: str = "mistralai/mistral-medium-3.1"
     database_url: str  # Required: postgresql://user:pass@host:port/db
 
     # Google OAuth

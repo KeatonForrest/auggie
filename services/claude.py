@@ -1,7 +1,7 @@
 """claude.py - AI research document generation using Claude API."""
 
 import re
-import anthropic
+from openai import AsyncOpenAI
 from typing import Optional
 from datetime import datetime
 
@@ -17,7 +17,10 @@ class ClaudeService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
+        self.client = AsyncOpenAI(
+            api_key=self.settings.openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
@@ -718,27 +721,19 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             job_signals=job_signals, pain_inferences=pain_inferences,
         )
 
-        model = "claude-sonnet-4-20250514"
-        message = await self.client.messages.create(
+        model = self.settings.research_model
+        response = await self.client.chat.completions.create(
             model=model,
             max_tokens=16000,
             temperature=1.0,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": 8000,
-            },
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
         )
 
-        # Parse response: extract text and thinking content
-        full_markdown = ""
+        full_markdown = response.choices[0].message.content or ""
         thinking_content = ""
-        for block in message.content:
-            if block.type == "thinking":
-                thinking_content += block.thinking + "\n"
-            elif block.type == "text":
-                full_markdown = block.text
         sections = self._parse_sections(full_markdown)
         scores = self._parse_scores(full_markdown)
 

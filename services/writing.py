@@ -1,7 +1,7 @@
 """writing.py - AI-powered outreach generation using Claude Sonnet."""
 
-import anthropic
 import re
+from openai import AsyncOpenAI
 from typing import Optional
 from models import ResearchDocument
 from config import get_settings
@@ -12,7 +12,10 @@ class WritingService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
+        self.client = AsyncOpenAI(
+            api_key=self.settings.openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
     def _build_report(self, document: ResearchDocument, product_context: str, retrieved_materials: str = "",
                        seller_company: str = "", problems_solved: str = "") -> str:
@@ -1572,14 +1575,14 @@ Present your final output in this format:
         # Build the full prompt
         prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
 
-        # Call Sonnet
-        message = await self.client.messages.create(
-            model="claude-sonnet-4-20250514",
+        # Call writing model
+        message = await self.client.chat.completions.create(
+            model=self.settings.writing_model,
             max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
         )
 
-        response = message.content[0].text
+        response = message.choices[0].message.content or ""
 
         # Parse the emails
         emails = self._parse_emails(response)
