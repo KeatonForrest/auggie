@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 
 import httpx
 
@@ -36,9 +37,13 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     if not user:
         raise RuntimeError("User not found")
 
+    pipeline_start = time.monotonic()
+
     if job_id:
         await update_job_progress(job_id, "scraping")
+    t0 = time.monotonic()
     scraped_content = await firecrawl_service.scrape_company(company_url)
+    logger.info("[pipeline %s] scraping: %.1fs", company_url, time.monotonic() - t0)
 
     if job_id:
         await update_job_progress(job_id, "analyzing")
@@ -47,11 +52,13 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     domain = _parsed.netloc.replace("www.", "") or _parsed.path.split("/")[0].replace("www.", "")
     full_main_url = f"https://{domain}"
 
+    t0 = time.monotonic()
     tech_by_domain, dns_profile, ssl_profile = await asyncio.gather(
         wappalyzer_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
         dns_analyzer.analyze(domain),
         ssl_analyzer.analyze(domain),
     )
+    logger.info("[pipeline %s] tech+dns+ssl: %.1fs", domain, time.monotonic() - t0)
 
     # Phase 3: security headers, robots, job signals
     security_posture = wappalyzer_service.score_security_headers(
@@ -62,6 +69,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     job_signals = job_parser.parse(scraped_content.job_postings) if scraped_content.job_postings else None
 
     # Phase 4: pain inference
+    t0 = time.monotonic()
     bundle = SignalBundle(
         domain=domain, tech_by_domain=tech_by_domain,
         dns_profile=dns_profile, ssl_profile=ssl_profile,
@@ -69,15 +77,20 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         job_signals=job_signals,
     )
     pain_inferences = pain_engine.evaluate(bundle)
+    pain_ms = (time.monotonic() - t0) * 1000
+    logger.info("[pipeline %s] pain inference: %.0fms (%d signals)", domain, pain_ms, len(pain_inferences))
 
     if job_id:
         await update_job_progress(job_id, "enriching")
+    t0 = time.monotonic()
     retrieved_materials = await collect_enrichment_data(
         scraped_content, company_url, user_id,
     )
+    logger.info("[pipeline %s] enrichment: %.1fs", domain, time.monotonic() - t0)
 
     if job_id:
         await update_job_progress(job_id, "generating")
+    t0 = time.monotonic()
     document = await claude_service.generate_research_document(
         company_url=company_url,
         scraped=scraped_content,
@@ -96,7 +109,9 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         job_signals=job_signals,
         pain_inferences=pain_inferences,
     )
+    logger.info("[pipeline %s] claude generation: %.1fs", domain, time.monotonic() - t0)
 
+    t0 = time.monotonic()
     doc_id = await save_document(document, user_id=user_id)
 
     # Phase 5: persist tech signals and pain inferences
@@ -106,6 +121,8 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         await save_pain_inferences(doc_id, pain_inferences)
     except Exception:
         logger.warning("Failed to save tech signals/pain inferences for doc %s", doc_id, exc_info=True)
+    logger.info("[pipeline %s] persistence: %.1fs", domain, time.monotonic() - t0)
+    logger.info("[pipeline %s] TOTAL: %.1fs", domain, time.monotonic() - pipeline_start)
 
     return doc_id
 
