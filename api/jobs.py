@@ -393,6 +393,8 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
                     product_context=user.get("product_context", ""),
                     product_type=user.get("product_type", "saas"),
                     retrieved_materials=materials,
+                    seller_company=user.get("company_name", ""),
+                    problems_solved=user.get("problems_solved", ""),
                 )
                 await save_outreach_draft(account["document_id"], user_id, {"emails": emails})
                 await update_list_account_outreach(account_id, "completed")
