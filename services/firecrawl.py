@@ -226,7 +226,6 @@ class FirecrawlService:
 
         other_urls = {
             "about": urljoin(base_url, "/about"),
-            "careers": urljoin(base_url, "/careers"),
             "blog": urljoin(base_url, "/blog"),
             "engineering": urljoin(base_url, "/engineering"),
         }
@@ -284,7 +283,7 @@ class FirecrawlService:
             homepage=homepage_markdown,
             homepage_html=homepage_html,
             about=core_results.get("about"),
-            careers=core_results.get("careers"),
+            careers=None,
             blog=core_results.get("blog"),
             job_postings=job_postings,
             additional_pages=additional_content,
