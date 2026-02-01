@@ -79,15 +79,27 @@ class TestSyncAnalyzeUrl:
 
 
 class TestSyncAnalyzeHtml:
+    def test_fetches_headers_when_empty(self, wappalyzer_service):
+        with patch("services.wappalyzer.WebPage") as mock_wp, \
+             patch("services.wappalyzer.requests") as mock_requests:
+            mock_resp = MagicMock()
+            mock_resp.headers = {"Server": "nginx", "X-Powered-By": "PHP/8.1"}
+            mock_requests.head.return_value = mock_resp
+            mock_wp.return_value = MagicMock()
+            wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {}
+            wappalyzer_service._sync_analyze_html("<html/>", "https://x.com", {})
+            mock_requests.head.assert_called_once_with("https://x.com", timeout=5, allow_redirects=True)
+            mock_wp.assert_called_once_with("https://x.com", "<html/>", {"Server": "nginx", "X-Powered-By": "PHP/8.1"})
+
     def test_success(self, wappalyzer_service):
         with patch("services.wappalyzer.WebPage") as mock_wp:
             mock_wp.return_value = MagicMock()
             wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {
                 "Bootstrap": {"versions": ["5"], "categories": ["UI"]}
             }
-            ts = wappalyzer_service._sync_analyze_html("<html/>", "https://x.com", {})
+            ts = wappalyzer_service._sync_analyze_html("<html/>", "https://x.com", {"Server": "nginx"})
         assert len(ts.technologies) == 1
-        mock_wp.assert_called_once_with("https://x.com", "<html/>", {})
+        mock_wp.assert_called_once_with("https://x.com", "<html/>", {"Server": "nginx"})
 
     def test_exception_returns_empty(self, wappalyzer_service):
         with patch("services.wappalyzer.WebPage") as mock_wp:
@@ -134,6 +146,14 @@ class TestCheckUrlExists:
         client.head.return_value = resp
         result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_head_403_returns_url(self, wappalyzer_service):
+        client = AsyncMock()
+        resp = MagicMock(status_code=403, url="https://example.com/app")
+        client.head.return_value = resp
+        result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
+        assert result == "https://example.com/app"
 
     @pytest.mark.asyncio
     async def test_head_timeout_returns_none(self, wappalyzer_service):

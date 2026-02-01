@@ -2,6 +2,7 @@
 
 import asyncio
 import httpx
+import requests
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -117,6 +118,12 @@ class WappalyzerService:
     def _sync_analyze_html(self, html: str, url: str, headers: dict) -> TechStack:
         """Synchronous HTML analysis (runs in thread pool)."""
         try:
+            if not headers:
+                try:
+                    resp = requests.head(url, timeout=5, allow_redirects=True)
+                    headers = dict(resp.headers)
+                except Exception:
+                    pass  # proceed with empty headers — no worse than before
             webpage = WebPage(url, html, headers)
             results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
             return self._parse_technologies(results, url)
@@ -131,7 +138,7 @@ class WappalyzerService:
             response = await client.head(
                 url, follow_redirects=True, timeout=5.0, headers=_ua
             )
-            if response.status_code >= 400:
+            if response.status_code == 404 or response.status_code >= 500:
                 return None
             if response.status_code == 405:
                 # HEAD not allowed — fall through to GET
@@ -148,7 +155,7 @@ class WappalyzerService:
             response = await client.get(
                 url, follow_redirects=True, timeout=6.0, headers=_ua
             )
-            if response.status_code < 400:
+            if response.status_code not in (404,) and response.status_code < 500:
                 return self._validate_redirect(url, response)
         except Exception:
             pass
