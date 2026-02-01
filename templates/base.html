@@ -69,6 +69,9 @@
                             <a href="/terms" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Terms</a>
                         </div>
                     </div>
+                    {% if is_admin %}
+                    <a href="/admin" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Admin</a>
+                    {% endif %}
                     {% if credits is defined %}
                     <div class="flex items-center gap-2">
                         {% if is_admin %}
@@ -117,6 +120,7 @@
                     <span class="text-gray-300">|</span>
                     <a href="/settings" class="text-sm text-gray-600 hover:text-gray-900">Settings</a>
                     <a href="/settings/team" class="text-sm text-gray-600 hover:text-gray-900">Team</a>
+                    {% if is_admin %}<a href="/admin" class="text-sm text-orange-600 hover:text-orange-800 font-medium">Admin</a>{% endif %}
                     <a href="/auth/logout" class="text-sm text-gray-500 hover:text-gray-700">Logout</a>
                 </div>
                 {% if credits is defined and not is_admin %}
@@ -131,6 +135,15 @@
             {% endif %}
         </div>
     </nav>
+
+    {% if impersonating_as is defined and impersonating_as %}
+    <div class="bg-orange-500 text-white text-sm text-center py-2 px-4">
+        Impersonating <strong>{{ impersonating_as }}</strong> —
+        <form method="post" action="/admin/stop-impersonation" class="inline">
+            <button type="submit" class="underline font-medium hover:text-orange-100">Exit Impersonation</button>
+        </form>
+    </div>
+    {% endif %}
 
     {% if credits is defined and not is_admin and credits < 3 %}
     <div id="low-credit-banner" class="bg-yellow-50 border-b border-yellow-200" style="display:none;">

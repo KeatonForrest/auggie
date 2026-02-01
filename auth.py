@@ -23,6 +23,7 @@ from database import (
     get_user_by_id,
     get_pending_invites_for_email,
     accept_invite,
+    get_user_usage,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -128,6 +129,15 @@ async def require_onboarding(request: Request) -> dict:
     user = await require_auth(request)
     if not user.get("product_context"):
         raise HTTPException(status_code=403, detail="Onboarding not completed")
+    return user
+
+
+async def require_super_admin(request: Request) -> dict:
+    """Dependency that requires auth + platform super admin."""
+    user = await require_auth(request)
+    usage = await get_user_usage(user["id"])
+    if not usage or not usage.get("is_admin", False):
+        raise HTTPException(status_code=404, detail="Not found")
     return user
 
 

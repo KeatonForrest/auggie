@@ -103,7 +103,8 @@ async def test_send_task_failure_alert_posts_to_slack():
 
 @pytest.mark.asyncio
 async def test_admin_queue_requires_auth(async_client):
-    with patch("routes.admin.get_current_user", new_callable=AsyncMock, return_value=None):
+    with patch("auth.get_current_user", new_callable=AsyncMock, return_value=None), \
+         patch("auth.get_user_usage", new_callable=AsyncMock, return_value=None):
         resp = await async_client.get("/admin/queue")
         assert resp.status_code == 401
 
@@ -111,18 +112,18 @@ async def test_admin_queue_requires_auth(async_client):
 @pytest.mark.asyncio
 async def test_admin_queue_requires_admin(async_client):
     user = {"id": 1, "email": "user@test.com"}
-    with patch("routes.admin.get_current_user", new_callable=AsyncMock, return_value=user), \
-         patch("routes.admin.get_user_usage", new_callable=AsyncMock, return_value={"is_admin": False}):
+    with patch("auth.get_current_user", new_callable=AsyncMock, return_value=user), \
+         patch("auth.get_user_usage", new_callable=AsyncMock, return_value={"is_admin": False}):
         resp = await async_client.get("/admin/queue")
-        assert resp.status_code == 403
+        assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_admin_queue_returns_stats(async_client):
     user = {"id": 1, "email": "admin@test.com"}
     stats = {"pending": 5, "running": 2, "completed": 100, "failed": 3}
-    with patch("routes.admin.get_current_user", new_callable=AsyncMock, return_value=user), \
-         patch("routes.admin.get_user_usage", new_callable=AsyncMock, return_value={"is_admin": True}), \
+    with patch("auth.get_current_user", new_callable=AsyncMock, return_value=user), \
+         patch("auth.get_user_usage", new_callable=AsyncMock, return_value={"is_admin": True}), \
          patch("routes.admin.get_queue_stats", new_callable=AsyncMock, return_value=stats):
         resp = await async_client.get("/admin/queue")
         assert resp.status_code == 200

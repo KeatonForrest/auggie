@@ -386,6 +386,51 @@ async def try_start_list_analysis(list_id: int) -> bool:
         return row is not None
 
 
+async def list_all_users_admin(limit: int = 50, offset: int = 0, search: str = None) -> list[dict]:
+    """List all users with org info for admin dashboard."""
+    async with _db._pool.acquire() as conn:
+        if search:
+            rows = await conn.fetch(
+                """
+                SELECT u.id, u.email, u.name, u.is_admin, u.created_at,
+                       o.name AS org_name, o.bonus_credits,
+                       (SELECT count(*) FROM research_documents rd WHERE rd.user_id = u.id) AS doc_count,
+                       (SELECT count(*) FROM lists l WHERE l.user_id = u.id) AS list_count
+                FROM users u
+                LEFT JOIN organizations o ON o.id = u.org_id
+                WHERE u.email ILIKE $3 OR u.name ILIKE $3
+                ORDER BY u.created_at DESC
+                LIMIT $1 OFFSET $2
+                """,
+                limit, offset, f"%{search}%"
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT u.id, u.email, u.name, u.is_admin, u.created_at,
+                       o.name AS org_name, o.bonus_credits,
+                       (SELECT count(*) FROM research_documents rd WHERE rd.user_id = u.id) AS doc_count,
+                       (SELECT count(*) FROM lists l WHERE l.user_id = u.id) AS list_count
+                FROM users u
+                LEFT JOIN organizations o ON o.id = u.org_id
+                ORDER BY u.created_at DESC
+                LIMIT $1 OFFSET $2
+                """,
+                limit, offset
+            )
+        return [dict(row) for row in rows]
+
+
+async def toggle_admin(user_id: int) -> bool:
+    """Toggle is_admin flag for a user. Returns new value."""
+    async with _db._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE users SET is_admin = NOT is_admin WHERE id = $1 RETURNING is_admin",
+            user_id
+        )
+        return row["is_admin"] if row else False
+
+
 async def set_admin(email: str, is_admin: bool = True) -> bool:
     """Set admin status for a user by email. Returns True if updated."""
     async with _db._pool.acquire() as conn:

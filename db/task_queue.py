@@ -180,6 +180,38 @@ async def check_no_pending_siblings(job_key: str, job_value: str, lock_id: int) 
             return True
 
 
+async def get_failed_tasks(limit: int = 50) -> list[dict]:
+    """Get recent failed tasks with error details."""
+    async with _db._pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, task_type, error, attempts, max_attempts,
+                   created_at, started_at, completed_at
+            FROM task_queue
+            WHERE status = 'failed' AND task_type NOT LIKE '_finalize_%'
+            ORDER BY completed_at DESC NULLS LAST
+            LIMIT $1
+            """,
+            limit,
+        )
+        return [dict(row) for row in rows]
+
+
+async def retry_failed_task(task_id: int) -> bool:
+    """Reset a failed task to pending. Returns True if updated."""
+    async with _db._pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            UPDATE task_queue
+            SET status = 'pending', error = NULL, attempts = 0,
+                started_at = NULL, completed_at = NULL, claimed_by = NULL
+            WHERE id = $1 AND status = 'failed'
+            """,
+            task_id,
+        )
+        return result == "UPDATE 1"
+
+
 async def get_queue_stats() -> dict[str, int]:
     """Return task counts grouped by status."""
     async with _db._pool.acquire() as conn:

@@ -242,6 +242,46 @@ async def user_has_data(user_id: int) -> bool:
         return row["has_data"]
 
 
+async def get_all_orgs_stats() -> list[dict]:
+    """Get all orgs with member count, credit balance, total docs."""
+    async with _db._pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT o.id, o.name, o.slug, o.bonus_credits,
+                   (SELECT count(*) FROM org_members om WHERE om.org_id = o.id) AS member_count,
+                   (SELECT count(*) FROM research_documents rd
+                    JOIN users u ON u.id = rd.user_id WHERE u.org_id = o.id) AS doc_count
+            FROM organizations o
+            ORDER BY o.bonus_credits DESC
+            """
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_revenue_stats() -> dict:
+    """Get total revenue and monthly breakdown from fulfilled_sessions."""
+    async with _db._pool.acquire() as conn:
+        total = await conn.fetchval(
+            "SELECT COALESCE(SUM(credits), 0) FROM fulfilled_sessions"
+        )
+        rows = await conn.fetch(
+            """
+            SELECT date_trunc('month', created_at) AS month,
+                   SUM(credits)::int AS credits,
+                   COUNT(*)::int AS purchases
+            FROM fulfilled_sessions
+            GROUP BY 1
+            ORDER BY 1 DESC
+            LIMIT 12
+            """
+        )
+        return {
+            "total_credits": int(total),
+            "total_revenue_dollars": int(total) * 1,  # 1 credit = $1
+            "monthly": [dict(row) for row in rows],
+        }
+
+
 async def delete_empty_org(org_id: int) -> bool:
     """Delete an org if it has no members. Returns True if deleted."""
     async with _db._pool.acquire() as conn:
