@@ -36,6 +36,7 @@ The company data contains several types of information with different reliabilit
 1. **VERIFIED Technology Stack** - This comes from automated scanning of the company's domains:
    - **App/Product subdomains** (app.*, dashboard.*, portal.*, admin.*, etc.): This is the REAL technology stack they use to build their product. PRIORITIZE THIS - it reveals what they actually build with.
    - **Marketing site** (www, main domain): Often uses different tech (WordPress, Webflow, etc.) and is less relevant for technical sales conversations.
+   - **If no product subdomains were found**: This is NEUTRAL, not negative. Many companies use non-obvious subdomain patterns, SSO redirects, or single-page apps on the main domain. Do NOT editorialize about missing subdomains or call it "concerning." Simply omit the product stack section or note it was not detected.
 
 2. **Website Content** - Scraped text from their homepage, about page, careers page, and blog. Look for:
    - Specific projects or initiatives mentioned by name
