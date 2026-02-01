@@ -7,6 +7,32 @@ from models import SignalBundle, PainInference, TechStack
 class PainInferenceEngine:
     """Evaluate a SignalBundle and return scored pain inferences."""
 
+    # Meta-framework pairs: if only these two are detected, don't fire frontend_performance_debt
+    META_FRAMEWORK_PAIRS = {
+        frozenset({"Next.js", "React"}),
+        frozenset({"Nuxt.js", "Vue.js"}),
+        frozenset({"Nuxt", "Vue"}),
+        frozenset({"Next.js", "React.js"}),
+        frozenset({"SvelteKit", "Svelte"}),
+    }
+
+    APM_NAMES = {
+        "datadog", "new relic", "sentry", "pagerduty", "grafana", "prometheus",
+        "splunk", "dynatrace", "appdynamics", "honeycomb", "lightstep", "elastic apm",
+    }
+
+    DATABASE_NAMES = {
+        "postgresql", "mysql", "mongodb", "mariadb", "cockroachdb", "sqlite",
+        "dynamodb", "cassandra",
+    }
+
+    CACHE_NAMES = {"redis", "memcached", "varnish", "hazelcast"}
+
+    AUTH_PROVIDER_NAMES = {
+        "auth0", "okta", "firebase auth", "cognito", "clerk", "onelogin",
+        "ping identity", "azure ad", "keycloak",
+    }
+
     def evaluate(self, bundle: SignalBundle) -> list[PainInference]:
         rules = [
             self._identity_fragmentation,
@@ -24,6 +50,9 @@ class PainInferenceEngine:
             self._frontend_performance_debt,
             self._hiring_velocity_anomaly,
             self._tool_sprawl,
+            self._observability_gap,
+            self._database_scaling_pressure,
+            self._auth_fragmentation,
         ]
         results = []
         for rule in rules:
@@ -31,6 +60,7 @@ class PainInferenceEngine:
             if inference:
                 results.append(inference)
         self._evaluate_compounds(results)
+        self._apply_dampeners(results, bundle)
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
 
@@ -46,6 +76,18 @@ class PainInferenceEngine:
                     pairs.append((t.get("name", ""), (t.get("category", "") or "").lower()))
         return pairs
 
+    def _get_tech_names_by_domain(self, bundle: SignalBundle) -> dict[str, list[str]]:
+        """Return {domain: [tech_name, ...]} mapping."""
+        result = {}
+        for domain, stack in bundle.tech_by_domain.items():
+            names = []
+            if isinstance(stack, TechStack):
+                names = [t.name for t in stack.technologies]
+            elif isinstance(stack, dict):
+                names = [t.get("name", "") for t in stack.get("technologies", [])]
+            result[domain] = names
+        return result
+
     def _identity_fragmentation(self, bundle: SignalBundle) -> Optional[PainInference]:
         techs = self._get_all_tech_names_and_cats(bundle)
         analytics = [n for n, c in techs if "analytics" in c or "tag manager" in c or "advertising" in c]
@@ -58,6 +100,7 @@ class PainInferenceEngine:
                 severity="high",
                 evidence=[f"Detected {len(analytics)} analytics/tracking tools: {', '.join(analytics[:5])}", "No CDP detected"],
                 confidence=75,
+                category="marketing",
             )
         return None
 
@@ -69,7 +112,6 @@ class PainInferenceEngine:
             eol.append("AngularJS")
         if "jquery ui" in names_lower:
             eol.append("jQuery UI")
-        # Check for PHP < 8 via version
         for domain, stack in bundle.tech_by_domain.items():
             if isinstance(stack, TechStack):
                 for t in stack.technologies:
@@ -89,6 +131,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=[f"EOL tech: {', '.join(eol)}", "Modern frontend also detected"],
                 confidence=65,
+                category="engineering",
             )
         return None
 
@@ -110,6 +153,7 @@ class PainInferenceEngine:
                     severity="high",
                     evidence=evidence,
                     confidence=80,
+                    category="security",
                 )
         return None
 
@@ -127,6 +171,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=[f"DevOps-related roles detected: {', '.join(devops_roles)}", f"Cloud hints: {', '.join(cloud_hints) or 'single/unknown'}"],
                 confidence=55,
+                category="engineering",
             )
         return None
 
@@ -151,6 +196,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=[f"Cloud providers: {', '.join(sorted(clouds))}"],
                 confidence=60,
+                category="operations",
             )
         return None
 
@@ -175,6 +221,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=issues,
                 confidence=70,
+                category="security",
             )
         return None
 
@@ -190,6 +237,7 @@ class PainInferenceEngine:
                 severity="high",
                 evidence=[f"Certificate expires in {ssl.expiry_days} days", f"Issuer: {ssl.issuer or 'unknown'}", "No automation (e.g. Let's Encrypt) detected"],
                 confidence=85,
+                category="security",
             )
         return None
 
@@ -216,6 +264,7 @@ class PainInferenceEngine:
                 severity="low",
                 evidence=[f"Product frameworks: {', '.join(sorted(app_frameworks))}", f"Marketing frameworks: {', '.join(sorted(main_frameworks))}"],
                 confidence=45,
+                category="marketing",
             )
         return None
 
@@ -225,7 +274,6 @@ class PainInferenceEngine:
             return None
         data_roles = [r for r in js.role_types if r == "data"]
         if len(data_roles) >= 1:
-            # Check for 2+ data-related role *mentions* in seniority
             data_count = sum(js.seniority_distribution.values())
             if data_count >= 2 or len(data_roles) >= 1:
                 return PainInference(
@@ -235,6 +283,7 @@ class PainInferenceEngine:
                     severity="medium",
                     evidence=[f"Data role types: {', '.join(js.role_types)}", f"Total roles parsed: {js.total_roles_parsed}"],
                     confidence=50,
+                    category="data",
                 )
         return None
 
@@ -249,6 +298,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=[f"Detected {len(tag_techs)} analytics/ad/tag tools: {', '.join(tag_techs[:8])}"],
                 confidence=60,
+                category="marketing",
             )
         return None
 
@@ -279,6 +329,7 @@ class PainInferenceEngine:
                     severity="medium",
                     evidence=[f"{vendor} detected in: {', '.join(sorted(sources))}"],
                     confidence=55,
+                    category="operations",
                 )
         return None
 
@@ -314,6 +365,7 @@ class PainInferenceEngine:
             severity="high",
             evidence=evidence,
             confidence=70,
+            category="security",
         )
 
     def _frontend_performance_debt(self, bundle: SignalBundle) -> Optional[PainInference]:
@@ -326,6 +378,9 @@ class PainInferenceEngine:
             if "cdn" in c:
                 has_cdn = True
         if len(frameworks) >= 2 and not has_cdn:
+            # Dampener: skip if only 2 frameworks and one is a meta-framework wrapping the other
+            if len(frameworks) == 2 and frozenset(frameworks) in self.META_FRAMEWORK_PAIRS:
+                return None
             return PainInference(
                 rule_id="frontend_performance_debt",
                 title="Frontend Performance Debt",
@@ -333,6 +388,7 @@ class PainInferenceEngine:
                 severity="medium",
                 evidence=[f"Frameworks: {', '.join(sorted(frameworks))}", "No CDN detected"],
                 confidence=50,
+                category="engineering",
             )
         return None
 
@@ -353,6 +409,7 @@ class PainInferenceEngine:
                 evidence=[f"Senior+Staff+Principal: {senior_count}", f"Junior+Mid: {junior_count}",
                           f"Distribution: {js.seniority_distribution}"],
                 confidence=50,
+                category="engineering",
             )
         if junior_count >= 3 and senior_count == 0:
             return PainInference(
@@ -363,6 +420,7 @@ class PainInferenceEngine:
                 evidence=[f"Junior+Mid: {junior_count}", f"Senior+Staff+Principal: {senior_count}",
                           f"Distribution: {js.seniority_distribution}"],
                 confidence=50,
+                category="engineering",
             )
         return None
 
@@ -381,6 +439,110 @@ class PainInferenceEngine:
                 evidence=[f"Total unique technologies: {len(unique_names)}",
                           f"Top categories: {', '.join(f'{cat} ({cnt})' for cat, cnt in top_cats)}"],
                 confidence=55,
+                category="operations",
+            )
+        return None
+
+    def _observability_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
+        app_prefixes = ("app.", "dashboard.", "portal.", "console.", "platform.", "my.", "admin.", "web.")
+        product_subdomains = [d for d in bundle.tech_by_domain if d.startswith(app_prefixes)]
+        if not product_subdomains:
+            return None
+
+        # Check all tech names for APM tools
+        all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
+        has_apm = any(apm in all_names_lower for apm in self.APM_NAMES)
+
+        # Also check job_signals tech_mentions in devops category for monitoring keywords
+        if not has_apm and bundle.job_signals:
+            monitoring_keywords = {"monitoring", "observability", "apm", "alerting", "tracing"}
+            for tm in bundle.job_signals.tech_mentions:
+                if tm.category == "devops" and any(k in tm.name.lower() for k in monitoring_keywords | self.APM_NAMES):
+                    has_apm = True
+                    break
+
+        if not has_apm:
+            return PainInference(
+                rule_id="observability_gap",
+                title="Observability Gap",
+                description="Product subdomains detected but no APM/monitoring tools found, suggesting limited observability.",
+                severity="low",
+                evidence=[f"Product subdomains: {', '.join(product_subdomains)}", "No APM/monitoring tools detected"],
+                confidence=40,
+                category="operations",
+            )
+        return None
+
+    def _database_scaling_pressure(self, bundle: SignalBundle) -> Optional[PainInference]:
+        all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
+
+        # Find database techs (excluding analytics DBs)
+        dbs_found = {n for n in all_names_lower if n in self.DATABASE_NAMES}
+        if len(dbs_found) != 1:
+            return None
+
+        # Check for caching layer
+        has_cache = any(n in all_names_lower for n in self.CACHE_NAMES)
+        if has_cache:
+            return None
+
+        # Check for data/backend hiring
+        js = bundle.job_signals
+        if not js:
+            return None
+        has_hiring = any(r in ("data", "backend") for r in js.role_types)
+        if not has_hiring:
+            return None
+
+        db_name = next(iter(dbs_found))
+        return PainInference(
+            rule_id="database_scaling_pressure",
+            title="Database Scaling Pressure",
+            description="Single database with data/backend hiring and no caching layer suggests database scaling challenges.",
+            severity="medium",
+            evidence=[f"Single database: {db_name}", f"Hiring signals: {', '.join(js.role_types)}", "No caching layer detected"],
+            confidence=55,
+            category="engineering",
+        )
+
+    def _auth_fragmentation(self, bundle: SignalBundle) -> Optional[PainInference]:
+        tech_by_domain = self._get_tech_names_by_domain(bundle)
+        provider_domains: dict[str, list[str]] = {}
+
+        for domain, names in tech_by_domain.items():
+            for name in names:
+                nl = name.lower()
+                # Check against known auth provider names
+                for provider in self.AUTH_PROVIDER_NAMES:
+                    if provider in nl:
+                        provider_domains.setdefault(name, []).append(domain)
+                        break
+                # Also check for security-category techs containing "auth" or "sso"
+
+        # Also check category-based detection
+        for domain, stack in bundle.tech_by_domain.items():
+            techs = []
+            if isinstance(stack, TechStack):
+                techs = [(t.name, (t.category or "").lower()) for t in stack.technologies]
+            elif isinstance(stack, dict):
+                techs = [(t.get("name", ""), (t.get("category", "") or "").lower()) for t in stack.get("technologies", [])]
+            for name, cat in techs:
+                if "security" in cat and ("auth" in name.lower() or "sso" in name.lower()):
+                    if name not in provider_domains:
+                        provider_domains.setdefault(name, []).append(domain)
+                    elif domain not in provider_domains[name]:
+                        provider_domains[name].append(domain)
+
+        if len(provider_domains) >= 2:
+            evidence = [f"{provider} on {', '.join(domains)}" for provider, domains in provider_domains.items()]
+            return PainInference(
+                rule_id="auth_fragmentation",
+                title="Auth Fragmentation",
+                description="Multiple distinct auth/identity providers detected, suggesting fragmented identity management.",
+                severity="medium",
+                evidence=evidence,
+                confidence=50,
+                category="operations",
             )
         return None
 
@@ -395,6 +557,7 @@ class PainInferenceEngine:
                 "title": "Systemic Security Underinvestment",
                 "description": "Multiple independent security signals compound into evidence of systemic security underinvestment.",
                 "severity": "high",
+                "category": "security",
                 "constituents": ["security_gap", "email_risk", "cert_gap"],
                 "min_matches": 2,
             },
@@ -403,6 +566,7 @@ class PainInferenceEngine:
                 "title": "Engineering Capacity Crisis",
                 "description": "Multiple engineering stress signals compound into evidence of an engineering capacity crisis.",
                 "severity": "high",
+                "category": "engineering",
                 "constituents": ["tech_debt", "scaling_pressure", "hiring_velocity_anomaly"],
                 "min_matches": 2,
             },
@@ -411,6 +575,7 @@ class PainInferenceEngine:
                 "title": "Marketing Infrastructure Debt",
                 "description": "Multiple marketing/analytics signals compound into evidence of marketing infrastructure debt.",
                 "severity": "medium",
+                "category": "marketing",
                 "constituents": ["identity_fragmentation", "tag_bloat", "marketing_product_mismatch"],
                 "min_matches": 2,
             },
@@ -427,4 +592,41 @@ class PainInferenceEngine:
                     severity=compound["severity"],
                     evidence=[f"Triggered by: {', '.join(matched)}"],
                     confidence=conf,
+                    category=compound["category"],
                 ))
+
+    def _apply_dampeners(self, results: list[PainInference], bundle: SignalBundle) -> None:
+        """Third pass: reduce confidence when mitigating signals are present."""
+        fired_ids = {r.rule_id for r in results}
+        result_map = {r.rule_id: r for r in results}
+
+        # systemic_security_underinvestment: if cert_gap fired but SSL has automation_inferred
+        if "systemic_security_underinvestment" in result_map:
+            if "cert_gap" in fired_ids and bundle.ssl_profile and bundle.ssl_profile.automation_inferred:
+                result_map["systemic_security_underinvestment"].confidence -= 15
+
+        # observability_gap: if devops in job role_types (they're hiring for it)
+        if "observability_gap" in result_map:
+            if bundle.job_signals and "devops" in bundle.job_signals.role_types:
+                result_map["observability_gap"].confidence -= 10
+
+        # database_scaling_pressure: if data tech mentions include Spark/Kafka/Airflow
+        if "database_scaling_pressure" in result_map and bundle.job_signals:
+            data_platform_tools = {"spark", "kafka", "airflow"}
+            for tm in bundle.job_signals.tech_mentions:
+                if tm.name.lower() in data_platform_tools:
+                    result_map["database_scaling_pressure"].confidence -= 10
+                    break
+
+        # tool_sprawl: more subdomains = more tech expected
+        if "tool_sprawl" in result_map:
+            num_subdomains = len(bundle.tech_by_domain)
+            if num_subdomains > 3:
+                extra = num_subdomains - 3
+                result_map["tool_sprawl"].confidence -= 10 * extra
+                result_map["tool_sprawl"].confidence = max(result_map["tool_sprawl"].confidence, 30)
+
+        # Floor all confidences at 10
+        for r in results:
+            if r.confidence < 10:
+                r.confidence = 10

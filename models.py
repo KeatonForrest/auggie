@@ -112,6 +112,7 @@ class PainInference(BaseModel):
     severity: str
     evidence: list[str]
     confidence: int = 0
+    category: str = ""
 
 
 class SignalBundle(BaseModel):

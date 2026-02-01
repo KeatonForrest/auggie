@@ -228,6 +228,9 @@ Infrastructure & Security Gaps:
 - Multiple security signals compounding (headers + email + certs) = systemic security underinvestment
 - Tech debt + scaling pressure + hiring anomaly compounding = engineering capacity crisis
 - Identity fragmentation + tag bloat + marketing mismatch compounding = marketing infrastructure debt
+- Product subdomains present but no APM/monitoring detected = observability gap
+- Single database + data/backend hiring + no caching layer = database scaling pressure
+- Multiple auth/identity providers across subdomains = auth fragmentation and identity management pain
 
 ---
 
@@ -585,12 +588,27 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("## Programmatic Pain Signals")
             sections.append("Use these as STARTING POINTS. Validate against other data. Do not repeat verbatim.")
             sections.append("")
+            # Group by category in fixed order
+            category_order = ["security", "engineering", "operations", "marketing", "data"]
+            category_labels = {
+                "security": "Security", "engineering": "Engineering",
+                "operations": "Operations", "marketing": "Marketing", "data": "Data",
+            }
+            by_cat: dict[str, list[PainInference]] = {}
             for pi in pain_inferences:
-                sections.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
-                sections.append(f"  {pi.description}")
-                for ev in pi.evidence:
-                    sections.append(f"  - {ev}")
-                sections.append("")
+                by_cat.setdefault(pi.category or "other", []).append(pi)
+            for cat in category_order:
+                group = by_cat.get(cat, [])
+                if not group:
+                    continue
+                group.sort(key=lambda x: x.confidence, reverse=True)
+                sections.append(f"### {category_labels.get(cat, cat.title())} ({len(group)} signal{'s' if len(group) != 1 else ''})")
+                for pi in group:
+                    sections.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+                    sections.append(f"  {pi.description}")
+                    for ev in pi.evidence:
+                        sections.append(f"  - {ev}")
+                    sections.append("")
 
         if scraped.firmographics:
             sections.append("## CONFIRMED Firmographic Data (from connected data provider)")
