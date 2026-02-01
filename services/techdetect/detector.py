@@ -172,5 +172,6 @@ class TechDetector:
             result[name] = {
                 "versions": sorted(det.versions),
                 "categories": det.categories,
+                "confidence": det.confidence,
             }
         return result

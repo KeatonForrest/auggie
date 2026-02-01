@@ -448,3 +448,22 @@ class TestAnalyzeMultipleDomains:
         # analyze_html should be called for the subdomain with probe headers
         mock_html.assert_any_call("", "https://app.example.com", {"Server": "nginx"})
         assert "app.example.com" in results
+
+
+class TestConfidencePassthrough:
+    def test_confidence_passthrough(self, wappalyzer_service):
+        """DetectedTechnology.confidence matches detector output, not hardcoded 100."""
+        results = {
+            "React": {"versions": ["18"], "categories": ["JS"], "confidence": 72},
+            "Nginx": {"versions": [], "categories": ["Web servers"], "confidence": 50},
+        }
+        ts = wappalyzer_service._parse_technologies(results, "https://example.com")
+        by_name = {t.name: t for t in ts.technologies}
+        assert by_name["React"].confidence == 72
+        assert by_name["Nginx"].confidence == 50
+
+    def test_confidence_defaults_to_100(self, wappalyzer_service):
+        """When confidence key is missing, defaults to 100."""
+        results = {"React": {"versions": [], "categories": ["JS"]}}
+        ts = wappalyzer_service._parse_technologies(results, "https://example.com")
+        assert ts.technologies[0].confidence == 100

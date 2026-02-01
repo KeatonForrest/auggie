@@ -64,11 +64,13 @@ class WappalyzerService:
             categories = tech_info.get("categories", [])
             category = ", ".join(categories) if categories else None
 
+            confidence = tech_info.get("confidence", 100)
+
             technologies.append(DetectedTechnology(
                 name=tech_name,
                 version=version,
                 category=category,
-                confidence=100
+                confidence=confidence,
             ))
 
         technologies.sort(key=lambda t: (t.category or "zzz", t.name))

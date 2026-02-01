@@ -69,6 +69,7 @@ class PainInferenceEngine:
                 results.append(inference)
         self._evaluate_compounds(results)
         self._apply_dampeners(results, bundle)
+        self._apply_detection_confidence(results, bundle)
         if seller is not None:
             self._apply_seller_weighting(results, seller)
         results.sort(key=lambda x: x.confidence, reverse=True)
@@ -674,4 +675,25 @@ class PainInferenceEngine:
 
         # Clamp all to [10, 95]
         for r in results:
+            r.confidence = max(10, min(95, r.confidence))
+
+    def _apply_detection_confidence(self, results: list[PainInference], bundle: SignalBundle) -> None:
+        """Adjust pain confidence based on underlying tech detection confidence."""
+        all_confidences = {}
+        for domain, stack in bundle.tech_by_domain.items():
+            if isinstance(stack, TechStack):
+                for t in stack.technologies:
+                    all_confidences[t.name.lower()] = t.confidence or 100
+
+        for r in results:
+            # Match evidence tech names against detection confidences
+            relevant = [c for name, c in all_confidences.items()
+                        if any(name in ev.lower() for ev in r.evidence)]
+            if not relevant:
+                continue
+            avg = sum(relevant) / len(relevant)
+            if avg < 40:
+                r.confidence -= 20
+            elif avg < 60:
+                r.confidence -= 10
             r.confidence = max(10, min(95, r.confidence))

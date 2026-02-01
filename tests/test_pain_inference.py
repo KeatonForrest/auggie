@@ -756,3 +756,46 @@ class TestSellerWeighting:
         seller = SellerContext(problems_solved="")
         results_empty = engine.evaluate(bundle, seller=seller)
         assert [r.confidence for r in results_no_seller] == [r.confidence for r in results_empty]
+
+
+def _make_stack_with_confidence(*techs):
+    """Helper: create TechStack from (name, category, confidence) tuples."""
+    return TechStack(technologies=[
+        DetectedTechnology(name=n, category=c, confidence=conf) for n, c, conf in techs
+    ])
+
+
+class TestDetectionConfidence:
+    def test_low_detection_confidence_dampens_pain(self, engine):
+        """Tech detected at confidence 30 → pain rule gets -10."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack_with_confidence(
+                ("GA4", "analytics", 30), ("Hotjar", "analytics", 30),
+                ("Mixpanel", "analytics", 30), ("GTM", "tag manager", 30),
+            )},
+        )
+        results = engine.evaluate(bundle)
+        r = next(r for r in results if r.rule_id == "identity_fragmentation")
+        # Base confidence is 75, avg detection confidence 30 < 40 → -20
+        assert r.confidence == 55
+
+    def test_high_detection_confidence_no_change(self, engine):
+        """Tech at confidence 100 → pain rule unchanged."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack_with_confidence(
+                ("GA4", "analytics", 100), ("Hotjar", "analytics", 100),
+                ("Mixpanel", "analytics", 100), ("GTM", "tag manager", 100),
+            )},
+        )
+        results = engine.evaluate(bundle)
+        r = next(r for r in results if r.rule_id == "identity_fragmentation")
+        assert r.confidence == 75
+
+    def test_detection_confidence_with_no_tech_match(self, engine):
+        """Non-tech rules (DNS/SSL) unaffected by detection confidence."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        results_base = engine.evaluate(bundle)
+        email_conf = next(r.confidence for r in results_base if r.rule_id == "email_risk")
+        assert email_conf == 70
