@@ -375,10 +375,24 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
                 if not doc:
                     await update_list_account_outreach(account_id, "failed")
                     return
+                # Retrieve relevant materials for this prospect
+                materials = ""
+                try:
+                    from services.collect import _get_retrieval_service
+                    retrieval = _get_retrieval_service()
+                    if retrieval:
+                        materials = await retrieval.get_relevant_context(
+                            user_id=user_id,
+                            company_name=doc.company_name,
+                            company_description=doc.company_overview[:500] if doc.company_overview else "",
+                        ) or ""
+                except Exception:
+                    pass  # Non-fatal, proceed without materials
                 emails = await writing_service.generate_email_sequence(
                     document=doc,
                     product_context=user.get("product_context", ""),
                     product_type=user.get("product_type", "saas"),
+                    retrieved_materials=materials,
                 )
                 await save_outreach_draft(account["document_id"], user_id, {"emails": emails})
                 await update_list_account_outreach(account_id, "completed")

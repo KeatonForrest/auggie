@@ -14,7 +14,7 @@ class WritingService:
         self.settings = get_settings()
         self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
 
-    def _build_report(self, document: ResearchDocument, product_context: str) -> str:
+    def _build_report(self, document: ResearchDocument, product_context: str, retrieved_materials: str = "") -> str:
         """Build the report content from research document."""
         sections = []
 
@@ -62,6 +62,12 @@ class WritingService:
 
         sections.append("## Our Product (What We're Selling)")
         sections.append(product_context)
+
+        if retrieved_materials:
+            sections.append("")
+            sections.append("## Sales Materials (Case Studies, Battle Cards, Proof Points)")
+            sections.append("Use these to reference specific results, metrics, and customer stories in your emails.")
+            sections.append(retrieved_materials)
 
         return "\n".join(sections)
 
@@ -1545,11 +1551,12 @@ Present your final output in this format:
         document: ResearchDocument,
         product_context: str,
         product_type: str = "saas",
+        retrieved_materials: str = "",
     ) -> list[dict]:
         """Generate a 3-email sequence from a research document."""
 
         # Build the report from research
-        report = self._build_report(document, product_context)
+        report = self._build_report(document, product_context, retrieved_materials)
 
         # Build the full prompt
         prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
