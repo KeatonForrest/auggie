@@ -31,6 +31,7 @@ from services.smartlead import push_accounts_to_smartlead
 from services.outreach import push_sequences_to_outreach
 from services.salesloft import push_sequences_to_salesloft
 from services.apollo import push_sequences_to_apollo
+from db.outreach import get_outreach_drafts_batch
 
 router = APIRouter()
 
@@ -269,6 +270,7 @@ async def view_list(
     usage = await get_user_usage(user["id"])
 
     # Check if integrations are connected
+    gsheets_integration = await get_integration(user["id"], "google_sheets")
     instantly_integration = await get_integration(user["id"], "instantly")
     smartlead_integration = await get_integration(user["id"], "smartlead")
     outreach_integration = await get_integration(user["id"], "outreach")
@@ -298,6 +300,7 @@ async def view_list(
             "outreach_connected": outreach_integration is not None,
             "salesloft_connected": salesloft_integration is not None,
             "apollo_connected": apollo_integration is not None,
+            "google_sheets_connected": gsheets_integration is not None,
             "scored_count": scored_count,
             "enriched_count": enriched_count,
             "written_count": written_count,
@@ -318,10 +321,16 @@ async def export_list_csv(
 
     accounts = await get_list_accounts(list_id, limit=10000)
 
+    # Batch-fetch outreach drafts
+    doc_ids = [a["document_id"] for a in accounts if a.get("document_id")]
+    drafts = await get_outreach_drafts_batch(doc_ids) if doc_ids else {}
+
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status", "Email Subject", "Email 1 Body", "Email 2 Body", "Email 3 Body"])
     for a in accounts:
+        draft = drafts.get(a.get("document_id")) or {}
+        emails = draft.get("emails", [])
         writer.writerow([
             a.get("company_name") or "",
             a.get("company_url", ""),
@@ -330,6 +339,10 @@ async def export_list_csv(
             a.get("timing_score") if a.get("timing_score") is not None else "",
             a.get("composite_score") if a.get("composite_score") is not None else "",
             a.get("status", ""),
+            draft.get("subject", ""),
+            emails[0].get("body", "") if len(emails) > 0 else "",
+            emails[1].get("body", "") if len(emails) > 1 else "",
+            emails[2].get("body", "") if len(emails) > 2 else "",
         ])
 
     safe_name = re.sub(r'[^\w\s\-.]', '', lst["name"])
@@ -358,10 +371,16 @@ async def export_selected_csv(
 
     selected = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
 
+    # Batch-fetch outreach drafts
+    doc_ids = [a["document_id"] for a in selected if a.get("document_id")]
+    drafts = await get_outreach_drafts_batch(doc_ids) if doc_ids else {}
+
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status"])
+    writer.writerow(["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status", "Email Subject", "Email 1 Body", "Email 2 Body", "Email 3 Body"])
     for a in selected:
+        draft = drafts.get(a.get("document_id")) or {}
+        emails = draft.get("emails", [])
         writer.writerow([
             a.get("company_name") or "",
             a.get("company_url", ""),
@@ -370,6 +389,10 @@ async def export_selected_csv(
             a.get("timing_score") if a.get("timing_score") is not None else "",
             a.get("composite_score") if a.get("composite_score") is not None else "",
             a.get("status", ""),
+            draft.get("subject", ""),
+            emails[0].get("body", "") if len(emails) > 0 else "",
+            emails[1].get("body", "") if len(emails) > 1 else "",
+            emails[2].get("body", "") if len(emails) > 2 else "",
         ])
 
     return StreamingResponse(
@@ -377,6 +400,64 @@ async def export_selected_csv(
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="selected_accounts.csv"'},
     )
+
+
+@router.post("/lists/{list_id}/push-to-sheets")
+async def push_to_sheets(
+    list_id: int,
+    request: Request,
+    user: dict = Depends(require_onboarding),
+):
+    """Push list data + sequences to a new Google Spreadsheet."""
+    from services.google_sheets import create_and_write_sheet
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    integration = await get_integration(user["id"], "google_sheets")
+    if not integration:
+        raise HTTPException(status_code=400, detail="Google Sheets not connected")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account_ids = body.get("account_ids")
+
+    accounts = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
+
+    # Batch-fetch outreach drafts
+    doc_ids = [a["document_id"] for a in accounts if a.get("document_id")]
+    drafts = await get_outreach_drafts_batch(doc_ids) if doc_ids else {}
+
+    header = ["Company Name", "Website", "Pain Score", "Fit Score", "Timing Score", "Composite Score", "Status", "Email Subject", "Email 1 Body", "Email 2 Body", "Email 3 Body"]
+    rows = []
+    for a in accounts:
+        draft = drafts.get(a.get("document_id")) or {}
+        emails = draft.get("emails", [])
+        rows.append([
+            a.get("company_name") or "",
+            a.get("company_url", ""),
+            str(a.get("pain_score", "")),
+            str(a.get("fit_score", "")),
+            str(a.get("timing_score", "")),
+            str(a.get("composite_score", "")),
+            a.get("status", ""),
+            draft.get("subject", ""),
+            emails[0].get("body", "") if len(emails) > 0 else "",
+            emails[1].get("body", "") if len(emails) > 1 else "",
+            emails[2].get("body", "") if len(emails) > 2 else "",
+        ])
+
+    title = f"Auggie - {lst['name']}"
+    try:
+        spreadsheet_url = await create_and_write_sheet(user["id"], title, header, rows)
+    except Exception as e:
+        logger.error("Google Sheets push failed: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to create Google Sheet. You may need to reconnect Google Sheets.")
+
+    return JSONResponse({"success": True, "spreadsheet_url": spreadsheet_url})
 
 
 @router.post("/lists/{list_id}/batch-write-sequences")

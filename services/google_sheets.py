@@ -18,7 +18,7 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 
-SCOPES = "https://www.googleapis.com/auth/spreadsheets.readonly"
+SCOPES = "https://www.googleapis.com/auth/spreadsheets"
 
 
 def get_authorize_url(state: str) -> str:
@@ -94,6 +94,34 @@ def extract_spreadsheet_id(url: str) -> str | None:
     """Extract spreadsheet ID from a Google Sheets URL."""
     m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
     return m.group(1) if m else None
+
+
+async def create_and_write_sheet(user_id: int, title: str, header: list[str], rows: list[list[str]]) -> str:
+    """Create a new Google Spreadsheet, write header + rows, and return the spreadsheet URL."""
+    token = await refresh_access_token(user_id)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Create spreadsheet
+        resp = await client.post(
+            SHEETS_API_BASE,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"properties": {"title": title}},
+        )
+        resp.raise_for_status()
+        spreadsheet = resp.json()
+        spreadsheet_id = spreadsheet["spreadsheetId"]
+        spreadsheet_url = spreadsheet["spreadsheetUrl"]
+
+        # Write data
+        all_rows = [header] + rows
+        resp = await client.put(
+            f"{SHEETS_API_BASE}/{spreadsheet_id}/values/Sheet1!A1",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            params={"valueInputOption": "RAW"},
+            json={"range": "Sheet1!A1", "majorDimension": "ROWS", "values": all_rows},
+        )
+        resp.raise_for_status()
+
+    return spreadsheet_url
 
 
 async def fetch_sheet_rows(user_id: int, spreadsheet_id: str, sheet_range: str = "Sheet1") -> list[list[str]]:

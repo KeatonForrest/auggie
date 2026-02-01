@@ -51,6 +51,12 @@
                 </div>
             </div>
             {% endif %}
+            {% if google_sheets_connected %}
+            <button onclick="pushToGoogleSheets()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" id="gsheets-btn">
+                <svg class="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+                Push to Google Sheets
+            </button>
+            {% endif %}
             <a href="/lists/{{ list.id }}/export" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" title="Exports company name, domain, scores, and status">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Export CSV
@@ -253,6 +259,9 @@
     <div id="bulk-toolbar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-lg shadow-lg px-5 py-3 flex items-center gap-4 z-40">
         <span id="bulk-count" class="text-sm font-medium">0 selected</span>
         <button onclick="exportSelected()" class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">Export Selected</button>
+        {% if google_sheets_connected %}
+        <button onclick="pushToGoogleSheets(true)" class="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700">Push to Google Sheets</button>
+        {% endif %}
         <button onclick="enrichSelected()" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Enrich Selected</button>
         <button onclick="writeSequencesSelected()" class="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">Write Sequences</button>
         {% if instantly_connected %}
@@ -778,6 +787,33 @@ function pushToApollo() {
         showToast(e.message || 'Network error', 'error');
         btn.disabled = false;
         btn.textContent = 'Push Sequences';
+    });
+}
+
+function pushToGoogleSheets(useSelected) {
+    var btn = document.getElementById('gsheets-btn');
+    var body = {};
+    if (useSelected) body.account_ids = Array.from(selectedIds).map(Number);
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Pushing...'; }
+    fetch('/lists/{{ list.id }}/push-to-sheets', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || 'Push failed'); });
+        return r.json();
+    })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Google Sheet created — <a href="' + data.spreadsheet_url + '" target="_blank" class="underline font-medium">Open Sheet</a>', 'success', true);
+        }
+        if (btn) { btn.disabled = false; btn.textContent = 'Push to Google Sheets'; }
+    })
+    .catch(function(e) {
+        showToast(e.message || 'Failed to push to Google Sheets', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Push to Google Sheets'; }
     });
 }
 
