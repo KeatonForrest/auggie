@@ -268,10 +268,21 @@ Brief summary of what the company does, stage, and market position. 2-3 sentence
 Named projects, product launches, or strategic initiatives mentioned in their content. Be specific. If none found, say so.
 
 ## Confirmed Technology Stack
-Separate by subdomain type:
-- **Product/App Stack**: Technologies on app.*, dashboard.*, portal.*, api.* subdomains
-- **Marketing Stack**: Technologies on www or main domain (less relevant for technical sales)
-- **Inferred from Hiring**: Technologies mentioned in job postings (flag as inferred)
+Separate by subdomain type, then group technologies by category within each subdomain. Use sub-bullets for categories.
+
+For each subdomain group:
+- **Product/App Stack** (app.*, dashboard.*, portal.*, api.* subdomains)
+- **Marketing Stack** (www or main domain — less relevant for technical sales)
+- **Inferred from Hiring** (technologies mentioned in job postings, flag as inferred)
+
+Within each group, organize by category (e.g., Frontend, Backend/Languages, Databases, Cloud/Infrastructure, CDN/Caching, Analytics, CMS, Ecommerce, Libraries, etc.). Do NOT dump a flat comma-separated list. Example:
+
+**Marketing Stack (example.com):**
+- **CMS:** WordPress, Drupal
+- **CDN/Caching:** Cloudflare, Varnish
+- **Analytics:** Google Analytics, Hotjar
+- **Frontend:** React, jQuery
+- **Languages:** PHP
 
 ## Technical Hiring Signals
 Current open roles with:
