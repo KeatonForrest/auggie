@@ -24,40 +24,40 @@
             <p class="text-sm text-gray-500">{{ list.analyzed_accounts + list.failed_accounts }}/{{ list.total_accounts }} processed{% if list.failed_accounts > 0 %} ({{ list.failed_accounts }} failed){% endif %}</p>
         </div>
         <div class="flex items-center gap-3">
-            {% if instantly_connected %}
-            <button onclick="openInstantlyPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                Send to Instantly
-            </button>
+            {% set any_integration = instantly_connected or smartlead_connected or outreach_connected or salesloft_connected or apollo_connected %}
+            {% if any_integration %}
+            <div class="relative">
+                <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    Send to...
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="hidden absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                    {% if instantly_connected %}
+                    <button onclick="openInstantlyPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Instantly</button>
+                    {% endif %}
+                    {% if smartlead_connected %}
+                    <button onclick="openSmartleadPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Smartlead</button>
+                    {% endif %}
+                    {% if outreach_connected %}
+                    <button onclick="openOutreachPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Outreach</button>
+                    {% endif %}
+                    {% if salesloft_connected %}
+                    <button onclick="openSalesloftPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">SalesLoft</button>
+                    {% endif %}
+                    {% if apollo_connected %}
+                    <button onclick="openApolloPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Apollo</button>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
-            {% if smartlead_connected %}
-            <button onclick="openSmartleadPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Send to Smartlead
-            </button>
-            {% endif %}
-            {% if outreach_connected %}
-            <button onclick="openOutreachPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
-                Send to Outreach
-            </button>
-            {% endif %}
-            {% if salesloft_connected %}
-            <button onclick="openSalesloftPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                Send to SalesLoft
-            </button>
-            {% endif %}
-            {% if apollo_connected %}
-            <button onclick="openApolloPush()" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                Send to Apollo
-            </button>
-            {% endif %}
-            <a href="/lists/{{ list.id }}/export" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <a href="/lists/{{ list.id }}/export" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" title="Exports company name, domain, scores, and status">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Export CSV
             </a>
+            <form action="/lists/{{ list.id }}/delete" method="post" class="inline" onsubmit="return confirm('Delete this list and all its accounts? This cannot be undone.')">
+                <button type="submit" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50">Delete</button>
+            </form>
             <a href="/lists" class="text-sm text-gray-600 hover:text-gray-900">&larr; All Lists</a>
         </div>
     </div>
@@ -125,11 +125,11 @@
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Min Composite Score</label>
             <input type="number" name="min_score" value="{{ min_score }}" min="0" max="100" placeholder="0"
-                class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm" id="min-score-input">
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-            <select name="sort" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <select name="sort" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="this.form.submit()">
                 <option value="composite_score" {% if sort == 'composite_score' %}selected{% endif %}>Composite Score</option>
                 <option value="pain_score" {% if sort == 'pain_score' %}selected{% endif %}>Pain Score</option>
                 <option value="fit_score" {% if sort == 'fit_score' %}selected{% endif %}>Fit Score</option>
@@ -141,7 +141,7 @@
     </form>
 
     <!-- Results table -->
-    <div class="bg-white shadow rounded-lg overflow-x-auto">
+    <div id="table-container" class="bg-white shadow rounded-lg overflow-x-auto">
         {% if accounts %}
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -192,7 +192,7 @@
                     <td class="px-4 py-3 text-center hidden md:table-cell">
                         {% if a.enrichment_status == 'completed' %}
                         <span class="text-green-600 text-sm font-medium">&#10003;</span>
-                        {% elif a.enrichment_status == 'pending' %}
+                        {% elif a.enrichment_status == 'processing' %}
                         <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         {% else %}
                         <span class="text-gray-300">&mdash;</span>
@@ -201,7 +201,7 @@
                     <td class="px-4 py-3 text-center hidden md:table-cell">
                         {% if a.outreach_status == 'completed' %}
                         <span class="text-green-600 text-sm font-medium">&#10003;</span>
-                        {% elif a.outreach_status == 'pending' %}
+                        {% elif a.outreach_status == 'processing' %}
                         <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         {% else %}
                         <span class="text-gray-300">&mdash;</span>
@@ -276,7 +276,7 @@
 
 {% if instantly_connected %}
 <!-- Instantly Push Modal -->
-<div id="instantly-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<div id="instantly-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeInstantlyPush()">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div class="p-6 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Send to Instantly</h2>
@@ -303,7 +303,7 @@
 
 {% if smartlead_connected %}
 <!-- Smartlead Push Modal -->
-<div id="smartlead-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<div id="smartlead-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeSmartleadPush()">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div class="p-6 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Send to Smartlead</h2>
@@ -330,7 +330,7 @@
 
 {% if outreach_connected %}
 <!-- Outreach Push Modal -->
-<div id="outreach-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<div id="outreach-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeOutreachPush()">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div class="p-6 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Send to Outreach</h2>
@@ -351,7 +351,7 @@
 
 {% if salesloft_connected %}
 <!-- SalesLoft Push Modal -->
-<div id="salesloft-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<div id="salesloft-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeSalesloftPush()">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div class="p-6 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Send to SalesLoft</h2>
@@ -372,7 +372,7 @@
 
 {% if apollo_connected %}
 <!-- Apollo Push Modal -->
-<div id="apollo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<div id="apollo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeApolloPush()">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div class="p-6 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Send to Apollo</h2>
@@ -393,11 +393,6 @@
 {% endblock %}
 
 {% block scripts %}
-{% if list.status == 'analyzing' or list.status == 'created' %}
-<script>
-    setTimeout(function() { window.location.reload(); }, 5000);
-</script>
-{% endif %}
 <script>
 // Bulk selection logic
 var selectedIds = new Set();
@@ -407,9 +402,11 @@ var toolbar = document.getElementById('bulk-toolbar');
 var countEl = document.getElementById('bulk-count');
 var retryBtn = document.getElementById('retry-selected-btn');
 
+var tableContainer = document.getElementById('table-container');
 function updateToolbar() {
     if (selectedIds.size > 0) {
         toolbar.classList.remove('hidden');
+        if (tableContainer) tableContainer.classList.add('pb-20');
         countEl.textContent = selectedIds.size + ' selected';
         // Show retry button if any selected row is failed
         var anyFailed = false;
@@ -420,6 +417,7 @@ function updateToolbar() {
         retryBtn.classList.toggle('hidden', !anyFailed);
     } else {
         toolbar.classList.add('hidden');
+        if (tableContainer) tableContainer.classList.remove('pb-20');
     }
 }
 
@@ -462,6 +460,9 @@ function exportSelected() {
 
 function retrySelected() {
     var ids = Array.from(selectedIds).map(Number);
+    var failedCount = 0;
+    ids.forEach(function(id) { var r = document.querySelector('tr[data-id="' + id + '"]'); if (r && r.dataset.status === 'failed') failedCount++; });
+    if (!confirm('Retry ' + failedCount + ' failed account(s)? This will use ' + failedCount + ' credit(s).')) return;
     retryBtn.disabled = true;
     retryBtn.textContent = 'Retrying...';
     fetch('/lists/{{ list.id }}/retry-selected', {
@@ -781,6 +782,7 @@ function pushToApollo() {
 }
 
 function stepEnrichAll() {
+    if (!confirm('Enrich all accounts?')) return;
     fetch('/lists/{{ list.id }}/batch-enrich', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -799,6 +801,7 @@ function stepEnrichAll() {
 }
 
 function stepWriteAll() {
+    if (!confirm('Write sequences for all accounts?')) return;
     fetch('/lists/{{ list.id }}/batch-write-sequences', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -817,6 +820,7 @@ function stepWriteAll() {
 }
 
 function enrichSelected() {
+    if (!confirm('Enrich ' + selectedIds.size + ' selected account(s)?')) return;
     var ids = Array.from(selectedIds).map(Number);
     fetch('/lists/{{ list.id }}/batch-enrich', {
         method: 'POST',
@@ -836,6 +840,7 @@ function enrichSelected() {
 }
 
 function writeSequencesSelected() {
+    if (!confirm('Write sequences for ' + selectedIds.size + ' selected account(s)?')) return;
     var ids = Array.from(selectedIds).map(Number);
     fetch('/lists/{{ list.id }}/batch-write-sequences', {
         method: 'POST',
@@ -854,13 +859,17 @@ function writeSequencesSelected() {
     .catch(function() { showToast('Network error', 'error'); });
 }
 
-// Pipeline status polling
+// Pipeline status polling (AJAX, no full-page reload)
 (function() {
-    var listStatus = '{{ list.status }}';
-    if (listStatus === 'analyzing' || listStatus === 'created') return; // already has full-page reload
-    // Poll every 10s if any account has pending enrichment or outreach
+    var currentListStatus = '{{ list.status }}';
+    var isAnalyzing = (currentListStatus === 'analyzing' || currentListStatus === 'created');
     var hasPending = document.querySelector('svg.animate-spin');
-    if (!hasPending) return;
+    if (!isAnalyzing && !hasPending) return;
+
+    var progressBar = document.querySelector('.bg-blue-600.h-2');
+    var headerProcessed = document.querySelector('.text-sm.text-gray-500');
+    var totalAccounts = {{ list.total_accounts }};
+
     setInterval(function() {
         fetch('/lists/{{ list.id }}/pipeline-status')
         .then(function(r) { return r.json(); })
@@ -874,11 +883,29 @@ function writeSequencesSelected() {
             if (el) el.textContent = d.sequences_written + ' written';
             el = document.getElementById('step-pushed');
             if (el) el.textContent = d.pushed + ' pushed';
+
+            // Update progress bar
+            if (progressBar && totalAccounts > 0) {
+                var pct = Math.round(d.processed / totalAccounts * 100);
+                progressBar.style.width = pct + '%';
+            }
+            // Update header processed text
+            if (headerProcessed) {
+                var txt = d.processed + '/' + totalAccounts + ' processed';
+                if (d.failed > 0) txt += ' (' + d.failed + ' failed)';
+                headerProcessed.textContent = txt;
+            }
+
+            // Reload once when list reaches terminal state
+            if (isAnalyzing && d.list_status !== 'analyzing' && d.list_status !== 'created') {
+                window.location.reload();
+            }
         });
-    }, 10000);
+    }, 5000);
 })();
 
 function retryAccount(listId, accountId, btn) {
+    if (!confirm('Retry this account? This will use 1 credit.')) return;
     btn.disabled = true;
     btn.textContent = 'Retrying...';
     fetch('/lists/' + listId + '/accounts/' + accountId + '/retry', { method: 'POST' })
@@ -899,5 +926,24 @@ function retryAccount(listId, accountId, btn) {
             btn.textContent = 'Retry';
         });
 }
+
+// Auto-submit min score with debounce
+(function() {
+    var minScoreInput = document.getElementById('min-score-input');
+    if (!minScoreInput) return;
+    var timer;
+    minScoreInput.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() { minScoreInput.form.submit(); }, 500);
+    });
+})();
+
+// Close send-to dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    var dropdown = document.querySelector('.relative > .absolute');
+    if (dropdown && !dropdown.parentElement.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
 </script>
 {% endblock %}

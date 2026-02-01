@@ -13,7 +13,7 @@ from database import (
     get_user_usage, use_credit, refund_credit,
     get_enriched_contacts,
     create_list, add_list_accounts, update_list_credits,
-    list_lists, get_list, get_list_accounts,
+    list_lists, get_list, get_list_accounts, delete_list,
     get_pipeline_counts, count_ready_accounts,
     get_list_account, reset_list_account,
     get_integration, update_list_account,
@@ -446,7 +446,22 @@ async def pipeline_status(
         "sequences_written": counts["sequences_written"],
         "pushed": counts["pushed"],
         "total": counts["total"],
+        "list_status": lst.get("status", "unknown"),
+        "processed": lst.get("analyzed_accounts", 0) + lst.get("failed_accounts", 0),
+        "failed": lst.get("failed_accounts", 0),
     })
+
+
+@router.post("/lists/{list_id}/delete")
+async def delete_list_route(
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Delete a list and all its accounts, redirect to /lists."""
+    deleted = await delete_list(list_id, user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="List not found")
+    return RedirectResponse(url="/lists", status_code=303)
 
 
 @router.post("/lists/{list_id}/retry-selected")

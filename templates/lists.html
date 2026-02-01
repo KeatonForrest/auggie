@@ -61,11 +61,11 @@
     </div>
 
     <!-- Recent Lists -->
+    {% if lists %}
     <div class="bg-white shadow rounded-lg overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-900">Recent Lists</h2>
         </div>
-        {% if lists %}
         <!-- Desktop table -->
         <table class="hidden sm:table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -99,8 +99,11 @@
                         {% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500"><time datetime="{{ lst.created_at.isoformat() }}" data-format="short">{{ lst.created_at.strftime('%b %d, %Y') }}</time></td>
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-6 py-4 text-right flex items-center justify-end gap-2">
                         <a href="/lists/{{ lst.id }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</a>
+                        <form action="/lists/{{ lst.id }}/delete" method="post" class="inline" onsubmit="return confirm('Delete this list?')">
+                            <button type="submit" class="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
@@ -109,34 +112,35 @@
         <!-- Mobile cards -->
         <div class="sm:hidden divide-y divide-gray-200">
             {% for lst in lists %}
-            <a href="/lists/{{ lst.id }}" class="block px-4 py-4 hover:bg-gray-50">
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm font-medium text-gray-900">{{ lst.name }}</span>
-                    {% if lst.status == 'completed' %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>
-                    {% elif lst.status == 'analyzing' %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Analyzing</span>
-                    {% elif lst.status == 'failed' %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
-                    {% elif lst.status == 'partial_failure' %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Partial</span>
-                    {% else %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ lst.status }}</span>
-                    {% endif %}
-                </div>
-                <div class="text-xs text-gray-500">
-                    {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed{% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
-                    &middot; <time datetime="{{ lst.created_at.isoformat() }}" data-format="short-noyr">{{ lst.created_at.strftime('%b %d') }}</time>
-                </div>
-            </a>
+            <div class="flex items-center px-4 py-4 hover:bg-gray-50">
+                <a href="/lists/{{ lst.id }}" class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-900">{{ lst.name }}</span>
+                        {% if lst.status == 'completed' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>
+                        {% elif lst.status == 'analyzing' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Analyzing</span>
+                        {% elif lst.status == 'failed' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
+                        {% elif lst.status == 'partial_failure' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Partial</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ lst.status }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed{% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
+                        &middot; <time datetime="{{ lst.created_at.isoformat() }}" data-format="short-noyr">{{ lst.created_at.strftime('%b %d') }}</time>
+                    </div>
+                </a>
+                <form action="/lists/{{ lst.id }}/delete" method="post" class="ml-3" onsubmit="return confirm('Delete this list?')">
+                    <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
+                </form>
+            </div>
             {% endfor %}
         </div>
-        {% else %}
-        <div class="px-6 py-12 text-center text-gray-500">
-            <p>No lists yet. Upload a CSV to get started.</p>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
 </div>
 {% endblock %}
 
