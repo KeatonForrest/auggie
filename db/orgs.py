@@ -266,7 +266,7 @@ async def get_revenue_stats() -> dict:
         )
         rows = await conn.fetch(
             """
-            SELECT date_trunc('month', created_at) AS month,
+            SELECT date_trunc('month', fulfilled_at) AS month,
                    SUM(credits)::int AS credits,
                    COUNT(*)::int AS purchases
             FROM fulfilled_sessions
