@@ -57,6 +57,75 @@ class TechStack(BaseModel):
         return "\n".join(lines)
 
 
+class DNSProfile(BaseModel):
+    domain: str
+    ns_provider: Optional[str] = None
+    mx_provider: Optional[str] = None
+    has_spf: bool = False
+    has_dkim: bool = False
+    has_dmarc: bool = False
+    dmarc_policy: Optional[str] = None
+    txt_signals: list[str] = []
+    cloud_provider_hints: list[str] = []
+
+
+class SSLProfile(BaseModel):
+    domain: str
+    issuer: Optional[str] = None
+    expiry_days: Optional[int] = None
+    san_count: int = 0
+    is_wildcard: bool = False
+    automation_inferred: bool = False
+
+
+class SecurityPosture(BaseModel):
+    score: int = 0
+    present: list[str] = []
+    missing: list[str] = []
+    grade: str = "F"
+
+
+class RobotsSignals(BaseModel):
+    api_paths: list[str] = []
+    admin_paths: list[str] = []
+    crawl_delay: Optional[float] = None
+    interesting_disallows: list[str] = []
+
+
+class TechMention(BaseModel):
+    name: str
+    category: str
+    count: int = 1
+
+
+class JobSignals(BaseModel):
+    tech_mentions: list[TechMention] = []
+    role_types: list[str] = []
+    seniority_distribution: dict[str, int] = {}
+    total_roles_parsed: int = 0
+
+
+class PainInference(BaseModel):
+    rule_id: str
+    title: str
+    description: str
+    severity: str
+    evidence: list[str]
+    confidence: int = 0
+
+
+class SignalBundle(BaseModel):
+    domain: str = ""
+    tech_by_domain: dict = {}
+    dns_profile: Optional[DNSProfile] = None
+    ssl_profile: Optional[SSLProfile] = None
+    security_posture: Optional[SecurityPosture] = None
+    robots_signals: Optional[RobotsSignals] = None
+    job_signals: Optional[JobSignals] = None
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
 def format_multi_domain_tech(tech_by_domain: dict[str, "TechStack"]) -> str:
     """Format technology results from multiple domains for Claude's prompt."""
     if not tech_by_domain:

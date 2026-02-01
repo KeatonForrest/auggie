@@ -14,8 +14,13 @@ from database import (
     get_pending_list_accounts, update_list_account,
     finalize_list, get_list_source, get_list_accounts,
 )
+from urllib.parse import urlparse as _urlparse
 from services.collect import collect_enrichment_data
-from services.instances import firecrawl_service, claude_service, wappalyzer_service
+from services.instances import (
+    firecrawl_service, claude_service, wappalyzer_service,
+    dns_analyzer, ssl_analyzer, job_parser, pain_engine,
+)
+from models import SignalBundle
 from config import get_settings
 from api.webhooks import sign_payload
 
@@ -37,10 +42,33 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
 
     if job_id:
         await update_job_progress(job_id, "analyzing")
-    tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
-        main_url=company_url,
-        main_html=scraped_content.homepage_html,
+    # Extract domain for DNS/SSL analysis
+    _parsed = _urlparse(company_url if company_url.startswith("http") else f"https://{company_url}")
+    domain = _parsed.netloc.replace("www.", "") or _parsed.path.split("/")[0].replace("www.", "")
+    full_main_url = f"https://{domain}"
+
+    tech_by_domain, dns_profile, ssl_profile = await asyncio.gather(
+        wappalyzer_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
+        dns_analyzer.analyze(domain),
+        ssl_analyzer.analyze(domain),
     )
+
+    # Phase 3: security headers, robots, job signals
+    security_posture = wappalyzer_service.score_security_headers(
+        wappalyzer_service.get_last_main_headers()
+    )
+    robots_text = wappalyzer_service.get_robots_text(full_main_url)
+    robots_signals = wappalyzer_service.extract_robots_signals(robots_text) if robots_text else None
+    job_signals = job_parser.parse(scraped_content.job_postings) if scraped_content.job_postings else None
+
+    # Phase 4: pain inference
+    bundle = SignalBundle(
+        domain=domain, tech_by_domain=tech_by_domain,
+        dns_profile=dns_profile, ssl_profile=ssl_profile,
+        security_posture=security_posture, robots_signals=robots_signals,
+        job_signals=job_signals,
+    )
+    pain_inferences = pain_engine.evaluate(bundle)
 
     if job_id:
         await update_job_progress(job_id, "enriching")
@@ -61,9 +89,24 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         target_industries=user.get("target_industries", ""),
         problems_solved=user.get("problems_solved", ""),
         product_type=user.get("product_type", "saas"),
+        dns_profile=dns_profile,
+        ssl_profile=ssl_profile,
+        security_posture=security_posture,
+        robots_signals=robots_signals,
+        job_signals=job_signals,
+        pain_inferences=pain_inferences,
     )
 
     doc_id = await save_document(document, user_id=user_id)
+
+    # Phase 5: persist tech signals and pain inferences
+    try:
+        from db.tech_signals import save_tech_signals, save_pain_inferences
+        await save_tech_signals(doc_id, tech_by_domain, dns_profile, ssl_profile, job_signals)
+        await save_pain_inferences(doc_id, pain_inferences)
+    except Exception:
+        logger.warning("Failed to save tech signals/pain inferences for doc %s", doc_id, exc_info=True)
+
     return doc_id
 
 

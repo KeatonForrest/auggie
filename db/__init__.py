@@ -13,3 +13,4 @@ from db.bulk import *  # noqa: F401,F403
 from db.orgs import *  # noqa: F401,F403
 from db.automation import *  # noqa: F401,F403
 from db.feedback import *  # noqa: F401,F403
+from db.tech_signals import *  # noqa: F401,F403

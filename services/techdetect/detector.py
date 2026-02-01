@@ -56,6 +56,16 @@ class TechDetector:
                 if ver:
                     result.versions.add(ver)
 
+        # Cookie patterns
+        for cookie_name, pattern in tech.cookie_patterns:
+            cookie_val = webpage.cookies.get(cookie_name, "")
+            if cookie_val and pattern.regex.search(cookie_val):
+                matched = True
+                result.confidence = max(result.confidence, pattern.confidence)
+                ver = extract_version(pattern, cookie_val)
+                if ver:
+                    result.versions.add(ver)
+
         # Script patterns
         for pattern in tech.script_patterns:
             for script_src in webpage.scripts:
@@ -65,6 +75,15 @@ class TechDetector:
                     ver = extract_version(pattern, script_src)
                     if ver:
                         result.versions.add(ver)
+
+        # Inline script patterns
+        for js_global, pattern in tech.inline_script_patterns:
+            if pattern.regex.search(webpage.inline_scripts):
+                matched = True
+                result.confidence = max(result.confidence, pattern.confidence)
+                ver = extract_version(pattern, webpage.inline_scripts)
+                if ver:
+                    result.versions.add(ver)
 
         # Meta patterns
         for meta_name, pattern in tech.meta_patterns:

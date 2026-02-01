@@ -279,6 +279,115 @@ class TestImpliesResolution:
 
 
 # ============================================================
+# Inline script extraction tests
+# ============================================================
+
+class TestWebPageInlineScripts:
+    def test_inline_scripts_extracted(self):
+        html = '<html><head><script>var x = 1;</script><script src="/ext.js"></script><script>console.log("hi")</script></head></html>'
+        wp = WebPage("https://example.com", html, {})
+        assert "var x = 1;" in wp.inline_scripts
+        assert 'console.log("hi")' in wp.inline_scripts
+        # External script content should not appear
+        assert "/ext.js" not in wp.inline_scripts
+
+    def test_empty_scripts(self):
+        html = '<html><head><script src="/ext.js"></script></head></html>'
+        wp = WebPage("https://example.com", html, {})
+        assert wp.inline_scripts == ""
+
+    def test_next_data(self):
+        html = '<html><body><script>__NEXT_DATA__ = {}</script></body></html>'
+        wp = WebPage("https://example.com", html, {})
+        assert "__NEXT_DATA__" in wp.inline_scripts
+
+
+# ============================================================
+# Cookie parsing tests
+# ============================================================
+
+class TestWebPageCookies:
+    def test_cookies_parsed(self):
+        headers = {"Set-Cookie": "_ga=GA1.2.123; Path=/; HttpOnly, session=abc123; Secure"}
+        wp = WebPage("https://example.com", "<html></html>", headers)
+        assert "_ga" in wp.cookies
+        assert wp.cookies["_ga"] == "GA1.2.123"
+        assert "session" in wp.cookies
+        assert wp.cookies["session"] == "abc123"
+
+    def test_no_cookies(self):
+        wp = WebPage("https://example.com", "<html></html>", {})
+        assert wp.cookies == {}
+
+
+# ============================================================
+# Cookie detection tests
+# ============================================================
+
+class TestCookieDetection:
+    def test_cookie_match(self):
+        detector = TechDetector()
+        tech = Technology(
+            name="TestCookie",
+            cookie_patterns=(("_ga", prepare_pattern("GA")),),
+        )
+        wp = WebPage("https://example.com", "<html></html>", {"Set-Cookie": "_ga=GA1.2.123; Path=/"})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+
+
+# ============================================================
+# Inline script detection tests
+# ============================================================
+
+class TestInlineScriptDetection:
+    def test_next_data_match(self):
+        detector = TechDetector()
+        tech = Technology(
+            name="Next.js",
+            inline_script_patterns=(("__NEXT_DATA__", prepare_pattern("__NEXT_DATA__")),),
+        )
+        html = '<html><body><script>__NEXT_DATA__ = {"page":"/"}</script></body></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+
+    def test_gtag_match(self):
+        detector = TechDetector()
+        tech = Technology(
+            name="GA",
+            inline_script_patterns=(("gtag", prepare_pattern("gtag\\(")),),
+        )
+        html = '<html><body><script>gtag("config", "G-XXX")</script></body></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+
+    def test_fbq_match(self):
+        detector = TechDetector()
+        tech = Technology(
+            name="FBPixel",
+            inline_script_patterns=(("fbq", prepare_pattern("fbq\\(")),),
+        )
+        html = '<html><body><script>fbq("init", "123")</script></body></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+
+
+# ============================================================
+# Spot-check JS-only techs loaded from technologies.json
+# ============================================================
+
+class TestJSPatternsLoaded:
+    def test_nreum_has_inline_script_patterns(self):
+        techs, _ = load_fingerprints()
+        nr = techs.get("New Relic")
+        if nr:
+            assert len(nr.inline_script_patterns) > 0, "New Relic should have inline_script_patterns from its js entries"
+
+
+# ============================================================
 # Full integration: analyze_with_versions_and_categories
 # ============================================================
 

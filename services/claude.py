@@ -5,7 +5,10 @@ import anthropic
 from typing import Optional
 from datetime import datetime
 
-from models import ScrapedContent, ResearchDocument, TechStack, format_multi_domain_tech
+from models import (
+    ScrapedContent, ResearchDocument, TechStack, format_multi_domain_tech,
+    DNSProfile, SSLProfile, SecurityPosture, RobotsSignals, JobSignals, PainInference,
+)
 from config import get_settings
 
 
@@ -449,6 +452,12 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
+        dns_profile: Optional[DNSProfile] = None,
+        ssl_profile: Optional[SSLProfile] = None,
+        security_posture: Optional[SecurityPosture] = None,
+        robots_signals: Optional[RobotsSignals] = None,
+        job_signals: Optional[JobSignals] = None,
+        pain_inferences: Optional[list[PainInference]] = None,
     ) -> str:
         """Build the user prompt with all scraped research data."""
         sections = [f"# Research Data for {company_url}\n"]
@@ -463,6 +472,75 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("NOTE: Product/Application subdomains (app.*, dashboard.*, etc.) show their ACTUAL tech stack.")
             sections.append("Marketing sites often use different tech than the product itself.")
             sections.append("")
+
+        if dns_profile:
+            sections.append("## DNS Infrastructure Signals")
+            if dns_profile.ns_provider:
+                sections.append(f"- NS Provider: {dns_profile.ns_provider}")
+            if dns_profile.mx_provider:
+                sections.append(f"- Email Provider: {dns_profile.mx_provider}")
+            sections.append(f"- SPF: {'Present' if dns_profile.has_spf else 'Missing'}")
+            sections.append(f"- DKIM: {'Present' if dns_profile.has_dkim else 'Missing'}")
+            sections.append(f"- DMARC: {'Present' if dns_profile.has_dmarc else 'Missing'}" +
+                          (f" (policy: {dns_profile.dmarc_policy})" if dns_profile.dmarc_policy else ""))
+            if dns_profile.cloud_provider_hints:
+                sections.append(f"- Cloud hints: {', '.join(dns_profile.cloud_provider_hints)}")
+            sections.append("")
+
+        if ssl_profile:
+            sections.append("## SSL/TLS Certificate")
+            if ssl_profile.issuer:
+                sections.append(f"- Issuer: {ssl_profile.issuer}")
+            if ssl_profile.expiry_days is not None:
+                sections.append(f"- Expires in: {ssl_profile.expiry_days} days")
+            sections.append(f"- SAN count: {ssl_profile.san_count}")
+            sections.append(f"- Wildcard: {'Yes' if ssl_profile.is_wildcard else 'No'}")
+            sections.append(f"- Automated renewal: {'Likely' if ssl_profile.automation_inferred else 'Unknown'}")
+            sections.append("")
+
+        if security_posture:
+            sections.append("## Security Header Analysis")
+            sections.append(f"- Grade: {security_posture.grade} ({security_posture.score}/6)")
+            if security_posture.present:
+                sections.append(f"- Present: {', '.join(security_posture.present)}")
+            if security_posture.missing:
+                sections.append(f"- Missing: {', '.join(security_posture.missing)}")
+            sections.append("")
+
+        if robots_signals:
+            sections.append("## Robots.txt Signals")
+            if robots_signals.api_paths:
+                sections.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
+            if robots_signals.admin_paths:
+                sections.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
+            if robots_signals.crawl_delay is not None:
+                sections.append(f"- Crawl delay: {robots_signals.crawl_delay}")
+            sections.append("")
+
+        if job_signals and job_signals.tech_mentions:
+            sections.append("## Parsed Job Signals")
+            by_cat: dict[str, list[str]] = {}
+            for tm in job_signals.tech_mentions:
+                by_cat.setdefault(tm.category, []).append(f"{tm.name} (x{tm.count})")
+            for cat, items in by_cat.items():
+                sections.append(f"- {cat}: {', '.join(items)}")
+            if job_signals.role_types:
+                sections.append(f"- Role types: {', '.join(job_signals.role_types)}")
+            if job_signals.seniority_distribution:
+                seniority_str = ", ".join(f"{k}: {v}" for k, v in job_signals.seniority_distribution.items())
+                sections.append(f"- Seniority: {seniority_str}")
+            sections.append("")
+
+        if pain_inferences:
+            sections.append("## Programmatic Pain Signals")
+            sections.append("Use these as STARTING POINTS. Validate against other data. Do not repeat verbatim.")
+            sections.append("")
+            for pi in pain_inferences:
+                sections.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+                sections.append(f"  {pi.description}")
+                for ev in pi.evidence:
+                    sections.append(f"  - {ev}")
+                sections.append("")
 
         if scraped.firmographics:
             sections.append("## CONFIRMED Firmographic Data (from connected data provider)")
@@ -541,6 +619,12 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         target_industries: str = "",
         problems_solved: str = "",
         product_type: str = "saas",
+        dns_profile: Optional[DNSProfile] = None,
+        ssl_profile: Optional[SSLProfile] = None,
+        security_posture: Optional[SecurityPosture] = None,
+        robots_signals: Optional[RobotsSignals] = None,
+        job_signals: Optional[JobSignals] = None,
+        pain_inferences: Optional[list[PainInference]] = None,
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(
@@ -548,7 +632,12 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             target_personas=target_personas, target_industries=target_industries,
             problems_solved=problems_solved, product_type=product_type,
         )
-        user_prompt = self._build_user_prompt(company_url, scraped, tech_by_domain)
+        user_prompt = self._build_user_prompt(
+            company_url, scraped, tech_by_domain,
+            dns_profile=dns_profile, ssl_profile=ssl_profile,
+            security_posture=security_posture, robots_signals=robots_signals,
+            job_signals=job_signals, pain_inferences=pain_inferences,
+        )
 
         model = "claude-sonnet-4-20250514"
         message = await self.client.messages.create(

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from services.techdetect.patterns import PreparedPattern, prepare_pattern
 
@@ -17,6 +18,8 @@ class Technology:
     script_patterns: tuple[PreparedPattern, ...] = ()
     meta_patterns: tuple[tuple[str, PreparedPattern], ...] = ()  # (meta_name, pattern)
     html_patterns: tuple[PreparedPattern, ...] = ()
+    cookie_patterns: tuple[tuple[str, PreparedPattern], ...] = ()
+    inline_script_patterns: tuple[tuple[str, PreparedPattern], ...] = ()
     implies: tuple[str, ...] = ()
 
 
@@ -71,6 +74,23 @@ def load_fingerprints(path: str | None = None) -> tuple[dict[str, Technology], d
         # HTML patterns
         html_patterns = tuple(prepare_pattern(p) for p in _coerce_to_list(attrs.get("html", [])))
 
+        # Cookie patterns: dict of cookie_name -> pattern(s)
+        cookie_pats = []
+        for cookie_name, pats in _coerce_dict(attrs.get("cookies", {})).items():
+            for p in _coerce_to_list(pats):
+                cookie_pats.append((cookie_name, prepare_pattern(p)))
+
+        # JS patterns -> inline script patterns
+        # Each entry is "global.path": pattern
+        # If pattern is non-empty, use it; otherwise use re.escape(global_path) as presence check
+        inline_script_pats = []
+        for js_global, pats in _coerce_dict(attrs.get("js", {})).items():
+            for p in _coerce_to_list(pats):
+                if p:
+                    inline_script_pats.append((js_global, prepare_pattern(p)))
+                else:
+                    inline_script_pats.append((js_global, prepare_pattern(re.escape(js_global))))
+
         # Implies
         implies = tuple(_coerce_to_list(attrs.get("implies", [])))
 
@@ -85,6 +105,8 @@ def load_fingerprints(path: str | None = None) -> tuple[dict[str, Technology], d
             script_patterns=script_patterns,
             meta_patterns=tuple(meta_pats),
             html_patterns=html_patterns,
+            cookie_patterns=tuple(cookie_pats),
+            inline_script_patterns=tuple(inline_script_pats),
             implies=implies,
         )
 

@@ -79,19 +79,8 @@ class TestSyncAnalyzeUrl:
 
 
 class TestSyncAnalyzeHtml:
-    def test_fetches_headers_when_empty(self, wappalyzer_service):
-        with patch("services.wappalyzer.WebPage") as mock_wp, \
-             patch("services.wappalyzer.requests") as mock_requests:
-            mock_resp = MagicMock()
-            mock_resp.headers = {"Server": "nginx", "X-Powered-By": "PHP/8.1"}
-            mock_requests.head.return_value = mock_resp
-            mock_wp.return_value = MagicMock()
-            wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {}
-            wappalyzer_service._sync_analyze_html("<html/>", "https://x.com", {})
-            mock_requests.head.assert_called_once_with("https://x.com", timeout=5, allow_redirects=True)
-            mock_wp.assert_called_once_with("https://x.com", "<html/>", {"Server": "nginx", "X-Powered-By": "PHP/8.1"})
-
-    def test_success(self, wappalyzer_service):
+    def test_success_with_headers(self, wappalyzer_service):
+        """When headers are provided, no extra fetch occurs."""
         with patch("services.wappalyzer.WebPage") as mock_wp:
             mock_wp.return_value = MagicMock()
             wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {
@@ -106,6 +95,49 @@ class TestSyncAnalyzeHtml:
             mock_wp.side_effect = Exception("fail")
             ts = wappalyzer_service._sync_analyze_html("<html/>", "https://x.com", {})
         assert len(ts.technologies) == 0
+
+
+class TestAnalyzeHtmlAsyncHeaderFetch:
+    @pytest.mark.asyncio
+    async def test_fetches_headers_async_when_empty(self, wappalyzer_service):
+        """When headers are not provided, analyze_html fetches them via async httpx."""
+        mock_headers = {"Server": "nginx", "X-Powered-By": "PHP/8.1"}
+        with patch.object(wappalyzer_service, "_fetch_headers", new_callable=AsyncMock, return_value=mock_headers), \
+             patch("services.wappalyzer.WebPage") as mock_wp:
+            mock_wp.return_value = MagicMock()
+            wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {}
+            await wappalyzer_service.analyze_html("<html/>", "https://x.com")
+            wappalyzer_service._fetch_headers.assert_awaited_once_with("https://x.com")
+
+    @pytest.mark.asyncio
+    async def test_skips_fetch_when_headers_provided(self, wappalyzer_service):
+        """When headers are provided, _fetch_headers is not called."""
+        with patch.object(wappalyzer_service, "_fetch_headers", new_callable=AsyncMock) as mock_fetch, \
+             patch("services.wappalyzer.WebPage") as mock_wp:
+            mock_wp.return_value = MagicMock()
+            wappalyzer_service.wappalyzer.analyze_with_versions_and_categories.return_value = {}
+            await wappalyzer_service.analyze_html("<html/>", "https://x.com", {"Server": "nginx"})
+            mock_fetch.assert_not_awaited()
+
+
+class TestFetchHeaders:
+    @pytest.mark.asyncio
+    async def test_returns_headers(self, wappalyzer_service):
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Server": "nginx"}
+        mock_client = AsyncMock()
+        mock_client.head.return_value = mock_resp
+        with patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=mock_client):
+            result = await wappalyzer_service._fetch_headers("https://x.com")
+        assert result == {"Server": "nginx"}
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_error(self, wappalyzer_service):
+        mock_client = AsyncMock()
+        mock_client.head.side_effect = Exception("fail")
+        with patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=mock_client):
+            result = await wappalyzer_service._fetch_headers("https://x.com")
+        assert result == {}
 
 
 class TestAnalyzeUrl:
@@ -132,12 +164,12 @@ class TestAnalyzeHtml:
 
 class TestCheckUrlExists:
     @pytest.mark.asyncio
-    async def test_head_success(self, wappalyzer_service):
+    async def test_head_success_returns_tuple(self, wappalyzer_service):
         client = AsyncMock()
-        resp = MagicMock(status_code=200, url="https://example.com/app")
+        resp = MagicMock(status_code=200, url="https://example.com/app", headers={"Server": "nginx"})
         client.head.return_value = resp
         result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
-        assert result == "https://example.com/app"
+        assert result == ("https://example.com/app", {"Server": "nginx"})
 
     @pytest.mark.asyncio
     async def test_head_404_returns_none(self, wappalyzer_service):
@@ -148,12 +180,13 @@ class TestCheckUrlExists:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_head_403_returns_url(self, wappalyzer_service):
+    async def test_head_403_returns_none(self, wappalyzer_service):
+        """403 is now rejected — no hostile recon of forbidden resources."""
         client = AsyncMock()
         resp = MagicMock(status_code=403, url="https://example.com/app")
         client.head.return_value = resp
         result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
-        assert result == "https://example.com/app"
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_head_timeout_returns_none(self, wappalyzer_service):
@@ -167,16 +200,26 @@ class TestCheckUrlExists:
     async def test_head_generic_error_get_fallback(self, wappalyzer_service):
         client = AsyncMock()
         client.head.side_effect = Exception("unknown")
-        resp = MagicMock(status_code=200, url="https://example.com/app")
+        resp = MagicMock(status_code=200, url="https://example.com/app", headers={"Server": "nginx"})
         client.get.return_value = resp
         result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
-        assert result == "https://example.com/app"
+        assert result == ("https://example.com/app", {"Server": "nginx"})
 
     @pytest.mark.asyncio
     async def test_both_fail(self, wappalyzer_service):
         client = AsyncMock()
         client.head.side_effect = Exception("e")
         client.get.side_effect = Exception("fail")
+        result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_fallback_400_returns_none(self, wappalyzer_service):
+        """GET fallback also rejects >= 400."""
+        client = AsyncMock()
+        client.head.side_effect = Exception("unknown")
+        resp = MagicMock(status_code=403, url="https://example.com/app")
+        client.get.return_value = resp
         result = await wappalyzer_service._check_url_exists(client, "https://example.com/app")
         assert result is None
 
@@ -200,15 +243,57 @@ class TestValidateRedirect:
         assert result == "https://app.example.com"
 
 
+class TestRobotsFiltering:
+    @pytest.mark.asyncio
+    async def test_disallowed_paths_skipped(self, wappalyzer_service):
+        """Paths disallowed by robots.txt are not probed."""
+        from urllib.robotparser import RobotFileParser
+        rp = RobotFileParser()
+        rp.parse([
+            "User-agent: *",
+            "Disallow: /admin",
+            "Disallow: /login",
+        ])
+
+        async def mock_check(client, url):
+            # Everything that gets checked is "found"
+            return (url, {"Server": "nginx"})
+
+        with patch.object(wappalyzer_service, "_fetch_robots", new_callable=AsyncMock, return_value=rp), \
+             patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
+             patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
+            found = await wappalyzer_service.discover_app_paths("https://example.com")
+
+        found_urls = [u for u, _ in found]
+        # /login is in COMMON_APP_PATHS but disallowed by robots.txt
+        assert not any("/login" in u for u in found_urls)
+        # /app is allowed and should be present
+        assert any("/app" in u for u in found_urls)
+
+    @pytest.mark.asyncio
+    async def test_no_robots_checks_all_paths(self, wappalyzer_service):
+        """When robots.txt is unavailable, all paths are checked."""
+        async def mock_check(client, url):
+            return (url, {})
+
+        with patch.object(wappalyzer_service, "_fetch_robots", new_callable=AsyncMock, return_value=None), \
+             patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
+             patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
+            found = await wappalyzer_service.discover_app_paths("https://example.com")
+
+        assert len(found) == len(wappalyzer_service.COMMON_APP_PATHS)
+
+
 class TestDiscoverSubdomains:
     @pytest.mark.asyncio
     async def test_finds_some(self, wappalyzer_service):
         async def mock_check(client, url):
-            return url if "app.example.com" in url else None
+            return (url, {"Server": "nginx"}) if "app.example.com" in url else None
 
-        with patch.object(wappalyzer_service, "_check_url_exists", side_effect=mock_check), \
+        with patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
              patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
-            urls = await wappalyzer_service.discover_subdomains("https://www.example.com")
+            results = await wappalyzer_service.discover_subdomains("https://www.example.com")
+        urls = [u for u, _ in results]
         assert "https://app.example.com" in urls
 
     @pytest.mark.asyncio
@@ -216,32 +301,105 @@ class TestDiscoverSubdomains:
         async def mock_check(client, url):
             return None
 
-        with patch.object(wappalyzer_service, "_check_url_exists", side_effect=mock_check), \
+        with patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
              patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
-            urls = await wappalyzer_service.discover_subdomains("example.com")
-        assert urls == []
+            results = await wappalyzer_service.discover_subdomains("example.com")
+        assert results == []
 
 
 class TestDiscoverAppPaths:
     @pytest.mark.asyncio
     async def test_with_http_prefix(self, wappalyzer_service):
         async def mock_check(client, url):
-            return url if "/login" in url else None
+            return (url, {}) if "/login" in url else None
 
-        with patch.object(wappalyzer_service, "_check_url_exists", side_effect=mock_check), \
+        with patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
+             patch.object(wappalyzer_service, "_fetch_robots", new_callable=AsyncMock, return_value=None), \
              patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
-            urls = await wappalyzer_service.discover_app_paths("https://example.com")
+            results = await wappalyzer_service.discover_app_paths("https://example.com")
+        urls = [u for u, _ in results]
         assert "https://example.com/login" in urls
 
     @pytest.mark.asyncio
     async def test_without_http_prefix(self, wappalyzer_service):
         async def mock_check(client, url):
-            return url if "/app" in url else None
+            return (url, {}) if "/app" in url else None
 
-        with patch.object(wappalyzer_service, "_check_url_exists", side_effect=mock_check), \
+        with patch.object(wappalyzer_service, "_rate_limited_check", side_effect=mock_check), \
+             patch.object(wappalyzer_service, "_fetch_robots", new_callable=AsyncMock, return_value=None), \
              patch("services.wappalyzer.get_shared_http_client", new_callable=AsyncMock, return_value=AsyncMock()):
-            urls = await wappalyzer_service.discover_app_paths("example.com")
+            results = await wappalyzer_service.discover_app_paths("example.com")
+        urls = [u for u, _ in results]
         assert any("/app" in u for u in urls)
+
+
+class TestScoreSecurityHeaders:
+    def test_all_present(self):
+        from services.wappalyzer import WappalyzerService
+        headers = {
+            "Strict-Transport-Security": "max-age=31536000",
+            "Content-Security-Policy": "default-src 'self'",
+            "X-Frame-Options": "DENY",
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Permissions-Policy": "camera=()",
+        }
+        result = WappalyzerService.score_security_headers(headers)
+        assert result.score == 6
+        assert result.grade == "A"
+        assert len(result.missing) == 0
+
+    def test_none_present(self):
+        from services.wappalyzer import WappalyzerService
+        result = WappalyzerService.score_security_headers({})
+        assert result.score == 0
+        assert result.grade == "F"
+        assert len(result.present) == 0
+
+    def test_partial(self):
+        from services.wappalyzer import WappalyzerService
+        headers = {
+            "Strict-Transport-Security": "max-age=31536000",
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        }
+        result = WappalyzerService.score_security_headers(headers)
+        assert result.score == 3
+        assert result.grade == "C"
+
+    def test_case_insensitive(self):
+        from services.wappalyzer import WappalyzerService
+        headers = {"strict-transport-security": "max-age=31536000"}
+        result = WappalyzerService.score_security_headers(headers)
+        assert result.score == 1
+
+
+class TestExtractRobotsSignals:
+    def test_api_and_admin_paths(self):
+        from services.wappalyzer import WappalyzerService
+        text = "User-agent: *\nDisallow: /api/v1\nDisallow: /admin\nDisallow: /private\n"
+        result = WappalyzerService.extract_robots_signals(text)
+        assert "/api/v1" in result.api_paths
+        assert "/admin" in result.admin_paths
+        assert len(result.interesting_disallows) == 3
+
+    def test_crawl_delay(self):
+        from services.wappalyzer import WappalyzerService
+        text = "User-agent: *\nCrawl-delay: 10\nDisallow: /search\n"
+        result = WappalyzerService.extract_robots_signals(text)
+        assert result.crawl_delay == 10.0
+
+    def test_graphql_path(self):
+        from services.wappalyzer import WappalyzerService
+        text = "User-agent: *\nDisallow: /graphql\n"
+        result = WappalyzerService.extract_robots_signals(text)
+        assert "/graphql" in result.api_paths
+
+    def test_empty(self):
+        from services.wappalyzer import WappalyzerService
+        result = WappalyzerService.extract_robots_signals("")
+        assert result.api_paths == []
+        assert result.crawl_delay is None
 
 
 class TestAnalyzeMultipleDomains:
@@ -270,3 +428,23 @@ class TestAnalyzeMultipleDomains:
              patch.object(wappalyzer_service, "discover_app_paths", new_callable=AsyncMock, return_value=[]):
             results = await wappalyzer_service.analyze_multiple_domains("example.com")
         assert "example.com" in results
+
+    @pytest.mark.asyncio
+    async def test_subdomains_use_probe_headers(self, wappalyzer_service):
+        """analyze_multiple_domains uses analyze_html with probe headers, not analyze_url."""
+        main_ts = TechStack(technologies=[], scan_url="https://example.com")
+        sub_ts = TechStack(
+            technologies=[DetectedTechnology(name="Express", version="4", category="Web", confidence=100)],
+            scan_url="https://app.example.com"
+        )
+
+        with patch.object(wappalyzer_service, "analyze_url", new_callable=AsyncMock, return_value=main_ts) as mock_url, \
+             patch.object(wappalyzer_service, "analyze_html", new_callable=AsyncMock, return_value=sub_ts) as mock_html, \
+             patch.object(wappalyzer_service, "discover_subdomains", new_callable=AsyncMock,
+                          return_value=[("https://app.example.com", {"Server": "nginx"})]), \
+             patch.object(wappalyzer_service, "discover_app_paths", new_callable=AsyncMock, return_value=[]):
+            results = await wappalyzer_service.analyze_multiple_domains("example.com")
+
+        # analyze_html should be called for the subdomain with probe headers
+        mock_html.assert_any_call("", "https://app.example.com", {"Server": "nginx"})
+        assert "app.example.com" in results
