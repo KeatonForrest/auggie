@@ -19,12 +19,18 @@ class PainInferenceEngine:
             self._marketing_product_mismatch,
             self._data_infra_pain,
             self._tag_bloat,
+            self._vendor_lock_in,
+            self._compliance_gap,
+            self._frontend_performance_debt,
+            self._hiring_velocity_anomaly,
+            self._tool_sprawl,
         ]
         results = []
         for rule in rules:
             inference = rule(bundle)
             if inference:
                 results.append(inference)
+        self._evaluate_compounds(results)
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
 
@@ -245,3 +251,180 @@ class PainInferenceEngine:
                 confidence=60,
             )
         return None
+
+    def _vendor_lock_in(self, bundle: SignalBundle) -> Optional[PainInference]:
+        vendor_sources: dict[str, set[str]] = {}
+        dns = bundle.dns_profile
+        if dns:
+            for vendor, keywords in [("AWS", ["aws", "amazon"]), ("Azure", ["azure", "microsoft"]), ("GCP", ["gcp", "google"])]:
+                if dns.ns_provider and any(k in dns.ns_provider.lower() for k in keywords):
+                    vendor_sources.setdefault(vendor, set()).add("DNS NS")
+                if dns.mx_provider and any(k in dns.mx_provider.lower() for k in keywords):
+                    vendor_sources.setdefault(vendor, set()).add("Email")
+        techs = self._get_all_tech_names_and_cats(bundle)
+        for n, c in techs:
+            nl = n.lower()
+            for vendor, keywords in [("AWS", ["aws", "amazon"]), ("Azure", ["azure"]), ("GCP", ["gcp", "google cloud"])]:
+                if any(k in nl for k in keywords):
+                    if "cdn" in c:
+                        vendor_sources.setdefault(vendor, set()).add("CDN")
+                    else:
+                        vendor_sources.setdefault(vendor, set()).add("Tech stack")
+        for vendor, sources in vendor_sources.items():
+            if len(sources) >= 3:
+                return PainInference(
+                    rule_id="vendor_lock_in",
+                    title="Vendor Lock-In Risk",
+                    description=f"Single cloud vendor ({vendor}) appears across multiple signal sources, suggesting deep lock-in.",
+                    severity="medium",
+                    evidence=[f"{vendor} detected in: {', '.join(sorted(sources))}"],
+                    confidence=55,
+                )
+        return None
+
+    def _compliance_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
+        sp = bundle.security_posture
+        dns = bundle.dns_profile
+        js = bundle.job_signals
+        if not sp or sp.score > 2:
+            return None
+        if not dns or (dns.has_dmarc and dns.has_spf):
+            return None
+        if not js:
+            return None
+        has_security_signal = "security" in js.role_types
+        if not has_security_signal:
+            security_keywords = {"hipaa", "soc2", "soc 2", "pci", "gdpr", "compliance", "fedramp"}
+            for tm in js.tech_mentions:
+                if tm.name.lower() in security_keywords or tm.category == "security":
+                    has_security_signal = True
+                    break
+        if not has_security_signal:
+            return None
+        evidence = [f"Security header grade: {sp.grade} ({sp.score}/6)"]
+        if not dns.has_dmarc:
+            evidence.append("Missing DMARC")
+        if not dns.has_spf:
+            evidence.append("Missing SPF")
+        evidence.append("Security-related hiring signals detected")
+        return PainInference(
+            rule_id="compliance_gap",
+            title="Compliance Gap",
+            description="Weak security posture combined with missing email auth and security hiring signals suggests compliance exposure.",
+            severity="high",
+            evidence=evidence,
+            confidence=70,
+        )
+
+    def _frontend_performance_debt(self, bundle: SignalBundle) -> Optional[PainInference]:
+        techs = self._get_all_tech_names_and_cats(bundle)
+        frameworks = set()
+        has_cdn = False
+        for n, c in techs:
+            if "framework" in c or "javascript" in c:
+                frameworks.add(n)
+            if "cdn" in c:
+                has_cdn = True
+        if len(frameworks) >= 2 and not has_cdn:
+            return PainInference(
+                rule_id="frontend_performance_debt",
+                title="Frontend Performance Debt",
+                description="Multiple JS frameworks without a CDN suggests frontend performance and bundle size issues.",
+                severity="medium",
+                evidence=[f"Frameworks: {', '.join(sorted(frameworks))}", "No CDN detected"],
+                confidence=50,
+            )
+        return None
+
+    def _hiring_velocity_anomaly(self, bundle: SignalBundle) -> Optional[PainInference]:
+        js = bundle.job_signals
+        if not js or not js.seniority_distribution:
+            return None
+        senior_keys = {"senior", "staff", "principal"}
+        junior_keys = {"junior", "mid"}
+        senior_count = sum(v for k, v in js.seniority_distribution.items() if k in senior_keys)
+        junior_count = sum(v for k, v in js.seniority_distribution.items() if k in junior_keys)
+        if senior_count >= 3 and junior_count == 0:
+            return PainInference(
+                rule_id="hiring_velocity_anomaly",
+                title="Execution Bottleneck",
+                description="Heavily top-heavy hiring (senior/staff/principal with no junior/mid) suggests execution bottleneck or overly complex problems.",
+                severity="medium",
+                evidence=[f"Senior+Staff+Principal: {senior_count}", f"Junior+Mid: {junior_count}",
+                          f"Distribution: {js.seniority_distribution}"],
+                confidence=50,
+            )
+        if junior_count >= 3 and senior_count == 0:
+            return PainInference(
+                rule_id="hiring_velocity_anomaly",
+                title="Leadership Gap",
+                description="Heavily bottom-heavy hiring (junior/mid with no senior/staff) suggests leadership gap or inability to attract senior talent.",
+                severity="medium",
+                evidence=[f"Junior+Mid: {junior_count}", f"Senior+Staff+Principal: {senior_count}",
+                          f"Distribution: {js.seniority_distribution}"],
+                confidence=50,
+            )
+        return None
+
+    def _tool_sprawl(self, bundle: SignalBundle) -> Optional[PainInference]:
+        techs = self._get_all_tech_names_and_cats(bundle)
+        unique_names = {n for n, _ in techs}
+        if len(unique_names) >= 40:
+            from collections import Counter
+            cat_counts = Counter(c for _, c in techs if c)
+            top_cats = cat_counts.most_common(5)
+            return PainInference(
+                rule_id="tool_sprawl",
+                title="Tool Sprawl",
+                description="Excessive number of distinct technologies detected, suggesting tool sprawl and governance challenges.",
+                severity="medium",
+                evidence=[f"Total unique technologies: {len(unique_names)}",
+                          f"Top categories: {', '.join(f'{cat} ({cnt})' for cat, cnt in top_cats)}"],
+                confidence=55,
+            )
+        return None
+
+    def _evaluate_compounds(self, results: list[PainInference]) -> None:
+        """Second pass: check for compound rule patterns and append new inferences."""
+        fired_ids = {r.rule_id for r in results}
+        confidence_map = {r.rule_id: r.confidence for r in results}
+
+        compounds = [
+            {
+                "rule_id": "systemic_security_underinvestment",
+                "title": "Systemic Security Underinvestment",
+                "description": "Multiple independent security signals compound into evidence of systemic security underinvestment.",
+                "severity": "high",
+                "constituents": ["security_gap", "email_risk", "cert_gap"],
+                "min_matches": 2,
+            },
+            {
+                "rule_id": "engineering_capacity_crisis",
+                "title": "Engineering Capacity Crisis",
+                "description": "Multiple engineering stress signals compound into evidence of an engineering capacity crisis.",
+                "severity": "high",
+                "constituents": ["tech_debt", "scaling_pressure", "hiring_velocity_anomaly"],
+                "min_matches": 2,
+            },
+            {
+                "rule_id": "marketing_infra_debt",
+                "title": "Marketing Infrastructure Debt",
+                "description": "Multiple marketing/analytics signals compound into evidence of marketing infrastructure debt.",
+                "severity": "medium",
+                "constituents": ["identity_fragmentation", "tag_bloat", "marketing_product_mismatch"],
+                "min_matches": 2,
+            },
+        ]
+
+        for compound in compounds:
+            matched = [c for c in compound["constituents"] if c in fired_ids]
+            if len(matched) >= compound["min_matches"]:
+                conf = min(max(confidence_map[m] for m in matched) + 10, 95)
+                results.append(PainInference(
+                    rule_id=compound["rule_id"],
+                    title=compound["title"],
+                    description=compound["description"],
+                    severity=compound["severity"],
+                    evidence=[f"Triggered by: {', '.join(matched)}"],
+                    confidence=conf,
+                ))

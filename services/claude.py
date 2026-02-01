@@ -220,6 +220,14 @@ Infrastructure & Security Gaps:
 - Multiple cloud providers (DNS + tech stack) = multi-cloud complexity tax
 - 6+ analytics/ad tools without a CDP = identity fragmentation and data governance pain
 - Heavy data role hiring + single database tech = data infrastructure scaling pressure
+- Single cloud vendor across DNS, email, tech stack, CDN = vendor lock-in risk
+- Weak security headers + missing email auth + security hiring = compliance gap exposure
+- Multiple JS frameworks without CDN = frontend performance debt
+- Skewed seniority hiring (all senior or all junior) = organizational imbalance
+- 40+ distinct technologies = tool sprawl and governance burden
+- Multiple security signals compounding (headers + email + certs) = systemic security underinvestment
+- Tech debt + scaling pressure + hiring anomaly compounding = engineering capacity crisis
+- Identity fragmentation + tag bloat + marketing mismatch compounding = marketing infrastructure debt
 
 ---
 
