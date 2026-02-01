@@ -68,7 +68,41 @@ The company data contains several types of information with different reliabilit
    - Match these to the company's industry to assess regulatory pressure
    - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
 
-8. **Firmographic Data** - Company size, industry, funding, contacts
+8. **DNS Infrastructure Signals** - From automated DNS record analysis:
+   - NS provider reveals cloud infrastructure (AWS, Cloudflare, GCP, Azure)
+   - MX records reveal email provider (Google Workspace, Microsoft 365)
+   - SPF/DKIM/DMARC presence indicates email security maturity — missing records are a concrete pain signal
+   - These are VERIFIED facts from public DNS records
+
+9. **SSL/TLS Certificate** - From automated certificate inspection:
+   - Issuer and expiry reveal certificate management practices
+   - Let's Encrypt = automated renewal (good hygiene); short expiry without automation = operational risk
+   - Wildcard certs and SAN count hint at infrastructure complexity
+
+10. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
+   - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+   - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
+   - Cross-reference with DNS email auth gaps for compounding security narratives
+
+11. **Robots.txt Signals** - Parsed from the company's robots.txt:
+    - Disallowed /api or /graphql paths confirm API infrastructure exists
+    - Disallowed /admin paths confirm internal tooling
+    - Crawl-delay values hint at server capacity concerns
+
+12. **Parsed Job Signals** - Structured extraction from job posting text:
+    - Technology mentions by category (language, framework, database, cloud, data, devops, security)
+    - Role types (backend, frontend, fullstack, data, devops, security, mobile)
+    - Seniority distribution — heavy senior/staff hiring signals hard problems; heavy junior hiring signals scaling
+    - Use these to cross-reference and validate the detected tech stack
+
+13. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
+    - Each signal has a rule ID, severity, confidence score, and evidence list
+    - These are STARTING POINTS — validate against other data before including in the document
+    - Do NOT repeat these verbatim. Synthesize them into your own analysis using the Data Cocktail methodology
+    - High-confidence signals (70+) should be strongly considered for Existential Data Points
+    - Lower-confidence signals are hypotheses — include only if corroborated by other evidence
+
+14. **Firmographic Data** - Company size, industry, funding, contacts
 
 YOUR COMPANY: {seller_company}
 
@@ -178,6 +212,13 @@ Organizational Pain:
 - Role open 4+ months = hard problem or broken process
 - High turnover signals + critical function hiring = instability
 - Reorg announcements + duplicate tool purchases = integration mess
+
+Infrastructure & Security Gaps:
+- Security header grade D/F + missing DMARC/SPF = broad security underinvestment
+- SSL cert expiring soon without automation = operational process gap
+- Multiple cloud providers (DNS + tech stack) = multi-cloud complexity tax
+- 6+ analytics/ad tools without a CDP = identity fragmentation and data governance pain
+- Heavy data role hiring + single database tech = data infrastructure scaling pressure
 
 ---
 
