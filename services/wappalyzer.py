@@ -12,12 +12,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from Wappalyzer import Wappalyzer, WebPage
+    from services.techdetect import TechDetector, WebPage
     WAPPALYZER_AVAILABLE = True
-    logger.debug("Wappalyzer module imported successfully")
+    logger.debug("TechDetector module imported successfully")
 except ImportError as e:
     WAPPALYZER_AVAILABLE = False
-    logger.error("Wappalyzer import failed: %s", e)
+    logger.error("TechDetector import failed: %s", e)
 
 
 class WappalyzerService:
@@ -41,8 +41,8 @@ class WappalyzerService:
             self.wappalyzer = None
         else:
             try:
-                self.wappalyzer = Wappalyzer.latest()
-                logger.debug("Wappalyzer initialized successfully")
+                self.wappalyzer = TechDetector()
+                logger.debug("TechDetector initialized successfully")
             except Exception as e:
                 import traceback
                 logger.error("Failed to initialize Wappalyzer: %s", e)

@@ -15,8 +15,8 @@ def mock_wappalyzer():
 @pytest.fixture
 def wappalyzer_service(mock_wappalyzer):
     with patch("services.wappalyzer.WAPPALYZER_AVAILABLE", True), \
-         patch("services.wappalyzer.Wappalyzer") as mock_cls:
-        mock_cls.latest.return_value = mock_wappalyzer
+         patch("services.wappalyzer.TechDetector") as mock_cls:
+        mock_cls.return_value = mock_wappalyzer
         from services.wappalyzer import WappalyzerService
         service = WappalyzerService()
         return service

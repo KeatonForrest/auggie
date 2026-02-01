@@ -25,9 +25,8 @@ weasyprint==62.0
 # Asyncpg - async PostgreSQL driver
 asyncpg==0.30.0
 
-# Wappalyzer - technology detection (with auto-update support)
-setuptools>=69.0.0  # Required for pkg_resources used by Wappalyzer
-python-Wappalyzer==0.3.1
+# Technology detection (custom engine, replaces python-Wappalyzer)
+# No additional deps — beautifulsoup4, lxml, requests already present
 
 # Stripe - payments
 stripe==8.0.0
