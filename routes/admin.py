@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from auth import require_super_admin, get_current_user
+from auth import require_super_admin
+from routes._helpers import templates
 from db.users import list_all_users_admin, toggle_admin, add_credits, get_user_by_id
 from db.task_queue import get_queue_stats, get_failed_tasks, retry_failed_task
 from db.orgs import get_all_orgs_stats, get_revenue_stats
@@ -19,8 +20,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @router.get("", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, user: dict = Depends(require_super_admin)):
     """Render the admin dashboard."""
-    from main import templates
-
     search = request.query_params.get("search", "")
     page = int(request.query_params.get("page", "1"))
     limit = 50
