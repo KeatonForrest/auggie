@@ -23,6 +23,7 @@ from services.hubspot import get_authorize_url as hubspot_authorize_url, exchang
 from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
 from services.outreach import get_authorize_url as outreach_authorize_url, exchange_code as outreach_exchange_code
 from services.salesloft import get_authorize_url as salesloft_authorize_url, exchange_code as salesloft_exchange_code
+from services.gong_engage import get_authorize_url as gong_engage_authorize_url, exchange_code as gong_engage_exchange_code
 from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
 from services.instantly import validate_api_key as instantly_validate
 from services.smartlead import validate_api_key as smartlead_validate
@@ -299,6 +300,41 @@ async def salesloft_cadences(request: Request, user: dict = Depends(require_onbo
         logger.error("SalesLoft API error: %s", e)
         raise HTTPException(status_code=502, detail="SalesLoft API error")
     return JSONResponse(cadences)
+
+
+# ==========================================================================
+# Gong Engage
+# ==========================================================================
+
+@router.get("/integrations/gong_engage/connect")
+async def gong_engage_connect(request: Request, user: dict = Depends(require_auth)):
+    """Redirect to Gong Engage OAuth."""
+    return await _oauth_connect(request, "gong_engage", gong_engage_authorize_url)
+
+
+@router.get("/integrations/gong_engage/callback")
+async def gong_engage_callback(request: Request, user: dict = Depends(require_auth)):
+    """Handle Gong Engage OAuth callback."""
+    return await _oauth_callback(request, user, "gong_engage", gong_engage_exchange_code)
+
+
+@router.post("/integrations/gong_engage/disconnect")
+async def gong_engage_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Gong Engage integration."""
+    await delete_integration(user["id"], "gong_engage")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@router.get("/integrations/gong_engage/flows")
+async def gong_engage_flows(request: Request, user: dict = Depends(require_onboarding)):
+    """List Gong Engage flows."""
+    from services.gong_engage import list_flows
+    try:
+        flows = await list_flows(user["id"])
+    except Exception as e:
+        logger.error("Gong Engage API error: %s", e)
+        raise HTTPException(status_code=502, detail="Gong Engage API error")
+    return JSONResponse(flows)
 
 
 # ==========================================================================

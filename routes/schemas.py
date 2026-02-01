@@ -50,6 +50,12 @@ class PushSequencesRequest(BaseModel):
     account_ids: list[int] = []
 
 
+class PushGongEngageRequest(BaseModel):
+    flow_id: str
+    flow_owner_email: str
+    account_ids: list[int] = []
+
+
 class AccountIdsRequest(BaseModel):
     account_ids: list[int]
 

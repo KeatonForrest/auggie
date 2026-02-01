@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     salesloft_client_id: str = ""
     salesloft_client_secret: str = ""
 
+    # Gong Engage (sales engagement)
+    gong_engage_client_id: str = ""
+    gong_engage_client_secret: str = ""
+
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 

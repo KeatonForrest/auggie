@@ -396,6 +396,28 @@
         </div>
         {% endif %}
 
+        {% if integrations.get('gong_engage') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Gong Engage</h3>
+                        <p class="text-sm text-gray-500">Push sequences to Gong Engage flows</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <form method="post" action="/integrations/gong_engage/disconnect" class="inline">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
         <!-- Unconnected Sales Engagement cards -->
         {% if not integrations.get('outreach') %}
         <div class="bg-white rounded-lg shadow p-6">
@@ -458,6 +480,25 @@
                 </div>
                 <p id="instantly-error" class="mt-2 text-sm text-red-600 hidden"></p>
             </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('gong_engage') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Gong Engage</h3>
+                        <p class="text-sm text-gray-500">Push sequences to Gong Engage flows</p>
+                    </div>
+                </div>
+            </div>
+            <a href="/integrations/gong_engage/connect" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                Connect Gong Engage
+            </a>
         </div>
         {% endif %}
 

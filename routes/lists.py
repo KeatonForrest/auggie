@@ -25,12 +25,13 @@ from routes._helpers import (
     normalize_url, templates, logger,
     _push_contacts_to_integration, _push_drafts_to_integration,
 )
-from routes.schemas import PushCampaignRequest, PushSequencesRequest, AccountIdsRequest
+from routes.schemas import PushCampaignRequest, PushSequencesRequest, PushGongEngageRequest, AccountIdsRequest
 from services.instantly import push_accounts_to_instantly
 from services.smartlead import push_accounts_to_smartlead
 from services.outreach import push_sequences_to_outreach
 from services.salesloft import push_sequences_to_salesloft
 from services.apollo import push_sequences_to_apollo
+from services.gong_engage import push_sequences_to_gong_engage
 from db.outreach import get_outreach_drafts_batch
 
 router = APIRouter()
@@ -276,6 +277,7 @@ async def view_list(
     outreach_integration = await get_integration(user["id"], "outreach")
     salesloft_integration = await get_integration(user["id"], "salesloft")
     apollo_integration = await get_integration(user["id"], "apollo")
+    gong_engage_integration = await get_integration(user["id"], "gong_engage")
 
     # Pipeline step counts (single SQL query)
     counts = await get_pipeline_counts(list_id)
@@ -300,6 +302,7 @@ async def view_list(
             "outreach_connected": outreach_integration is not None,
             "salesloft_connected": salesloft_integration is not None,
             "apollo_connected": apollo_integration is not None,
+            "gong_engage_connected": gong_engage_integration is not None,
             "google_sheets_connected": gsheets_integration is not None,
             "scored_count": scored_count,
             "enriched_count": enriched_count,
@@ -696,3 +699,48 @@ async def push_to_apollo(
     return await _push_drafts_to_integration(
         user, list_id, body.account_ids, push_sequences_to_apollo,
     )
+
+
+@router.post("/lists/{list_id}/push-gong-engage")
+async def push_to_gong_engage(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Push Auggie-generated sequences to a Gong Engage flow with content overrides."""
+    import json as _json
+    from database import get_list, get_outreach_draft
+
+    body = PushGongEngageRequest(**(await request.json()))
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    if body.account_ids:
+        accounts = await get_list_accounts(list_id, account_ids=body.account_ids, limit=10000)
+    else:
+        accounts = await get_list_accounts(list_id, status="completed", limit=10000)
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    drafts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    content = _json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
+
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
+
+    result = await push_sequences_to_gong_engage(
+        user["id"], body.flow_id, body.flow_owner_email, accounts, drafts_by_account,
+    )
+    return JSONResponse(result)
