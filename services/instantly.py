@@ -26,6 +26,8 @@ async def validate_api_key(api_key: str) -> bool:
             headers=_auth_headers(api_key),
             params={"limit": 1},
         )
+        if resp.status_code != 200:
+            logger.warning("Instantly v2 validation failed: %s %s", resp.status_code, resp.text[:500])
         return resp.status_code == 200
 
 
