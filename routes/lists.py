@@ -356,6 +356,65 @@ async def export_list_csv(
     )
 
 
+@router.get("/lists/{list_id}/export-apollo")
+async def export_apollo_csv(
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Export contact-level CSV for Apollo import with personalized email content."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    accounts = await get_list_accounts(list_id, limit=10000)
+
+    doc_ids = [a["document_id"] for a in accounts if a.get("document_id")]
+    drafts = await get_outreach_drafts_batch(doc_ids) if doc_ids else {}
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "first_name", "last_name", "email", "title", "linkedin_url",
+        "company_name", "company_url",
+        "auggie_email_1_subject", "auggie_email_1_body",
+        "auggie_email_2_subject", "auggie_email_2_body",
+        "auggie_email_3_subject", "auggie_email_3_body",
+    ])
+
+    for a in accounts:
+        doc_id = a.get("document_id")
+        if not doc_id:
+            continue
+        contacts = await get_enriched_contacts(doc_id, user["id"])
+        draft = drafts.get(doc_id) or {}
+        emails = draft.get("emails", [])
+        for c in contacts:
+            if not c.get("email"):
+                continue
+            writer.writerow([
+                c.get("first_name", ""),
+                c.get("last_name", ""),
+                c.get("email", ""),
+                c.get("title", ""),
+                c.get("profile_url", ""),
+                a.get("company_name", ""),
+                a.get("company_url", ""),
+                emails[0].get("subject", "") if len(emails) > 0 else "",
+                emails[0].get("body", "") if len(emails) > 0 else "",
+                emails[1].get("subject", "") if len(emails) > 1 else "",
+                emails[1].get("body", "") if len(emails) > 1 else "",
+                emails[2].get("subject", "") if len(emails) > 2 else "",
+                emails[2].get("body", "") if len(emails) > 2 else "",
+            ])
+
+    safe_name = re.sub(r'[^\w\s\-.]', '', lst["name"])
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_apollo.csv"'},
+    )
+
+
 @router.post("/lists/{list_id}/export-selected")
 async def export_selected_csv(
     list_id: int,
@@ -701,7 +760,7 @@ async def push_to_apollo(
     list_id: int,
     user: dict = Depends(require_onboarding),
 ):
-    """Push Auggie-generated sequences to Apollo as emailer campaigns (no contacts)."""
+    """Push Auggie-generated sequences to Apollo as emailer campaigns with contacts."""
     body = PushSequencesRequest(**(await request.json()))
     return await _push_drafts_to_integration(
         user, list_id, body.account_ids, push_sequences_to_apollo,
