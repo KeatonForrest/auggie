@@ -68,7 +68,7 @@ class TestApolloListSavedLists:
         from services.apollo import list_saved_lists
 
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"labels": [{"id": "l1", "name": "My List"}]}
+        mock_resp.json.return_value = [{"id": "l1", "name": "My List"}]
         mock_resp.raise_for_status = MagicMock()
 
         with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
