@@ -44,8 +44,6 @@ async def search_companies(user_id: int, filters: dict, size: int = 50) -> dict:
 
     # Build Lusha prospecting filter structure
     include = {}
-    if filters.get("companyName"):
-        include["companyName"] = [filters["companyName"]]
     if filters.get("industry"):
         include["industry"] = [filters["industry"]]
     if filters.get("location"):

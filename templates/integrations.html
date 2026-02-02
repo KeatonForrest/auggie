@@ -1000,10 +1000,6 @@
         <div class="p-6 overflow-y-auto flex-1 space-y-4">
             <p class="text-sm text-gray-500">Search Lusha's company database and import matches as a new list. Use at least 2 filters to keep results targeted.</p>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                <input type="text" id="lusha-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
-            </div>
-            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input type="text" id="lusha-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
             </div>
@@ -1046,10 +1042,6 @@
         </div>
         <div class="p-6 overflow-y-auto flex-1 space-y-4">
             <p class="text-sm text-gray-500">Search Cognism's company database and import matches as a new list. Use at least 2 filters to keep results targeted.</p>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                <input type="text" id="cognism-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
-            </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input type="text" id="cognism-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
@@ -1725,14 +1717,12 @@ function closeLushaImport() {
 
 function buildLushaFilters() {
     var filters = {};
-    var companyName = document.getElementById('lusha-company-name').value.trim();
     var industry = document.getElementById('lusha-industry').value.trim();
     var minEmp = document.getElementById('lusha-min-employees').value.trim();
     var maxEmp = document.getElementById('lusha-max-employees').value.trim();
     var location = document.getElementById('lusha-location').value.trim();
 
     var count = 0;
-    if (companyName) { filters.companyName = companyName; count++; }
     if (industry) { filters.industry = industry; count++; }
     if (minEmp) { filters.minEmployees = parseInt(minEmp); count++; }
     if (maxEmp) { filters.maxEmployees = parseInt(maxEmp); count++; }
@@ -1798,14 +1788,12 @@ function closeCognismImport() {
 
 function buildCognismFilters() {
     var filters = {};
-    var companyName = document.getElementById('cognism-company-name').value.trim();
     var industry = document.getElementById('cognism-industry').value.trim();
     var minEmp = document.getElementById('cognism-min-employees').value.trim();
     var maxEmp = document.getElementById('cognism-max-employees').value.trim();
     var location = document.getElementById('cognism-location').value.trim();
 
     var count = 0;
-    if (companyName) { filters.companyName = companyName; count++; }
     if (industry) { filters.industry = industry; count++; }
     if (minEmp) { filters.minEmployees = parseInt(minEmp); count++; }
     if (maxEmp) { filters.maxEmployees = parseInt(maxEmp); count++; }

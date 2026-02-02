@@ -43,8 +43,6 @@ async def search_companies(user_id: int, filters: dict, size: int = 50) -> dict:
 
     # Build Cognism filter structure
     cognism_filters = {}
-    if filters.get("companyName"):
-        cognism_filters["companyName"] = [filters["companyName"]]
     if filters.get("industry"):
         cognism_filters["industry"] = [filters["industry"]]
     if filters.get("location"):

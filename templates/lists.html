@@ -293,10 +293,6 @@
         <div class="p-6 overflow-y-auto flex-1 space-y-4">
             <p class="text-sm text-gray-500">Search Lusha's company database and import matches as a new list. Use at least 2 filters.</p>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                <input type="text" id="lusha-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            </div>
-            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input type="text" id="lusha-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
@@ -341,10 +337,6 @@
         </div>
         <div class="p-6 overflow-y-auto flex-1 space-y-4">
             <p class="text-sm text-gray-500">Search Cognism's company database and import matches as a new list. Use at least 2 filters.</p>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                <input type="text" id="cognism-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input type="text" id="cognism-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -673,7 +665,6 @@ function buildLushaFilters() {
     var filters = {};
     var count = 0;
     var v;
-    v = document.getElementById('lusha-company-name').value.trim(); if (v) { filters.companyName = v; count++; }
     v = document.getElementById('lusha-industry').value.trim(); if (v) { filters.industry = v; count++; }
     v = document.getElementById('lusha-min-employees').value.trim(); if (v) { filters.minEmployees = parseInt(v); count++; }
     v = document.getElementById('lusha-max-employees').value.trim(); if (v) { filters.maxEmployees = parseInt(v); count++; }
@@ -711,7 +702,6 @@ function buildCognismFilters() {
     var filters = {};
     var count = 0;
     var v;
-    v = document.getElementById('cognism-company-name').value.trim(); if (v) { filters.companyName = v; count++; }
     v = document.getElementById('cognism-industry').value.trim(); if (v) { filters.industry = v; count++; }
     v = document.getElementById('cognism-min-employees').value.trim(); if (v) { filters.minEmployees = parseInt(v); count++; }
     v = document.getElementById('cognism-max-employees').value.trim(); if (v) { filters.maxEmployees = parseInt(v); count++; }
