@@ -120,7 +120,11 @@ class TestListCampaigns:
             with patch("httpx.AsyncClient", return_value=mock_client):
                 result = await instantly.list_campaigns(1)
 
-        assert result == campaigns_data
+        assert result == [
+            {"id": "campaign_1", "name": "Campaign One"},
+            {"id": "campaign_2", "name": "Campaign Two"},
+            {"id": "campaign_3", "name": "Campaign Three"},
+        ]
         mock_client.get.assert_called_once_with(
             "https://api.instantly.ai/api/v2/campaigns",
             headers={"Authorization": "Bearer test_api_key"},

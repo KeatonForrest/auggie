@@ -598,7 +598,7 @@ async def test_action_notify_slack_not_connected_raises():
     config = {}
 
     with patch("database.get_integration", new_callable=AsyncMock, return_value=None):
-        with pytest.raises(RuntimeError, match="Slack not connected"):
+        with pytest.raises(RuntimeError, match="No notification channel connected"):
             await _action_notify_slack(rule, user_id=6, list_id=60, accounts=accounts, config=config)
 
 
