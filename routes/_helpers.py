@@ -298,6 +298,17 @@ async def _push_drafts_to_integration(user: dict, list_id: int, account_ids: lis
         raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
 
     result = await push_fn(user["id"], accounts, drafts_by_account)
+
+    # Mark successfully pushed accounts
+    from database import update_list_account_pushed
+    provider = push_fn.__name__.replace("push_sequences_to_", "")
+    created_ids = result.get("created_ids", [])
+    pushed_idx = 0
+    for account in accounts:
+        if account["id"] in drafts_by_account and pushed_idx < len(created_ids):
+            await update_list_account_pushed(account["id"], provider, {"campaign_id": created_ids[pushed_idx]})
+            pushed_idx += 1
+
     return JSONResponse(result)
 
 

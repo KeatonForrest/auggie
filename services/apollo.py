@@ -113,6 +113,7 @@ async def _create_apollo_sequence_with_emails(
                 "name": f"Auggie – {company_name}",
             },
         )
+        logger.info("Apollo sequence create response: %s %s", seq_resp.status_code, seq_resp.text[:300])
         if seq_resp.status_code >= 400:
             logger.warning("Apollo sequence create failed: %s", seq_resp.text[:200])
             return None
@@ -135,6 +136,7 @@ async def _create_apollo_sequence_with_emails(
                     "body": f"<p>{_plain_to_html(email.get('body', ''))}</p>",
                 },
             )
+            logger.info("Apollo step %d create response: %s %s", i, step_resp.status_code, step_resp.text[:200])
             if step_resp.status_code >= 400:
                 logger.warning("Apollo step create failed: %s", step_resp.text[:200])
 
@@ -212,10 +214,14 @@ async def push_sequences_to_apollo(
 
             # Auto-add contacts if we have the Apollo org ID
             org_id = account.get("source_id")
+            logger.info("Account %s source_id=%s", account.get("company_name"), org_id)
             if org_id:
                 contact_ids = await _get_contacts_for_org(api_key, org_id)
+                logger.info("Found %d contacts for org %s", len(contact_ids), org_id)
                 added = await _add_contacts_to_sequence(api_key, created_id, contact_ids)
                 contacts_added += added
+            else:
+                logger.info("No source_id for %s — skipping contact add", account.get("company_name"))
         else:
             errors += 1
 
