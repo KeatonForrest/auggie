@@ -47,10 +47,18 @@ async def list_campaigns(user_id: int) -> list[dict]:
             f"{INSTANTLY_API_BASE}/campaigns",
             headers=_auth_headers(api_key),
         )
+        if resp.status_code != 200:
+            logger.error("Instantly list_campaigns failed: %s %s", resp.status_code, resp.text[:500])
         resp.raise_for_status()
         data = resp.json()
-    # v2 returns { items: [...] } with campaign objects
-    items = data.get("items", data) if isinstance(data, dict) else data
+    logger.info("Instantly list_campaigns response type=%s keys=%s", type(data).__name__, list(data.keys()) if isinstance(data, dict) else "n/a")
+    # v2 may return { items: [...] }, { data: [...] }, or a plain list
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        items = data.get("items", data.get("data", []))
+    else:
+        items = []
     return [
         {"id": c.get("id"), "name": c.get("name", "")}
         for c in items if isinstance(c, dict)
