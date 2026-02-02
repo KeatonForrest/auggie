@@ -122,7 +122,8 @@ class TestApolloPushSequences:
         }
 
         with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value="camp-1"):
+             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value="camp-1"), \
+             patch("database.get_user_by_id", new_callable=AsyncMock, return_value={"target_personas": ""}):
 
             result = await push_sequences_to_apollo(1, accounts, drafts)
 
@@ -138,7 +139,8 @@ class TestApolloPushSequences:
         drafts = {1: [{"subject": "Hi", "body": "Hello"}]}
 
         with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value="camp-1"):
+             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value="camp-1"), \
+             patch("database.get_user_by_id", new_callable=AsyncMock, return_value={"target_personas": ""}):
 
             result = await push_sequences_to_apollo(1, accounts, drafts)
 
@@ -153,7 +155,8 @@ class TestApolloPushSequences:
         drafts = {1: [{"subject": "Hi", "body": "Hello"}]}
 
         with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value=None):
+             patch("services.apollo._create_apollo_sequence_with_emails", new_callable=AsyncMock, return_value=None), \
+             patch("database.get_user_by_id", new_callable=AsyncMock, return_value={"target_personas": ""}):
 
             result = await push_sequences_to_apollo(1, accounts, drafts)
 

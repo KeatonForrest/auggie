@@ -479,6 +479,10 @@ async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | 
         get_list_accounts as _get_accts,
     )
     from services.enrichment import enrich_company_contacts
+    from routes._helpers import _build_target_titles
+
+    user = await get_user_by_id(user_id)
+    target_titles = _build_target_titles(user) if user else []
 
     all_accounts = await _get_accts(list_id, limit=10000)
     if account_ids:
@@ -500,6 +504,7 @@ async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | 
 
                 contacts = await enrich_company_contacts(
                     user_id, domain, company_name=account.get("company_name", ""),
+                    person_titles=target_titles,
                 )
                 if not contacts:
                     await update_list_account_enrichment(account_id, "completed")

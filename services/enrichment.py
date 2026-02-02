@@ -24,7 +24,7 @@ class EnrichmentProvider(ABC):
     cost_per_contact: float  # credits cost (0 = free)
 
     @abstractmethod
-    async def enrich(self, domain: str, api_key: str, *, company_name: str = "") -> list[dict]:
+    async def enrich(self, domain: str, api_key: str, *, company_name: str = "", person_titles: list[str] = None) -> list[dict]:
         """Return contacts for a company domain.
 
         Each contact dict should have:
@@ -39,20 +39,23 @@ class ApolloEnrichmentProvider(EnrichmentProvider):
     name = "apollo"
     cost_per_contact = 0.0
 
-    async def enrich(self, domain: str, api_key: str, *, company_name: str = "") -> list[dict]:
+    async def enrich(self, domain: str, api_key: str, *, company_name: str = "", person_titles: list[str] = None) -> list[dict]:
         clean_domain = domain.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
         contacts = []
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Search for people at this domain
+            payload = {
+                "q_organization_domains": clean_domain,
+                "page": 1,
+                "per_page": 25,
+            }
+            if person_titles:
+                payload["person_titles"] = person_titles
             resp = await client.post(
                 "https://api.apollo.io/v1/mixed_people/search",
                 headers={"Content-Type": "application/json", "X-Api-Key": api_key},
-                json={
-                    "q_organization_domains": clean_domain,
-                    "page": 1,
-                    "per_page": 25,
-                },
+                json=payload,
             )
             if resp.status_code >= 400:
                 logger.warning("Apollo people search failed for %s: %s %s", clean_domain, resp.status_code, resp.text[:200])
@@ -111,6 +114,7 @@ async def enrich_company_contacts(
     user_id: int,
     domain: str,
     company_name: str = "",
+    person_titles: list[str] = None,
 ) -> list[dict]:
     """Waterfall enrichment: try providers in priority order until one returns contacts.
 
@@ -132,7 +136,7 @@ async def enrich_company_contacts(
 
         api_key = integration["access_token"]
         try:
-            contacts = await provider.enrich(domain, api_key, company_name=company_name)
+            contacts = await provider.enrich(domain, api_key, company_name=company_name, person_titles=person_titles)
             if contacts:
                 logger.info("Enrichment via %s returned %d contacts for %s", provider_name, len(contacts), domain)
                 return contacts

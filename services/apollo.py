@@ -143,7 +143,7 @@ async def _create_apollo_sequence_with_emails(
     return campaign_id
 
 
-async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "") -> list[str]:
+async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "", person_titles: list[str] = None) -> list[str]:
     """Fetch people for an Apollo organization and ensure they are contacts.
 
     Tries organization_ids first, falls back to domain search if that fails.
@@ -156,6 +156,7 @@ async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "") -> 
             headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
                 "organization_ids": [org_id],
+                **({"person_titles": person_titles} if person_titles else {}),
                 "page": 1,
                 "per_page": 25,
             },
@@ -176,6 +177,7 @@ async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "") -> 
                 headers={"Content-Type": "application/json", "X-Api-Key": api_key},
                 json={
                     "q_organization_domains": clean_domain,
+                    **({"person_titles": person_titles} if person_titles else {}),
                     "page": 1,
                     "per_page": 25,
                 },
@@ -274,10 +276,17 @@ async def push_sequences_to_apollo(
 
     Returns {"sequences_created": int, "skipped": int, "errors": int, "created_ids": [...], "contacts_added": int}.
     """
+    from database import get_user_by_id
+    from routes._helpers import _build_target_titles
+
     api_key = await _get_integration_api_key(user_id)
     email_account_id = await _get_email_account_id(api_key)
     if not email_account_id:
         logger.warning("No email account found — contacts won't be added to sequences")
+
+    user = await get_user_by_id(user_id)
+    target_titles = _build_target_titles(user) if user else []
+
     sequences_created = 0
     skipped = 0
     errors = 0
@@ -301,7 +310,7 @@ async def push_sequences_to_apollo(
             org_id = account.get("source_id")
             logger.info("Account %s source_id=%s", account.get("company_name"), org_id)
             if org_id:
-                contact_ids = await _get_contacts_for_org(api_key, org_id, domain=account.get("company_url", ""))
+                contact_ids = await _get_contacts_for_org(api_key, org_id, domain=account.get("company_url", ""), person_titles=target_titles)
                 logger.info("Found %d contacts for org %s", len(contact_ids), org_id)
                 added = await _add_contacts_to_sequence(api_key, created_id, contact_ids, email_account_id)
                 contacts_added += added
