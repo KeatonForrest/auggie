@@ -92,7 +92,7 @@ All in one request.
 $24.99/month for 25 research documents. That's about $1 per account researched.
 
 ### Is there a free trial?
-Yes - you get 5 free researches to try it out. No credit card required.
+Yes - you get 10 free researches to try it out. No credit card required.
 
 ### What if I need more than 25 researches?
 You can buy additional credit packs: $10 for 10 extra researches. Use them whenever you need them.
