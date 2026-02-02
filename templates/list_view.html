@@ -83,7 +83,7 @@
     </div>
 
     <!-- Pipeline Stepper -->
-    {% set list_done = list.status not in ('created', 'analyzing') %}
+    {% set list_done = list.status not in ('created', 'analyzing') or scored_count > 0 %}
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <div class="flex items-center justify-between gap-2 text-center">
             <!-- Step 1: Score (not clickable — happens automatically) -->
