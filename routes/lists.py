@@ -524,6 +524,13 @@ async def pipeline_status(
 
     counts = await get_pipeline_counts(list_id)
 
+    # Auto-finalize if all accounts are done but list status is stale
+    if lst.get("status") in ("created", "analyzing") and counts["total"] > 0:
+        processed = (lst.get("analyzed_accounts", 0) or 0) + (lst.get("failed_accounts", 0) or 0)
+        if processed >= counts["total"]:
+            from database import finalize_list
+            lst = await finalize_list(list_id)
+
     return JSONResponse({
         "scored": counts["scored"],
         "enriched": counts["enriched"],
