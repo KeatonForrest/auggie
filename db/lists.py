@@ -1,7 +1,6 @@
 """List database operations."""
 
 import json
-from typing import Optional
 
 import db._pool as _db
 

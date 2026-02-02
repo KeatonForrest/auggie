@@ -86,39 +86,6 @@ async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocum
         return [_row_to_document_summary(row) for row in rows]
 
 
-async def search_documents(user_id: int, query: str) -> list[ResearchDocument]:
-    """Search documents by company name or URL (scoped to user)."""
-    async with _db._pool.acquire() as conn:
-        search_term = f"%{query}%"
-        rows = await conn.fetch(
-            """
-            SELECT id, user_id, company_url, company_name, created_at,
-                   company_overview, projects_initiatives, confirmed_tech_stack,
-                   hiring_signals, business_problems, existential_data_points,
-                   product_fit, talking_points, recent_news, key_contacts,
-                   information_gaps,
-                   opportunity_score, pain_score, fit_score, timing_score,
-                   score_summary, pain_evidence, fit_evidence, timing_evidence
-            FROM research_documents
-            WHERE user_id = $1 AND (company_name ILIKE $2 OR company_url ILIKE $2)
-            ORDER BY created_at DESC
-            LIMIT 20
-            """,
-            user_id, search_term
-        )
-        return [_row_to_document_summary(row) for row in rows]
-
-
-async def delete_document(doc_id: int, user_id: int) -> bool:
-    """Delete a document (scoped to user). Returns True if deleted."""
-    async with _db._pool.acquire() as conn:
-        result = await conn.execute(
-            "DELETE FROM research_documents WHERE id = $1 AND user_id = $2",
-            doc_id, user_id
-        )
-        return result == "DELETE 1"
-
-
 def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
     """Convert a database row to a ResearchDocument."""
     return ResearchDocument(

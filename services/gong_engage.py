@@ -8,7 +8,7 @@ import httpx
 
 from config import get_settings
 from database import (
-    get_integration, upsert_integration, update_integration_tokens,
+    get_integration, update_integration_tokens,
     update_list_account_pushed,
 )
 

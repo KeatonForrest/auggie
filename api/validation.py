@@ -5,16 +5,16 @@ import socket
 from urllib.parse import urlparse
 
 
-# Blocked TLDs and patterns
-_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]"}
-
-
 def normalize_url(url: str) -> str:
     """Add https:// if no protocol specified."""
     url = url.strip()
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     return url
+
+
+# Blocked TLDs and patterns
+_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]"}
 
 
 def validate_company_url(url: str) -> str:

@@ -1,7 +1,5 @@
 """retrieval.py - Retrieve relevant materials for research generation."""
 
-from typing import Optional
-
 import database
 from services.embeddings import EmbeddingService
 
@@ -103,14 +101,3 @@ class RetrievalService:
         return "\n\n---\n\n".join(sections)
 
 
-async def has_materials(user_id: int) -> bool:
-    """Check if user has any ready materials.
-
-    Args:
-        user_id: User ID to check
-
-    Returns:
-        True if user has at least one material with status 'ready'
-    """
-    materials = await database.get_user_materials(user_id)
-    return any(m['status'] == 'ready' for m in materials)

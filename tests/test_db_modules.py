@@ -1109,54 +1109,6 @@ class TestDocuments:
         assert call_args[1:] == (10, 50)
 
     @pytest.mark.asyncio
-    async def test_search_documents(self, mock_pool):
-        """Test searching documents."""
-        from db import documents
-
-        mock_pool_obj, mock_conn = mock_pool
-        mock_conn.fetch.return_value = []
-
-        with patch("db._pool._pool", mock_pool_obj):
-            result = await documents.search_documents(user_id=10, query="Acme")
-
-        assert result == []
-        mock_conn.fetch.assert_called_once()
-        call_args = mock_conn.fetch.call_args[0]
-        assert "ILIKE" in call_args[0]
-        assert call_args[1] == 10
-        assert call_args[2] == "%Acme%"
-
-    @pytest.mark.asyncio
-    async def test_delete_document_success(self, mock_pool):
-        """Test deleting a document."""
-        from db import documents
-
-        mock_pool_obj, mock_conn = mock_pool
-        mock_conn.execute.return_value = "DELETE 1"
-
-        with patch("db._pool._pool", mock_pool_obj):
-            result = await documents.delete_document(doc_id=1, user_id=10)
-
-        assert result is True
-        mock_conn.execute.assert_called_once()
-        call_args = mock_conn.execute.call_args[0]
-        assert "DELETE FROM research_documents WHERE id = $1 AND user_id = $2" in call_args[0]
-        assert call_args[1:] == (1, 10)
-
-    @pytest.mark.asyncio
-    async def test_delete_document_not_found(self, mock_pool):
-        """Test deleting a non-existent document."""
-        from db import documents
-
-        mock_pool_obj, mock_conn = mock_pool
-        mock_conn.execute.return_value = "DELETE 0"
-
-        with patch("db._pool._pool", mock_pool_obj):
-            result = await documents.delete_document(doc_id=999, user_id=10)
-
-        assert result is False
-
-    @pytest.mark.asyncio
     async def test_get_recent_document_by_url_exists(self, mock_pool):
         """Test getting a recent document by URL."""
         from db import documents

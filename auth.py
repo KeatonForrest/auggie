@@ -6,12 +6,10 @@ import jwt
 logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from functools import wraps
-
 from auth_cache import get_cached_user, set_cached_user, invalidate_user_cache
 
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth
 
 from config import get_settings

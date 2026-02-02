@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from services.retrieval import RetrievalService, has_materials
+from services.retrieval import RetrievalService
 
 
 class TestRetrievalService:
@@ -242,47 +242,3 @@ class TestRetrievalService:
         assert separator_count == 2  # 3 chunks means 2 separators
 
 
-class TestHasMaterials:
-    """Test suite for has_materials function"""
-
-    @pytest.mark.asyncio
-    async def test_has_materials_true_when_ready_materials_exist(self):
-        """Test has_materials returns True when ready materials exist"""
-        materials = [
-            {'status': 'ready', 'name': 'Material 1'},
-            {'status': 'processing', 'name': 'Material 2'}
-        ]
-
-        with patch('services.retrieval.database') as mock_db:
-            mock_db.get_user_materials = AsyncMock(return_value=materials)
-
-            result = await has_materials('user123')
-
-            assert result is True
-            mock_db.get_user_materials.assert_called_once_with('user123')
-
-    @pytest.mark.asyncio
-    async def test_has_materials_false_when_none_ready(self):
-        """Test has_materials returns False when no materials are ready"""
-        materials = [
-            {'status': 'processing', 'name': 'Material 1'},
-            {'status': 'failed', 'name': 'Material 2'},
-            {'status': 'pending', 'name': 'Material 3'}
-        ]
-
-        with patch('services.retrieval.database') as mock_db:
-            mock_db.get_user_materials = AsyncMock(return_value=materials)
-
-            result = await has_materials('user456')
-
-            assert result is False
-
-    @pytest.mark.asyncio
-    async def test_has_materials_false_when_empty_list(self):
-        """Test has_materials returns False when materials list is empty"""
-        with patch('services.retrieval.database') as mock_db:
-            mock_db.get_user_materials = AsyncMock(return_value=[])
-
-            result = await has_materials('user789')
-
-            assert result is False

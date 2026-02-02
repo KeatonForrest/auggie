@@ -3,7 +3,7 @@
 import boto3
 from botocore.config import Config
 from uuid import uuid4
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
 from config import get_settings
 
@@ -62,33 +62,3 @@ class R2Storage:
         """
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
-    def get_presigned_url(self, key: str, expires_in: int = 3600) -> str:
-        """Get a temporary download URL.
-
-        Args:
-            key: Storage key
-            expires_in: URL expiration time in seconds (default 1 hour)
-
-        Returns:
-            Presigned URL for downloading the file
-        """
-        return self.client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': self.bucket, 'Key': key},
-            ExpiresIn=expires_in
-        )
-
-    def file_exists(self, key: str) -> bool:
-        """Check if a file exists.
-
-        Args:
-            key: Storage key to check
-
-        Returns:
-            True if file exists, False otherwise
-        """
-        try:
-            self.client.head_object(Bucket=self.bucket, Key=key)
-            return True
-        except Exception:
-            return False

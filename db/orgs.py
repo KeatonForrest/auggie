@@ -282,13 +282,3 @@ async def get_revenue_stats() -> dict:
         }
 
 
-async def delete_empty_org(org_id: int) -> bool:
-    """Delete an org if it has no members. Returns True if deleted."""
-    async with _db._pool.acquire() as conn:
-        member_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM org_members WHERE org_id = $1", org_id
-        )
-        if member_count == 0:
-            await conn.execute("DELETE FROM organizations WHERE id = $1", org_id)
-            return True
-        return False

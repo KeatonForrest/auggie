@@ -1,7 +1,6 @@
 """Integration database operations."""
 
 from datetime import datetime
-from typing import Optional
 
 import db._pool as _db
 

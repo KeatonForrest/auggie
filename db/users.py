@@ -260,34 +260,6 @@ async def update_user_stripe(
         return dict(row)
 
 
-async def increment_user_searches(user_id: int) -> int:
-    """Increment search count and return new value."""
-    async with _db._pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            UPDATE users
-            SET searches_used = searches_used + 1
-            WHERE id = $1
-            RETURNING searches_used
-            """,
-            user_id
-        )
-        return row['searches_used']
-
-
-async def reset_user_searches(user_id: int) -> None:
-    """Reset search count for new billing period."""
-    async with _db._pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE users
-            SET searches_used = 0, billing_period_start = NOW()
-            WHERE id = $1
-            """,
-            user_id
-        )
-
-
 async def get_user_usage(user_id: int) -> dict:
     """Get user's current usage stats (credits from org)."""
     async with _db._pool.acquire() as conn:
@@ -431,15 +403,3 @@ async def toggle_admin(user_id: int) -> bool:
         return row["is_admin"] if row else False
 
 
-async def set_admin(email: str, is_admin: bool = True) -> bool:
-    """Set admin status for a user by email. Returns True if updated."""
-    async with _db._pool.acquire() as conn:
-        result = await conn.execute(
-            """
-            UPDATE users
-            SET is_admin = $2
-            WHERE email = $1
-            """,
-            email, is_admin
-        )
-        return result == "UPDATE 1"

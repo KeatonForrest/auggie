@@ -44,18 +44,6 @@ async def list_campaigns(user_id: int) -> list[dict]:
         return resp.json()
 
 
-async def create_campaign(user_id: int, name: str) -> dict:
-    """Create a new Instantly campaign."""
-    api_key = await _get_api_key(user_id)
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
-            f"{INSTANTLY_API_BASE}/campaign/create",
-            json={"api_key": api_key, "name": name},
-        )
-        resp.raise_for_status()
-        return resp.json()
-
-
 async def add_leads_to_campaign(
     user_id: int,
     campaign_id: str,
