@@ -726,6 +726,7 @@
             <button onclick="closePDLImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
         <div class="p-6 overflow-y-auto flex-1 space-y-4">
+            <p class="text-sm text-gray-500">Search PDL's company database and import matches as a new list. Use at least 2 filters to keep results targeted — each result uses your PDL API credits.</p>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input type="text" id="pdl-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
@@ -743,6 +744,11 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <input type="text" id="pdl-location" placeholder="e.g. united states, california" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Max Companies</label>
+                <input type="number" id="pdl-max-companies" placeholder="50" value="50" min="1" max="50" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                <span class="text-xs text-gray-400 ml-2">Up to 50</span>
             </div>
             <div id="pdl-error" class="hidden text-sm text-red-600"></div>
         </div>
@@ -1164,18 +1170,19 @@ function buildPDLQuery() {
 
 function importPDL() {
     var query = buildPDLQuery();
-    if (query.bool.must.length === 0) {
-        var errEl = document.getElementById('pdl-error');
-        errEl.textContent = 'Please fill in at least one search field.';
+    var errEl = document.getElementById('pdl-error');
+    if (query.bool.must.length < 2) {
+        errEl.textContent = 'Please fill in at least 2 filters to keep results targeted.';
         errEl.classList.remove('hidden');
         return;
     }
-    document.getElementById('pdl-error').classList.add('hidden');
+    errEl.classList.add('hidden');
+    var maxCompanies = Math.min(parseInt(document.getElementById('pdl-max-companies').value) || 50, 50);
     var btn = document.getElementById('pdl-import-btn');
     btn.disabled = true; btn.textContent = 'Importing...';
     fetch('/integrations/pdl/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, name: document.getElementById('pdl-list-name').value || 'PDL Import', size: 100 })
+        body: JSON.stringify({ query: query, name: document.getElementById('pdl-list-name').value || 'PDL Import', size: maxCompanies })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {

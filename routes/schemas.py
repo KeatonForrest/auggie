@@ -30,7 +30,7 @@ class ApolloImportRequest(BaseModel):
 class PDLImportRequest(BaseModel):
     query: dict
     name: str = "PDL Import"
-    size: int = 100
+    size: int = 50
 
 
 class GoogleSheetsImportRequest(BaseModel):

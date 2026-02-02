@@ -30,7 +30,7 @@ async def _get_api_key(user_id: int) -> str:
     return integration["access_token"]
 
 
-async def search_companies(user_id: int, query: dict, size: int = 100) -> dict:
+async def search_companies(user_id: int, query: dict, size: int = 50) -> dict:
     """Search companies via PDL Elasticsearch query.
 
     Returns {"data": [...], "total": int, "scroll_token": str|None}.
@@ -40,7 +40,7 @@ async def search_companies(user_id: int, query: dict, size: int = 100) -> dict:
         resp = await client.post(
             f"{PDL_API_BASE}/company/search",
             headers={"X-Api-Key": api_key, "Content-Type": "application/json"},
-            json={"query": query, "size": min(size, 100)},
+            json={"query": query, "size": min(size, 50)},
         )
         resp.raise_for_status()
         return resp.json()

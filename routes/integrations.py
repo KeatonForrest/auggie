@@ -514,7 +514,7 @@ async def pdl_import(request: Request, user: dict = Depends(require_onboarding))
     from services.pdl import search_companies
 
     body = PDLImportRequest(**(await request.json()))
-    data = await search_companies(user["id"], body.query, size=body.size)
+    data = await search_companies(user["id"], body.query, size=min(body.size, 50))
     companies = data.get("data", [])
 
     def extractor(company):
