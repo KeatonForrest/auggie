@@ -227,7 +227,6 @@ class FirecrawlService:
         other_urls = {
             "about": urljoin(base_url, "/about"),
             "blog": urljoin(base_url, "/blog"),
-            "engineering": urljoin(base_url, "/engineering"),
         }
 
         # Homepage needs HTML for Wappalyzer tech detection
