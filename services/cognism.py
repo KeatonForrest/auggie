@@ -8,17 +8,18 @@ from database import get_integration
 
 logger = logging.getLogger(__name__)
 
-COGNISM_API_BASE = "https://api.cognism.com/v1"
+COGNISM_API_BASE = "https://app.cognism.com/api/search"
 
 
 async def validate_api_key(api_key: str) -> bool:
-    """Validate a Cognism API key by making a lightweight company search call."""
+    """Validate a Cognism API key by making a lightweight account search call."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
-            f"{COGNISM_API_BASE}/companies/search",
+            f"{COGNISM_API_BASE}/account/search",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"query": "test", "limit": 1},
+            json={"filters": {"companyName": ["google"]}, "limit": 1},
         )
+        # 200 = valid key, 401/403 = invalid key
         return resp.status_code == 200
 
 
@@ -38,20 +39,20 @@ async def search_companies(user_id: int, query: str, size: int = 50) -> list:
     api_key = await _get_api_key(user_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{COGNISM_API_BASE}/companies/search",
+            f"{COGNISM_API_BASE}/account/search",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"query": query, "limit": min(size, 50)},
+            json={"filters": {"companyName": [query]}, "limit": min(size, 50)},
         )
         resp.raise_for_status()
         data = resp.json()
         # Normalize response to consistent format
-        companies = data if isinstance(data, list) else data.get("data", data.get("companies", []))
+        companies = data if isinstance(data, list) else data.get("data", data.get("items", data.get("accounts", [])))
         return [
             {
-                "id": c.get("id") or c.get("company_id", ""),
-                "name": c.get("name") or c.get("company_name", ""),
+                "id": c.get("id") or c.get("companyId", ""),
+                "name": c.get("companyName") or c.get("name", ""),
                 "website": c.get("website") or c.get("domain", ""),
-                "employeeCount": c.get("employee_count") or c.get("employeeCount"),
+                "employeeCount": c.get("employeeCount") or c.get("employee_count"),
                 "industry": c.get("industry", ""),
                 "country": c.get("country", ""),
             }

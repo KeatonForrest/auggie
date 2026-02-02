@@ -8,18 +8,20 @@ from database import get_integration
 
 logger = logging.getLogger(__name__)
 
-LUSHA_API_BASE = "https://api.lusha.com"
+LUSHA_API_BASE = "https://api.lusha.com/v2"
 
 
 async def validate_api_key(api_key: str) -> bool:
-    """Validate a Lusha API key by making a lightweight company search call."""
+    """Validate a Lusha API key by making a lightweight company lookup."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
             f"{LUSHA_API_BASE}/company",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={"company_name": "test", "limit": 1},
+            headers={"api_key": api_key},
+            params={"domain": "google.com"},
         )
-        return resp.status_code == 200
+        logger.info("Lusha validate_api_key status=%s body=%s", resp.status_code, resp.text[:500])
+        # 401/403 = definitely invalid key; anything else means the key was accepted
+        return resp.status_code not in (401, 403)
 
 
 async def _get_api_key(user_id: int) -> str:
@@ -39,16 +41,16 @@ async def search_companies(user_id: int, query: str, size: int = 50) -> list:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
             f"{LUSHA_API_BASE}/company",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={"company_name": query, "limit": min(size, 50)},
+            headers={"api_key": api_key},
+            params={"company_name": query},
         )
         resp.raise_for_status()
         data = resp.json()
         # Normalize response to consistent format
-        companies = data if isinstance(data, list) else data.get("data", data.get("companies", []))
+        companies = data if isinstance(data, list) else data.get("data", data.get("companies", [data]))
         return [
             {
-                "id": c.get("id") or c.get("company_id", ""),
+                "id": c.get("id") or c.get("company_id") or c.get("domain", ""),
                 "name": c.get("name") or c.get("company_name", ""),
                 "website": c.get("website") or c.get("domain", ""),
                 "employeeCount": c.get("employee_count") or c.get("employeeCount"),
