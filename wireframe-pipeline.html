@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auggie Pipeline — Architecture Wireframe</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #faf9f6;
+    --dot: #d4d0c8;
+    --ink: #2c2c2c;
+    --ink-light: #6b6760;
+    --blue: #4a7fd4;
+    --blue-bg: #e8f0fb;
+    --green: #4a9d6e;
+    --green-bg: #e4f3ea;
+    --orange: #d4874a;
+    --orange-bg: #fdf0e4;
+    --purple: #8b6aad;
+    --purple-bg: #f0eaf6;
+    --red: #c75a5a;
+    --red-bg: #fbe8e8;
+    --yellow: #b8a33e;
+    --yellow-bg: #f8f4e0;
+    --hand: 'Caveat', cursive;
+    --mono: 'IBM Plex Mono', monospace;
+    --sketch-1: 1px 1px 0 rgba(0,0,0,.04);
+    --sketch-2: 2px 2px 0 rgba(0,0,0,.06);
+  }
+
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px);
+    background-size: 24px 24px;
+    font-family: var(--hand);
+    color: var(--ink);
+    overflow-x: auto;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  h1 {
+    font-family: var(--hand);
+    font-weight: 700;
+    font-size: 42px;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+    color: var(--ink);
+  }
+  .subtitle {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-light);
+    margin-bottom: 48px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ---- MAIN PIPELINE ---- */
+  .pipeline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    min-width: 1600px;
+    margin: 0 auto;
+    position: relative;
+    padding-bottom: 60px;
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .stage-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .stage-box {
+    border: 2.5px solid var(--ink);
+    border-radius: 14px;
+    padding: 20px 22px 18px;
+    background: #fff;
+    box-shadow: var(--sketch-2);
+    text-align: center;
+    position: relative;
+    min-width: 170px;
+    transition: transform .15s;
+  }
+  .stage-box:hover { transform: translateY(-2px); }
+  .stage-box h2 {
+    font-family: var(--hand);
+    font-weight: 700;
+    font-size: 26px;
+    margin-bottom: 4px;
+  }
+  .stage-box p {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-light);
+    line-height: 1.5;
+    max-width: 160px;
+    margin: 0 auto;
+  }
+  .stage-box .auto-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1.5px solid var(--green);
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Arrow connector */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    margin-top: 36px;
+    flex-shrink: 0;
+  }
+  .arrow svg { display: block; }
+  .arrow-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--ink-light);
+    margin-top: 4px;
+    white-space: nowrap;
+    max-width: 100px;
+    text-align: center;
+    line-height: 1.35;
+  }
+
+  /* ---- CONNECTOR PANELS (above/below) ---- */
+  .connectors {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+  }
+  .connectors.above {
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+
+  .connector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1.5px solid;
+    font-size: 17px;
+    font-family: var(--hand);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--sketch-1);
+    transition: transform .1s;
+    cursor: default;
+  }
+  .connector:hover { transform: scale(1.02); }
+  .connector .tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 400;
+    opacity: .7;
+    letter-spacing: 0.3px;
+  }
+  .connector.blue   { background: var(--blue-bg);   border-color: var(--blue);   color: var(--blue); }
+  .connector.green  { background: var(--green-bg);  border-color: var(--green);  color: var(--green); }
+  .connector.orange { background: var(--orange-bg); border-color: var(--orange); color: var(--orange); }
+  .connector.purple { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
+  .connector.red    { background: var(--red-bg);    border-color: var(--red);    color: var(--red); }
+  .connector.yellow { background: var(--yellow-bg); border-color: var(--yellow); color: var(--yellow); }
+  .connector.muted  { background: #f2f1ed; border-color: #bbb8b0; color: var(--ink-light); }
+
+  .connector .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .connector.blue .dot   { background: var(--blue); }
+  .connector.green .dot  { background: var(--green); }
+  .connector.orange .dot { background: var(--orange); }
+  .connector.purple .dot { background: var(--purple); }
+  .connector.red .dot    { background: var(--red); }
+  .connector.yellow .dot { background: var(--yellow); }
+  .connector.muted .dot  { background: #bbb8b0; }
+
+  /* ---- ENRICHMENT DETAIL PANEL ---- */
+  .enrich-detail {
+    margin-top: 16px;
+    border: 2px dashed var(--purple);
+    border-radius: 14px;
+    padding: 18px 16px 14px;
+    background: rgba(240,234,246,.35);
+    max-width: 260px;
+  }
+  .enrich-detail h3 {
+    font-family: var(--hand);
+    font-weight: 700;
+    font-size: 19px;
+    color: var(--purple);
+    margin-bottom: 8px;
+  }
+  .enrich-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(139,106,173,.15);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .enrich-row:last-child { border-bottom: none; }
+  .enrich-row .status {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 400;
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .status.live { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .status.current { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue); }
+  .status.planned { background: #f2f1ed; color: var(--ink-light); border: 1px solid #ccc8c0; }
+  .enrich-row .cost {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--ink-light);
+  }
+
+  /* ---- CALLOUT NOTE ---- */
+  .callout {
+    margin-top: 14px;
+    background: var(--yellow-bg);
+    border: 1.5px solid var(--yellow);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 15px;
+    line-height: 1.4;
+    color: #6b5f1e;
+    max-width: 260px;
+  }
+  .callout strong {
+    font-weight: 700;
+  }
+
+  /* ---- DATA FLOW BAR ---- */
+  .dataflow {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 48px auto 0;
+    min-width: 1600px;
+  }
+  .dataflow-step {
+    flex: 1;
+    max-width: 260px;
+    text-align: center;
+    padding: 0 12px;
+    position: relative;
+  }
+  .dataflow-step::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 12px;
+    font-size: 18px;
+    color: var(--ink-light);
+  }
+  .dataflow-step:last-child::after { display: none; }
+  .dataflow-step h4 {
+    font-family: var(--hand);
+    font-weight: 700;
+    font-size: 17px;
+    margin-bottom: 4px;
+    color: var(--ink);
+  }
+  .dataflow-step .fields {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-light);
+    line-height: 1.6;
+  }
+  .dataflow-step .fields code {
+    background: rgba(0,0,0,.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+  }
+
+  /* ---- SPECIAL FLOW LINE (Apollo shortcut) ---- */
+  .apollo-shortcut {
+    position: absolute;
+    top: -38px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 580px;
+    text-align: center;
+  }
+  .apollo-shortcut svg {
+    display: block;
+    margin: 0 auto;
+  }
+  .apollo-shortcut .label {
+    font-family: var(--hand);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--blue);
+    margin-top: 2px;
+  }
+
+  /* ---- LEGEND ---- */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 44px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-light);
+    letter-spacing: 0.3px;
+  }
+  .legend-item .swatch {
+    width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid;
+  }
+
+  .scroll-hint {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-light);
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ---- WRAPPER ---- */
+  .canvas {
+    min-width: 1650px;
+    padding: 0 20px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Auggie Pipeline Architecture</h1>
+<p class="subtitle">Import → Research → Enrich → Sequence → Execute</p>
+<p class="scroll-hint">← scroll horizontally if needed →</p>
+
+<div class="canvas">
+
+<!-- ===== MAIN PIPELINE ===== -->
+<div class="pipeline">
+
+  <!-- 1. IMPORT -->
+  <div class="stage">
+    <div class="connectors above">
+      <div class="connector blue"><span class="dot"></span>Apollo <span class="tag">companies</span></div>
+      <div class="connector green"><span class="dot"></span>Salesforce <span class="tag">accounts</span></div>
+      <div class="connector orange"><span class="dot"></span>HubSpot <span class="tag">companies</span></div>
+      <div class="connector muted"><span class="dot"></span>CSV Upload <span class="tag">domains</span></div>
+      <div class="connector purple"><span class="dot"></span>Ocean.io <span class="tag">audiences</span></div>
+    </div>
+    <span class="stage-num">STEP 1</span>
+    <div class="stage-box">
+      <h2>Import</h2>
+      <p>Pull company lists from CRM or upload</p>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow">
+    <svg width="64" height="20" viewBox="0 0 64 20"><path d="M2 10 H52" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="6 4" fill="none"/><polygon points="52,4 62,10 52,16" fill="#2c2c2c"/></svg>
+    <span class="arrow-label">domains<br>+ source_id</span>
+  </div>
+
+  <!-- 2. SCORE -->
+  <div class="stage">
+    <span class="stage-num">STEP 2</span>
+    <div class="stage-box">
+      <h2>Score</h2>
+      <p>Deep-research websites, news, jobs, tech stack</p>
+      <span class="auto-badge">⚡ automatic</span>
+    </div>
+    <div class="connectors" style="margin-top:12px; align-items:center;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-light);text-align:center;line-height:1.5;">
+        Pain · Fit · Timing<br>→ composite score
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow">
+    <svg width="64" height="20" viewBox="0 0 64 20"><path d="M2 10 H52" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="6 4" fill="none"/><polygon points="52,4 62,10 52,16" fill="#2c2c2c"/></svg>
+    <span class="arrow-label">scores +<br>research doc</span>
+  </div>
+
+  <!-- 3. ENRICH -->
+  <div class="stage" style="position:relative;">
+    <span class="stage-num">STEP 3</span>
+    <div class="stage-box" style="border-color:var(--purple);">
+      <h2 style="color:var(--purple);">Enrich</h2>
+      <p>Find decision-makers &amp; contact info at each company</p>
+    </div>
+
+    <!-- Enrichment providers -->
+    <div class="enrich-detail">
+      <h3>⚡ Providers (pluggable)</h3>
+
+      <div class="enrich-row" style="color:var(--blue);">
+        <span class="dot" style="background:var(--blue);width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        Apollo
+        <span class="cost">$0</span>
+        <span class="status live">LIVE</span>
+      </div>
+      <div class="enrich-row" style="color:var(--green);">
+        <span class="dot" style="background:var(--green);width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        LeadMagic
+        <span class="cost">0.5 cr</span>
+        <span class="status current">CURRENT</span>
+      </div>
+      <div class="enrich-row" style="color:var(--ink-light);">
+        <span class="dot" style="background:#bbb8b0;width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        ZoomInfo
+        <span class="cost">org chart + intent</span>
+        <span class="status planned">PLANNED</span>
+      </div>
+      <div class="enrich-row" style="color:var(--ink-light);">
+        <span class="dot" style="background:#bbb8b0;width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        Clearbit / Breeze
+        <span class="cost">firmographic</span>
+        <span class="status planned">PLANNED</span>
+      </div>
+      <div class="enrich-row" style="color:var(--ink-light);">
+        <span class="dot" style="background:#bbb8b0;width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        Lusha
+        <span class="cost">email + phone</span>
+        <span class="status planned">PLANNED</span>
+      </div>
+      <div class="enrich-row" style="color:var(--ink-light);">
+        <span class="dot" style="background:#bbb8b0;width:7px;height:7px;border-radius:50%;flex-shrink:0;"></span>
+        Clay
+        <span class="cost">waterfall</span>
+        <span class="status planned">PLANNED</span>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Apollo shortcut:</strong> When source = Apollo, contacts are auto-fetched at push time from Apollo's DB. Enrichment step is <strong>skipped</strong> — zero cost, zero delay.
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow">
+    <svg width="64" height="20" viewBox="0 0 64 20"><path d="M2 10 H52" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="6 4" fill="none"/><polygon points="52,4 62,10 52,16" fill="#2c2c2c"/></svg>
+    <span class="arrow-label">contacts:<br>name, title,<br>email, phone</span>
+  </div>
+
+  <!-- 4. WRITE SEQUENCES -->
+  <div class="stage">
+    <span class="stage-num">STEP 4</span>
+    <div class="stage-box" style="border-color:var(--orange);">
+      <h2 style="color:var(--orange);">Write</h2>
+      <p>AI generates personalized 3-email sequences per account</p>
+      <span class="auto-badge" style="background:var(--orange-bg);color:var(--orange);border-color:var(--orange);">🤖 Claude</span>
+    </div>
+    <div class="connectors" style="margin-top:12px; align-items:center;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-light);text-align:center;line-height:1.5;">
+        Uses research doc +<br>pain points + ICP<br>for personalization
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow">
+    <svg width="64" height="20" viewBox="0 0 64 20"><path d="M2 10 H52" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="6 4" fill="none"/><polygon points="52,4 62,10 52,16" fill="#2c2c2c"/></svg>
+    <span class="arrow-label">email drafts:<br>subject + body</span>
+  </div>
+
+  <!-- 5. PUSH -->
+  <div class="stage">
+    <span class="stage-num">STEP 5</span>
+    <div class="stage-box" style="border-color:var(--red);">
+      <h2 style="color:var(--red);">Push</h2>
+      <p>Send sequences + contacts to execution platform</p>
+    </div>
+    <div class="connectors">
+      <div class="connector blue"><span class="dot"></span>Apollo <span class="tag">seq + contacts</span></div>
+      <div class="connector red"><span class="dot"></span>Instantly <span class="tag">campaign + leads</span></div>
+      <div class="connector orange"><span class="dot"></span>Smartlead <span class="tag">campaign + leads</span></div>
+      <div class="connector muted"><span class="dot"></span>Outreach <span class="tag">sequences</span></div>
+      <div class="connector muted"><span class="dot"></span>SalesLoft <span class="tag">cadences</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== DATA FLOW ===== -->
+<div class="dataflow">
+  <div class="dataflow-step">
+    <h4>Import produces</h4>
+    <div class="fields">
+      <code>domain</code> <code>company_name</code><br>
+      <code>source_id</code> (CRM org ID)
+    </div>
+  </div>
+  <div class="dataflow-step">
+    <h4>Score produces</h4>
+    <div class="fields">
+      <code>pain_score</code> <code>fit_score</code><br>
+      <code>timing_score</code> <code>composite</code><br>
+      <code>research_document</code>
+    </div>
+  </div>
+  <div class="dataflow-step">
+    <h4>Enrich produces</h4>
+    <div class="fields">
+      <code>name</code> <code>title</code><br>
+      <code>email</code> <code>email_status</code><br>
+      <code>phone</code> <code>linkedin_url</code>
+    </div>
+  </div>
+  <div class="dataflow-step">
+    <h4>Write produces</h4>
+    <div class="fields">
+      <code>subject</code> <code>body</code><br>
+      × 3 emails per account<br>
+      personalized to pain points
+    </div>
+  </div>
+  <div class="dataflow-step">
+    <h4>Push sends</h4>
+    <div class="fields">
+      sequences + contacts<br>
+      to destination platform<br>
+      <code>pushed_to</code> = {provider: id}
+    </div>
+  </div>
+</div>
+
+<!-- ===== LEGEND ===== -->
+<div class="legend">
+  <div class="legend-item"><div class="swatch" style="background:var(--blue-bg);border-color:var(--blue);"></div> Apollo</div>
+  <div class="legend-item"><div class="swatch" style="background:var(--green-bg);border-color:var(--green);"></div> Salesforce / LeadMagic</div>
+  <div class="legend-item"><div class="swatch" style="background:var(--orange-bg);border-color:var(--orange);"></div> HubSpot / Smartlead</div>
+  <div class="legend-item"><div class="swatch" style="background:var(--purple-bg);border-color:var(--purple);"></div> Enrichment / Ocean.io</div>
+  <div class="legend-item"><div class="swatch" style="background:var(--red-bg);border-color:var(--red);"></div> Instantly / Push</div>
+  <div class="legend-item"><div class="swatch" style="background:#f2f1ed;border-color:#bbb8b0;"></div> Planned / Generic</div>
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auggie — Enrichment Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #faf9f6; --dot: #d4d0c8; --ink: #2c2c2c; --ink-light: #6b6760;
+    --blue: #4a7fd4; --blue-bg: #e8f0fb;
+    --green: #4a9d6e; --green-bg: #e4f3ea;
+    --orange: #d4874a; --orange-bg: #fdf0e4;
+    --purple: #8b6aad; --purple-bg: #f0eaf6;
+    --red: #c75a5a; --red-bg: #fbe8e8;
+    --yellow: #b8a33e; --yellow-bg: #f8f4e0;
+    --hand: 'Caveat', cursive; --mono: 'IBM Plex Mono', monospace;
+    --sketch-2: 2px 2px 0 rgba(0,0,0,.06);
+  }
+  body { background: var(--bg); background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px); background-size: 24px 24px; font-family: var(--hand); color: var(--ink); padding: 40px; min-height: 100vh; }
+  h1 { font-weight: 700; font-size: 42px; text-align: center; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-family: var(--mono); font-size: 12px; color: var(--ink-light); margin-bottom: 48px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Sections */
+  .section { max-width: 900px; margin: 0 auto 40px; }
+  .section h2 { font-size: 30px; font-weight: 700; margin-bottom: 16px; }
+
+  /* Flow diagram */
+  .flow { display: flex; align-items: flex-start; gap: 0; justify-content: center; flex-wrap: wrap; }
+  .flow-step { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .flow-box { border: 2.5px solid var(--ink); border-radius: 14px; padding: 16px 20px 14px; background: #fff; box-shadow: var(--sketch-2); text-align: center; min-width: 140px; max-width: 180px; transition: transform .15s; }
+  .flow-box:hover { transform: translateY(-2px); }
+  .flow-box h3 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .flow-box p { font-family: var(--mono); font-size: 9px; color: var(--ink-light); line-height: 1.5; }
+  .flow-arrow { display: flex; align-items: center; padding: 0 8px; margin-top: 20px; }
+  .flow-arrow svg { display: block; }
+
+  /* Provider cards */
+  .providers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+  .provider { border: 2px solid; border-radius: 14px; padding: 18px; background: #fff; box-shadow: var(--sketch-2); }
+  .provider h4 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .provider .meta { font-family: var(--mono); font-size: 10px; color: var(--ink-light); line-height: 1.6; }
+  .provider .cost { font-family: var(--mono); font-size: 11px; font-weight: 500; margin-top: 8px; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+  .provider .status { font-family: var(--mono); font-size: 9px; padding: 2px 8px; border-radius: 6px; display: inline-block; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .status.live { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .status.disabled { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow); }
+  .status.planned { background: #f2f1ed; color: var(--ink-light); border: 1px solid #ccc; }
+
+  .provider.apollo { border-color: var(--blue); }
+  .provider.apollo h4 { color: var(--blue); }
+  .provider.leadmagic { border-color: var(--green); }
+  .provider.leadmagic h4 { color: var(--green); }
+  .provider.pdl { border-color: var(--purple); }
+  .provider.pdl h4 { color: var(--purple); }
+  .provider.zoominfo { border-color: var(--orange); }
+  .provider.zoominfo h4 { color: var(--orange); }
+  .provider.waterfall { border-color: var(--red); }
+  .provider.waterfall h4 { color: var(--red); }
+  .provider.lusha { border-color: var(--yellow); }
+  .provider.lusha h4 { color: var(--yellow); }
+
+  /* Data table */
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-family: var(--mono); font-size: 11px; }
+  .data-table th { text-align: left; padding: 8px 12px; background: #f5f4f0; border-bottom: 2px solid var(--ink); font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .data-table td { padding: 6px 12px; border-bottom: 1px solid #eee; }
+  .data-table .check { color: var(--green); }
+  .data-table .x { color: var(--red); }
+
+  /* Cost breakdown */
+  .cost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .cost-card { border: 2px solid var(--ink); border-radius: 14px; padding: 20px; background: #fff; }
+  .cost-card h4 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .cost-card .big-num { font-family: var(--mono); font-size: 28px; font-weight: 500; color: var(--green); }
+  .cost-card .detail { font-family: var(--mono); font-size: 10px; color: var(--ink-light); line-height: 1.6; margin-top: 8px; }
+
+  /* Callout */
+  .callout { border-radius: 12px; padding: 14px 18px; font-size: 16px; line-height: 1.5; margin-top: 16px; }
+  .callout.green { background: var(--green-bg); border: 1.5px solid var(--green); color: #2d5e3e; }
+  .callout.red { background: var(--red-bg); border: 1.5px solid var(--red); color: #7a3333; }
+  .callout.blue { background: var(--blue-bg); border: 1.5px solid var(--blue); color: #2d4a7a; }
+  .callout strong { font-weight: 700; }
+
+  /* Waterfall diagram */
+  .waterfall { display: flex; flex-direction: column; gap: 0; margin-top: 16px; max-width: 600px; }
+  .wf-step { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-left: 3px solid var(--ink); position: relative; }
+  .wf-step::before { content: ''; position: absolute; left: -7px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; }
+  .wf-step.found::before { background: var(--green); border-color: var(--green); }
+  .wf-step .wf-label { font-size: 19px; font-weight: 700; min-width: 120px; }
+  .wf-step .wf-detail { font-family: var(--mono); font-size: 10px; color: var(--ink-light); }
+  .wf-step .wf-result { font-family: var(--mono); font-size: 10px; margin-left: auto; padding: 2px 8px; border-radius: 4px; }
+  .wf-step .wf-result.found { background: var(--green-bg); color: var(--green); }
+  .wf-step .wf-result.miss { background: #f2f1ed; color: var(--ink-light); }
+  .wf-arrow { border-left: 3px solid var(--ink); height: 16px; margin-left: 0; position: relative; }
+  .wf-arrow::after { content: ''; position: absolute; left: -5px; bottom: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid var(--ink); }
+</style>
+</head>
+<body>
+
+<h1>Enrichment Architecture</h1>
+<p class="subtitle">How Auggie finds decision-makers at scored companies</p>
+
+<!-- ===== FLOW ===== -->
+<div class="section">
+  <h2>How it works</h2>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-box" style="border-color:var(--orange);">
+        <h3 style="color:var(--orange);">Scored Account</h3>
+        <p>company domain +<br>research document +<br>pain/fit/timing scores</p>
+      </div>
+    </div>
+    <div class="flow-arrow"><svg width="48" height="16" viewBox="0 0 48 16"><path d="M2 8 H38" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="5 3" fill="none"/><polygon points="38,3 47,8 38,13" fill="#2c2c2c"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-box" style="border-color:var(--purple);">
+        <h3 style="color:var(--purple);">Enrich</h3>
+        <p>find people at company<br>matching target titles<br>from user's ICP</p>
+      </div>
+    </div>
+    <div class="flow-arrow"><svg width="48" height="16" viewBox="0 0 48 16"><path d="M2 8 H38" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="5 3" fill="none"/><polygon points="38,3 47,8 38,13" fill="#2c2c2c"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-box" style="border-color:var(--green);">
+        <h3 style="color:var(--green);">Contacts</h3>
+        <p>first_name, last_name<br>email, title<br>linkedin_url</p>
+      </div>
+    </div>
+    <div class="flow-arrow"><svg width="48" height="16" viewBox="0 0 48 16"><path d="M2 8 H38" stroke="#2c2c2c" stroke-width="2" stroke-dasharray="5 3" fill="none"/><polygon points="38,3 47,8 38,13" fill="#2c2c2c"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-box" style="border-color:var(--orange);">
+        <h3 style="color:var(--orange);">Write</h3>
+        <p>AI personalizes emails<br>using research +<br>contact details</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout blue" style="margin-top:24px;">
+    <strong>ICP-driven targeting:</strong> Auggie uses the user's Ideal Customer Profile settings to determine which job titles to search for. If the ICP says "VP Engineering, CTO, Head of Platform" — enrichment finds those specific roles at each company.
+  </div>
+</div>
+
+<!-- ===== PROVIDERS ===== -->
+<div class="section">
+  <h2>Enrichment providers</h2>
+  <div class="providers">
+    <div class="provider apollo">
+      <h4>Apollo</h4>
+      <div class="meta">
+        People search by domain<br>
+        Email + title + LinkedIn<br>
+        Large database, free tier
+      </div>
+      <div class="cost" style="background:var(--green-bg);color:var(--green);">$0 / contact</div><br>
+      <span class="status live">FREE — USE FIRST</span>
+    </div>
+    <div class="provider leadmagic">
+      <h4>LeadMagic</h4>
+      <div class="meta">
+        Role-based search<br>
+        Email verification built-in<br>
+        Tested — stale data issues
+      </div>
+      <div class="cost" style="background:var(--yellow-bg);color:var(--yellow);">~$0.50 / company</div><br>
+      <span class="status disabled">BUILT — DISABLED</span>
+    </div>
+    <div class="provider pdl">
+      <h4>People Data Labs</h4>
+      <div class="meta">
+        Massive people database<br>
+        Job title + company match<br>
+        Good for waterfall fallback
+      </div>
+      <div class="cost" style="background:var(--purple-bg);color:var(--purple);">~$0.10 / record</div><br>
+      <span class="status planned">PLANNED</span>
+    </div>
+    <div class="provider zoominfo">
+      <h4>ZoomInfo</h4>
+      <div class="meta">
+        Org charts + intent data<br>
+        Direct dials + mobile<br>
+        Premium pricing
+      </div>
+      <div class="cost" style="background:var(--orange-bg);color:var(--orange);">$$$ / seat</div><br>
+      <span class="status planned">PLANNED</span>
+    </div>
+    <div class="provider lusha">
+      <h4>Lusha</h4>
+      <div class="meta">
+        Email + phone<br>
+        Chrome extension data<br>
+        Good accuracy
+      </div>
+      <div class="cost" style="background:var(--yellow-bg);color:var(--yellow);">~$0.30 / contact</div><br>
+      <span class="status planned">PLANNED</span>
+    </div>
+    <div class="provider waterfall">
+      <h4>Waterfall Strategy</h4>
+      <div class="meta">
+        Try providers in order<br>
+        Stop when found<br>
+        Minimize cost
+      </div>
+      <div class="cost" style="background:var(--green-bg);color:var(--green);">Lowest possible</div><br>
+      <span class="status planned">PLANNED</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WATERFALL ===== -->
+<div class="section">
+  <h2>Waterfall enrichment (recommended approach)</h2>
+  <p style="font-family:var(--mono);font-size:11px;color:var(--ink-light);margin-bottom:16px;">Try free/cheap sources first, fall back to paid only when needed. Most contacts resolved at $0.</p>
+
+  <div class="waterfall">
+    <div class="wf-step found">
+      <span class="wf-label" style="color:var(--blue);">1. Apollo</span>
+      <span class="wf-detail">Free — user's existing Apollo DB</span>
+      <span class="wf-result found">~60-70% hit rate</span>
+    </div>
+    <div class="wf-arrow"></div>
+    <div class="wf-step">
+      <span class="wf-label" style="color:var(--purple);">2. PDL</span>
+      <span class="wf-detail">$0.10/record — large coverage</span>
+      <span class="wf-result found">~20% more</span>
+    </div>
+    <div class="wf-arrow"></div>
+    <div class="wf-step">
+      <span class="wf-label" style="color:var(--green);">3. LeadMagic</span>
+      <span class="wf-detail">$0.50/company — role search + verify</span>
+      <span class="wf-result miss">remainder</span>
+    </div>
+  </div>
+
+  <div class="callout green" style="margin-top:20px;">
+    <strong>Cost optimization:</strong> If Apollo covers 70% of contacts for free, and PDL gets another 20% at $0.10 each — the average cost per enriched contact drops to ~$0.02. Only the hardest-to-find contacts hit the expensive providers.
+  </div>
+</div>
+
+<!-- ===== COGS IMPACT ===== -->
+<div class="section">
+  <h2>COGS impact</h2>
+  <div class="cost-grid">
+    <div class="cost-card">
+      <h4>Current: No enrichment</h4>
+      <div class="big-num">$0.00</div>
+      <div class="detail">
+        Enrichment disabled<br>
+        No contacts in pipeline<br>
+        CSV exports are empty<br>
+        Sequences can't be personalized to contacts
+      </div>
+    </div>
+    <div class="cost-card">
+      <h4>With Apollo-first waterfall</h4>
+      <div class="big-num" style="color:var(--blue);">~$0.02</div>
+      <div class="detail">
+        Per contact, average<br>
+        Apollo: $0 (majority of contacts)<br>
+        PDL fallback: $0.10/record<br>
+        LeadMagic fallback: $0.50/company<br><br>
+        <strong>Example: 100 companies × 3 contacts each</strong><br>
+        Apollo finds 210 contacts: $0<br>
+        PDL finds 60 more: $6<br>
+        LeadMagic finds 30 more: $15<br>
+        <strong>Total: $21 for 300 contacts = $0.07/contact</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="cost-grid" style="margin-top:16px;">
+    <div class="cost-card">
+      <h4>What you charge the user</h4>
+      <div class="detail" style="margin-top:0;">
+        Currently: 0.5 credits ($0.50) per company<br><br>
+        <strong>Options:</strong><br>
+        A) Keep at $0.50/company — healthy margin with waterfall<br>
+        B) Drop to $0.25/company — still profitable, more competitive<br>
+        C) Free with Apollo-only — $0 COGS, limited coverage<br>
+        D) Tiered: free (Apollo-only) vs premium (full waterfall)
+      </div>
+    </div>
+    <div class="cost-card">
+      <h4>Margin analysis</h4>
+      <div class="detail" style="margin-top:0;">
+        <strong>At $0.50/company, 3 contacts avg:</strong><br>
+        Revenue: $0.50<br>
+        COGS (waterfall avg): $0.07<br>
+        Margin: <strong style="color:var(--green);">86%</strong><br><br>
+        <strong>At $0.25/company:</strong><br>
+        Revenue: $0.25<br>
+        COGS: $0.07<br>
+        Margin: <strong style="color:var(--green);">72%</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== API INTEGRATION ===== -->
+<div class="section">
+  <h2>API integration</h2>
+  <div class="callout blue">
+    <strong>Existing API endpoint:</strong> <code style="font-family:var(--mono);font-size:13px;">POST /v1/enrich</code> — already built, accepts document_id, returns enriched contacts. Currently wired to LeadMagic only.
+  </div>
+
+  <table class="data-table" style="margin-top:20px;">
+    <thead>
+      <tr>
+        <th>What needs to change</th>
+        <th>Current</th>
+        <th>Target</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Provider</td>
+        <td>LeadMagic only</td>
+        <td>Waterfall: Apollo → PDL → LeadMagic</td>
+      </tr>
+      <tr>
+        <td>Batch enrichment</td>
+        <td>Stub (returns "coming soon")</td>
+        <td>Full batch — enrich all accounts in list</td>
+      </tr>
+      <tr>
+        <td>Apollo as source</td>
+        <td>Not used for contacts</td>
+        <td>First provider in waterfall (free)</td>
+      </tr>
+      <tr>
+        <td>Contacts stored</td>
+        <td>name, email, title, linkedin</td>
+        <td>Same + phone (when available)</td>
+      </tr>
+      <tr>
+        <td>Credit cost</td>
+        <td>$0.50 flat per company</td>
+        <td>TBD — could be tiered or lower</td>
+      </tr>
+      <tr>
+        <td>Pipeline step</td>
+        <td>Disabled in UI</td>
+        <td>Enabled, clickable after scoring</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== QUICK WIN ===== -->
+<div class="section">
+  <h2>Quick win: Apollo-only enrichment</h2>
+  <div class="callout green">
+    <strong>Fastest path to a working pipeline:</strong> Use Apollo's people search API (already connected via user's API key) to find contacts by domain. Zero COGS. User already has Apollo connected. Gets you from 0 enriched to ~60-70% enriched immediately. Add paid providers later as a premium tier.
+  </div>
+</div>
+
+</body>
+</html>

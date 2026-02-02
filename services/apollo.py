@@ -222,17 +222,38 @@ async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "") -> 
         return contact_ids
 
 
-async def _add_contacts_to_sequence(api_key: str, campaign_id: str, contact_ids: list[str]) -> int:
+async def _get_email_account_id(api_key: str) -> str | None:
+    """Get the first linked email account ID for the Apollo user."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{APOLLO_API_BASE}/email_accounts",
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
+        )
+        if resp.status_code >= 400:
+            logger.warning("Apollo email_accounts fetch failed: %s %s", resp.status_code, resp.text[:200])
+            return None
+        data = resp.json()
+        accounts = data.get("email_accounts", [])
+        if not accounts:
+            logger.warning("No linked email accounts found in Apollo")
+            return None
+        return accounts[0].get("id")
+
+
+async def _add_contacts_to_sequence(api_key: str, campaign_id: str, contact_ids: list[str], email_account_id: str | None = None) -> int:
     """Add contacts to an Apollo emailer campaign. Returns number added."""
     if not contact_ids:
         return 0
     async with httpx.AsyncClient(timeout=30.0) as client:
+        body = {
+            "contact_ids": contact_ids,
+        }
+        if email_account_id:
+            body["send_email_from_email_account_id"] = email_account_id
         resp = await client.post(
             f"{APOLLO_API_BASE}/emailer_campaigns/{campaign_id}/add_contact_ids",
             headers={"Content-Type": "application/json", "X-Api-Key": api_key},
-            json={
-                "contact_ids": contact_ids,
-            },
+            json=body,
         )
         logger.info("Apollo add contacts response: %s %s", resp.status_code, resp.text[:300])
         if resp.status_code >= 400:
@@ -254,6 +275,9 @@ async def push_sequences_to_apollo(
     Returns {"sequences_created": int, "skipped": int, "errors": int, "created_ids": [...], "contacts_added": int}.
     """
     api_key = await _get_integration_api_key(user_id)
+    email_account_id = await _get_email_account_id(api_key)
+    if not email_account_id:
+        logger.warning("No email account found — contacts won't be added to sequences")
     sequences_created = 0
     skipped = 0
     errors = 0
@@ -279,7 +303,7 @@ async def push_sequences_to_apollo(
             if org_id:
                 contact_ids = await _get_contacts_for_org(api_key, org_id, domain=account.get("company_url", ""))
                 logger.info("Found %d contacts for org %s", len(contact_ids), org_id)
-                added = await _add_contacts_to_sequence(api_key, created_id, contact_ids)
+                added = await _add_contacts_to_sequence(api_key, created_id, contact_ids, email_account_id)
                 contacts_added += added
             else:
                 logger.info("No source_id for %s — skipping contact add", account.get("company_name"))
