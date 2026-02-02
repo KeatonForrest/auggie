@@ -43,6 +43,8 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
     recent = await list_lists(user["id"])
     gsheets_integration = await get_integration(user["id"], "google_sheets")
     apollo_integration = await get_integration(user["id"], "apollo")
+    zoominfo_integration = await get_integration(user["id"], "zoominfo")
+    pdl_integration = await get_integration(user["id"], "pdl")
     return templates.TemplateResponse(
         "lists.html",
         {
@@ -53,6 +55,8 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
             "is_admin": usage.get("is_admin", False),
             "google_sheets_connected": gsheets_integration is not None,
             "apollo_connected": apollo_integration is not None,
+            "zoominfo_connected": zoominfo_integration is not None,
+            "pdl_connected": pdl_integration is not None,
         }
     )
 
