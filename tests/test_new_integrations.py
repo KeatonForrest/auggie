@@ -727,7 +727,7 @@ class TestApolloImportRoute:
              patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 60}), \
              patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
              patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
-             patch("routes._helpers.set_list_source", new_callable=AsyncMock) as mock_source, \
+             patch("database.set_list_source", new_callable=AsyncMock) as mock_source, \
              patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
