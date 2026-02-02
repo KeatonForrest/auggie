@@ -24,7 +24,7 @@
             <p class="text-sm text-gray-500">{{ list.analyzed_accounts + list.failed_accounts }}/{{ list.total_accounts }} processed{% if list.failed_accounts > 0 %} ({{ list.failed_accounts }} failed){% endif %}</p>
         </div>
         <div class="flex items-center gap-3">
-            {% set any_integration = instantly_connected or smartlead_connected or outreach_connected or salesloft_connected or apollo_connected or gong_engage_connected %}
+            {% set any_integration = instantly_connected or smartlead_connected or outreach_connected or salesloft_connected or gong_engage_connected %}
             {% if any_integration %}
             <div class="relative">
                 <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
@@ -44,9 +44,6 @@
                     {% endif %}
                     {% if salesloft_connected %}
                     <button onclick="openSalesloftPush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">SalesLoft</button>
-                    {% endif %}
-                    {% if apollo_connected %}
-                    <button onclick="document.getElementById('apollo-export-modal').classList.remove('hidden'); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Apollo (CSV)</button>
                     {% endif %}
                     {% if gong_engage_connected %}
                     <button onclick="openGongEngagePush(); this.parentElement.classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Gong Engage</button>
@@ -123,7 +120,7 @@
             <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
             <!-- Step 4: Execute (clickable when scored > 0, Instantly connected, and list done) -->
             <button
-                onclick="{% if instantly_connected %}openInstantlyPush(){% elif outreach_connected %}openOutreachPush(){% elif salesloft_connected %}openSalesloftPush(){% elif apollo_connected %}document.getElementById('apollo-export-modal').classList.remove('hidden'){% elif gong_engage_connected %}openGongEngagePush(){% else %}showToast('Connect a sending tool in Integrations first', 'warning'){% endif %}"
+                onclick="{% if instantly_connected %}openInstantlyPush(){% elif smartlead_connected %}openSmartleadPush(){% elif outreach_connected %}openOutreachPush(){% elif salesloft_connected %}openSalesloftPush(){% elif gong_engage_connected %}openGongEngagePush(){% else %}showToast('Connect a sending tool in Integrations first', 'warning'){% endif %}"
                 {% if not list_done or scored_count == 0 %}disabled{% endif %}
                 class="flex-1 rounded-lg py-2 px-1 transition
                     {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
