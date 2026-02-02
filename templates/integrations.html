@@ -997,23 +997,42 @@
             <h2 class="text-lg font-semibold">Import from Lusha</h2>
             <button onclick="closeLushaImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div class="mb-4">
-                <input type="text" id="lusha-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <div class="p-6 overflow-y-auto flex-1 space-y-4">
+            <p class="text-sm text-gray-500">Search Lusha's company database and import matches as a new list. Use at least 2 filters to keep results targeted.</p>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                <input type="text" id="lusha-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
             </div>
-            <div id="lusha-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
-            <div id="lusha-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
-            <div id="lusha-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search Lusha</div>
-            <div id="lusha-search-error" class="hidden text-center py-8 text-red-600"></div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                <input type="text" id="lusha-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Min Employees</label>
+                    <input type="number" id="lusha-min-employees" placeholder="e.g. 50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Employees</label>
+                    <input type="number" id="lusha-max-employees" placeholder="e.g. 5000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input type="text" id="lusha-location" placeholder="e.g. united states, california" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Max Companies</label>
+                <input type="number" id="lusha-max-companies" placeholder="50" value="50" min="1" max="50" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+                <span class="text-xs text-gray-400 ml-2">Up to 50</span>
+            </div>
+            <div id="lusha-import-error" class="hidden text-sm text-red-600"></div>
         </div>
-        <div class="p-6 border-t flex justify-between items-center">
-            <span id="lusha-selected-count" class="text-sm text-gray-500">0 selected</span>
-            <div class="flex gap-3">
-                <input type="text" id="lusha-list-name" placeholder="List name" value="Lusha Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
-                <button onclick="importLushaSelected()" id="lusha-import-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50" disabled>
-                    Import & Analyze
-                </button>
-            </div>
+        <div class="p-6 border-t flex justify-end">
+            <input type="text" id="lusha-list-name" placeholder="List name" value="Lusha Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
+            <button onclick="importLusha()" id="lusha-import-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                Search &amp; Import
+            </button>
         </div>
     </div>
 </div>
@@ -1025,23 +1044,42 @@
             <h2 class="text-lg font-semibold">Import from Cognism</h2>
             <button onclick="closeCognismImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div class="mb-4">
-                <input type="text" id="cognism-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <div class="p-6 overflow-y-auto flex-1 space-y-4">
+            <p class="text-sm text-gray-500">Search Cognism's company database and import matches as a new list. Use at least 2 filters to keep results targeted.</p>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                <input type="text" id="cognism-company-name" placeholder="e.g. Acme Corp" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
             </div>
-            <div id="cognism-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
-            <div id="cognism-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
-            <div id="cognism-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search Cognism</div>
-            <div id="cognism-search-error" class="hidden text-center py-8 text-red-600"></div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                <input type="text" id="cognism-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Min Employees</label>
+                    <input type="number" id="cognism-min-employees" placeholder="e.g. 50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Employees</label>
+                    <input type="number" id="cognism-max-employees" placeholder="e.g. 5000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input type="text" id="cognism-location" placeholder="e.g. united states, california" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Max Companies</label>
+                <input type="number" id="cognism-max-companies" placeholder="50" value="50" min="1" max="50" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                <span class="text-xs text-gray-400 ml-2">Up to 50</span>
+            </div>
+            <div id="cognism-import-error" class="hidden text-sm text-red-600"></div>
         </div>
-        <div class="p-6 border-t flex justify-between items-center">
-            <span id="cognism-selected-count" class="text-sm text-gray-500">0 selected</span>
-            <div class="flex gap-3">
-                <input type="text" id="cognism-list-name" placeholder="List name" value="Cognism Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
-                <button onclick="importCognismSelected()" id="cognism-import-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50" disabled>
-                    Import & Analyze
-                </button>
-            </div>
+        <div class="p-6 border-t flex justify-end">
+            <input type="text" id="cognism-list-name" placeholder="List name" value="Cognism Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
+            <button onclick="importCognism()" id="cognism-import-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50">
+                Search &amp; Import
+            </button>
         </div>
     </div>
 </div>
@@ -1676,108 +1714,55 @@ function connectInstantly() {
     });
 }
 
-// === Lusha ===
-var lushaResults = [];
-var lushaSelected = new Set();
-var lushaSearchTimer = null;
-
+// === Lusha (filter-based, like PDL) ===
 function openLushaImport() {
     document.getElementById('lusha-modal').classList.remove('hidden');
-    document.getElementById('lusha-empty').classList.remove('hidden');
-    document.getElementById('lusha-results').innerHTML = '';
-    lushaResults = [];
-    lushaSelected = new Set();
-    updateLushaCount();
 }
 
 function closeLushaImport() {
     document.getElementById('lusha-modal').classList.add('hidden');
 }
 
-function searchLusha(query) {
-    if (!query || query.length < 2) {
-        document.getElementById('lusha-results').innerHTML = '';
-        document.getElementById('lusha-empty').classList.remove('hidden');
-        document.getElementById('lusha-loading').classList.add('hidden');
+function buildLushaFilters() {
+    var filters = {};
+    var companyName = document.getElementById('lusha-company-name').value.trim();
+    var industry = document.getElementById('lusha-industry').value.trim();
+    var minEmp = document.getElementById('lusha-min-employees').value.trim();
+    var maxEmp = document.getElementById('lusha-max-employees').value.trim();
+    var location = document.getElementById('lusha-location').value.trim();
+
+    var count = 0;
+    if (companyName) { filters.companyName = companyName; count++; }
+    if (industry) { filters.industry = industry; count++; }
+    if (minEmp) { filters.minEmployees = parseInt(minEmp); count++; }
+    if (maxEmp) { filters.maxEmployees = parseInt(maxEmp); count++; }
+    if (location) { filters.location = location; count++; }
+
+    return { filters: filters, count: count };
+}
+
+function importLusha() {
+    var built = buildLushaFilters();
+    var errEl = document.getElementById('lusha-import-error');
+    if (built.count < 2) {
+        errEl.textContent = 'Please fill in at least 2 filters to keep results targeted.';
+        errEl.classList.remove('hidden');
         return;
     }
-    document.getElementById('lusha-empty').classList.add('hidden');
-    document.getElementById('lusha-search-error').classList.add('hidden');
-    document.getElementById('lusha-loading').classList.remove('hidden');
-
-    fetch('/integrations/lusha/companies?q=' + encodeURIComponent(query))
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(data) {
-            document.getElementById('lusha-loading').classList.add('hidden');
-            lushaResults = data || [];
-            renderLushaResults();
-        })
-        .catch(function() {
-            document.getElementById('lusha-loading').classList.add('hidden');
-            document.getElementById('lusha-search-error').classList.remove('hidden');
-            document.getElementById('lusha-search-error').textContent = 'Failed to search Lusha.';
-        });
-}
-
-function renderLushaResults() {
-    var container = document.getElementById('lusha-results');
-    container.innerHTML = '';
-    if (lushaResults.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
-        return;
-    }
-    lushaResults.forEach(function(c) {
-        var div = document.createElement('div');
-        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (lushaSelected.has(c.id) ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50');
-        var details = [c.website || '', c.country].filter(Boolean).join(', ');
-        var meta = [];
-        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
-        if (c.industry) meta.push(c.industry);
-        div.innerHTML = '<input type="checkbox" ' + (lushaSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-purple-600">'
-            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
-            + '<div class="text-xs text-gray-500">' + details + '</div>'
-            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
-            + '</div>';
-        div.querySelector('input').addEventListener('change', function(e) {
-            if (e.target.checked) lushaSelected.add(c.id);
-            else lushaSelected.delete(c.id);
-            updateLushaCount();
-            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (lushaSelected.has(c.id) ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50');
-        });
-        container.appendChild(div);
-    });
-}
-
-function updateLushaCount() {
-    document.getElementById('lusha-selected-count').textContent = lushaSelected.size + ' selected';
-    document.getElementById('lusha-import-btn').disabled = lushaSelected.size === 0;
-}
-
-document.getElementById('lusha-search') && document.getElementById('lusha-search').addEventListener('input', function() {
-    clearTimeout(lushaSearchTimer);
-    var q = this.value.trim();
-    lushaSearchTimer = setTimeout(function() { searchLusha(q); }, 400);
-});
-
-function importLushaSelected() {
+    errEl.classList.add('hidden');
+    var maxCompanies = Math.min(parseInt(document.getElementById('lusha-max-companies').value) || 50, 50);
     var btn = document.getElementById('lusha-import-btn');
-    btn.disabled = true;
-    btn.textContent = 'Importing...';
-    var companies = Array.from(lushaSelected).map(function(id) {
-        return lushaResults.find(function(c) { return c.id === id; });
-    });
-
+    btn.disabled = true; btn.textContent = 'Importing...';
     fetch('/integrations/lusha/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companies: companies, name: document.getElementById('lusha-list-name').value || 'Lusha Import' })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: built.filters, name: document.getElementById('lusha-list-name').value || 'Lusha Import', size: maxCompanies })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (data.success) { window.location.href = '/lists/' + data.list_id; }
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast(data.detail || 'Import failed', 'error'); }
+        if (data.success) window.location.href = '/lists/' + data.list_id;
+        else { btn.disabled = false; btn.textContent = 'Search & Import'; errEl.textContent = data.detail || 'Import failed'; errEl.classList.remove('hidden'); }
     })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+    .catch(function() { btn.disabled = false; btn.textContent = 'Search & Import'; });
 }
 
 function connectLusha() {
@@ -1802,108 +1787,55 @@ function connectLusha() {
     .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
 }
 
-// === Cognism ===
-var cognismResults = [];
-var cognismSelected = new Set();
-var cognismSearchTimer = null;
-
+// === Cognism (filter-based, like PDL) ===
 function openCognismImport() {
     document.getElementById('cognism-modal').classList.remove('hidden');
-    document.getElementById('cognism-empty').classList.remove('hidden');
-    document.getElementById('cognism-results').innerHTML = '';
-    cognismResults = [];
-    cognismSelected = new Set();
-    updateCognismCount();
 }
 
 function closeCognismImport() {
     document.getElementById('cognism-modal').classList.add('hidden');
 }
 
-function searchCognism(query) {
-    if (!query || query.length < 2) {
-        document.getElementById('cognism-results').innerHTML = '';
-        document.getElementById('cognism-empty').classList.remove('hidden');
-        document.getElementById('cognism-loading').classList.add('hidden');
+function buildCognismFilters() {
+    var filters = {};
+    var companyName = document.getElementById('cognism-company-name').value.trim();
+    var industry = document.getElementById('cognism-industry').value.trim();
+    var minEmp = document.getElementById('cognism-min-employees').value.trim();
+    var maxEmp = document.getElementById('cognism-max-employees').value.trim();
+    var location = document.getElementById('cognism-location').value.trim();
+
+    var count = 0;
+    if (companyName) { filters.companyName = companyName; count++; }
+    if (industry) { filters.industry = industry; count++; }
+    if (minEmp) { filters.minEmployees = parseInt(minEmp); count++; }
+    if (maxEmp) { filters.maxEmployees = parseInt(maxEmp); count++; }
+    if (location) { filters.location = location; count++; }
+
+    return { filters: filters, count: count };
+}
+
+function importCognism() {
+    var built = buildCognismFilters();
+    var errEl = document.getElementById('cognism-import-error');
+    if (built.count < 2) {
+        errEl.textContent = 'Please fill in at least 2 filters to keep results targeted.';
+        errEl.classList.remove('hidden');
         return;
     }
-    document.getElementById('cognism-empty').classList.add('hidden');
-    document.getElementById('cognism-search-error').classList.add('hidden');
-    document.getElementById('cognism-loading').classList.remove('hidden');
-
-    fetch('/integrations/cognism/companies?q=' + encodeURIComponent(query))
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(data) {
-            document.getElementById('cognism-loading').classList.add('hidden');
-            cognismResults = data || [];
-            renderCognismResults();
-        })
-        .catch(function() {
-            document.getElementById('cognism-loading').classList.add('hidden');
-            document.getElementById('cognism-search-error').classList.remove('hidden');
-            document.getElementById('cognism-search-error').textContent = 'Failed to search Cognism.';
-        });
-}
-
-function renderCognismResults() {
-    var container = document.getElementById('cognism-results');
-    container.innerHTML = '';
-    if (cognismResults.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
-        return;
-    }
-    cognismResults.forEach(function(c) {
-        var div = document.createElement('div');
-        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (cognismSelected.has(c.id) ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:bg-gray-50');
-        var details = [c.website || '', c.country].filter(Boolean).join(', ');
-        var meta = [];
-        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
-        if (c.industry) meta.push(c.industry);
-        div.innerHTML = '<input type="checkbox" ' + (cognismSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-cyan-600">'
-            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
-            + '<div class="text-xs text-gray-500">' + details + '</div>'
-            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
-            + '</div>';
-        div.querySelector('input').addEventListener('change', function(e) {
-            if (e.target.checked) cognismSelected.add(c.id);
-            else cognismSelected.delete(c.id);
-            updateCognismCount();
-            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (cognismSelected.has(c.id) ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:bg-gray-50');
-        });
-        container.appendChild(div);
-    });
-}
-
-function updateCognismCount() {
-    document.getElementById('cognism-selected-count').textContent = cognismSelected.size + ' selected';
-    document.getElementById('cognism-import-btn').disabled = cognismSelected.size === 0;
-}
-
-document.getElementById('cognism-search') && document.getElementById('cognism-search').addEventListener('input', function() {
-    clearTimeout(cognismSearchTimer);
-    var q = this.value.trim();
-    cognismSearchTimer = setTimeout(function() { searchCognism(q); }, 400);
-});
-
-function importCognismSelected() {
+    errEl.classList.add('hidden');
+    var maxCompanies = Math.min(parseInt(document.getElementById('cognism-max-companies').value) || 50, 50);
     var btn = document.getElementById('cognism-import-btn');
-    btn.disabled = true;
-    btn.textContent = 'Importing...';
-    var companies = Array.from(cognismSelected).map(function(id) {
-        return cognismResults.find(function(c) { return c.id === id; });
-    });
-
+    btn.disabled = true; btn.textContent = 'Importing...';
     fetch('/integrations/cognism/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companies: companies, name: document.getElementById('cognism-list-name').value || 'Cognism Import' })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: built.filters, name: document.getElementById('cognism-list-name').value || 'Cognism Import', size: maxCompanies })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (data.success) { window.location.href = '/lists/' + data.list_id; }
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast(data.detail || 'Import failed', 'error'); }
+        if (data.success) window.location.href = '/lists/' + data.list_id;
+        else { btn.disabled = false; btn.textContent = 'Search & Import'; errEl.textContent = data.detail || 'Import failed'; errEl.classList.remove('hidden'); }
     })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+    .catch(function() { btn.disabled = false; btn.textContent = 'Search & Import'; });
 }
 
 function connectCognism() {

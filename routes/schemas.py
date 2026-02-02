@@ -34,13 +34,15 @@ class PDLImportRequest(BaseModel):
 
 
 class LushaImportRequest(BaseModel):
-    companies: list[dict]
+    filters: dict
     name: str = "Lusha Import"
+    size: int = 50
 
 
 class CognismImportRequest(BaseModel):
-    companies: list[dict]
+    filters: dict
     name: str = "Cognism Import"
+    size: int = 50
 
 
 class GoogleSheetsImportRequest(BaseModel):

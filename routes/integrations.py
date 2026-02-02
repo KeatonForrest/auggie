@@ -548,33 +548,21 @@ async def lusha_disconnect(request: Request, user: dict = Depends(require_auth))
     return RedirectResponse(url="/integrations", status_code=303)
 
 
-@router.get("/integrations/lusha/companies")
-async def lusha_companies(request: Request, user: dict = Depends(require_onboarding)):
-    """Search companies via Lusha API."""
-    from services.lusha import search_companies
-    q = request.query_params.get("q", "").strip()
-    if not q:
-        return JSONResponse([])
-    try:
-        results = await search_companies(user["id"], q)
-    except Exception as e:
-        logger.error("Lusha API error: %s", e)
-        raise HTTPException(status_code=502, detail="Lusha API error")
-    return JSONResponse(results)
-
-
 @router.post("/integrations/lusha/import")
 async def lusha_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import selected Lusha companies into an Auggie list."""
+    """Search Lusha with filters and import matching companies into an Auggie list."""
+    from services.lusha import search_companies
+
     body = LushaImportRequest(**(await request.json()))
+    data = await search_companies(user["id"], body.filters, size=min(body.size, 50))
+    companies = data.get("data", [])
 
     def extractor(c):
-        website = (c.get("website") or "").strip()
-        lusha_id = str(c.get("id", ""))
-        return website, lusha_id
+        domain = (c.get("website") or "").strip()
+        return domain, c.get("id")
 
     return await _run_crm_import(
-        user, body.companies, body.name, extractor,
+        user, companies, body.name, extractor,
         source_metadata_fn=lambda m: {"provider": "lusha", "lusha_company_map": m},
     )
 
@@ -597,33 +585,21 @@ async def cognism_disconnect(request: Request, user: dict = Depends(require_auth
     return RedirectResponse(url="/integrations", status_code=303)
 
 
-@router.get("/integrations/cognism/companies")
-async def cognism_companies(request: Request, user: dict = Depends(require_onboarding)):
-    """Search companies via Cognism API."""
-    from services.cognism import search_companies
-    q = request.query_params.get("q", "").strip()
-    if not q:
-        return JSONResponse([])
-    try:
-        results = await search_companies(user["id"], q)
-    except Exception as e:
-        logger.error("Cognism API error: %s", e)
-        raise HTTPException(status_code=502, detail="Cognism API error")
-    return JSONResponse(results)
-
-
 @router.post("/integrations/cognism/import")
 async def cognism_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import selected Cognism companies into an Auggie list."""
+    """Search Cognism with filters and import matching companies into an Auggie list."""
+    from services.cognism import search_companies
+
     body = CognismImportRequest(**(await request.json()))
+    data = await search_companies(user["id"], body.filters, size=min(body.size, 50))
+    companies = data.get("data", [])
 
     def extractor(c):
-        website = (c.get("website") or "").strip()
-        cognism_id = str(c.get("id", ""))
-        return website, cognism_id
+        domain = (c.get("website") or "").strip()
+        return domain, c.get("id")
 
     return await _run_crm_import(
-        user, body.companies, body.name, extractor,
+        user, companies, body.name, extractor,
         source_metadata_fn=lambda m: {"provider": "cognism", "cognism_company_map": m},
     )
 
