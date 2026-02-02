@@ -472,6 +472,55 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
         await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
 
 
+async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | None = None):
+    """Enrich contacts for completed accounts in a list using BYOK providers."""
+    from database import (
+        update_list_account_enrichment, save_enriched_contacts,
+        get_list_accounts as _get_accts,
+    )
+    from services.enrichment import enrich_company_contacts
+
+    all_accounts = await _get_accts(list_id, limit=10000)
+    if account_ids:
+        accounts = [a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed"]
+    else:
+        accounts = [a for a in all_accounts if a.get("status") == "completed"]
+
+    semaphore = asyncio.Semaphore(5)
+
+    async def process(account: dict):
+        async with semaphore:
+            account_id = account["id"]
+            await update_list_account_enrichment(account_id, "pending")
+            try:
+                domain = account.get("company_url", "")
+                if not domain:
+                    await update_list_account_enrichment(account_id, "failed", "No company URL")
+                    return
+
+                contacts = await enrich_company_contacts(
+                    user_id, domain, company_name=account.get("company_name", ""),
+                )
+                if not contacts:
+                    await update_list_account_enrichment(account_id, "completed")
+                    return
+
+                doc_id = account.get("document_id")
+                if doc_id:
+                    await save_enriched_contacts(doc_id, user_id, contacts)
+
+                await update_list_account_enrichment(account_id, "completed")
+                logger.info("Enriched %d contacts for account %s", len(contacts), account.get("company_name"))
+            except Exception as e:
+                logger.exception("Enrichment failed for account %s", account_id)
+                await update_list_account_enrichment(account_id, "failed", str(e)[:500])
+
+    BATCH_SIZE = 20
+    for batch_start in range(0, len(accounts), BATCH_SIZE):
+        batch = accounts[batch_start:batch_start + BATCH_SIZE]
+        await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
+
+
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):
     """Send webhook notification if the user has one configured."""
     webhook = await get_user_webhook(user_id)

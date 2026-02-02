@@ -36,7 +36,7 @@ def _handle_signal():
 async def _dispatch(task: dict) -> None:
     """Route a claimed task to the appropriate job function."""
     from db import task_queue
-    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_retry_account, run_bulk_item, run_list_item
+    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_batch_enrich, run_retry_account, run_bulk_item, run_list_item
     from services.automation import evaluate_rules
 
     task_id = task["id"]
@@ -56,6 +56,8 @@ async def _dispatch(task: dict) -> None:
             await run_bulk_item(**payload)
         elif task_type == "list_item":
             await run_list_item(**payload)
+        elif task_type == "batch_enrich":
+            await run_batch_enrich(**payload)
         elif task_type == "batch_write":
             await run_batch_write_sequences(**payload)
         elif task_type == "automation":

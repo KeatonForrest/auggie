@@ -350,20 +350,38 @@ async def test_pipeline_status_list_not_found(authed_client):
 
 
 # =============================================================================
-# Batch Enrich Stub
+# Batch Enrich
 # =============================================================================
 
 @pytest.mark.asyncio
-async def test_batch_enrich_returns_unavailable(authed_client):
-    """POST /lists/{id}/batch-enrich should return 422 with message."""
+async def test_batch_enrich_no_provider_returns_422(authed_client):
+    """POST /lists/{id}/batch-enrich with no providers connected should return 422."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 5, "analyzed_accounts": 5, "failed_accounts": 0}
-    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
+         patch("services.enrichment.get_integration", new_callable=AsyncMock, return_value=None):
         response = await authed_client.post("/lists/1/batch-enrich", json={"account_ids": [1, 2]})
         assert response.status_code == 422
         data = response.json()
         assert data["success"] is False
-        assert "not yet available" in data["error"]
+        assert "provider" in data["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_batch_enrich_with_provider_queues_task(authed_client):
+    """POST /lists/{id}/batch-enrich with a provider connected should queue task."""
+    fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
+                 "total_accounts": 5, "analyzed_accounts": 5, "failed_accounts": 0}
+    fake_integration = {"id": 1, "access_token": "test-key"}
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
+         patch("services.enrichment.get_integration", new_callable=AsyncMock, return_value=fake_integration), \
+         patch("routes.lists.create_tracked_task", new_callable=AsyncMock), \
+         patch("routes.lists.count_ready_accounts", new_callable=AsyncMock, return_value=3):
+        response = await authed_client.post("/lists/1/batch-enrich", json={})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["queued_count"] == 3
 
 
 @pytest.mark.asyncio

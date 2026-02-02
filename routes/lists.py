@@ -565,16 +565,35 @@ async def batch_enrich(
     request: Request,
     user: dict = Depends(require_onboarding),
 ):
-    """Batch enrich contacts for accounts in a list."""
+    """Batch enrich contacts for accounts in a list using connected providers."""
+    from services.enrichment import get_provider_priority
+
     lst = await get_list(list_id, user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
 
-    # Stub: enrichment provider not yet configured
-    return JSONResponse(
-        {"success": False, "error": "Contact enrichment is not yet available. This feature is coming soon."},
-        status_code=422,
+    # Check user has at least one enrichment provider connected
+    providers = await get_provider_priority(user["id"])
+    if not providers:
+        return JSONResponse(
+            {"success": False, "error": "No enrichment provider connected. Connect Apollo or another provider in Integrations."},
+            status_code=422,
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account_ids = body.get("account_ids")
+
+    await create_tracked_task(
+        "batch_enrich",
+        {"list_id": list_id, "user_id": user["id"], "account_ids": account_ids},
+        name=f"enrich-{list_id}",
     )
+
+    queued = await count_ready_accounts(list_id, account_ids=account_ids)
+    return JSONResponse({"success": True, "queued_count": queued})
 
 
 @router.get("/lists/{list_id}/pipeline-status")

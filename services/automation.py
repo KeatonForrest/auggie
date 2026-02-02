@@ -55,6 +55,8 @@ async def execute_action(rule: dict, user_id: int, list_id: int, accounts: list[
             await _action_push_outreach(rule, user_id, accounts)
         elif action == "push_salesloft":
             await _action_push_salesloft(rule, user_id, accounts)
+        elif action == "enrich_contacts":
+            await _action_enrich_contacts(rule, user_id, list_id, accounts)
         elif action == "write_sequences":
             await _action_write_sequences(rule, user_id, list_id, accounts)
         elif action == "notify_slack":
@@ -165,6 +167,13 @@ async def _action_push_salesloft(rule, user_id, accounts):
 
     result = await push_sequences_to_salesloft(user_id, accounts, drafts_by_account)
     logger.info("Automation rule %s: created %s cadences in SalesLoft", rule["id"], result.get("cadences_created", 0))
+
+
+async def _action_enrich_contacts(rule, user_id, list_id, accounts):
+    from api.jobs import run_batch_enrich
+    account_ids = [a["id"] for a in accounts]
+    await run_batch_enrich(list_id, user_id, account_ids=account_ids)
+    logger.info("Automation rule %s: enriched contacts for %d accounts", rule["id"], len(accounts))
 
 
 async def _action_write_sequences(rule, user_id, list_id, accounts):

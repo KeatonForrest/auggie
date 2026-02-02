@@ -112,8 +112,20 @@ class TestDispatch:
             mock_tq.complete.assert_called_once_with(7)
 
     @pytest.mark.asyncio
+    async def test_dispatch_batch_enrich_task(self, worker_module):
+        task = {"id": 8, "task_type": "batch_enrich", "payload": {"list_id": 1, "user_id": 1}}
+        mock_tq = MagicMock()
+        mock_tq.complete = AsyncMock()
+
+        with patch("db.task_queue", mock_tq, create=True), \
+             patch("api.jobs.run_batch_enrich", new_callable=AsyncMock) as mock_job:
+            await worker_module._dispatch(task)
+            mock_job.assert_called_once_with(list_id=1, user_id=1)
+            mock_tq.complete.assert_called_once_with(8)
+
+    @pytest.mark.asyncio
     async def test_dispatch_batch_write_task(self, worker_module):
-        task = {"id": 8, "task_type": "batch_write", "payload": {"batch_id": "b1"}}
+        task = {"id": 9, "task_type": "batch_write", "payload": {"batch_id": "b1"}}
         mock_tq = MagicMock()
         mock_tq.complete = AsyncMock()
 
@@ -121,7 +133,7 @@ class TestDispatch:
              patch("api.jobs.run_batch_write_sequences", new_callable=AsyncMock) as mock_job:
             await worker_module._dispatch(task)
             mock_job.assert_called_once_with(batch_id="b1")
-            mock_tq.complete.assert_called_once_with(8)
+            mock_tq.complete.assert_called_once_with(9)
 
     @pytest.mark.asyncio
     async def test_dispatch_unknown_task_type(self, worker_module):
