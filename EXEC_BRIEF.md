@@ -75,19 +75,19 @@ Auggie operates with high efficiency and strong margins, leveraging a usage-base
 
 | Service | Cost |
 |---------|------|
-| Firecrawl (Scraping) | ~$0.09 |
+| Firecrawl (Scraping, ~7-8 pages) | ~$0.04 |
 | Gemini 2.5 Flash (Research LLM) | ~$0.015 |
 | Mistral Medium (Writing LLM) | ~$0.006 |
 | SerpAPI (News) | ~$0.015 |
 | OpenAI Embeddings (RAG) | ~$0.00 |
-| **Total Typical COGS** | **~$0.13** |
+| **Total Typical COGS** | **~$0.08** |
 
 **Profitability Profile:**
 
 - Revenue per Research: $1.00
-- Gross Margin: ~87%
+- Gross Margin: ~92%
 
-Even when including premium contact enrichment via LeadMagic (an additional ~$0.04 cost), the total COGS rises to only ~$0.17, maintaining a robust gross margin of ~83%. This structure allows for significant flexibility in pricing strategies, including future subscription tiers or high-volume enterprise discounts, without sacrificing profitability.
+Even when including premium contact enrichment via LeadMagic (an additional ~$0.04 cost) and research on public companies with investor relations subdomains (additional ~$0.02), the total COGS rises to only ~$0.14, maintaining a gross margin of ~86%. This structure allows for significant flexibility in pricing strategies, including future subscription tiers or high-volume enterprise discounts, without sacrificing profitability.
 
 ## Traction & Pricing
 
