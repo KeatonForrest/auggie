@@ -89,7 +89,8 @@ async def get_pipeline_counts(list_id: int) -> dict:
             COUNT(*) FILTER (WHERE status = 'completed') AS scored,
             COUNT(*) FILTER (WHERE enrichment_status = 'completed') AS enriched,
             COUNT(*) FILTER (WHERE outreach_status = 'completed') AS sequences_written,
-            COUNT(*) FILTER (WHERE pushed_to IS NOT NULL AND pushed_to::text != '{}' AND pushed_to::text != 'null') AS pushed
+            COUNT(*) FILTER (WHERE pushed_to IS NOT NULL AND pushed_to::text != '{}' AND pushed_to::text != 'null') AS pushed,
+            COUNT(*) FILTER (WHERE status = 'failed') AS failed
         FROM list_accounts
         WHERE list_id = $1
     """

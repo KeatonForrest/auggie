@@ -591,8 +591,9 @@ async def pipeline_status(
 
     # Auto-finalize if all accounts are done but list status is stale
     if lst.get("status") in ("created", "analyzing") and counts["total"] > 0:
-        processed = (lst.get("analyzed_accounts", 0) or 0) + (lst.get("failed_accounts", 0) or 0)
-        if processed >= counts["total"]:
+        # Use actual account statuses rather than the list-level counter which can get out of sync
+        done_accounts = counts["scored"] + counts.get("failed", 0)
+        if done_accounts >= counts["total"]:
             from database import finalize_list
             lst = await finalize_list(list_id)
 
