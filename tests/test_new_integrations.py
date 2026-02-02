@@ -1,5 +1,5 @@
 """
-test_new_integrations.py - Tests for Salesforce, Apollo, Ocean.io, Slack/Notifications services and routes.
+test_new_integrations.py - Tests for Salesforce, Apollo, PDL, Slack/Notifications services and routes.
 """
 
 import pytest
@@ -341,13 +341,13 @@ class TestApolloFetchListCompanies:
 
 
 # =============================================================================
-# Ocean.io Service Tests
+# PDL (People Data Labs) Service Tests
 # =============================================================================
 
-class TestOceanValidateApiKey:
+class TestPDLValidateApiKey:
     @pytest.mark.asyncio
     async def test_valid_key_returns_true(self):
-        from services.ocean import validate_api_key
+        from services.pdl import validate_api_key
 
         mock_resp = MagicMock(status_code=200)
 
@@ -362,7 +362,7 @@ class TestOceanValidateApiKey:
 
     @pytest.mark.asyncio
     async def test_invalid_key_returns_false(self):
-        from services.ocean import validate_api_key
+        from services.pdl import validate_api_key
 
         mock_resp = MagicMock(status_code=401)
 
@@ -376,75 +376,54 @@ class TestOceanValidateApiKey:
             assert await validate_api_key("bad-key") is False
 
 
-class TestOceanGetApiKey:
+class TestPDLGetApiKey:
     @pytest.mark.asyncio
     async def test_returns_key_when_connected(self):
-        from services.ocean import _get_api_key
+        from services.pdl import _get_api_key
 
-        with patch("services.ocean.get_integration", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = {"access_token": "ocean-key"}
+        with patch("services.pdl.get_integration", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = {"access_token": "pdl-key"}
             key = await _get_api_key(user_id=1)
 
-        assert key == "ocean-key"
+        assert key == "pdl-key"
 
     @pytest.mark.asyncio
     async def test_raises_when_not_connected(self):
-        from services.ocean import _get_api_key
+        from services.pdl import _get_api_key
 
-        with patch("services.ocean.get_integration", new_callable=AsyncMock) as mock_get:
+        with patch("services.pdl.get_integration", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = None
 
-            with pytest.raises(RuntimeError, match="Ocean.io not connected"):
+            with pytest.raises(RuntimeError, match="PDL not connected"):
                 await _get_api_key(user_id=1)
 
 
-class TestOceanListAudiences:
+class TestPDLSearchCompanies:
     @pytest.mark.asyncio
-    async def test_returns_audiences(self):
-        from services.ocean import list_audiences
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"audiences": [{"id": "aud1", "name": "Lookalike"}]}
-        mock_resp.raise_for_status = MagicMock()
-
-        with patch("services.ocean._get_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("httpx.AsyncClient") as mock_client_cls:
-
-            mock_client = AsyncMock()
-            mock_client.get.return_value = mock_resp
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            result = await list_audiences(user_id=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "Lookalike"
-
-
-class TestOceanFetchAudienceCompanies:
-    @pytest.mark.asyncio
-    async def test_fetches_companies(self):
-        from services.ocean import fetch_audience_companies
+    async def test_returns_results(self):
+        from services.pdl import search_companies
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "companies": [{"id": "c1", "domain": "acme.com"}],
+            "data": [{"id": "c1", "website": "acme.com", "name": "Acme"}],
+            "total": 1,
+            "scroll_token": None,
         }
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("services.ocean._get_api_key", new_callable=AsyncMock, return_value="key"), \
+        with patch("services.pdl._get_api_key", new_callable=AsyncMock, return_value="key"), \
              patch("httpx.AsyncClient") as mock_client_cls:
 
             mock_client = AsyncMock()
-            mock_client.get.return_value = mock_resp
+            mock_client.post.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await fetch_audience_companies(user_id=1, audience_id="aud1")
+            result = await search_companies(user_id=1, query={"bool": {"must": [{"term": {"industry": "software"}}]}})
 
-        assert len(result["companies"]) == 1
+        assert len(result["data"]) == 1
+        assert result["data"][0]["website"] == "acme.com"
 
 
 # =============================================================================
@@ -754,18 +733,18 @@ class TestApolloImportRoute:
 
 
 # =============================================================================
-# Route Tests: Ocean.io
+# Route Tests: PDL (People Data Labs)
 # =============================================================================
 
-class TestOceanConnectRoute:
+class TestPDLConnectRoute:
     @pytest.mark.asyncio
     async def test_valid_key_connects(self, authed_client):
-        with patch("routes.integrations.ocean_validate", new_callable=AsyncMock, return_value=True), \
+        with patch("routes.integrations.pdl_validate", new_callable=AsyncMock, return_value=True), \
              patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
 
             response = await authed_client.post(
-                "/integrations/ocean/connect",
-                json={"api_key": "ocean-key-123"},
+                "/integrations/pdl/connect",
+                json={"api_key": "pdl-key-123"},
             )
 
         assert response.status_code == 200
@@ -774,44 +753,46 @@ class TestOceanConnectRoute:
 
     @pytest.mark.asyncio
     async def test_invalid_key_rejected(self, authed_client):
-        with patch("routes.integrations.ocean_validate", new_callable=AsyncMock, return_value=False):
+        with patch("routes.integrations.pdl_validate", new_callable=AsyncMock, return_value=False):
             response = await authed_client.post(
-                "/integrations/ocean/connect",
+                "/integrations/pdl/connect",
                 json={"api_key": "bad-key"},
             )
 
         assert response.status_code == 400
 
 
-class TestOceanDisconnectRoute:
+class TestPDLDisconnectRoute:
     @pytest.mark.asyncio
     async def test_disconnect(self, authed_client):
         with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
-            response = await authed_client.post("/integrations/ocean/disconnect", follow_redirects=False)
+            response = await authed_client.post("/integrations/pdl/disconnect", follow_redirects=False)
 
         assert response.status_code == 303
-        mock_delete.assert_called_once_with(1, "ocean")
+        mock_delete.assert_called_once_with(1, "pdl")
 
 
-class TestOceanImportRoute:
+class TestPDLImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("services.ocean.fetch_audience_companies", new_callable=AsyncMock, return_value={
-                 "companies": [
-                     {"id": "c1", "domain": "acme.com"},
-                     {"id": "c2", "domain": "beta.com"},
+        with patch("services.pdl.search_companies", new_callable=AsyncMock, return_value={
+                 "data": [
+                     {"id": "c1", "website": "acme.com"},
+                     {"id": "c2", "website": "beta.com"},
                  ],
+                 "total": 2,
              }), \
              patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
              patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
              patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 70}), \
              patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
              patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
-             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
+             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock), \
+             patch("database.set_list_source", new_callable=AsyncMock):
 
             response = await authed_client.post(
-                "/integrations/ocean/import",
-                json={"audience_id": "aud1", "name": "Ocean Import"},
+                "/integrations/pdl/import",
+                json={"query": {"bool": {"must": [{"term": {"industry": "software"}}]}}, "name": "PDL Import"},
             )
 
         assert response.status_code == 200
@@ -820,9 +801,9 @@ class TestOceanImportRoute:
         assert data["list_id"] == 70
 
     @pytest.mark.asyncio
-    async def test_import_requires_audience_id(self, authed_client):
+    async def test_import_requires_query(self, authed_client):
         response = await authed_client.post(
-            "/integrations/ocean/import",
+            "/integrations/pdl/import",
             json={"name": "Test"},
         )
         assert response.status_code == 400
@@ -910,7 +891,7 @@ class TestIntegrationsPageNewProviders:
         assert response.status_code == 200
         assert "Salesforce" in response.text
         assert "Apollo" in response.text
-        assert "Ocean.io" in response.text
+        assert "People Data Labs" in response.text
         assert "Slack" in response.text
 
     @pytest.mark.asyncio

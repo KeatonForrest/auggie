@@ -27,9 +27,10 @@ class ApolloImportRequest(BaseModel):
     name: str = "Apollo Import"
 
 
-class OceanImportRequest(BaseModel):
-    audience_id: str
-    name: str = "Ocean.io Import"
+class PDLImportRequest(BaseModel):
+    query: dict
+    name: str = "PDL Import"
+    size: int = 100
 
 
 class GoogleSheetsImportRequest(BaseModel):

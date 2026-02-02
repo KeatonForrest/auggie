@@ -120,25 +120,25 @@
         </div>
         {% endif %}
 
-        {% if integrations.get('ocean') %}
+        {% if integrations.get('pdl') %}
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900">Ocean.io</h3>
-                        <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
+                        <h3 class="text-lg font-semibold text-gray-900">People Data Labs</h3>
+                        <p class="text-sm text-gray-500">Search and import companies by industry, size, and location</p>
                     </div>
                 </div>
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
             </div>
             <div class="flex items-center gap-3">
-                <button onclick="openOceanImport()" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
-                    Import Audience
+                <button onclick="openPDLImport()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                    Search &amp; Import
                 </button>
-                <form method="post" action="/integrations/ocean/disconnect" class="inline">
+                <form method="post" action="/integrations/pdl/disconnect" class="inline">
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
                         Disconnect
                     </button>
@@ -277,28 +277,28 @@
         </div>
         {% endif %}
 
-        {% if not integrations.get('ocean') %}
+        {% if not integrations.get('pdl') %}
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900">Ocean.io</h3>
-                        <p class="text-sm text-gray-500">Import lookalike audiences from Ocean.io</p>
+                        <h3 class="text-lg font-semibold text-gray-900">People Data Labs</h3>
+                        <p class="text-sm text-gray-500">Search and import companies by industry, size, and location</p>
                     </div>
                 </div>
             </div>
-            <div id="ocean-form">
+            <div id="pdl-form">
                 <div class="flex gap-3">
-                    <input type="text" id="ocean-key" placeholder="Enter your Ocean.io API key"
-                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
-                    <button onclick="connectOcean()" id="ocean-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                    <input type="text" id="pdl-key" placeholder="Enter your PDL API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    <button onclick="connectPDL()" id="pdl-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
                         Connect
                     </button>
                 </div>
-                <p id="ocean-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                <p id="pdl-error" class="mt-2 text-sm text-red-600 hidden"></p>
             </div>
         </div>
         {% endif %}
@@ -718,22 +718,38 @@
     </div>
 </div>
 
-<!-- Ocean.io Import Modal -->
-<div id="ocean-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+<!-- PDL Import Modal -->
+<div id="pdl-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
     <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
         <div class="p-6 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Import from Ocean.io</h2>
-            <button onclick="closeOceanImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+            <h2 class="text-lg font-semibold">Import from People Data Labs</h2>
+            <button onclick="closePDLImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div id="oc-loading" class="text-center py-8 text-gray-500">Loading audiences...</div>
-            <div id="oc-audiences" class="hidden space-y-2"></div>
-            <div id="oc-error" class="hidden text-center py-8 text-red-600"></div>
+        <div class="p-6 overflow-y-auto flex-1 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                <input type="text" id="pdl-industry" placeholder="e.g. software, financial services" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Min Employees</label>
+                    <input type="number" id="pdl-min-employees" placeholder="e.g. 50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Employees</label>
+                    <input type="number" id="pdl-max-employees" placeholder="e.g. 500" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input type="text" id="pdl-location" placeholder="e.g. united states, california" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+            <div id="pdl-error" class="hidden text-sm text-red-600"></div>
         </div>
         <div class="p-6 border-t flex justify-end">
-            <input type="text" id="oc-list-name" placeholder="List name" value="Ocean.io Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
-            <button onclick="importOceanAudience()" id="oc-import-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50" disabled>
-                Import & Analyze
+            <input type="text" id="pdl-list-name" placeholder="List name" value="PDL Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
+            <button onclick="importPDL()" id="pdl-import-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                Search &amp; Import
             </button>
         </div>
     </div>
@@ -1118,63 +1134,55 @@ function importApolloList() {
     .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
 }
 
-// === Ocean.io ===
-var ocSelectedAudienceId = null;
-
-function openOceanImport() {
-    document.getElementById('ocean-modal').classList.remove('hidden');
-    loadOceanAudiences();
+// === PDL (People Data Labs) ===
+function openPDLImport() {
+    document.getElementById('pdl-modal').classList.remove('hidden');
 }
 
-function closeOceanImport() {
-    document.getElementById('ocean-modal').classList.add('hidden');
+function closePDLImport() {
+    document.getElementById('pdl-modal').classList.add('hidden');
 }
 
-function loadOceanAudiences() {
-    document.getElementById('oc-loading').classList.remove('hidden');
-    document.getElementById('oc-error').classList.add('hidden');
-    fetch('/integrations/ocean/audiences')
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(audiences) {
-            document.getElementById('oc-loading').classList.add('hidden');
-            var container = document.getElementById('oc-audiences');
-            container.classList.remove('hidden');
-            container.innerHTML = '';
-            audiences.forEach(function(a) {
-                var div = document.createElement('div');
-                div.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer';
-                div.textContent = a.name || a.id;
-                div.onclick = function() {
-                    container.querySelectorAll('div').forEach(function(d) { d.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer'; });
-                    div.className = 'p-3 rounded-lg border border-cyan-500 bg-cyan-50 cursor-pointer';
-                    ocSelectedAudienceId = a.id;
-                    document.getElementById('oc-import-btn').disabled = false;
-                };
-                container.appendChild(div);
-            });
-            if (audiences.length === 0) container.innerHTML = '<p class="text-gray-500 text-sm">No audiences found.</p>';
-        })
-        .catch(function() {
-            document.getElementById('oc-loading').classList.add('hidden');
-            document.getElementById('oc-error').classList.remove('hidden');
-            document.getElementById('oc-error').textContent = 'Failed to load audiences from Ocean.io.';
-        });
+function buildPDLQuery() {
+    var must = [];
+    var industry = document.getElementById('pdl-industry').value.trim();
+    var minEmp = document.getElementById('pdl-min-employees').value.trim();
+    var maxEmp = document.getElementById('pdl-max-employees').value.trim();
+    var location = document.getElementById('pdl-location').value.trim();
+
+    if (industry) must.push({ term: { industry: industry } });
+    if (minEmp || maxEmp) {
+        var range = {};
+        if (minEmp) range.gte = parseInt(minEmp);
+        if (maxEmp) range.lte = parseInt(maxEmp);
+        must.push({ range: { employee_count: range } });
+    }
+    if (location) must.push({ term: { "location.country": location } });
+
+    return { bool: { must: must } };
 }
 
-function importOceanAudience() {
-    if (!ocSelectedAudienceId) return;
-    var btn = document.getElementById('oc-import-btn');
+function importPDL() {
+    var query = buildPDLQuery();
+    if (query.bool.must.length === 0) {
+        var errEl = document.getElementById('pdl-error');
+        errEl.textContent = 'Please fill in at least one search field.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    document.getElementById('pdl-error').classList.add('hidden');
+    var btn = document.getElementById('pdl-import-btn');
     btn.disabled = true; btn.textContent = 'Importing...';
-    fetch('/integrations/ocean/import', {
+    fetch('/integrations/pdl/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audience_id: ocSelectedAudienceId, name: document.getElementById('oc-list-name').value || 'Ocean.io Import' })
+        body: JSON.stringify({ query: query, name: document.getElementById('pdl-list-name').value || 'PDL Import', size: 100 })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) window.location.href = '/lists/' + data.list_id;
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
+        else { btn.disabled = false; btn.textContent = 'Search & Import'; }
     })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+    .catch(function() { btn.disabled = false; btn.textContent = 'Search & Import'; });
 }
 
 // === Slack ===
@@ -1235,18 +1243,18 @@ function connectApollo() {
     .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
 }
 
-// === Ocean.io API key connect ===
-function connectOcean() {
-    var btn = document.getElementById('ocean-btn');
-    var key = document.getElementById('ocean-key').value.trim();
-    var errEl = document.getElementById('ocean-error');
+// === PDL API key connect ===
+function connectPDL() {
+    var btn = document.getElementById('pdl-btn');
+    var key = document.getElementById('pdl-key').value.trim();
+    var errEl = document.getElementById('pdl-error');
     errEl.classList.add('hidden');
 
     if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
 
     btn.disabled = true; btn.textContent = 'Validating...';
 
-    fetch('/integrations/ocean/connect', {
+    fetch('/integrations/pdl/connect', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: key })
     })

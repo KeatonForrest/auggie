@@ -17,7 +17,7 @@ from routes._helpers import (
 )
 from routes.schemas import (
     ApiKeyConnectRequest, HubSpotImportRequest, SalesforceImportRequest,
-    ZoomInfoImportRequest, ApolloImportRequest, OceanImportRequest, SlackConnectRequest,
+    ZoomInfoImportRequest, ApolloImportRequest, PDLImportRequest, SlackConnectRequest,
 )
 from services.hubspot import get_authorize_url as hubspot_authorize_url, exchange_code as hubspot_exchange_code
 from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
@@ -28,7 +28,7 @@ from services.google_sheets import get_authorize_url as gsheets_authorize_url, e
 from services.instantly import validate_api_key as instantly_validate
 from services.smartlead import validate_api_key as smartlead_validate
 from services.apollo import validate_integration_api_key as apollo_validate
-from services.ocean import validate_api_key as ocean_validate
+from services.pdl import validate_api_key as pdl_validate
 from services.notifications import validate_webhook_url, send_slack_notification
 
 settings = get_settings()
@@ -476,49 +476,55 @@ async def apollo_import(request: Request, user: dict = Depends(require_onboardin
 
 
 # ==========================================================================
-# Ocean.io
+# PDL (People Data Labs)
 # ==========================================================================
 
-@router.post("/integrations/ocean/connect")
-async def ocean_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Ocean.io API key after validation."""
+@router.post("/integrations/pdl/connect")
+async def pdl_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save PDL API key after validation."""
     body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "ocean", body.api_key, ocean_validate, "Ocean.io API key")
+    return await _apikey_connect(user, "pdl", body.api_key, pdl_validate, "PDL API key")
 
 
-@router.post("/integrations/ocean/disconnect")
-async def ocean_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Ocean.io integration."""
-    await delete_integration(user["id"], "ocean")
+@router.post("/integrations/pdl/disconnect")
+async def pdl_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect PDL integration."""
+    await delete_integration(user["id"], "pdl")
     return RedirectResponse(url="/integrations", status_code=303)
 
 
-@router.get("/integrations/ocean/audiences")
-async def ocean_audiences(request: Request, user: dict = Depends(require_onboarding)):
-    """List Ocean.io audiences."""
-    from services.ocean import list_audiences
+@router.post("/integrations/pdl/search")
+async def pdl_search(request: Request, user: dict = Depends(require_onboarding)):
+    """Search companies via PDL API and return results for UI preview."""
+    from services.pdl import search_companies
+    body = await request.json()
+    query = body.get("query", {})
+    size = body.get("size", 100)
     try:
-        audiences = await list_audiences(user["id"])
+        results = await search_companies(user["id"], query, size=size)
     except Exception as e:
-        logger.error("Ocean.io API error: %s", e)
-        raise HTTPException(status_code=502, detail="Ocean.io API error")
-    return JSONResponse(audiences)
+        logger.error("PDL API error: %s", e)
+        raise HTTPException(status_code=502, detail="PDL API error")
+    return JSONResponse(results)
 
 
-@router.post("/integrations/ocean/import")
-async def ocean_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import companies from an Ocean.io audience into an Auggie list."""
-    from services.ocean import fetch_audience_companies
+@router.post("/integrations/pdl/import")
+async def pdl_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Search PDL and import matching companies into an Auggie list."""
+    from services.pdl import search_companies
 
-    body = OceanImportRequest(**(await request.json()))
-    data = await fetch_audience_companies(user["id"], body.audience_id)
-    companies = data.get("companies", data.get("data", []))
+    body = PDLImportRequest(**(await request.json()))
+    data = await search_companies(user["id"], body.query, size=body.size)
+    companies = data.get("data", [])
 
     def extractor(company):
-        domain = (company.get("domain") or company.get("website") or "").strip()
-        return domain, None
+        domain = (company.get("website") or "").strip()
+        return domain, company.get("id")
 
-    return await _run_crm_import(user, companies, body.name, extractor)
+    return await _run_crm_import(
+        user, companies, body.name, extractor,
+        source_metadata_fn=lambda m: {"provider": "pdl", "pdl_company_map": m},
+    )
 
 
 # ==========================================================================
