@@ -182,9 +182,14 @@
             </thead>
             <tbody class="divide-y divide-gray-200">
                 {% for a in accounts %}
-                <tr class="hover:bg-gray-50" data-id="{{ a.id }}" data-status="{{ a.status }}">
+                <tr class="hover:bg-gray-50 cursor-pointer" data-id="{{ a.id }}" data-status="{{ a.status }}" data-document-id="{{ a.document_id or '' }}">
                     <td class="px-4 py-3"><input type="checkbox" class="row-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="{{ a.id }}"></td>
-                    <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ a.company_name or '—' }}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                        <span class="inline-flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 text-gray-400 transition-transform expand-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            {{ a.company_name or '—' }}
+                        </span>
+                    </td>
                     <td class="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">{{ a.company_url | replace('https://', '') }}</td>
                     <td class="px-4 py-3">
                         {% if a.status == 'completed' %}
@@ -210,7 +215,10 @@
                     </td>
                     {% endfor %}
                     <td class="px-4 py-3 text-center hidden md:table-cell">
-                        {% if a.enrichment_status == 'completed' %}
+                        {% set cc = contact_counts.get(a.document_id, 0) if a.document_id else 0 %}
+                        {% if a.enrichment_status == 'completed' and cc > 0 %}
+                        <span class="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">{{ cc }}</span>
+                        {% elif a.enrichment_status == 'completed' %}
                         <span class="text-green-600 text-sm font-medium">&#10003;</span>
                         {% elif a.enrichment_status == 'processing' %}
                         <svg class="animate-spin h-4 w-4 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -1102,6 +1110,68 @@ document.addEventListener('click', function(e) {
         if (!dropdown.parentElement.contains(e.target)) {
             dropdown.classList.add('hidden');
         }
+    });
+});
+
+// Expandable contact rows
+document.querySelectorAll('tbody tr[data-id]').forEach(function(row) {
+    row.addEventListener('click', function(e) {
+        // Don't expand when clicking checkboxes, links, or buttons
+        if (e.target.closest('input, a, button')) return;
+
+        var accountId = row.dataset.id;
+        var chevron = row.querySelector('.expand-chevron');
+        var detailRow = document.getElementById('detail-' + accountId);
+
+        if (detailRow) {
+            // Toggle existing
+            detailRow.remove();
+            if (chevron) chevron.style.transform = '';
+            return;
+        }
+
+        // Expand: create detail row
+        if (chevron) chevron.style.transform = 'rotate(90deg)';
+        var colCount = row.children.length;
+        var tr = document.createElement('tr');
+        tr.id = 'detail-' + accountId;
+        tr.innerHTML = '<td colspan="' + colCount + '" class="px-8 py-3 bg-gray-50 border-b">' +
+            '<div class="text-xs text-gray-400">Loading contacts...</div></td>';
+        row.parentNode.insertBefore(tr, row.nextSibling);
+
+        fetch('/lists/{{ list.id }}/accounts/' + accountId + '/contacts')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var cell = tr.querySelector('td');
+                if (!data.contacts || data.contacts.length === 0) {
+                    cell.innerHTML = '<div class="text-sm text-gray-400 py-1">No contacts enriched yet</div>';
+                    return;
+                }
+                var html = '<table class="w-full text-sm">' +
+                    '<thead><tr class="text-xs text-gray-500 uppercase">' +
+                    '<th class="text-left py-1 pr-4 font-medium">Name</th>' +
+                    '<th class="text-left py-1 pr-4 font-medium">Title</th>' +
+                    '<th class="text-left py-1 pr-4 font-medium">Email</th>' +
+                    '<th class="text-left py-1 font-medium">LinkedIn</th>' +
+                    '</tr></thead><tbody>';
+                data.contacts.forEach(function(c) {
+                    var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || '—';
+                    var emailHtml = c.email ? '<a href="mailto:' + c.email + '" class="text-blue-600 hover:underline">' + c.email + '</a>' : '—';
+                    var linkedinHtml = c.profile_url ? '<a href="' + c.profile_url + '" target="_blank" class="text-blue-600 hover:underline">Profile</a>' : '—';
+                    html += '<tr class="border-t border-gray-100">' +
+                        '<td class="py-1.5 pr-4 text-gray-900">' + name + '</td>' +
+                        '<td class="py-1.5 pr-4 text-gray-600">' + (c.title || '—') + '</td>' +
+                        '<td class="py-1.5 pr-4">' + emailHtml + '</td>' +
+                        '<td class="py-1.5">' + linkedinHtml + '</td>' +
+                        '</tr>';
+                });
+                html += '</tbody></table>';
+                cell.innerHTML = html;
+            })
+            .catch(function() {
+                var cell = tr.querySelector('td');
+                cell.innerHTML = '<div class="text-sm text-red-500 py-1">Failed to load contacts</div>';
+            });
     });
 });
 </script>

@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from auth import require_auth, require_onboarding
 from database import (
     get_user_usage, use_credit, refund_credit,
-    get_enriched_contacts,
+    get_enriched_contacts, get_contact_counts_for_list,
     create_list, add_list_accounts, update_list_credits,
     list_lists, get_list, get_list_accounts, delete_list,
     get_pipeline_counts, count_ready_accounts,
@@ -280,6 +280,9 @@ async def view_list(
     apollo_integration = await get_integration(user["id"], "apollo")
     gong_engage_integration = await get_integration(user["id"], "gong_engage")
 
+    # Contact counts per account (single SQL query)
+    contact_counts = await get_contact_counts_for_list(list_id, user["id"])
+
     # Pipeline step counts (single SQL query)
     counts = await get_pipeline_counts(list_id)
     scored_count = counts["scored"]
@@ -309,6 +312,7 @@ async def view_list(
             "enriched_count": enriched_count,
             "written_count": written_count,
             "pushed_count": pushed_count,
+            "contact_counts": contact_counts,
         }
     )
 
@@ -722,6 +726,36 @@ async def retry_list_account(
         name=f"retry-{account_id}",
     )
     return JSONResponse({"success": True})
+
+
+@router.get("/lists/{list_id}/accounts/{account_id}/contacts")
+async def get_account_contacts(
+    list_id: int,
+    account_id: int,
+    user: dict = Depends(require_auth),
+):
+    """Return enriched contacts for a list account."""
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    account = await get_list_account(account_id, list_id)
+    if not account or not account.get("document_id"):
+        return JSONResponse({"contacts": []})
+
+    contacts = await get_enriched_contacts(account["document_id"], user["id"])
+    return JSONResponse({
+        "contacts": [
+            {
+                "first_name": c.get("first_name", ""),
+                "last_name": c.get("last_name", ""),
+                "title": c.get("title", ""),
+                "email": c.get("email", ""),
+                "profile_url": c.get("profile_url", ""),
+            }
+            for c in contacts
+        ]
+    })
 
 
 # ==========================================================================

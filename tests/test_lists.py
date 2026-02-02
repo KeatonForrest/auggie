@@ -31,14 +31,16 @@ async def test_view_list(authed_client):
          patch("routes.lists.get_list_accounts", new_callable=AsyncMock) as mock_accounts, \
          patch("routes.lists.get_user_usage", new_callable=AsyncMock) as mock_usage, \
          patch("routes.lists.get_integration", new_callable=AsyncMock) as mock_integration, \
-         patch("routes.lists.get_pipeline_counts", new_callable=AsyncMock) as mock_counts:
+         patch("routes.lists.get_pipeline_counts", new_callable=AsyncMock) as mock_counts, \
+         patch("routes.lists.get_contact_counts_for_list", new_callable=AsyncMock) as mock_cc:
         mock_list.return_value = {"id": 1, "name": "Test List", "status": "completed",
                                    "total_accounts": 5, "analyzed_accounts": 5,
                                    "failed_accounts": 0, "credits_reserved": 500}
         mock_accounts.return_value = [
             {"id": 1, "company_url": "https://example.com", "status": "completed",
              "pain_score": 80, "fit_score": 70, "timing_score": 60, "composite_score": 70,
-             "company_name": "Example Corp", "document_id": 1}
+             "company_name": "Example Corp", "document_id": 1,
+             "enrichment_status": "completed", "outreach_status": None, "pushed_to": None}
         ]
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
         mock_integration.return_value = None
@@ -46,6 +48,7 @@ async def test_view_list(authed_client):
             "total": 5, "scored": 5, "enriched": 2,
             "sequences_written": 1, "pushed": 0,
         }
+        mock_cc.return_value = {1: 3}
 
         response = await authed_client.get("/lists/1")
 

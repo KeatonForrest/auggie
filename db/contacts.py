@@ -24,6 +24,22 @@ async def save_enriched_contacts(document_id: int, user_id: int, contacts: list[
         )
 
 
+async def get_contact_counts_for_list(list_id: int, user_id: int) -> dict[int, int]:
+    """Return {document_id: contact_count} for all accounts in a list."""
+    async with _db._pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ec.document_id, COUNT(*) AS cnt
+            FROM enriched_contacts ec
+            JOIN list_accounts la ON la.document_id = ec.document_id
+            WHERE la.list_id = $1 AND ec.user_id = $2
+            GROUP BY ec.document_id
+            """,
+            list_id, user_id,
+        )
+        return {row["document_id"]: row["cnt"] for row in rows}
+
+
 async def get_enriched_contacts(document_id: int, user_id: int) -> list[dict]:
     """Get enriched contacts for a document (scoped to user)."""
     async with _db._pool.acquire() as conn:
