@@ -250,10 +250,9 @@ async def list_saved_lists(user_id: int) -> list[dict]:
     """List saved organization lists from Apollo."""
     api_key = await _get_integration_api_key(user_id)
     async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
+        resp = await client.get(
             f"{APOLLO_API_BASE}/labels",
             headers={"Content-Type": "application/json", "X-Api-Key": api_key},
-            json={},
         )
         resp.raise_for_status()
         data = resp.json()
