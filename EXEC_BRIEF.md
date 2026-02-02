@@ -95,9 +95,16 @@ Auggie is currently live with a usage-based monetization model, removing the fri
 
 ### Pricing Model
 
-- **Pay-As-You-Go:** $1 per research credit.
-- **Enrichment:** 0.5 credits per contact lookup.
-- **Future:** Subscription tiers and volume packs are on the roadmap to drive recurring revenue (ARR).
+| Pack | Credits | Price | Per Credit |
+|------|---------|-------|-----------|
+| Starter | 10 | $10 | $1.00 |
+| Pro | 50 | $37.50 | $0.75 |
+| Scale | 200 | $100 | $0.50 |
+| Enterprise | Custom | Custom | Contact us |
+
+- Contact enrichment costs 0.5 credits per lookup.
+- All packs are prepaid, non-expiring credits.
+- Enterprise engagements include custom volume pricing, dedicated onboarding, and API access for workflow integration.
 
 ### Operational Readiness
 
