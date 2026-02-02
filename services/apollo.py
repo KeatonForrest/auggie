@@ -143,11 +143,16 @@ async def _create_apollo_sequence_with_emails(
     return campaign_id
 
 
-async def _get_contacts_for_org(api_key: str, org_id: str) -> list[str]:
-    """Fetch contact IDs for an Apollo organization."""
+async def _get_contacts_for_org(api_key: str, org_id: str, domain: str = "") -> list[str]:
+    """Fetch people for an Apollo organization and ensure they are contacts.
+
+    Tries organization_ids first, falls back to domain search if that fails.
+    Then creates contacts for each person before returning contact IDs.
+    """
     async with httpx.AsyncClient(timeout=30.0) as client:
+        # Try organization_ids first
         resp = await client.post(
-            f"{APOLLO_API_BASE}/mixed_people/search",
+            f"{APOLLO_API_BASE}/mixed_people/api_search",
             headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
                 "organization_ids": [org_id],
@@ -155,11 +160,66 @@ async def _get_contacts_for_org(api_key: str, org_id: str) -> list[str]:
                 "per_page": 25,
             },
         )
-        if resp.status_code >= 400:
-            logger.warning("Apollo contact search failed for org %s: %s", org_id, resp.text[:200])
+        people = []
+        if resp.status_code < 400:
+            data = resp.json()
+            people = data.get("people", [])
+            logger.info("Apollo people search by org_id %s returned %d people", org_id, len(people))
+        else:
+            logger.info("Apollo people search by org_id failed (%s), trying domain", resp.status_code)
+
+        # Fallback: search by domain if org_id search returned nothing
+        if not people and domain:
+            clean_domain = domain.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+            resp2 = await client.post(
+                f"{APOLLO_API_BASE}/mixed_people/api_search",
+                headers={"Content-Type": "application/json", "X-Api-Key": api_key},
+                json={
+                    "q_organization_domains": clean_domain,
+                    "page": 1,
+                    "per_page": 25,
+                },
+            )
+            if resp2.status_code < 400:
+                data2 = resp2.json()
+                people = data2.get("people", [])
+                logger.info("Apollo people search by domain %s returned %d people", clean_domain, len(people))
+            else:
+                logger.warning("Apollo people search by domain also failed: %s %s", resp2.status_code, resp2.text[:200])
+
+        if not people:
             return []
-        data = resp.json()
-        return [p["id"] for p in data.get("people", []) if p.get("id")]
+        logger.info("Apollo people search for org %s returned %d people", org_id, len(people))
+
+        contact_ids = []
+        for person in people:
+            # If person already has a contact_id, use it directly
+            if person.get("contact_id"):
+                contact_ids.append(person["contact_id"])
+                continue
+            # Otherwise create a contact from this person
+            create_resp = await client.post(
+                f"{APOLLO_API_BASE}/contacts",
+                headers={"Content-Type": "application/json", "X-Api-Key": api_key},
+                json={
+                    "first_name": person.get("first_name", ""),
+                    "last_name": person.get("last_name", ""),
+                    "email": person.get("email"),
+                    "organization_name": person.get("organization", {}).get("name", ""),
+                    "title": person.get("title", ""),
+                    "person_id": person.get("id"),
+                    "run_dedupe": True,
+                },
+            )
+            logger.info("Apollo create contact response: %s %s", create_resp.status_code, create_resp.text[:200])
+            if create_resp.status_code < 400:
+                cdata = create_resp.json()
+                cid = cdata.get("contact", {}).get("id") or cdata.get("id")
+                if cid:
+                    contact_ids.append(cid)
+
+        logger.info("Created/found %d contacts for org %s", len(contact_ids), org_id)
+        return contact_ids
 
 
 async def _add_contacts_to_sequence(api_key: str, campaign_id: str, contact_ids: list[str]) -> int:
@@ -174,6 +234,7 @@ async def _add_contacts_to_sequence(api_key: str, campaign_id: str, contact_ids:
                 "contact_ids": contact_ids,
             },
         )
+        logger.info("Apollo add contacts response: %s %s", resp.status_code, resp.text[:300])
         if resp.status_code >= 400:
             logger.warning("Apollo add contacts failed for campaign %s: %s", campaign_id, resp.text[:200])
             return 0
@@ -216,7 +277,7 @@ async def push_sequences_to_apollo(
             org_id = account.get("source_id")
             logger.info("Account %s source_id=%s", account.get("company_name"), org_id)
             if org_id:
-                contact_ids = await _get_contacts_for_org(api_key, org_id)
+                contact_ids = await _get_contacts_for_org(api_key, org_id, domain=account.get("company_url", ""))
                 logger.info("Found %d contacts for org %s", len(contact_ids), org_id)
                 added = await _add_contacts_to_sequence(api_key, created_id, contact_ids)
                 contacts_added += added
