@@ -742,8 +742,39 @@
                 </div>
             </div>
             <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                <input type="text" id="pdl-tags" placeholder="e.g. saas, fintech, e-commerce" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                <span class="text-xs text-gray-400 mt-1 block">More specific than industry — comma-separated</span>
+            </div>
+            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <input type="text" id="pdl-location" placeholder="e.g. united states, california" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Funding Stage</label>
+                    <select id="pdl-funding-stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white">
+                        <option value="">Any</option>
+                        <option value="seed">Seed</option>
+                        <option value="series_a">Series A</option>
+                        <option value="series_b">Series B</option>
+                        <option value="series_c">Series C</option>
+                        <option value="series_d">Series D+</option>
+                        <option value="ipo">IPO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Inferred Revenue</label>
+                    <select id="pdl-revenue" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white">
+                        <option value="">Any</option>
+                        <option value="$1M-$10M">$1M - $10M</option>
+                        <option value="$10M-$50M">$10M - $50M</option>
+                        <option value="$50M-$100M">$50M - $100M</option>
+                        <option value="$100M-$500M">$100M - $500M</option>
+                        <option value="$500M-$1B">$500M - $1B</option>
+                        <option value="$1B+">$1B+</option>
+                    </select>
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Max Companies</label>
@@ -1152,11 +1183,20 @@ function closePDLImport() {
 function buildPDLQuery() {
     var must = [];
     var industry = document.getElementById('pdl-industry').value.trim();
+    var tags = document.getElementById('pdl-tags').value.trim();
     var minEmp = document.getElementById('pdl-min-employees').value.trim();
     var maxEmp = document.getElementById('pdl-max-employees').value.trim();
     var location = document.getElementById('pdl-location').value.trim();
+    var fundingStage = document.getElementById('pdl-funding-stage').value;
+    var revenue = document.getElementById('pdl-revenue').value;
 
     if (industry) must.push({ term: { industry: industry } });
+    if (tags) {
+        tags.split(',').forEach(function(t) {
+            t = t.trim();
+            if (t) must.push({ term: { tags: t } });
+        });
+    }
     if (minEmp || maxEmp) {
         var range = {};
         if (minEmp) range.gte = parseInt(minEmp);
@@ -1164,6 +1204,8 @@ function buildPDLQuery() {
         must.push({ range: { employee_count: range } });
     }
     if (location) must.push({ term: { "location.country": location } });
+    if (fundingStage) must.push({ term: { latest_funding_stage: fundingStage } });
+    if (revenue) must.push({ term: { inferred_revenue: revenue } });
 
     return { bool: { must: must } };
 }
