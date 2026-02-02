@@ -30,7 +30,6 @@ from services.instantly import push_accounts_to_instantly
 from services.smartlead import push_accounts_to_smartlead
 from services.outreach import push_sequences_to_outreach
 from services.salesloft import push_sequences_to_salesloft
-from services.apollo import push_sequences_to_apollo
 from services.gong_engage import push_sequences_to_gong_engage
 from db.outreach import get_outreach_drafts_batch
 
@@ -376,6 +375,7 @@ async def export_apollo_csv(
     writer.writerow([
         "first_name", "last_name", "email", "title", "linkedin_url",
         "company_name", "company_url",
+        "auggie_composite_score", "auggie_pain_score", "auggie_fit_score", "auggie_timing_score",
         "auggie_email_1_subject", "auggie_email_1_body",
         "auggie_email_2_subject", "auggie_email_2_body",
         "auggie_email_3_subject", "auggie_email_3_body",
@@ -399,6 +399,10 @@ async def export_apollo_csv(
                 c.get("profile_url", ""),
                 a.get("company_name", ""),
                 a.get("company_url", ""),
+                a.get("composite_score") if a.get("composite_score") is not None else "",
+                a.get("pain_score") if a.get("pain_score") is not None else "",
+                a.get("fit_score") if a.get("fit_score") is not None else "",
+                a.get("timing_score") if a.get("timing_score") is not None else "",
                 emails[0].get("subject", "") if len(emails) > 0 else "",
                 emails[0].get("body", "") if len(emails) > 0 else "",
                 emails[1].get("subject", "") if len(emails) > 1 else "",
@@ -753,18 +757,6 @@ async def push_to_salesloft(
         user, list_id, body.account_ids, push_sequences_to_salesloft,
     )
 
-
-@router.post("/lists/{list_id}/push-apollo")
-async def push_to_apollo(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push Auggie-generated sequences to Apollo as emailer campaigns with contacts."""
-    body = PushSequencesRequest(**(await request.json()))
-    return await _push_drafts_to_integration(
-        user, list_id, body.account_ids, push_sequences_to_apollo,
-    )
 
 
 @router.post("/lists/{list_id}/push-gong-engage")
