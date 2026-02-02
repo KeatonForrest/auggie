@@ -727,6 +727,7 @@ class TestApolloImportRoute:
              patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 60}), \
              patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
              patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
+             patch("routes._helpers.set_list_source", new_callable=AsyncMock) as mock_source, \
              patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
 
             response = await authed_client.post(
@@ -738,6 +739,10 @@ class TestApolloImportRoute:
         data = response.json()
         assert data["success"] is True
         assert data["list_id"] == 60
+        mock_source.assert_called_once()
+        source_arg = mock_source.call_args[0][1]
+        assert source_arg["provider"] == "apollo"
+        assert "https://acme.com" in source_arg["org_ids"]
 
     @pytest.mark.asyncio
     async def test_import_requires_list_id(self, authed_client):
