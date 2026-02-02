@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 MOCK_CERT = {
     "issuer": ((("organizationName", "Let's Encrypt"),),),
-    "notAfter": (datetime.now() + timedelta(days=60)).strftime("%b %d %H:%M:%S %Y GMT"),
+    "notAfter": (datetime.now(timezone.utc) + timedelta(days=60)).strftime("%b %d %H:%M:%S %Y GMT"),
     "subjectAltName": (("DNS", "example.com"), ("DNS", "*.example.com")),
 }
 
@@ -38,7 +38,7 @@ class TestSSLAnalyzer:
     async def test_expiry_calculation(self):
         cert = {
             "issuer": ((("organizationName", "DigiCert"),),),
-            "notAfter": (datetime.now() + timedelta(days=15)).strftime("%b %d %H:%M:%S %Y GMT"),
+            "notAfter": (datetime.now(timezone.utc) + timedelta(days=15)).strftime("%b %d %H:%M:%S %Y GMT"),
             "subjectAltName": (("DNS", "example.com"),),
         }
         mock_ssl_obj = MagicMock()
@@ -79,7 +79,7 @@ class TestSSLAnalyzer:
     async def test_no_wildcard(self):
         cert = {
             "issuer": ((("organizationName", "Sectigo"),),),
-            "notAfter": (datetime.now() + timedelta(days=90)).strftime("%b %d %H:%M:%S %Y GMT"),
+            "notAfter": (datetime.now(timezone.utc) + timedelta(days=90)).strftime("%b %d %H:%M:%S %Y GMT"),
             "subjectAltName": (("DNS", "example.com"), ("DNS", "www.example.com")),
         }
         mock_ssl_obj = MagicMock()

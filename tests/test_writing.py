@@ -1,7 +1,7 @@
 """Tests for WritingService prompt assembly and email parsing."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from models import ResearchDocument
@@ -25,7 +25,7 @@ def sample_document():
         id=1,
         company_url="https://acme.com",
         company_name="Acme Corp",
-        created_at=datetime.now(),
+        created_at=datetime.now(timezone.utc),
         company_overview="Acme Corp builds enterprise software.",
         projects_initiatives="",
         confirmed_tech_stack="",
@@ -45,7 +45,7 @@ def full_document():
         id=1,
         company_url="https://acme.com",
         company_name="Acme Corp",
-        created_at=datetime.now(),
+        created_at=datetime.now(timezone.utc),
         company_overview="Acme Corp builds enterprise software.",
         projects_initiatives="Launching new AI product line",
         confirmed_tech_stack="React, Node.js, MongoDB",

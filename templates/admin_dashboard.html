@@ -59,7 +59,7 @@
                         <td class="px-4 py-3 text-right text-gray-700">{{ u.doc_count }}</td>
                         <td class="px-4 py-3 text-right text-gray-700">{{ u.list_count }}</td>
                         <td class="px-4 py-3 text-gray-500">
-                            <time datetime="{{ u.created_at.isoformat() if u.created_at else '' }}" data-format="short">{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '—' }}</time>
+                            <time datetime="{{ u.created_at.isoformat() if u.created_at else '' }}" data-format="short">{{ u.created_at.strftime('%b %d, %Y') + ' UTC' if u.created_at else '—' }}</time>
                         </td>
                         <td class="px-4 py-3 text-right">
                             <div class="flex items-center justify-end gap-2">
@@ -137,7 +137,7 @@
                         <td class="px-4 py-3 text-gray-700 max-w-md truncate" title="{{ t.error or '' }}">{{ (t.error or '')[:120] }}</td>
                         <td class="px-4 py-3 text-center text-gray-700">{{ t.attempts }}/{{ t.max_attempts }}</td>
                         <td class="px-4 py-3 text-gray-500">
-                            <time datetime="{{ t.completed_at.isoformat() if t.completed_at else '' }}" data-format="compact">{{ t.completed_at.strftime('%b %d %H:%M') if t.completed_at else '—' }}</time>
+                            <time datetime="{{ t.completed_at.isoformat() if t.completed_at else '' }}" data-format="compact">{{ t.completed_at.strftime('%b %d %H:%M') + ' UTC' if t.completed_at else '—' }}</time>
                         </td>
                         <td class="px-4 py-3 text-right">
                             <button onclick="retryTask({{ t.id }})" class="text-xs px-2 py-1 rounded border text-blue-600 border-blue-300 hover:bg-blue-50">

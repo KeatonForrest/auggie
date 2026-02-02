@@ -273,8 +273,8 @@
         var formats = {
             'short': {month: 'short', day: 'numeric', year: 'numeric'},
             'short-noyr': {month: 'short', day: 'numeric'},
-            'long': {month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'},
-            'compact': {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false}
+            'long': {month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'},
+            'compact': {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short'}
         };
         document.querySelectorAll('time[data-format]').forEach(function(el) {
             var dt = new Date(el.getAttribute('datetime'));

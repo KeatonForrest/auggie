@@ -80,7 +80,7 @@
                                     {{ member.role }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-gray-500">{% if member.joined_at %}<time datetime="{{ member.joined_at.isoformat() }}" data-format="short">{{ member.joined_at.strftime('%b %d, %Y') }}</time>{% endif %}</td>
+                            <td class="px-4 py-3 text-gray-500">{% if member.joined_at %}<time datetime="{{ member.joined_at.isoformat() }}" data-format="short">{{ member.joined_at.strftime('%b %d, %Y') }} UTC</time>{% endif %}</td>
                             {% if is_admin %}
                             <td class="px-4 py-3 text-right">
                                 {% if member.id != user.id %}
@@ -129,7 +129,7 @@
                         <tr>
                             <td class="px-4 py-3 text-gray-900">{{ invite.email }}</td>
                             <td class="px-4 py-3 text-gray-500">{{ invite.role }}</td>
-                            <td class="px-4 py-3 text-gray-500">{% if invite.expires_at %}<time datetime="{{ invite.expires_at.isoformat() }}" data-format="short-noyr">{{ invite.expires_at.strftime('%b %d') }}</time>{% endif %}</td>
+                            <td class="px-4 py-3 text-gray-500">{% if invite.expires_at %}<time datetime="{{ invite.expires_at.isoformat() }}" data-format="short-noyr">{{ invite.expires_at.strftime('%b %d') }} UTC</time>{% endif %}</td>
                             <td class="px-4 py-3">
                                 <button onclick="copyInviteLink('{{ invite.token }}')" class="text-xs text-blue-600 hover:text-blue-800">Copy link</button>
                             </td>

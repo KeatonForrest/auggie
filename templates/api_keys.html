@@ -61,10 +61,10 @@
                 <tr>
                     <td class="px-4 py-3 text-sm text-gray-900">{{ key.name }}</td>
                     <td class="px-4 py-3 text-sm font-mono text-gray-500">{{ key.prefix }}...</td>
-                    <td class="px-4 py-3 text-sm text-gray-500"><time datetime="{{ key.created_at.isoformat() }}" data-format="short">{{ key.created_at.strftime('%b %d, %Y') }}</time></td>
+                    <td class="px-4 py-3 text-sm text-gray-500"><time datetime="{{ key.created_at.isoformat() }}" data-format="short">{{ key.created_at.strftime('%b %d, %Y') }} UTC</time></td>
                     <td class="px-4 py-3 text-sm text-gray-500">
                         {% if key.last_used_at %}
-                            <time datetime="{{ key.last_used_at.isoformat() }}" data-format="short">{{ key.last_used_at.strftime('%b %d, %Y') }}</time>
+                            <time datetime="{{ key.last_used_at.isoformat() }}" data-format="short">{{ key.last_used_at.strftime('%b %d, %Y') }} UTC</time>
                         {% else %}
                             Never
                         {% endif %}
@@ -97,7 +97,7 @@
             <div class="flex gap-4 text-xs text-gray-500">
                 <span>{{ usage_stats.get(key.id, {}).get("requests", 0) }} requests</span>
                 <span>{{ usage_stats.get(key.id, {}).get("credits", 0) }} credits</span>
-                <span><time datetime="{{ key.created_at.isoformat() }}" data-format="short">{{ key.created_at.strftime('%b %d, %Y') }}</time></span>
+                <span><time datetime="{{ key.created_at.isoformat() }}" data-format="short">{{ key.created_at.strftime('%b %d, %Y') }} UTC</time></span>
             </div>
         </div>
         {% endfor %}
@@ -128,7 +128,7 @@
         <div class="border rounded-lg p-4 flex items-center justify-between">
             <div>
                 <p class="text-sm font-medium text-gray-900" title="{{ webhook.url }}">{{ webhook.url[:60] }}{% if webhook.url|length > 60 %}...{% endif %}</p>
-                <p class="text-xs text-gray-500 mt-1">Created <time datetime="{{ webhook.created_at.isoformat() }}" data-format="short">{{ webhook.created_at.strftime('%b %d, %Y') }}</time></p>
+                <p class="text-xs text-gray-500 mt-1">Created <time datetime="{{ webhook.created_at.isoformat() }}" data-format="short">{{ webhook.created_at.strftime('%b %d, %Y') }} UTC</time></p>
             </div>
             <form method="POST" action="/api-keys/webhook/delete" onsubmit="return confirm('Delete this webhook?')">
                 <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Delete</button>

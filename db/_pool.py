@@ -29,6 +29,7 @@ async def init_database():
         statement_cache_size=100,
         timeout=settings.db_pool_acquire_timeout,
         init=_init_connection,
+        server_settings={'timezone': 'UTC'},
     )
 
     async with _pool.acquire() as conn:

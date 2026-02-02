@@ -4,7 +4,7 @@ import logging
 
 import httpx
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class FederalRegisterService:
     ) -> list[dict]:
         """Search for recent rules and proposed rules matching a term."""
         # Look for rules with effective dates in the past 6 months or future
-        six_months_ago = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+        six_months_ago = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y-%m-%d")
 
         try:
             response = await client.get(

@@ -163,7 +163,7 @@
                         {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed
                         {% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-500"><time datetime="{{ lst.created_at.isoformat() }}" data-format="short">{{ lst.created_at.strftime('%b %d, %Y') }}</time></td>
+                    <td class="px-6 py-4 text-sm text-gray-500"><time datetime="{{ lst.created_at.isoformat() }}" data-format="short">{{ lst.created_at.strftime('%b %d, %Y') }} UTC</time></td>
                     <td class="px-6 py-4 text-right flex items-center justify-end gap-2">
                         <a href="/lists/{{ lst.id }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</a>
                         <form action="/lists/{{ lst.id }}/delete" method="post" class="inline" onsubmit="return confirm('Delete this list?')">
@@ -195,7 +195,7 @@
                     </div>
                     <div class="text-xs text-gray-500">
                         {{ lst.analyzed_accounts }}/{{ lst.total_accounts }} analyzed{% if lst.failed_accounts > 0 %}, {{ lst.failed_accounts }} failed{% endif %}
-                        &middot; <time datetime="{{ lst.created_at.isoformat() }}" data-format="short-noyr">{{ lst.created_at.strftime('%b %d') }}</time>
+                        &middot; <time datetime="{{ lst.created_at.isoformat() }}" data-format="short-noyr">{{ lst.created_at.strftime('%b %d') }} UTC</time>
                     </div>
                 </a>
                 <form action="/lists/{{ lst.id }}/delete" method="post" class="ml-3" onsubmit="return confirm('Delete this list?')">
