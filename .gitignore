@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .env
+venv/
+research.db
+services/.edgar_tickers_cache.json
