@@ -549,10 +549,9 @@ async def push_sequences_to_apollo(
 async def validate_integration_api_key(api_key: str) -> bool:
     """Validate an Apollo API key by making a test call."""
     async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
+        resp = await client.get(
             f"{APOLLO_API_BASE}/auth/health",
-            headers={"Content-Type": "application/json"},
-            json={"api_key": api_key},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
         )
         return resp.status_code == 200
 
