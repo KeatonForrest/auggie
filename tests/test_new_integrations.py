@@ -571,6 +571,92 @@ class TestValidateWebhookUrl:
             assert await validate_webhook_url("https://bad-url.example.com") is False
 
 
+class TestFormatTeamsMessage:
+    def test_research_complete_message(self):
+        from services.notifications import format_teams_message
+
+        msg = format_teams_message("research_complete", {
+            "company_name": "Acme Corp",
+            "pain_score": 85,
+            "composite_score": 78,
+            "doc_url": "https://app.example.com/document/1",
+        })
+
+        assert "attachments" in msg
+        card = msg["attachments"][0]["content"]
+        assert card["type"] == "AdaptiveCard"
+        assert "Acme Corp" in card["body"][0]["text"]
+
+    def test_list_complete_message(self):
+        from services.notifications import format_teams_message
+
+        msg = format_teams_message("list_complete", {
+            "list_name": "My List",
+            "total_accounts": 10,
+            "completed_accounts": 8,
+            "failed_accounts": 2,
+        })
+
+        card = msg["attachments"][0]["content"]
+        assert "My List" in card["body"][0]["text"]
+
+    def test_high_pain_alert_message(self):
+        from services.notifications import format_teams_message
+
+        msg = format_teams_message("high_pain_alert", {
+            "company_name": "BigCo",
+            "pain_score": 92,
+        })
+
+        card = msg["attachments"][0]["content"]
+        assert "BigCo" in card["body"][0]["text"]
+        assert "92" in card["body"][0]["text"]
+
+
+class TestSendTeamsNotification:
+    @pytest.mark.asyncio
+    async def test_sends_successfully(self):
+        from services.notifications import send_teams_notification
+
+        mock_resp = MagicMock(status_code=200)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await send_teams_notification(
+                "https://outlook.office.com/webhook/test",
+                "research_complete",
+                {"company_name": "Test"},
+            )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_returns_false_on_error(self):
+        from services.notifications import send_teams_notification
+
+        mock_resp = MagicMock(status_code=400, text="invalid_payload")
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await send_teams_notification(
+                "https://outlook.office.com/webhook/test",
+                "research_complete",
+                {"company_name": "Test"},
+            )
+
+        assert result is False
+
+
 # =============================================================================
 # Route Tests: Salesforce
 # =============================================================================
@@ -877,6 +963,73 @@ class TestSlackTestRoute:
 
 
 # =============================================================================
+# Route Tests: Microsoft Teams
+# =============================================================================
+
+class TestTeamsConnectRoute:
+    @pytest.mark.asyncio
+    async def test_valid_webhook_connects(self, authed_client):
+        with patch("routes.integrations.validate_teams_webhook_url", new_callable=AsyncMock, return_value=True), \
+             patch("routes.integrations.upsert_integration", new_callable=AsyncMock) as mock_upsert:
+
+            response = await authed_client.post(
+                "/integrations/teams/connect",
+                json={"webhook_url": "https://outlook.office.com/webhook/test"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        mock_upsert.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invalid_webhook_rejected(self, authed_client):
+        with patch("routes.integrations.validate_teams_webhook_url", new_callable=AsyncMock, return_value=False):
+            response = await authed_client.post(
+                "/integrations/teams/connect",
+                json={"webhook_url": "https://bad-url.com"},
+            )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_empty_url_rejected(self, authed_client):
+        response = await authed_client.post(
+            "/integrations/teams/connect",
+            json={"webhook_url": ""},
+        )
+        assert response.status_code == 400
+
+
+class TestTeamsDisconnectRoute:
+    @pytest.mark.asyncio
+    async def test_disconnect(self, authed_client):
+        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
+            response = await authed_client.post("/integrations/teams/disconnect", follow_redirects=False)
+
+        assert response.status_code == 303
+        mock_delete.assert_called_once_with(1, "teams")
+
+
+class TestTeamsTestRoute:
+    @pytest.mark.asyncio
+    async def test_sends_test_message(self, authed_client):
+        with patch("routes.integrations.get_integration", new_callable=AsyncMock, return_value={"access_token": "https://outlook.office.com/webhook/test"}), \
+             patch("routes.integrations.send_teams_notification", new_callable=AsyncMock, return_value=True):
+
+            response = await authed_client.post("/integrations/teams/test")
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_fails_when_not_connected(self, authed_client):
+        with patch("routes.integrations.get_integration", new_callable=AsyncMock, return_value=None):
+            response = await authed_client.post("/integrations/teams/test")
+
+        assert response.status_code == 400
+
+
+# =============================================================================
 # Integrations Page Tests (extended)
 # =============================================================================
 
@@ -893,6 +1046,7 @@ class TestIntegrationsPageNewProviders:
         assert "Apollo" in response.text
         assert "People Data Labs" in response.text
         assert "Slack" in response.text
+        assert "Microsoft Teams" in response.text
 
     @pytest.mark.asyncio
     async def test_page_shows_connected_for_new_providers(self, authed_client):

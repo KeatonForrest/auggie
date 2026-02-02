@@ -184,23 +184,28 @@ async def _action_write_sequences(rule, user_id, list_id, accounts):
 
 
 async def _action_notify_slack(rule, user_id, list_id, accounts, config):
-    from services.notifications import send_slack_notification
+    from services.notifications import send_slack_notification, send_teams_notification
     from database import get_integration
     from config import get_settings
 
     slack = await get_integration(user_id, "slack")
-    if not slack:
-        raise RuntimeError("Slack not connected")
+    teams = await get_integration(user_id, "teams")
+    if not slack and not teams:
+        raise RuntimeError("No notification channel connected (Slack or Teams)")
 
     settings = get_settings()
-    await send_slack_notification(slack["access_token"], "list_complete", {
+    notify_data = {
         "list_name": f"Automation: {rule['name']}",
         "total_accounts": len(accounts),
         "completed_accounts": len(accounts),
         "failed_accounts": 0,
         "list_url": f"{settings.app_url}/lists/{list_id}",
-    })
-    logger.info("Automation rule %s: sent Slack notification", rule["id"])
+    }
+    if slack:
+        await send_slack_notification(slack["access_token"], "list_complete", notify_data)
+    if teams:
+        await send_teams_notification(teams["access_token"], "list_complete", notify_data)
+    logger.info("Automation rule %s: sent notification", rule["id"])
 
 
 async def evaluate_rules(user_id: int, trigger_event: str, context: dict):

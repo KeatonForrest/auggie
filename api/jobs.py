@@ -149,12 +149,13 @@ async def run_research_job(
             await record_api_usage(api_key_id, "/v1/research", 1)
         await update_job_status(job_id, "completed", document_id=doc_id)
 
-        # Slack notification
+        # Slack / Teams notifications
         try:
-            from services.notifications import send_slack_notification
+            from services.notifications import send_slack_notification, send_teams_notification
             from database import get_integration as _get_integ
             slack = await _get_integ(user_id, "slack")
-            if slack:
+            teams = await _get_integ(user_id, "teams")
+            if slack or teams:
                 doc = await get_document(doc_id, user_id)
                 settings = get_settings()
                 notify_data = {
@@ -164,11 +165,16 @@ async def run_research_job(
                     "composite_score": doc.opportunity_score if doc else None,
                     "doc_url": f"{settings.app_url}/document/{doc_id}",
                 }
-                await send_slack_notification(slack["access_token"], "research_complete", notify_data)
-                if doc and doc.pain_score is not None and doc.pain_score >= 80:
-                    await send_slack_notification(slack["access_token"], "high_pain_alert", notify_data)
+                if slack:
+                    await send_slack_notification(slack["access_token"], "research_complete", notify_data)
+                    if doc and doc.pain_score is not None and doc.pain_score >= 80:
+                        await send_slack_notification(slack["access_token"], "high_pain_alert", notify_data)
+                if teams:
+                    await send_teams_notification(teams["access_token"], "research_complete", notify_data)
+                    if doc and doc.pain_score is not None and doc.pain_score >= 80:
+                        await send_teams_notification(teams["access_token"], "high_pain_alert", notify_data)
         except Exception:
-            logger.exception("Slack notification failed for job %s", job_id)
+            logger.exception("Notification failed for job %s", job_id)
 
         # Fire webhook
         await _deliver_webhook(user_id, job_id, "completed", doc_id, None)
@@ -346,22 +352,27 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
     except Exception:
         logger.exception("Salesforce writeback failed for list %d", list_id)
 
-    # Slack notification
+    # Slack / Teams notification
     try:
-        from services.notifications import send_slack_notification
+        from services.notifications import send_slack_notification, send_teams_notification
         from database import get_integration as _get_integ
         slack = await _get_integ(user_id, "slack")
-        if slack:
+        teams = await _get_integ(user_id, "teams")
+        if slack or teams:
             settings = get_settings()
-            await send_slack_notification(slack["access_token"], "list_complete", {
+            list_notify_data = {
                 "list_name": final.get("name", f"List {list_id}"),
                 "total_accounts": final.get("total_accounts", 0),
                 "completed_accounts": final.get("completed_accounts", 0),
                 "failed_accounts": failed_count,
                 "list_url": f"{settings.app_url}/lists/{list_id}",
-            })
+            }
+            if slack:
+                await send_slack_notification(slack["access_token"], "list_complete", list_notify_data)
+            if teams:
+                await send_teams_notification(teams["access_token"], "list_complete", list_notify_data)
     except Exception:
-        logger.exception("Slack notification failed for list %d", list_id)
+        logger.exception("Notification failed for list %d", list_id)
 
     # Automation rules
     try:

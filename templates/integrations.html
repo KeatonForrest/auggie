@@ -147,6 +147,60 @@
         </div>
         {% endif %}
 
+        {% if integrations.get('lusha') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Lusha</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from Lusha</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openLushaImport()" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700">
+                    Search &amp; Import
+                </button>
+                <form method="post" action="/integrations/lusha/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if integrations.get('cognism') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Cognism</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from Cognism</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openCognismImport()" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                    Search &amp; Import
+                </button>
+                <form method="post" action="/integrations/cognism/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Unconnected CRM cards -->
         {% if not integrations.get('hubspot') %}
         <div class="bg-white rounded-lg shadow p-6">
@@ -299,6 +353,58 @@
                     </button>
                 </div>
                 <p id="pdl-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('lusha') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Lusha</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from Lusha</p>
+                    </div>
+                </div>
+            </div>
+            <div id="lusha-form">
+                <div class="flex gap-3">
+                    <input type="text" id="lusha-key" placeholder="Enter your Lusha API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none">
+                    <button onclick="connectLusha()" id="lusha-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="lusha-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('cognism') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Cognism</h3>
+                        <p class="text-sm text-gray-500">Search and import companies from Cognism</p>
+                    </div>
+                </div>
+            </div>
+            <div id="cognism-form">
+                <div class="flex gap-3">
+                    <input type="text" id="cognism-key" placeholder="Enter your Cognism API key"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                    <button onclick="connectCognism()" id="cognism-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="cognism-error" class="mt-2 text-sm text-red-600 hidden"></p>
             </div>
         </div>
         {% endif %}
@@ -585,6 +691,59 @@
             </div>
         </div>
         {% endif %}
+
+        {% if integrations.get('teams') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-violet-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19.404 4.5a2.25 2.25 0 11-3.182 3.182 2.25 2.25 0 013.182-3.182zM14.5 7h-5a3.5 3.5 0 00-3.5 3.5V16a3 3 0 003 3h1v2.25a.75.75 0 001.5 0V19h2v2.25a.75.75 0 001.5 0V19h1a3 3 0 003-3v-5.5A3.5 3.5 0 0014.5 7zm-7 1.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM20 9.5a1.5 1.5 0 011.5 1.5v3.5a2 2 0 01-2 2H19v-5.5c0-.55-.1-1.07-.28-1.55.4.02.85.05 1.28.05z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Microsoft Teams</h3>
+                        <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="testTeams()" id="teams-test-btn" class="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">
+                    Send Test Message
+                </button>
+                <form method="post" action="/integrations/teams/disconnect" class="inline">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                        Disconnect
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not integrations.get('teams') %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-violet-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19.404 4.5a2.25 2.25 0 11-3.182 3.182 2.25 2.25 0 013.182-3.182zM14.5 7h-5a3.5 3.5 0 00-3.5 3.5V16a3 3 0 003 3h1v2.25a.75.75 0 001.5 0V19h2v2.25a.75.75 0 001.5 0V19h1a3 3 0 003-3v-5.5A3.5 3.5 0 0014.5 7zm-7 1.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM20 9.5a1.5 1.5 0 011.5 1.5v3.5a2 2 0 01-2 2H19v-5.5c0-.55-.1-1.07-.28-1.55.4.02.85.05 1.28.05z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Microsoft Teams</h3>
+                        <p class="text-sm text-gray-500">Get notified when research or list analysis completes</p>
+                    </div>
+                </div>
+            </div>
+            <div id="teams-form">
+                <div class="flex gap-3">
+                    <input type="text" id="teams-url" placeholder="https://outlook.office.com/webhook/..."
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-violet-500 focus:border-violet-500 outline-none">
+                    <button onclick="connectTeams()" id="teams-btn" class="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">
+                        Connect
+                    </button>
+                </div>
+                <p id="teams-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Other -->
@@ -788,6 +947,62 @@
             <button onclick="importPDL()" id="pdl-import-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50">
                 Search &amp; Import
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Lusha Import Modal -->
+<div id="lusha-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from Lusha</h2>
+            <button onclick="closeLushaImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div class="mb-4">
+                <input type="text" id="lusha-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div id="lusha-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
+            <div id="lusha-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
+            <div id="lusha-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search Lusha</div>
+            <div id="lusha-search-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-between items-center">
+            <span id="lusha-selected-count" class="text-sm text-gray-500">0 selected</span>
+            <div class="flex gap-3">
+                <input type="text" id="lusha-list-name" placeholder="List name" value="Lusha Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
+                <button onclick="importLushaSelected()" id="lusha-import-btn" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50" disabled>
+                    Import & Analyze
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cognism Import Modal -->
+<div id="cognism-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Import from Cognism</h2>
+            <button onclick="closeCognismImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1">
+            <div class="mb-4">
+                <input type="text" id="cognism-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div id="cognism-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
+            <div id="cognism-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
+            <div id="cognism-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search Cognism</div>
+            <div id="cognism-search-error" class="hidden text-center py-8 text-red-600"></div>
+        </div>
+        <div class="p-6 border-t flex justify-between items-center">
+            <span id="cognism-selected-count" class="text-sm text-gray-500">0 selected</span>
+            <div class="flex gap-3">
+                <input type="text" id="cognism-list-name" placeholder="List name" value="Cognism Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
+                <button onclick="importCognismSelected()" id="cognism-import-btn" class="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50" disabled>
+                    Import & Analyze
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1261,6 +1476,41 @@ function testSlack() {
     var btn = document.getElementById('slack-test-btn');
     btn.disabled = true; btn.textContent = 'Sending...';
     fetch('/integrations/slack/test', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.textContent = data.success ? 'Sent!' : 'Failed';
+            setTimeout(function() { btn.disabled = false; btn.textContent = 'Send Test Message'; }, 2000);
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Send Test Message'; });
+}
+
+// === Teams ===
+function connectTeams() {
+    var btn = document.getElementById('teams-btn');
+    var url = document.getElementById('teams-url').value.trim();
+    var errEl = document.getElementById('teams-error');
+    errEl.classList.add('hidden');
+
+    if (!url) { errEl.textContent = 'Please enter a webhook URL'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/teams/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: url })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid webhook URL'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+function testTeams() {
+    var btn = document.getElementById('teams-test-btn');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    fetch('/integrations/teams/test', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             btn.textContent = data.success ? 'Sent!' : 'Failed';

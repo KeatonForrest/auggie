@@ -17,7 +17,8 @@ from routes._helpers import (
 )
 from routes.schemas import (
     ApiKeyConnectRequest, HubSpotImportRequest, SalesforceImportRequest,
-    ZoomInfoImportRequest, ApolloImportRequest, PDLImportRequest, SlackConnectRequest,
+    ZoomInfoImportRequest, ApolloImportRequest, PDLImportRequest,
+    LushaImportRequest, CognismImportRequest, SlackConnectRequest,
 )
 from services.hubspot import get_authorize_url as hubspot_authorize_url, exchange_code as hubspot_exchange_code
 from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
@@ -29,7 +30,9 @@ from services.instantly import validate_api_key as instantly_validate
 from services.smartlead import validate_api_key as smartlead_validate
 from services.apollo import validate_integration_api_key as apollo_validate
 from services.pdl import validate_api_key as pdl_validate
-from services.notifications import validate_webhook_url, send_slack_notification
+from services.lusha import validate_api_key as lusha_validate
+from services.cognism import validate_api_key as cognism_validate
+from services.notifications import validate_webhook_url, send_slack_notification, validate_teams_webhook_url, send_teams_notification
 
 settings = get_settings()
 router = APIRouter()
@@ -528,6 +531,104 @@ async def pdl_import(request: Request, user: dict = Depends(require_onboarding))
 
 
 # ==========================================================================
+# Lusha
+# ==========================================================================
+
+@router.post("/integrations/lusha/connect")
+async def lusha_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Lusha API key after validation."""
+    body = ApiKeyConnectRequest(**(await request.json()))
+    return await _apikey_connect(user, "lusha", body.api_key, lusha_validate, "Lusha API key")
+
+
+@router.post("/integrations/lusha/disconnect")
+async def lusha_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Lusha integration."""
+    await delete_integration(user["id"], "lusha")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@router.get("/integrations/lusha/companies")
+async def lusha_companies(request: Request, user: dict = Depends(require_onboarding)):
+    """Search companies via Lusha API."""
+    from services.lusha import search_companies
+    q = request.query_params.get("q", "").strip()
+    if not q:
+        return JSONResponse([])
+    try:
+        results = await search_companies(user["id"], q)
+    except Exception as e:
+        logger.error("Lusha API error: %s", e)
+        raise HTTPException(status_code=502, detail="Lusha API error")
+    return JSONResponse(results)
+
+
+@router.post("/integrations/lusha/import")
+async def lusha_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import selected Lusha companies into an Auggie list."""
+    body = LushaImportRequest(**(await request.json()))
+
+    def extractor(c):
+        website = (c.get("website") or "").strip()
+        lusha_id = str(c.get("id", ""))
+        return website, lusha_id
+
+    return await _run_crm_import(
+        user, body.companies, body.name, extractor,
+        source_metadata_fn=lambda m: {"provider": "lusha", "lusha_company_map": m},
+    )
+
+
+# ==========================================================================
+# Cognism
+# ==========================================================================
+
+@router.post("/integrations/cognism/connect")
+async def cognism_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Cognism API key after validation."""
+    body = ApiKeyConnectRequest(**(await request.json()))
+    return await _apikey_connect(user, "cognism", body.api_key, cognism_validate, "Cognism API key")
+
+
+@router.post("/integrations/cognism/disconnect")
+async def cognism_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Cognism integration."""
+    await delete_integration(user["id"], "cognism")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@router.get("/integrations/cognism/companies")
+async def cognism_companies(request: Request, user: dict = Depends(require_onboarding)):
+    """Search companies via Cognism API."""
+    from services.cognism import search_companies
+    q = request.query_params.get("q", "").strip()
+    if not q:
+        return JSONResponse([])
+    try:
+        results = await search_companies(user["id"], q)
+    except Exception as e:
+        logger.error("Cognism API error: %s", e)
+        raise HTTPException(status_code=502, detail="Cognism API error")
+    return JSONResponse(results)
+
+
+@router.post("/integrations/cognism/import")
+async def cognism_import(request: Request, user: dict = Depends(require_onboarding)):
+    """Import selected Cognism companies into an Auggie list."""
+    body = CognismImportRequest(**(await request.json()))
+
+    def extractor(c):
+        website = (c.get("website") or "").strip()
+        cognism_id = str(c.get("id", ""))
+        return website, cognism_id
+
+    return await _run_crm_import(
+        user, body.companies, body.name, extractor,
+        source_metadata_fn=lambda m: {"provider": "cognism", "cognism_company_map": m},
+    )
+
+
+# ==========================================================================
 # Slack
 # ==========================================================================
 
@@ -562,6 +663,57 @@ async def slack_test(request: Request, user: dict = Depends(require_auth)):
         raise HTTPException(status_code=400, detail="Slack not connected")
 
     ok = await send_slack_notification(
+        integration["access_token"],
+        "research_complete",
+        {
+            "company_name": "Test Company",
+            "pain_score": 85,
+            "composite_score": 78,
+            "doc_url": f"{settings.app_url}/",
+        },
+    )
+
+    if not ok:
+        raise HTTPException(status_code=502, detail="Failed to send test message")
+
+    return JSONResponse({"success": True})
+
+
+# ==========================================================================
+# Microsoft Teams
+# ==========================================================================
+
+@router.post("/integrations/teams/connect")
+async def teams_connect(request: Request, user: dict = Depends(require_auth)):
+    """Save Teams webhook URL after validation."""
+    body = SlackConnectRequest(**(await request.json()))
+    webhook_url = body.webhook_url.strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Webhook URL is required")
+
+    valid = await validate_teams_webhook_url(webhook_url)
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid Teams webhook URL — test message failed")
+
+    await upsert_integration(user_id=user["id"], provider="teams", access_token=webhook_url)
+    return JSONResponse({"success": True})
+
+
+@router.post("/integrations/teams/disconnect")
+async def teams_disconnect(request: Request, user: dict = Depends(require_auth)):
+    """Disconnect Teams integration."""
+    await delete_integration(user["id"], "teams")
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@router.post("/integrations/teams/test")
+async def teams_test(request: Request, user: dict = Depends(require_auth)):
+    """Send a test Teams notification."""
+    integration = await get_integration(user["id"], "teams")
+    if not integration:
+        raise HTTPException(status_code=400, detail="Teams not connected")
+
+    ok = await send_teams_notification(
         integration["access_token"],
         "research_complete",
         {
