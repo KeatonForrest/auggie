@@ -459,7 +459,11 @@ async def apollo_import(request: Request, user: dict = Depends(require_onboardin
 
     body = ApolloImportRequest(**(await request.json()))
     data = await fetch_list_companies(user["id"], body.list_id)
-    organizations = data.get("organizations", [])
+    logger.info("Apollo import response keys: %s", list(data.keys()) if isinstance(data, dict) else type(data))
+    organizations = data.get("organizations", []) or data.get("accounts", [])
+    logger.info("Apollo import found %d organizations", len(organizations))
+    if organizations:
+        logger.info("Apollo first org keys: %s", list(organizations[0].keys()))
 
     def extractor(org):
         domain = (org.get("primary_domain") or org.get("website_url") or "").strip()
