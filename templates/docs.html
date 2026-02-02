@@ -809,6 +809,41 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Paste the key into the People Data Labs field on the <a href="/integrations" class="text-blue-600 hover:underline">Integrations page</a></li>
                         </ol>
                     </div>
+                    <!-- Automation Platforms -->
+                    <h3 class="text-lg font-semibold text-gray-800 mt-8 mb-3">Automation Platforms</h3>
+                    <p class="text-sm text-gray-600 mb-4">Use Auggie's REST API in any automation tool that supports HTTP requests. The pattern is the same for all platforms:</p>
+
+                    <div class="border rounded-lg p-5 mb-4">
+                        <h4 class="font-semibold text-gray-900 mb-2">General Setup</h4>
+                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
+                            <li>Create an API key at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a></li>
+                            <li>Add an HTTP request step in your workflow</li>
+                            <li>Configure a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST</code> to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code> with header <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization: Bearer aug_your_key</code></li>
+                            <li>Send the body <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{"company_url": "https://example.com"}</code></li>
+                            <li>Poll <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/research/{job_id}</code> until <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">status</code> is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">completed</code>, or use a <a href="#webhooks" class="text-blue-600 hover:underline">webhook</a> to get notified</li>
+                            <li>Use the returned <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">scores</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">sections.talking_points</code> to route leads or draft messaging</li>
+                        </ol>
+
+                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/research \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"company_url": "https://example.com"}'</code></pre>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="border rounded-lg p-5">
+                            <h4 class="font-semibold text-gray-900 mb-2">Make</h4>
+                            <p class="text-sm text-gray-600">Use the <strong>HTTP &gt; Make a request</strong> module. Set the method to POST, paste the URL and headers above, and map the JSON body. Add a second HTTP module to poll for results.</p>
+                        </div>
+                        <div class="border rounded-lg p-5">
+                            <h4 class="font-semibold text-gray-900 mb-2">n8n</h4>
+                            <p class="text-sm text-gray-600">Use the <strong>HTTP Request</strong> node. Set authentication to <strong>Header Auth</strong> with name <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization</code> and value <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Bearer aug_your_key</code>. Use a <strong>Wait</strong> node + loop to poll for completion.</p>
+                        </div>
+                        <div class="border rounded-lg p-5">
+                            <h4 class="font-semibold text-gray-900 mb-2">Zapier</h4>
+                            <p class="text-sm text-gray-600">Use <strong>Webhooks by Zapier &gt; Custom Request</strong> as your action. Set the method to POST, add the Authorization header, and pass the JSON body. Use a second step to poll or set up an Auggie webhook for the callback.</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
