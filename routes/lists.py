@@ -45,6 +45,8 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
     apollo_integration = await get_integration(user["id"], "apollo")
     zoominfo_integration = await get_integration(user["id"], "zoominfo")
     pdl_integration = await get_integration(user["id"], "pdl")
+    lusha_integration = await get_integration(user["id"], "lusha")
+    cognism_integration = await get_integration(user["id"], "cognism")
     return templates.TemplateResponse(
         "lists.html",
         {
@@ -57,6 +59,8 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
             "apollo_connected": apollo_integration is not None,
             "zoominfo_connected": zoominfo_integration is not None,
             "pdl_connected": pdl_integration is not None,
+            "lusha_connected": lusha_integration is not None,
+            "cognism_connected": cognism_integration is not None,
         }
     )
 

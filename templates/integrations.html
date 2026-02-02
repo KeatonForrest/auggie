@@ -1636,5 +1636,257 @@ function connectInstantly() {
         btn.textContent = 'Connect';
     });
 }
+
+// === Lusha ===
+var lushaResults = [];
+var lushaSelected = new Set();
+var lushaSearchTimer = null;
+
+function openLushaImport() {
+    document.getElementById('lusha-modal').classList.remove('hidden');
+    document.getElementById('lusha-empty').classList.remove('hidden');
+    document.getElementById('lusha-results').innerHTML = '';
+    lushaResults = [];
+    lushaSelected = new Set();
+    updateLushaCount();
+}
+
+function closeLushaImport() {
+    document.getElementById('lusha-modal').classList.add('hidden');
+}
+
+function searchLusha(query) {
+    if (!query || query.length < 2) {
+        document.getElementById('lusha-results').innerHTML = '';
+        document.getElementById('lusha-empty').classList.remove('hidden');
+        document.getElementById('lusha-loading').classList.add('hidden');
+        return;
+    }
+    document.getElementById('lusha-empty').classList.add('hidden');
+    document.getElementById('lusha-search-error').classList.add('hidden');
+    document.getElementById('lusha-loading').classList.remove('hidden');
+
+    fetch('/integrations/lusha/companies?q=' + encodeURIComponent(query))
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(data) {
+            document.getElementById('lusha-loading').classList.add('hidden');
+            lushaResults = data || [];
+            renderLushaResults();
+        })
+        .catch(function() {
+            document.getElementById('lusha-loading').classList.add('hidden');
+            document.getElementById('lusha-search-error').classList.remove('hidden');
+            document.getElementById('lusha-search-error').textContent = 'Failed to search Lusha.';
+        });
+}
+
+function renderLushaResults() {
+    var container = document.getElementById('lusha-results');
+    container.innerHTML = '';
+    if (lushaResults.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
+        return;
+    }
+    lushaResults.forEach(function(c) {
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (lushaSelected.has(c.id) ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50');
+        var details = [c.website || '', c.country].filter(Boolean).join(', ');
+        var meta = [];
+        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
+        if (c.industry) meta.push(c.industry);
+        div.innerHTML = '<input type="checkbox" ' + (lushaSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-purple-600">'
+            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
+            + '<div class="text-xs text-gray-500">' + details + '</div>'
+            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
+            + '</div>';
+        div.querySelector('input').addEventListener('change', function(e) {
+            if (e.target.checked) lushaSelected.add(c.id);
+            else lushaSelected.delete(c.id);
+            updateLushaCount();
+            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (lushaSelected.has(c.id) ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50');
+        });
+        container.appendChild(div);
+    });
+}
+
+function updateLushaCount() {
+    document.getElementById('lusha-selected-count').textContent = lushaSelected.size + ' selected';
+    document.getElementById('lusha-import-btn').disabled = lushaSelected.size === 0;
+}
+
+document.getElementById('lusha-search') && document.getElementById('lusha-search').addEventListener('input', function() {
+    clearTimeout(lushaSearchTimer);
+    var q = this.value.trim();
+    lushaSearchTimer = setTimeout(function() { searchLusha(q); }, 400);
+});
+
+function importLushaSelected() {
+    var btn = document.getElementById('lusha-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+    var companies = Array.from(lushaSelected).map(function(id) {
+        return lushaResults.find(function(c) { return c.id === id; });
+    });
+
+    fetch('/integrations/lusha/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companies: companies, name: document.getElementById('lusha-list-name').value || 'Lusha Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { window.location.href = '/lists/' + data.list_id; }
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast(data.detail || 'Import failed', 'error'); }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+function connectLusha() {
+    var btn = document.getElementById('lusha-btn');
+    var key = document.getElementById('lusha-key').value.trim();
+    var errEl = document.getElementById('lusha-error');
+    errEl.classList.add('hidden');
+
+    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/lusha/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
+
+// === Cognism ===
+var cognismResults = [];
+var cognismSelected = new Set();
+var cognismSearchTimer = null;
+
+function openCognismImport() {
+    document.getElementById('cognism-modal').classList.remove('hidden');
+    document.getElementById('cognism-empty').classList.remove('hidden');
+    document.getElementById('cognism-results').innerHTML = '';
+    cognismResults = [];
+    cognismSelected = new Set();
+    updateCognismCount();
+}
+
+function closeCognismImport() {
+    document.getElementById('cognism-modal').classList.add('hidden');
+}
+
+function searchCognism(query) {
+    if (!query || query.length < 2) {
+        document.getElementById('cognism-results').innerHTML = '';
+        document.getElementById('cognism-empty').classList.remove('hidden');
+        document.getElementById('cognism-loading').classList.add('hidden');
+        return;
+    }
+    document.getElementById('cognism-empty').classList.add('hidden');
+    document.getElementById('cognism-search-error').classList.add('hidden');
+    document.getElementById('cognism-loading').classList.remove('hidden');
+
+    fetch('/integrations/cognism/companies?q=' + encodeURIComponent(query))
+        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(function(data) {
+            document.getElementById('cognism-loading').classList.add('hidden');
+            cognismResults = data || [];
+            renderCognismResults();
+        })
+        .catch(function() {
+            document.getElementById('cognism-loading').classList.add('hidden');
+            document.getElementById('cognism-search-error').classList.remove('hidden');
+            document.getElementById('cognism-search-error').textContent = 'Failed to search Cognism.';
+        });
+}
+
+function renderCognismResults() {
+    var container = document.getElementById('cognism-results');
+    container.innerHTML = '';
+    if (cognismResults.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
+        return;
+    }
+    cognismResults.forEach(function(c) {
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (cognismSelected.has(c.id) ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:bg-gray-50');
+        var details = [c.website || '', c.country].filter(Boolean).join(', ');
+        var meta = [];
+        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
+        if (c.industry) meta.push(c.industry);
+        div.innerHTML = '<input type="checkbox" ' + (cognismSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-cyan-600">'
+            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
+            + '<div class="text-xs text-gray-500">' + details + '</div>'
+            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
+            + '</div>';
+        div.querySelector('input').addEventListener('change', function(e) {
+            if (e.target.checked) cognismSelected.add(c.id);
+            else cognismSelected.delete(c.id);
+            updateCognismCount();
+            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (cognismSelected.has(c.id) ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:bg-gray-50');
+        });
+        container.appendChild(div);
+    });
+}
+
+function updateCognismCount() {
+    document.getElementById('cognism-selected-count').textContent = cognismSelected.size + ' selected';
+    document.getElementById('cognism-import-btn').disabled = cognismSelected.size === 0;
+}
+
+document.getElementById('cognism-search') && document.getElementById('cognism-search').addEventListener('input', function() {
+    clearTimeout(cognismSearchTimer);
+    var q = this.value.trim();
+    cognismSearchTimer = setTimeout(function() { searchCognism(q); }, 400);
+});
+
+function importCognismSelected() {
+    var btn = document.getElementById('cognism-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+    var companies = Array.from(cognismSelected).map(function(id) {
+        return cognismResults.find(function(c) { return c.id === id; });
+    });
+
+    fetch('/integrations/cognism/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companies: companies, name: document.getElementById('cognism-list-name').value || 'Cognism Import' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { window.location.href = '/lists/' + data.list_id; }
+        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; if (typeof showToast === 'function') showToast(data.detail || 'Import failed', 'error'); }
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
+}
+
+function connectCognism() {
+    var btn = document.getElementById('cognism-btn');
+    var key = document.getElementById('cognism-key').value.trim();
+    var errEl = document.getElementById('cognism-error');
+    errEl.classList.add('hidden');
+
+    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Validating...';
+
+    fetch('/integrations/cognism/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+        if (res.ok && res.data.success) { window.location.reload(); }
+        else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
+    })
+    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
+}
 </script>
 {% endblock %}

@@ -33,6 +33,16 @@ class PDLImportRequest(BaseModel):
     size: int = 50
 
 
+class LushaImportRequest(BaseModel):
+    companies: list[dict]
+    name: str = "Lusha Import"
+
+
+class CognismImportRequest(BaseModel):
+    companies: list[dict]
+    name: str = "Cognism Import"
+
+
 class GoogleSheetsImportRequest(BaseModel):
     url: str
     list_name: str = "Google Sheets Import"
