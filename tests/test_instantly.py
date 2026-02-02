@@ -26,8 +26,9 @@ class TestValidateApiKey:
 
         assert result is True
         mock_client.get.assert_called_once_with(
-            "https://api.instantly.ai/api/v1/campaign/list",
-            params={"api_key": "test_api_key"},
+            "https://api.instantly.ai/api/v2/campaigns",
+            headers={"Authorization": "Bearer test_api_key"},
+            params={"limit": 1},
         )
 
     @pytest.mark.asyncio
@@ -121,8 +122,8 @@ class TestListCampaigns:
 
         assert result == campaigns_data
         mock_client.get.assert_called_once_with(
-            "https://api.instantly.ai/api/v1/campaign/list",
-            params={"api_key": "test_api_key"},
+            "https://api.instantly.ai/api/v2/campaigns",
+            headers={"Authorization": "Bearer test_api_key"},
         )
         mock_response.raise_for_status.assert_called_once()
 
@@ -210,9 +211,9 @@ class TestAddLeadsToCampaign:
 
         assert result == api_response
         mock_client.post.assert_called_once_with(
-            "https://api.instantly.ai/api/v1/lead/add",
+            "https://api.instantly.ai/api/v2/leads",
+            headers={"Authorization": "Bearer test_api_key"},
             json={
-                "api_key": "test_api_key",
                 "campaign_id": "campaign_123",
                 "skip_if_in_workspace": True,
                 "leads": leads,
