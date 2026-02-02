@@ -120,7 +120,7 @@
             <div class="w-8 h-0.5 bg-gray-200 mt-[-1rem]"></div>
             <!-- Step 4: Execute (clickable when scored > 0, Instantly connected, and list done) -->
             <button
-                onclick="{% if instantly_connected %}openInstantlyPush(){% elif smartlead_connected %}openSmartleadPush(){% elif outreach_connected %}openOutreachPush(){% elif salesloft_connected %}openSalesloftPush(){% elif gong_engage_connected %}openGongEngagePush(){% else %}showToast('Connect a sending tool in Integrations first', 'warning'){% endif %}"
+                onclick="openSequencerChoice(false)"
                 {% if not list_done or scored_count == 0 %}disabled{% endif %}
                 class="flex-1 rounded-lg py-2 px-1 transition
                     {% if list_done and scored_count > 0 %}hover:bg-gray-50 cursor-pointer{% else %}opacity-50 cursor-not-allowed{% endif %}">
@@ -287,25 +287,60 @@
         {% endif %}
         <button onclick="enrichSelected()" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Enrich Selected</button>
         <button onclick="writeSequencesSelected()" class="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">Write Sequences</button>
-        {% if instantly_connected %}
-        <button onclick="openInstantlyPush(true)" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700">Send to Instantly</button>
-        {% endif %}
-        {% if smartlead_connected %}
-        <button onclick="openSmartleadPush(true)" class="px-3 py-1.5 bg-sky-600 text-white text-sm font-medium rounded hover:bg-sky-700">Send to Smartlead</button>
-        {% endif %}
-        {% if outreach_connected %}
-        <button onclick="openOutreachPush(true)" class="px-3 py-1.5 bg-violet-600 text-white text-sm font-medium rounded hover:bg-violet-700">Send to Outreach</button>
-        {% endif %}
-        {% if salesloft_connected %}
-        <button onclick="openSalesloftPush(true)" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Send to SalesLoft</button>
+        {% if any_integration %}
+        <div class="relative inline-block">
+            <button onclick="openSequencerChoice(true)" class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                Send to...
+            </button>
+        </div>
         {% endif %}
         {% if apollo_connected %}
         <button onclick="document.getElementById('apollo-export-modal').classList.remove('hidden')" class="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Export for Apollo</button>
         {% endif %}
-        {% if gong_engage_connected %}
-        <button onclick="openGongEngagePush(true)" class="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">Send to Gong Engage</button>
-        {% endif %}
         <button id="retry-selected-btn" onclick="retrySelected()" class="hidden px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Retry Selected</button>
+    </div>
+</div>
+
+<!-- Sequencer Choice Modal -->
+{% set sequencer_count = (1 if instantly_connected else 0) + (1 if smartlead_connected else 0) + (1 if outreach_connected else 0) + (1 if salesloft_connected else 0) + (1 if gong_engage_connected else 0) %}
+<div id="sequencer-choice-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Send to...</h2>
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div class="p-4 space-y-2">
+            {% if instantly_connected %}
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden'); openInstantlyPush(_seqUseSelected)" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3 border border-gray-200">
+                <span class="text-xl">&#9993;</span>
+                <div><p class="font-medium text-sm">Instantly</p><p class="text-xs text-gray-500">Push to email campaigns</p></div>
+            </button>
+            {% endif %}
+            {% if smartlead_connected %}
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden'); openSmartleadPush(_seqUseSelected)" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3 border border-gray-200">
+                <span class="text-xl">&#9889;</span>
+                <div><p class="font-medium text-sm">Smartlead</p><p class="text-xs text-gray-500">Push to email campaigns</p></div>
+            </button>
+            {% endif %}
+            {% if outreach_connected %}
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden'); openOutreachPush(_seqUseSelected)" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3 border border-gray-200">
+                <span class="text-xl">&#128232;</span>
+                <div><p class="font-medium text-sm">Outreach</p><p class="text-xs text-gray-500">Push to sequences</p></div>
+            </button>
+            {% endif %}
+            {% if salesloft_connected %}
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden'); openSalesloftPush(_seqUseSelected)" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3 border border-gray-200">
+                <span class="text-xl">&#128233;</span>
+                <div><p class="font-medium text-sm">SalesLoft</p><p class="text-xs text-gray-500">Push to cadences</p></div>
+            </button>
+            {% endif %}
+            {% if gong_engage_connected %}
+            <button onclick="document.getElementById('sequencer-choice-modal').classList.add('hidden'); openGongEngagePush(_seqUseSelected)" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3 border border-gray-200">
+                <span class="text-xl">&#127897;</span>
+                <div><p class="font-medium text-sm">Gong Engage</p><p class="text-xs text-gray-500">Push to flows</p></div>
+            </button>
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -589,6 +624,27 @@ function retrySelected() {
             retryBtn.textContent = 'Retry Selected';
         }
     });
+}
+
+// Sequencer choice
+var _seqUseSelected = false;
+function openSequencerChoice(useSelected) {
+    _seqUseSelected = !!useSelected;
+    var count = {{ sequencer_count }};
+    if (count === 0) {
+        showToast('Connect a sending tool in Integrations first', 'warning');
+        return;
+    }
+    if (count === 1) {
+        {% if instantly_connected %}openInstantlyPush(_seqUseSelected);
+        {% elif smartlead_connected %}openSmartleadPush(_seqUseSelected);
+        {% elif outreach_connected %}openOutreachPush(_seqUseSelected);
+        {% elif salesloft_connected %}openSalesloftPush(_seqUseSelected);
+        {% elif gong_engage_connected %}openGongEngagePush(_seqUseSelected);
+        {% endif %}
+        return;
+    }
+    document.getElementById('sequencer-choice-modal').classList.remove('hidden');
 }
 
 // Instantly push

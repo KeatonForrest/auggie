@@ -48,7 +48,13 @@ async def list_campaigns(user_id: int) -> list[dict]:
             headers=_auth_headers(api_key),
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+    # v2 returns { items: [...] } with campaign objects
+    items = data.get("items", data) if isinstance(data, dict) else data
+    return [
+        {"id": c.get("id"), "name": c.get("name", "")}
+        for c in items if isinstance(c, dict)
+    ]
 
 
 async def add_leads_to_campaign(
