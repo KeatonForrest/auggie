@@ -1,22 +1,4 @@
-# Environment variables (contains API keys!)
-.env
-
-# Virtual environment
-venv/
-
-# Database
-*.db
-
-# Python cache
+.coverage
 __pycache__/
 *.pyc
-
-# IDE
-.vscode/
-.idea/
-
-# EDGAR tickers disk cache
-.edgar_tickers_cache.json
-
-# Mac
-.DS_Store
+.env
