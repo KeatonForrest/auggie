@@ -11,15 +11,20 @@ from database import (
 
 logger = logging.getLogger(__name__)
 
-INSTANTLY_API_BASE = "https://api.instantly.ai/api/v1"
+INSTANTLY_API_BASE = "https://api.instantly.ai/api/v2"
+
+
+def _auth_headers(api_key: str) -> dict:
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 async def validate_api_key(api_key: str) -> bool:
     """Validate an Instantly API key by listing campaigns."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
-            f"{INSTANTLY_API_BASE}/campaign/list",
-            params={"api_key": api_key},
+            f"{INSTANTLY_API_BASE}/campaigns",
+            headers=_auth_headers(api_key),
+            params={"limit": 1},
         )
         return resp.status_code == 200
 
@@ -37,8 +42,8 @@ async def list_campaigns(user_id: int) -> list[dict]:
     api_key = await _get_api_key(user_id)
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
-            f"{INSTANTLY_API_BASE}/campaign/list",
-            params={"api_key": api_key},
+            f"{INSTANTLY_API_BASE}/campaigns",
+            headers=_auth_headers(api_key),
         )
         resp.raise_for_status()
         return resp.json()
@@ -57,9 +62,9 @@ async def add_leads_to_campaign(
     api_key = await _get_api_key(user_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{INSTANTLY_API_BASE}/lead/add",
+            f"{INSTANTLY_API_BASE}/leads",
+            headers=_auth_headers(api_key),
             json={
-                "api_key": api_key,
                 "campaign_id": campaign_id,
                 "skip_if_in_workspace": True,
                 "leads": leads,
