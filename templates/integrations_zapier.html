@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Auggie + Zapier — Automate Account Research{% endblock %}
+
+{% block layout %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+        <!-- Hero -->
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Auggie + Zapier</h1>
+            <p class="text-xl text-gray-600 mb-2">Connect Auggie to 5,000+ apps with Zapier.</p>
+            <p class="text-gray-500">Research companies and generate pain-aware messaging — triggered by any event in your stack.</p>
+        </div>
+
+        <!-- Use Cases -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">What you can build</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f4e5;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">New lead enrichment</h4>
+                        <p class="text-sm text-gray-600">When a lead enters your CRM, auto-research their company and score by pain before your team follows up.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f4ac;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Messaging generation</h4>
+                        <p class="text-sm text-gray-600">Pull talking points from Auggie and feed them into your email drafts — outreach that references real pain.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f6a6;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Lead routing</h4>
+                        <p class="text-sm text-gray-600">Route high pain-score accounts to your best reps, and deprioritize low-fit companies automatically.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span class="text-lg">&#x1f4cb;</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">List processing</h4>
+                        <p class="text-sm text-gray-600">Feed a Google Sheet of target accounts into Auggie and get scores + research back in bulk.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section>
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">How to set it up</h2>
+            <ol class="space-y-4">
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-800 rounded-full flex items-center justify-center font-bold">1</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Create an Auggie API key</h4>
+                        <p class="text-sm text-gray-600">Go to <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a> and create a new key. Copy it — you'll need it in the next step.</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-800 rounded-full flex items-center justify-center font-bold">2</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Add a Webhooks by Zapier action</h4>
+                        <p class="text-sm text-gray-600">In your Zap, add <strong>Webhooks by Zapier &gt; Custom Request</strong> as an action step. Set the method to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST</code> and the URL to:</p>
+                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-3 text-sm mt-2 overflow-x-auto"><code>https://auggie.app/v1/research</code></pre>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-800 rounded-full flex items-center justify-center font-bold">3</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Add headers and body</h4>
+                        <p class="text-sm text-gray-600">Add the Authorization header and set the data payload:</p>
+                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-3 text-sm mt-2 overflow-x-auto"><code>Header: Authorization | Bearer aug_your_key
+Header: Content-Type | application/json
+
+Data: {"company_url": "https://example.com"}</code></pre>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-800 rounded-full flex items-center justify-center font-bold">4</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Get results via webhook</h4>
+                        <p class="text-sm text-gray-600">Set up an <a href="/docs#webhooks" class="text-blue-600 hover:underline">Auggie webhook</a> that points to a <strong>Webhooks by Zapier &gt; Catch Hook</strong> trigger in a second Zap. When research completes, Auggie will POST the results to your Zap automatically — no polling needed.</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-4">
+                    <span class="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-800 rounded-full flex items-center justify-center font-bold">5</span>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">Use the results</h4>
+                        <p class="text-sm text-gray-600">Map <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">scores.pain</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">scores.composite</code>, and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">sections.talking_points</code> to downstream steps — CRM updates, email drafts, Slack messages, etc.</p>
+                    </div>
+                </li>
+            </ol>
+        </section>
+
+        <!-- CTA -->
+        <section class="text-center space-y-4">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="/api-keys" class="inline-flex items-center gap-2 bg-orange-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-600 transition-colors">
+                    Get your API key
+                </a>
+                <a href="/docs" class="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                    API documentation
+                </a>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

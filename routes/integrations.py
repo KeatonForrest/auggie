@@ -757,7 +757,7 @@ async def google_sheets_disconnect(request: Request, user: dict = Depends(requir
 
 
 # ==========================================================================
-# Clay integration landing page
+# Integration landing pages
 # ==========================================================================
 
 @router.get("/integrations/clay", response_class=HTMLResponse)
@@ -767,5 +767,38 @@ async def integrations_clay(request: Request):
     user = await get_current_user(request)
     return templates.TemplateResponse(
         "integrations_clay.html",
+        {"request": request, "user": user}
+    )
+
+
+@router.get("/integrations/make", response_class=HTMLResponse)
+async def integrations_make(request: Request):
+    """Make integration setup guide."""
+    from auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "integrations_make.html",
+        {"request": request, "user": user}
+    )
+
+
+@router.get("/integrations/n8n", response_class=HTMLResponse)
+async def integrations_n8n(request: Request):
+    """n8n integration setup guide."""
+    from auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "integrations_n8n.html",
+        {"request": request, "user": user}
+    )
+
+
+@router.get("/integrations/zapier", response_class=HTMLResponse)
+async def integrations_zapier(request: Request):
+    """Zapier integration setup guide."""
+    from auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(
+        "integrations_zapier.html",
         {"request": request, "user": user}
     )
