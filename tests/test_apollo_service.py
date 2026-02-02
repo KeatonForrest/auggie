@@ -74,7 +74,7 @@ class TestApolloListSavedLists:
         with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
              patch("httpx.AsyncClient") as mock_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
+            mock_client.get.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_cls.return_value = mock_client
