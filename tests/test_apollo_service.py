@@ -245,7 +245,7 @@ class TestApolloValidateApiKey:
         mock_resp = MagicMock(status_code=200)
         with patch("httpx.AsyncClient") as mock_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
+            mock_client.get.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_cls.return_value = mock_client
@@ -259,7 +259,7 @@ class TestApolloValidateApiKey:
         mock_resp = MagicMock(status_code=401)
         with patch("httpx.AsyncClient") as mock_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
+            mock_client.get.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_cls.return_value = mock_client
