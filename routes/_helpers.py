@@ -218,7 +218,7 @@ async def _run_crm_import(
             return JSONResponse({"success": False, "error": "Not enough credits"}, status_code=402)
 
     lst = await create_list(user["id"], api_key_id=None, name=list_name)
-    await add_list_accounts(lst["id"], valid_urls)
+    await add_list_accounts(lst["id"], valid_urls, source_ids=id_map or None)
     await update_list_credits(lst["id"], needed)
 
     if source_metadata_fn:

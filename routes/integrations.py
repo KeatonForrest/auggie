@@ -463,9 +463,12 @@ async def apollo_import(request: Request, user: dict = Depends(require_onboardin
 
     def extractor(org):
         domain = (org.get("primary_domain") or org.get("website_url") or "").strip()
-        return domain, None
+        return domain, org.get("id")  # Apollo org ID
 
-    return await _run_crm_import(user, organizations, body.name, extractor)
+    def source_metadata(id_map):
+        return {"provider": "apollo", "org_ids": id_map}
+
+    return await _run_crm_import(user, organizations, body.name, extractor, source_metadata_fn=source_metadata)
 
 
 # ==========================================================================

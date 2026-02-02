@@ -64,12 +64,12 @@ async def delete_list(list_id: int, user_id: int) -> bool:
         return result == "DELETE 1"
 
 
-async def add_list_accounts(list_id: int, company_urls: list[str]) -> list[dict]:
+async def add_list_accounts(list_id: int, company_urls: list[str], source_ids: dict[str, str] | None = None) -> list[dict]:
     """Batch-insert accounts for a list. Updates total_accounts on parent. Returns account records."""
     async with _db._pool.acquire() as conn:
         await conn.executemany(
-            "INSERT INTO list_accounts (list_id, company_url) VALUES ($1, $2)",
-            [(list_id, url) for url in company_urls],
+            "INSERT INTO list_accounts (list_id, company_url, source_id) VALUES ($1, $2, $3)",
+            [(list_id, url, (source_ids or {}).get(url)) for url in company_urls],
         )
         await conn.execute(
             "UPDATE lists SET total_accounts = $2, updated_at = NOW() WHERE id = $1",
@@ -163,7 +163,7 @@ async def get_list_accounts(
         SELECT id, list_id, company_url, status, document_id, research_job_id,
                pain_score, fit_score, timing_score, composite_score,
                company_name, error_message, created_at, analyzed_at,
-               enrichment_status, outreach_status, pushed_to
+               enrichment_status, outreach_status, pushed_to, source_id
         FROM list_accounts
         WHERE {where}
         ORDER BY {sort_by} {order} NULLS LAST

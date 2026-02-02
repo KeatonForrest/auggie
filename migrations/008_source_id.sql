@@ -1,0 +1,1 @@
+ALTER TABLE list_accounts ADD COLUMN IF NOT EXISTS source_id TEXT;
