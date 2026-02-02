@@ -382,6 +382,24 @@ async def guide_clay_problem_signal(request: Request):
     )
 
 
+@app.get("/guides/n8n", response_class=HTMLResponse)
+async def guide_n8n(request: Request):
+    user = await get_current_user(request)
+    return templates.TemplateResponse("guide_n8n.html", {"request": request, "user": user})
+
+
+@app.get("/guides/make", response_class=HTMLResponse)
+async def guide_make(request: Request):
+    user = await get_current_user(request)
+    return templates.TemplateResponse("guide_make.html", {"request": request, "user": user})
+
+
+@app.get("/guides/zapier", response_class=HTMLResponse)
+async def guide_zapier(request: Request):
+    user = await get_current_user(request)
+    return templates.TemplateResponse("guide_zapier.html", {"request": request, "user": user})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

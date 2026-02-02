@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}n8n + Auggie Integration Guide{% endblock %}
+
+{% block layout %}
+<div class="flex gap-8">
+    <!-- Sticky TOC Sidebar -->
+    <aside class="w-56 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-6 space-y-1 text-sm">
+            <a href="#overview" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Overview</a>
+            <a href="#prerequisites" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Prerequisites</a>
+            <a href="#webhook" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Single Research (Webhook)</a>
+            <a href="#polling" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Single Research (Polling)</a>
+            <a href="#bulk" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Bulk Research</a>
+            <a href="#results" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Using Results</a>
+            <a href="#troubleshooting" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Troubleshooting</a>
+        </nav>
+    </aside>
+
+    <!-- Guide Content -->
+    <main class="flex-1 min-w-0">
+        <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+            <!-- Hero -->
+            <div class="border-l-4 pl-6" style="border-color: #EA4B71;">
+                <div class="flex items-center gap-4 mb-3">
+                    <svg width="56" height="32" viewBox="0 0 56 32" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="56" height="32" rx="8" fill="#EA4B71"/>
+                        <text x="28" y="22" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="bold" font-size="16" fill="white">n8n</text>
+                    </svg>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">n8n + Auggie Integration Guide</h1>
+                        <p class="text-gray-600 mt-1">Automate AI-powered account research in your n8n workflows.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overview -->
+            <section id="overview">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Overview</h2>
+                <p class="text-gray-700 mb-4">Auggie provides AI-powered account research that delivers composite scores, pain scores, talking points, and business problem analysis for any company. This guide shows you how to integrate Auggie into your n8n workflows.</p>
+                <p class="text-gray-700 mb-4">This guide covers three approaches:</p>
+                <ul class="list-disc pl-6 text-gray-700 space-y-2">
+                    <li><strong>Webhook workflow</strong> (recommended) &mdash; fire-and-forget research with results delivered to a webhook</li>
+                    <li><strong>Polling workflow</strong> &mdash; submit research and poll until completion</li>
+                    <li><strong>Bulk research</strong> &mdash; research many companies at once from a spreadsheet</li>
+                </ul>
+            </section>
+
+            <!-- Prerequisites -->
+            <section id="prerequisites">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Prerequisites</h2>
+                <ul class="space-y-3">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #EA4B71;">1</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie API key</strong>
+                            <span class="text-gray-600"> &mdash; create one at <a href="/api-keys" class="hover:underline" style="color: #EA4B71;">/api-keys</a> (starts with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">aug_</code>)</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #EA4B71;">2</span>
+                        <div>
+                            <strong class="text-gray-900">n8n instance</strong>
+                            <span class="text-gray-600"> &mdash; cloud or self-hosted</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #EA4B71;">3</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie webhook registered</strong>
+                            <span class="text-gray-600"> &mdash; for the webhook approach, see <a href="#webhook" class="hover:underline" style="color: #EA4B71;">Webhook Workflow</a> below</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Webhook Workflow -->
+            <section id="webhook">
+                <div class="flex items-center gap-3 mb-4">
+                    <h2 class="text-2xl font-bold text-gray-900">Single Research (Webhook)</h2>
+                    <span class="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full text-white" style="background: #EA4B71;">Recommended</span>
+                </div>
+
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">1</span>
+                        <div>Create a new workflow with a <strong>Webhook</strong> trigger node. Copy its Production URL.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">2</span>
+                        <div>Register that URL with Auggie via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/webhooks/register</code>.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">3</span>
+                        <div>In a separate workflow (or Schedule trigger), add an <strong>HTTP Request</strong> node: POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code>.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">4</span>
+                        <div>Under Authentication, choose <strong>Generic Credential Type &rarr; Header Auth</strong>. Name: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code>, Value: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Bearer aug_your_key</code>.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">5</span>
+                        <div>Set body JSON (see below).</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">6</span>
+                        <div>When research completes, Auggie POSTs results to your Webhook trigger with scores, sections, and company_url.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">7</span>
+                        <div>Add downstream nodes (Google Sheets, Slack, etc.).</div>
+                    </li>
+                </ol>
+
+                <!-- Flow Diagram -->
+                <div class="mt-6 space-y-4">
+                    <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Workflow Architecture</p>
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <span class="text-xs font-bold text-gray-400 w-24">Workflow 1:</span>
+                            <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">Schedule / Form</span>
+                            <span class="text-gray-400 font-bold">&rarr;</span>
+                            <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">HTTP Request POST /v1/research</span>
+                        </div>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <span class="text-xs font-bold text-gray-400 w-24">Workflow 2:</span>
+                            <span class="border rounded px-3 py-2 text-sm font-medium text-white" style="background: #EA4B71;">Webhook Trigger</span>
+                            <span class="text-gray-400 font-bold">&rarr;</span>
+                            <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">Process Results</span>
+                            <span class="text-gray-400 font-bold">&rarr;</span>
+                            <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">Google Sheets / Slack / etc.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Request JSON -->
+                <div class="mt-6">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Request Body</p>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded">Copy</button><code>{
+  "company_url": "https://example.com"
+}</code></pre>
+                </div>
+
+                <!-- Example Webhook Payload -->
+                <div class="mt-6">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Example Webhook Payload (received by your Webhook trigger)</p>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded">Copy</button><code>{
+  "job_id": "res_abc123",
+  "company_url": "https://example.com",
+  "status": "completed",
+  "scores": {
+    "composite": 82,
+    "pain": 75,
+    "product_fit": 88
+  },
+  "sections": {
+    "talking_points": "They recently expanded into...",
+    "business_problems": "Struggling with manual data...",
+    "product_fit": "Strong alignment with automation..."
+  }
+}</code></pre>
+                </div>
+            </section>
+
+            <!-- Polling Workflow -->
+            <section id="polling">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Single Research (Polling)</h2>
+                <p class="text-gray-700 mb-4">If you prefer a single workflow without webhooks, you can poll for results.</p>
+
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">1</span>
+                        <div><strong>HTTP Request</strong> node: POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code> with Header Auth (same as webhook approach).</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">2</span>
+                        <div>Body: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{"company_url": "https://example.com"}</code></div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">3</span>
+                        <div><strong>Wait</strong> node: 5 seconds.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">4</span>
+                        <div>Second <strong>HTTP Request</strong>: GET <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research/{% raw %}{{ $('HTTP Request').item.json.job_id }}{% endraw %}</code> (same auth).</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">5</span>
+                        <div><strong>IF</strong> node: {% raw %}{{ $json.status }}{% endraw %} is not equal to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">completed</code>.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">6</span>
+                        <div>IF true &rarr; loop back to Wait node. IF false &rarr; continue to next action.</div>
+                    </li>
+                </ol>
+
+                <!-- Flow Diagram -->
+                <div class="mt-6">
+                    <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Workflow Flow</p>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">HTTP Request POST</span>
+                        <span class="text-gray-400 font-bold">&rarr;</span>
+                        <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">Wait 5s</span>
+                        <span class="text-gray-400 font-bold">&rarr;</span>
+                        <span class="bg-gray-100 border rounded px-3 py-2 text-sm font-medium text-gray-700">HTTP Request GET</span>
+                        <span class="text-gray-400 font-bold">&rarr;</span>
+                        <span class="border rounded px-3 py-2 text-sm font-medium text-white" style="background: #EA4B71;">IF status != completed</span>
+                    </div>
+                    <div class="mt-2 ml-8 text-sm text-gray-500">
+                        <span>&uarr; loops back to Wait</span> &nbsp;|&nbsp; <span>&darr; continues to next action</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bulk Research -->
+            <section id="bulk">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Bulk Research</h2>
+                <p class="text-gray-700 mb-4">Research many companies at once from a spreadsheet.</p>
+
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">1</span>
+                        <div><strong>Google Sheets</strong> node to read rows with a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">company_url</code> column.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">2</span>
+                        <div><strong>HTTP Request</strong> POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research/bulk</code> with body:</div>
+                    </li>
+                </ol>
+
+                <div class="mt-4">
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded">Copy</button><code>{
+  "company_urls": {% raw %}{{ $json.rows.map(r => r.company_url) }}{% endraw %},
+  "name": "n8n bulk import"
+}</code></pre>
+                </div>
+
+                <div class="mt-4 flex items-start gap-3 text-gray-700">
+                    <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-700">3</span>
+                    <div>Poll <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/research/bulk/{id}</code> for status, or use the webhook approach to receive results when complete.</div>
+                </div>
+            </section>
+
+            <!-- Using Results -->
+            <section id="results">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Using Results</h2>
+                <p class="text-gray-700 mb-4">Once research is complete, the response contains scores and sections you can use in downstream nodes.</p>
+
+                <div class="bg-gray-50 rounded-lg p-5">
+                    <p class="text-sm font-semibold text-gray-700 mb-3">Key Fields</p>
+                    <div class="grid md:grid-cols-2 gap-3 text-sm">
+                        <div class="bg-white border rounded p-3">
+                            <code class="text-xs" style="color: #EA4B71;">scores.composite</code>
+                            <p class="text-gray-600 mt-1">Overall research score</p>
+                        </div>
+                        <div class="bg-white border rounded p-3">
+                            <code class="text-xs" style="color: #EA4B71;">scores.pain</code>
+                            <p class="text-gray-600 mt-1">Pain signal strength</p>
+                        </div>
+                        <div class="bg-white border rounded p-3">
+                            <code class="text-xs" style="color: #EA4B71;">sections.talking_points</code>
+                            <p class="text-gray-600 mt-1">Ready-to-use talking points</p>
+                        </div>
+                        <div class="bg-white border rounded p-3">
+                            <code class="text-xs" style="color: #EA4B71;">sections.business_problems</code>
+                            <p class="text-gray-600 mt-1">Identified business problems</p>
+                        </div>
+                        <div class="bg-white border rounded p-3 md:col-span-2">
+                            <code class="text-xs" style="color: #EA4B71;">sections.product_fit</code>
+                            <p class="text-gray-600 mt-1">Product fit analysis</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Example n8n Expressions</p>
+                    <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded">Copy</button><code>{% raw %}{{ $json.scores.pain }}{% endraw %}
+
+{% raw %}{{ $json.sections.talking_points }}{% endraw %}</code></pre>
+                </div>
+            </section>
+
+            <!-- Troubleshooting -->
+            <section id="troubleshooting">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Troubleshooting</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="text-left px-4 py-3 font-semibold text-gray-700 border-b">Issue</th>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-700 border-b">Solution</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-700">
+                            <tr class="border-b">
+                                <td class="px-4 py-3 font-medium">401 Unauthorized</td>
+                                <td class="px-4 py-3">Check API key starts with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">aug_</code>, verify Header Auth config</td>
+                            </tr>
+                            <tr class="border-b">
+                                <td class="px-4 py-3 font-medium">Timeout / no response</td>
+                                <td class="px-4 py-3">Research takes 30-60s, increase HTTP Request timeout to 120s</td>
+                            </tr>
+                            <tr class="border-b">
+                                <td class="px-4 py-3 font-medium">Webhook not firing</td>
+                                <td class="px-4 py-3">Verify webhook is registered, check n8n webhook URL is accessible, workflow must be active</td>
+                            </tr>
+                            <tr class="border-b">
+                                <td class="px-4 py-3 font-medium">402 Payment Required</td>
+                                <td class="px-4 py-3">No credits remaining, purchase at <a href="/billing/buy-credits" class="hover:underline" style="color: #EA4B71;">/billing/buy-credits</a></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 font-medium">429 Rate Limited</td>
+                                <td class="px-4 py-3">Reduce request frequency, check <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Retry-After</code> header</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<script>
+function copyCode(button) {
+    const pre = button.closest('pre');
+    const code = pre.querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(function() {
+        button.textContent = 'Copied!';
+        setTimeout(function() { button.textContent = 'Copy'; }, 2000);
+    });
+}
+</script>
+{% endblock %}

@@ -811,141 +811,24 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                     </div>
                     <!-- Automation Platforms -->
                     <h3 class="text-lg font-semibold text-gray-800 mt-8 mb-3">Automation Platforms</h3>
-                    <p class="text-sm text-gray-600 mb-4">Use Auggie's REST API in any automation tool that supports HTTP requests. The pattern is the same for all platforms:</p>
+                    <p class="text-sm text-gray-600 mb-4">Use Auggie's REST API in any automation tool that supports HTTP requests. See our dedicated guides for step-by-step setup:</p>
 
-                    <div class="border rounded-lg p-5 mb-4">
-                        <h4 class="font-semibold text-gray-900 mb-2">General Setup</h4>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Create an API key at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a></li>
-                            <li>Add an HTTP request step in your workflow</li>
-                            <li>Configure a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST</code> to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code> with header <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization: Bearer aug_your_key</code></li>
-                            <li>Send the body <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{"company_url": "https://example.com"}</code></li>
-                            <li>Poll <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/research/{job_id}</code> until <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">status</code> is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">completed</code>, or use a <a href="#webhooks" class="text-blue-600 hover:underline">webhook</a> to get notified</li>
-                            <li>Use the returned <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">scores</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">sections.talking_points</code> to route leads or draft messaging</li>
-                        </ol>
-
-                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.app/v1/research \
-  -H "Authorization: Bearer aug_your_key" \
-  -H "Content-Type: application/json" \
-  -d '{"company_url": "https://example.com"}'</code></pre>
-                    </div>
-
-                    <!-- n8n -->
-                    <div class="border rounded-lg p-5 mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-3">n8n</h4>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option A &mdash; Polling workflow</h5>
-                        <p class="text-sm text-gray-600 mb-2">Best when you want a self-contained workflow with no external webhook URL.</p>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Add an <strong>HTTP Request</strong> node. Set Method to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">POST</code>, URL to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research</code>.</li>
-                            <li>Under <strong>Authentication</strong>, choose <strong>Generic Credential Type → Header Auth</strong>. Set Name to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization</code>, Value to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Bearer aug_your_key</code>.</li>
-                            <li>Set Body Content Type to <strong>JSON</strong> and add: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code></li>
-                            <li>Add a <strong>Wait</strong> node &rarr; set to <strong>5 seconds</strong>.</li>
-                            <li>Add a second <strong>HTTP Request</strong> node. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{ $('HTTP Request').item.json.job_id }}{% endraw %}</code>. Same auth header.</li>
-                            <li>Add an <strong>IF</strong> node. Condition: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{% raw %}{{ $json.status }}{% endraw %}</code> <strong>is not equal to</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code>.</li>
-                            <li>Connect the IF <strong>true</strong> output back to the Wait node (creates a loop). Connect <strong>false</strong> (completed) to your next action.</li>
-                        </ol>
-                        <p class="text-xs text-gray-500 mb-4">Flow: <strong>HTTP Request</strong> → <strong>Wait</strong> → <strong>HTTP Request (poll)</strong> → <strong>IF</strong> → loops back to Wait or continues.</p>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option B &mdash; Webhook workflow (recommended)</h5>
-                        <p class="text-sm text-gray-600 mb-2">Eliminates polling. Auggie calls your n8n webhook when research finishes.</p>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Create a new workflow starting with a <strong>Webhook</strong> trigger node. Copy its <strong>Production URL</strong> (e.g. <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://your-n8n.com/webhook/abc123</code>).</li>
-                            <li>Register that URL with Auggie — see the <a href="#webhooks" class="text-blue-600 hover:underline">Webhooks</a> section above.</li>
-                            <li>In a separate workflow (or triggered by a Schedule/form), add an <strong>HTTP Request</strong> node that POSTs to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">/v1/research</code> to kick off jobs.</li>
-                            <li>When research completes, Auggie POSTs the results to your Webhook trigger. The payload includes <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">scores</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">sections</code>, and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">company_url</code>.</li>
-                            <li>Add downstream nodes to route leads, update a Google Sheet, send a Slack message, etc.</li>
-                        </ol>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Bulk research from a spreadsheet</h5>
-                        <p class="text-sm text-gray-600 mb-2">Process an entire list of companies from Google Sheets or Airtable.</p>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Add a <strong>Google Sheets</strong> (or <strong>Airtable</strong>) node to read rows with a <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">company_url</code> column.</li>
-                            <li>Add an <strong>HTTP Request</strong> node. POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/bulk</code> with body:</li>
-                        </ol>
-                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
-  "urls": {% raw %}{{ $json.rows.map(r => r.company_url) }}{% endraw %},
-  "list_name": "n8n bulk import"
-}</code></pre>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside" start="3">
-                            <li>Poll <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET /v1/research/bulk/{id}</code> for progress, or use a webhook to get notified when the batch completes.</li>
-                        </ol>
-                    </div>
-
-                    <!-- Make (Integromat) -->
-                    <div class="border rounded-lg p-5 mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-3">Make (Integromat)</h4>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option A &mdash; Polling scenario</h5>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Add an <strong>HTTP &gt; Make a request</strong> module. Set Method to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">POST</code>, URL to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research</code>.</li>
-                            <li>Under <strong>Headers</strong>, add <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization: Bearer aug_your_key</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Content-Type: application/json</code>.</li>
-                            <li>Set Request content to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code>. Check <strong>Parse response</strong>.</li>
-                            <li>Add a <strong>Sleep</strong> module (Tools &gt; Sleep) set to <strong>5 seconds</strong>.</li>
-                            <li>Add a second <strong>HTTP &gt; Make a request</strong> module. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{1.body.job_id}}{% endraw %}</code>. Same auth header.</li>
-                            <li>Add a <strong>Router</strong> module. Route 1 filter: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">status</code> not equal to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code> — loop back to the Sleep module. Route 2 (fallback): continues to your next action.</li>
-                        </ol>
-                        <p class="text-xs text-gray-500 mb-4">Flow: <strong>HTTP (POST)</strong> → <strong>Sleep</strong> → <strong>HTTP (GET poll)</strong> → <strong>Router</strong> → loops or continues.</p>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option B &mdash; Webhook scenario (recommended)</h5>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Create a new scenario starting with a <strong>Webhooks &gt; Custom webhook</strong> trigger. Copy its URL.</li>
-                            <li>Register that URL with Auggie — see the <a href="#webhooks" class="text-blue-600 hover:underline">Webhooks</a> section above.</li>
-                            <li>In a separate scenario, add an HTTP module that POSTs to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">/v1/research</code> to start jobs.</li>
-                            <li>When research completes, Auggie sends the full result to your webhook trigger. Add downstream modules (Google Sheets, Slack, email, etc.) to handle the data.</li>
-                        </ol>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Bulk research from a spreadsheet</h5>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Add a <strong>Google Sheets &gt; Search Rows</strong> module to fetch rows with company URLs.</li>
-                            <li>Add an <strong>HTTP &gt; Make a request</strong> module. POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/bulk</code> with body:</li>
-                        </ol>
-                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
-  "urls": {% raw %}{{map(2.bundles; "company_url")}}{% endraw %},
-  "list_name": "Make bulk import"
-}</code></pre>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside" start="3">
-                            <li>Poll <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET /v1/research/bulk/{id}</code> for progress, or use a webhook for completion notification.</li>
-                        </ol>
-                    </div>
-
-                    <!-- Zapier -->
-                    <div class="border rounded-lg p-5 mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-3">Zapier</h4>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option A &mdash; Polling Zap</h5>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Add a trigger (Schedule, new row in Google Sheets, etc.).</li>
-                            <li>Add a <strong>Webhooks by Zapier &gt; Custom Request</strong> action. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">POST</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research</code>.</li>
-                            <li>Add headers: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization | Bearer aug_your_key</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Content-Type | application/json</code>.</li>
-                            <li>Set Data to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code>.</li>
-                            <li>Add a <strong>Delay by Zapier</strong> step set to <strong>30 seconds</strong> (Zapier's minimum).</li>
-                            <li>Add another <strong>Webhooks by Zapier &gt; Custom Request</strong>. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{steps.2.job_id}}{% endraw %}</code>. Same headers.</li>
-                            <li>Add a <strong>Filter by Zapier</strong> step: only continue when <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">status</code> equals <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code>. (Zapier doesn't natively loop — see the webhook option below for a cleaner approach.)</li>
-                        </ol>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Option B &mdash; Webhook Zap (recommended)</h5>
-                        <p class="text-sm text-gray-600 mb-2">Avoids polling entirely. The cleanest Zapier integration.</p>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Create a new Zap with a <strong>Webhooks by Zapier &gt; Catch Hook</strong> trigger. Copy the webhook URL Zapier gives you.</li>
-                            <li>Register that URL with Auggie — see the <a href="#webhooks" class="text-blue-600 hover:underline">Webhooks</a> section above.</li>
-                            <li>In a separate Zap (triggered by a schedule, form, or spreadsheet row), use <strong>Custom Request</strong> to POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">/v1/research</code>.</li>
-                            <li>When research completes, Auggie sends the full result to your Catch Hook. Add downstream actions (Google Sheets row, Slack message, email draft, CRM update, etc.).</li>
-                        </ol>
-
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Bulk research</h5>
-                        <p class="text-sm text-gray-600 mb-2">Zapier processes items one at a time, so use the bulk endpoint to batch them.</p>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside mb-4">
-                            <li>Use a <strong>Code by Zapier</strong> (JavaScript) step to collect URLs from previous steps into an array.</li>
-                            <li>POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/bulk</code>:</li>
-                        </ol>
-                        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
-  "urls": ["https://acme.com", "https://globex.com"],
-  "list_name": "Zapier bulk import"
-}</code></pre>
-                        <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside" start="3">
-                            <li>Use a Catch Hook Zap to receive the completed results via webhook.</li>
-                        </ol>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <a href="/guides/n8n" class="border rounded-lg p-5 hover:shadow-md transition group">
+                            <svg class="h-8 mb-3" viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="24" rx="4" fill="#EA4B71" opacity="0.1"/><text x="30" y="16" text-anchor="middle" font-size="13" font-weight="bold" fill="#EA4B71" font-family="system-ui, sans-serif">n8n</text></svg>
+                            <h4 class="font-semibold text-gray-900 mb-1 group-hover:text-[#EA4B71]">n8n</h4>
+                            <p class="text-sm text-gray-600">Step-by-step guide with webhook &amp; polling workflows, bulk import, and node-by-node setup.</p>
+                        </a>
+                        <a href="/guides/make" class="border rounded-lg p-5 hover:shadow-md transition group">
+                            <svg class="h-8 mb-3" viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="24" rx="4" fill="#6D00CC" opacity="0.1"/><text x="30" y="16" text-anchor="middle" font-size="13" font-weight="bold" fill="#6D00CC" font-family="system-ui, sans-serif">Make</text></svg>
+                            <h4 class="font-semibold text-gray-900 mb-1 group-hover:text-[#6D00CC]">Make</h4>
+                            <p class="text-sm text-gray-600">Step-by-step guide with webhook &amp; polling scenarios, bulk import, and module-by-module setup.</p>
+                        </a>
+                        <a href="/guides/zapier" class="border rounded-lg p-5 hover:shadow-md transition group">
+                            <svg class="h-8 mb-3" viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="24" rx="4" fill="#FF4A00" opacity="0.1"/><text x="30" y="16" text-anchor="middle" font-size="13" font-weight="bold" fill="#FF4A00" font-family="system-ui, sans-serif">Zapier</text></svg>
+                            <h4 class="font-semibold text-gray-900 mb-1 group-hover:text-[#FF4A00]">Zapier</h4>
+                            <p class="text-sm text-gray-600">Step-by-step guide with webhook &amp; polling Zaps, bulk import, and step-by-step setup.</p>
+                        </a>
                     </div>
                 </div>
             </section>

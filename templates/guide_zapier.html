@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}Zapier + Auggie Integration Guide{% endblock %}
+
+{% block layout %}
+<div class="flex gap-8">
+    <!-- Sticky TOC Sidebar -->
+    <aside class="w-56 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-6 space-y-1 text-sm">
+            <a href="#overview" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Overview</a>
+            <a href="#prerequisites" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Prerequisites</a>
+            <a href="#webhook" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Single Research (Webhook)</a>
+            <a href="#polling" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Single Research (Polling)</a>
+            <a href="#bulk" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Bulk Research</a>
+            <a href="#results" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Using Results</a>
+            <a href="#troubleshooting" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Troubleshooting</a>
+        </nav>
+    </aside>
+
+    <!-- Guide Content -->
+    <main class="flex-1 min-w-0">
+        <div class="bg-white rounded-lg shadow p-8 space-y-12">
+
+            <!-- Hero -->
+            <div class="border-l-4 pl-6" style="border-color: #FF4A00;">
+                <div class="flex items-center gap-4 mb-3">
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="48" height="48" rx="10" fill="#FF4A00"/>
+                        <path d="M14 16h8l-6 10h8l-10 12 4-10h-7L14 16z" fill="white" stroke="white" stroke-width="1" stroke-linejoin="round"/>
+                    </svg>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Zapier + Auggie Integration Guide</h1>
+                        <p class="text-gray-600 mt-1">Automate AI-powered account research in your Zapier Zaps.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overview -->
+            <section id="overview">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Overview</h2>
+                <p class="text-gray-700 mb-4">Auggie provides AI-powered account research that analyzes a company's website and public data to produce pain scores, business problems, talking points, and product-fit assessments. With Zapier, you can trigger Auggie research automatically from any event in your workflow &mdash; a new CRM lead, a spreadsheet row, or a scheduled timer.</p>
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm text-orange-900">
+                    <strong>Note:</strong> Zapier cannot loop or poll natively. The <a href="#webhook" class="underline font-medium" style="color: #FF4A00;">webhook approach</a> is strongly recommended for reliable results.
+                </div>
+            </section>
+
+            <!-- Prerequisites -->
+            <section id="prerequisites">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Prerequisites</h2>
+                <ul class="space-y-3">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">1</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie API key</strong>
+                            <span class="text-gray-600"> &mdash; create one at <a href="/api-keys" class="hover:underline" style="color: #FF4A00;">/api-keys</a> (starts with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">aug_</code>)</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">2</span>
+                        <div>
+                            <strong class="text-gray-900">Zapier account</strong>
+                            <span class="text-gray-600"> &mdash; Professional plan or higher for webhooks</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">3</span>
+                        <div>
+                            <strong class="text-gray-900">Auggie webhook registered</strong>
+                            <span class="text-gray-600"> &mdash; see the <a href="#webhook" class="hover:underline" style="color: #FF4A00;">webhook setup</a> section below</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Webhook Zap -->
+            <section id="webhook">
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Single Research &mdash; Webhook Approach</h2>
+                <span class="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full text-white mb-4" style="background: #FF4A00;">Strongly Recommended</span>
+
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm text-orange-900 mb-6">
+                    <strong>Webhook approach is strongly recommended</strong> for Zapier since Zapier cannot loop natively. The polling approach below has limitations.
+                </div>
+
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">1</span>
+                        <div>Create a Zap with <strong>Webhooks by Zapier &gt; Catch Hook</strong> as the trigger. Copy the generated webhook URL.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">2</span>
+                        <div>
+                            Register that URL with Auggie via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/webhooks/register</code>:
+                            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 mt-2 text-sm overflow-x-auto relative group"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">Copy</button><code>curl -X POST https://auggie.app/v1/webhooks/register \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://hooks.zapier.com/hooks/catch/YOUR_HOOK_ID"}'</code></pre>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">3</span>
+                        <div>Create a <strong>separate Zap</strong> with your desired trigger (Schedule, new Google Sheets row, etc.) and add <strong>Webhooks by Zapier &gt; Custom Request</strong> as the action.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">4</span>
+                        <div>
+                            Configure the Custom Request to POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://auggie.app/v1/research</code>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">5</span>
+                        <div>
+                            Set headers:
+                            <table class="mt-2 text-sm border rounded overflow-hidden">
+                                <tr class="bg-gray-100"><th class="px-3 py-1.5 text-left">Key</th><th class="px-3 py-1.5 text-left">Value</th></tr>
+                                <tr class="border-t"><td class="px-3 py-1.5 font-mono">Authorization</td><td class="px-3 py-1.5 font-mono">Bearer aug_your_key</td></tr>
+                                <tr class="border-t"><td class="px-3 py-1.5 font-mono">Content-Type</td><td class="px-3 py-1.5 font-mono">application/json</td></tr>
+                            </table>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">6</span>
+                        <div>
+                            Set the request body (Data field):
+                            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 mt-2 text-sm overflow-x-auto relative group"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">Copy</button><code>{"company_url": "https://example.com"}</code></pre>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">7</span>
+                        <div>When research completes, Auggie sends the results to your Catch Hook Zap automatically.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">8</span>
+                        <div>Add downstream actions in the Catch Hook Zap: Google Sheets, Slack, email, CRM update, etc.</div>
+                    </li>
+                </ol>
+
+                <!-- Visual flow -->
+                <div class="mt-6 bg-gray-50 rounded-lg p-5 font-mono text-sm text-gray-700 space-y-3">
+                    <p class="font-semibold text-gray-900 mb-2">Visual Flow</p>
+                    <p><strong>Zap 1:</strong> [Schedule / Sheet Row] &rarr; [Custom Request POST /v1/research]</p>
+                    <p><strong>Zap 2:</strong> [Catch Hook] &rarr; [Process Data] &rarr; [Google Sheets / Slack]</p>
+                </div>
+            </section>
+
+            <!-- Polling Zap -->
+            <section id="polling">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Single Research &mdash; Polling Approach</h2>
+
+                <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-900 mb-6">
+                    <strong>Warning:</strong> Zapier cannot loop. If research isn't complete after 30 seconds, the Zap will stop. For reliable results, use the <a href="#webhook" class="underline font-medium">webhook approach</a> above.
+                </div>
+
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-white">1</span>
+                        <div><strong>Trigger</strong> &mdash; Schedule, new Google Sheets row, or any other trigger.</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-white">2</span>
+                        <div>
+                            <strong>Webhooks by Zapier &gt; Custom Request</strong> &mdash; POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/v1/research</code> with headers and data as shown in the webhook section above.
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-white">3</span>
+                        <div><strong>Delay by Zapier</strong> &mdash; 30 seconds (Zapier minimum).</div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-white">4</span>
+                        <div>
+                            <strong>Another Custom Request</strong> &mdash; GET the research result:
+                            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 mt-2 text-sm overflow-x-auto relative group"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">Copy</button><code>GET https://auggie.app/v1/research/{% raw %}{{steps.2.job_id}}{% endraw %}</code></pre>
+                            <p class="text-sm text-gray-500 mt-1">Use the same Authorization and Content-Type headers.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-white">5</span>
+                        <div><strong>Filter by Zapier</strong> &mdash; Only continue when <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">status</code> equals <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">completed</code>.</div>
+                    </li>
+                </ol>
+
+                <!-- Visual flow -->
+                <div class="mt-6 bg-gray-50 rounded-lg p-5 font-mono text-sm text-gray-700">
+                    <p class="font-semibold text-gray-900 mb-2">Visual Flow</p>
+                    <p>[Trigger] &rarr; [Custom Request POST] &rarr; [Delay 30s] &rarr; [Custom Request GET] &rarr; [Filter: completed?]</p>
+                </div>
+            </section>
+
+            <!-- Bulk Research -->
+            <section id="bulk">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Bulk Research</h2>
+                <ol class="space-y-4 text-gray-700">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">1</span>
+                        <div>
+                            Use <strong>Code by Zapier (JavaScript)</strong> to collect URLs from previous steps into an array:
+                            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 mt-2 text-sm overflow-x-auto relative group"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">Copy</button><code>// Code by Zapier — JavaScript
+const urls = inputData.urls.split(',').map(u => u.trim());
+output = [{ company_urls: JSON.stringify(urls) }];</code></pre>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">2</span>
+                        <div>
+                            <strong>Custom Request</strong> &mdash; POST to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/v1/research/bulk</code>:
+                            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 mt-2 text-sm overflow-x-auto relative group"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">Copy</button><code>{
+  "company_urls": ["https://acme.com", "https://globex.com"],
+  "name": "Zapier bulk import"
+}</code></pre>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: #FF4A00;">3</span>
+                        <div>Use a <strong>Catch Hook</strong> Zap (as described in the <a href="#webhook" class="hover:underline" style="color: #FF4A00;">webhook section</a>) to receive completed results via webhook.</div>
+                    </li>
+                </ol>
+            </section>
+
+            <!-- Using Results -->
+            <section id="results">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Using Results</h2>
+                <p class="text-gray-700 mb-4">Zapier flattens nested JSON objects using double underscores. When referencing Auggie result fields in downstream steps, use this format:</p>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="px-4 py-2 text-left font-semibold text-gray-700">Zapier Field Reference</th>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-700">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-sm">{% raw %}{{steps.4.scores__pain}}{% endraw %}</td>
+                                <td class="px-4 py-2 text-gray-600">Pain score (0&ndash;100)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-sm">{% raw %}{{steps.4.scores__composite}}{% endraw %}</td>
+                                <td class="px-4 py-2 text-gray-600">Composite score</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-sm">{% raw %}{{steps.4.sections__talking_points}}{% endraw %}</td>
+                                <td class="px-4 py-2 text-gray-600">AI-generated talking points</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-sm">{% raw %}{{steps.4.sections__business_problems}}{% endraw %}</td>
+                                <td class="px-4 py-2 text-gray-600">Identified business problems</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-sm">{% raw %}{{steps.4.sections__product_fit}}{% endraw %}</td>
+                                <td class="px-4 py-2 text-gray-600">Product-fit assessment</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="text-gray-500 text-sm mt-3">Key fields: composite score, pain score, talking_points, business_problems, product_fit.</p>
+            </section>
+
+            <!-- Troubleshooting -->
+            <section id="troubleshooting">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Troubleshooting</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="px-4 py-2 text-left font-semibold text-gray-700">Issue</th>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-700">Solution</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-red-600">401 Unauthorized</td>
+                                <td class="px-4 py-2 text-gray-600">Check header key/value format in Custom Request. Key must be <code class="bg-gray-100 px-1 rounded">Authorization</code>, value must be <code class="bg-gray-100 px-1 rounded">Bearer aug_...</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-900">Timeout / incomplete</td>
+                                <td class="px-4 py-2 text-gray-600">Research takes 30&ndash;60s. Use the <a href="#webhook" class="hover:underline" style="color: #FF4A00;">webhook approach</a> instead of polling.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-900">Webhook not firing</td>
+                                <td class="px-4 py-2 text-gray-600">Verify registration via the API, check Catch Hook URL is correct, and ensure the Zap is turned on.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-red-600">402 Payment Required</td>
+                                <td class="px-4 py-2 text-gray-600">No credits remaining. Purchase more at <a href="/billing/buy-credits" class="hover:underline" style="color: #FF4A00;">/billing/buy-credits</a>.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-red-600">429 Rate Limited</td>
+                                <td class="px-4 py-2 text-gray-600">Add Delay steps between requests to stay within rate limits.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 text-gray-900">Zapier can't loop</td>
+                                <td class="px-4 py-2 text-gray-600">Use the <a href="#webhook" class="hover:underline" style="color: #FF4A00;">webhook approach</a> &mdash; polling with Filter will stop if research is not completed in time.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<script>
+function copyCode(button) {
+    const pre = button.closest('pre');
+    const code = pre.querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(function() {
+        button.textContent = 'Copied!';
+        setTimeout(function() { button.textContent = 'Copy'; }, 2000);
+    });
+}
+</script>
+{% endblock %}
