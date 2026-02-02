@@ -343,9 +343,8 @@ async def get_firmographics_for_user(user_id: int, domain: str) -> Optional[str]
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://api.apollo.io/v1/mixed_companies/search",
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "X-Api-Key": api_key},
                 json={
-                    "api_key": api_key,
                     "q_organization_domains": domain,
                     "page": 1,
                     "per_page": 1,
@@ -422,9 +421,8 @@ async def _create_apollo_sequence_with_emails(
         # 1. Create the sequence / emailer campaign
         seq_resp = await client.post(
             f"{APOLLO_API_BASE}/emailer_campaigns",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
-                "api_key": api_key,
                 "name": f"Auggie – {company_name}",
             },
         )
@@ -440,9 +438,8 @@ async def _create_apollo_sequence_with_emails(
         for i, email in enumerate(emails):
             step_resp = await client.post(
                 f"{APOLLO_API_BASE}/emailer_steps",
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "X-Api-Key": api_key},
                 json={
-                    "api_key": api_key,
                     "emailer_campaign_id": campaign_id,
                     "priority": "A",
                     "type": "auto_email",
@@ -462,9 +459,8 @@ async def _get_contacts_for_org(api_key: str, org_id: str) -> list[str]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{APOLLO_API_BASE}/mixed_people/search",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
-                "api_key": api_key,
                 "organization_ids": [org_id],
                 "page": 1,
                 "per_page": 25,
@@ -484,9 +480,8 @@ async def _add_contacts_to_sequence(api_key: str, campaign_id: str, contact_ids:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{APOLLO_API_BASE}/emailer_campaigns/{campaign_id}/add_contact_ids",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
-                "api_key": api_key,
                 "contact_ids": contact_ids,
             },
         )
@@ -570,8 +565,8 @@ async def list_saved_lists(user_id: int) -> list[dict]:
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
             f"{APOLLO_API_BASE}/labels",
-            headers={"Content-Type": "application/json"},
-            json={"api_key": api_key},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
+            json={},
         )
         resp.raise_for_status()
         data = resp.json()
@@ -587,9 +582,8 @@ async def fetch_list_companies(user_id: int, list_id: str, page: int = 1) -> dic
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
             f"{APOLLO_API_BASE}/mixed_companies/search",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
             json={
-                "api_key": api_key,
                 "label_ids": [list_id],
                 "page": page,
                 "per_page": 100,
