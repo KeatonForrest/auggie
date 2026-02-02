@@ -32,7 +32,7 @@ Sales reps spend hours researching accounts before outreach. They're checking we
 
 Auggie does all of that automatically. Paste a company URL, and in 60 seconds you get a full research document: company overview, tech stack, recent news, key contacts, pain points, and personalized talking points based on what you're selling.
 
-It's like having a research analyst on your team who works instantly. $25/month for 25 accounts. One closed deal pays for a lifetime subscription.
+It's like having a research analyst on your team who works instantly. $0.25-$1.00 per account. One closed deal pays for years of Auggie.
 
 ---
 
@@ -58,8 +58,8 @@ Automatically crawls company websites, careers pages, blogs, job boards, and inv
 ### 2. Tech Stack Detection
 Identifies the exact technologies a company uses - frameworks, databases, infrastructure, analytics tools - by analyzing their website code.
 
-### 3. Contact Enrichment
-Finds key decision-makers matching your target personas with titles, departments, and LinkedIn profiles.
+### 3. Contact Enrichment (BYOK)
+Finds key decision-makers via your connected enrichment providers (Apollo, PDL, Lusha, Cognism). You bring your own API keys — Auggie orchestrates the lookups.
 
 ### 4. News & Press Monitoring
 Pulls the latest news articles and press releases so you're always current on what's happening.
@@ -96,15 +96,18 @@ Upload your sales collateral (case studies, battle cards, product docs) and Augg
 
 ## Pricing Messaging
 
-**$25/month for 25 researches**
+**Consumption pricing — pay per research, no subscriptions.**
 
-- That's $1 per account researched
+| Pack | Credits | Price | Per Credit |
+|------|---------|-------|-----------|
+| Starter | 10 | $10 | $1.00 |
+| Growth | 100 | $50 | $0.50 |
+| Power | 500 | $125 | $0.25 |
+
+- 10 free researches to try it out. No credit card required.
+- One credit = full research + scoring + 3-email sequence
 - One closed deal pays for years of Auggie
-- Research one account per workday
-
-**Need more?**
-- Buy additional credits: $10 for 10 searches
-- No commitment, use when you need them
+- Enterprise volume pricing available
 
 ---
 
@@ -116,7 +119,7 @@ I built a tool that does in 60 seconds what takes SDRs an hour.
 
 Paste a URL → Get a full research doc with tech stack, pain points, news, contacts, and personalized talking points.
 
-$25/month. 5,500 lines of Python. No VC funding. Just shipped it.
+10 free researches. No credit card. Just shipped it.
 
 auggie.tools
 ```
@@ -180,7 +183,7 @@ For technical audiences and indie hacker communities:
 
 - 5,500 lines of Python
 - FastAPI backend
-- Claude Opus for research generation
+- Gemini 2.5 Flash for research generation, Mistral Medium 3.1 for sequence writing
 - Firecrawl for web scraping
 - Wappalyzer for tech detection
 - PostgreSQL + pgvector for RAG

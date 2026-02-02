@@ -8,18 +8,25 @@ AI-powered account research for sales teams. Enter a company URL, get deep resea
 
 1. **Scrapes company websites** (Firecrawl) — homepage, about, careers, blog, job boards, investor relations
 2. **Detects technology stack** (Wappalyzer) — frameworks, databases, infrastructure across domains
-3. **Enriches with contacts** (Apollo.io) — finds key decision makers matching your target personas
+3. **Enriches with contacts** (BYOK — Apollo, PDL, Lusha, Cognism) — finds key decision makers
 4. **Fetches recent news** (SerpAPI) — latest press and announcements
-5. **Generates research document** (Claude Opus) — company overview, tech analysis, pain points, product fit, talking points
-6. **Writes outreach emails** (Claude Sonnet) — 3-email sequence tailored to the research
+5. **Analyzes regulatory filings** (SEC EDGAR, Federal Register) — compliance deadlines, risk factors
+6. **Generates research document** (Gemini 2.5 Flash) — company overview, pain/fit/timing scoring, talking points
+7. **Writes outreach emails** (Mistral Medium 3.1) — personalized 3-email sequence tailored to the research
 
 ## Features
 
-- **Google OAuth** — Sign in with Google
+- **Google + Microsoft OAuth** — Sign in with Google or Microsoft
 - **Onboarding flow** — Capture your product context for personalized research
 - **Materials upload** — Upload sales collateral (PDFs, docs) for RAG-enhanced research
-- **Stripe billing** — $24.99/month for 25 searches, bonus credit packs available
-- **Export options** — Markdown download, copy to clipboard
+- **Stripe billing** — Consumption pricing: 10 free credits, then 10/$10, 100/$50, 500/$125
+- **Team accounts** — Orgs, invites, shared credits, usage dashboard
+- **Public API** — REST API with async jobs, webhooks, rate limiting, Python SDK
+- **Chrome extension** — Research any company from their website
+- **Pipeline automation** — Score → Enrich → Write Sequences → Push with automation rules
+- **11 integrations** — Apollo, HubSpot, Salesforce, ZoomInfo, PDL, Lusha, Cognism, Instantly, Smartlead, Outreach, SalesLoft, Gong Engage
+- **Notifications** — Slack and Microsoft Teams webhooks
+- **Automation platforms** — Clay, Make, n8n, Zapier
 
 ## Project Structure
 
@@ -61,16 +68,16 @@ account_research/
 
 - **FastAPI** — Python web framework (async)
 - **PostgreSQL + pgvector** — Database with vector search (Neon)
-- **Claude Opus 4** — AI research generation
-- **Claude Sonnet 4** — Email sequence writing
+- **Gemini 2.5 Flash** (via OpenRouter) — AI research generation
+- **Mistral Medium 3.1** (via OpenRouter) — Email sequence writing
 - **Firecrawl** — Web scraping API
 - **Wappalyzer** — Technology detection
-- **Apollo.io** — Contact enrichment
 - **SerpAPI** — News search
-- **OpenAI** — Embeddings for materials
+- **SEC EDGAR / Federal Register** — Regulatory data (free)
+- **OpenAI** — Embeddings for materials RAG
 - **Cloudflare R2** — File storage
-- **Stripe** — Billing and subscriptions
-- **Google OAuth** — Authentication
+- **Stripe** — Billing (consumption pricing)
+- **Google + Microsoft OAuth** — Authentication
 - **Tailwind CSS** — Styling
 - **Railway** — Hosting
 

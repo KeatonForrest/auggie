@@ -28,33 +28,48 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 
 ### Integration Points
 
-**Ingest from:**
-- Ocean.io (lookalikes)
-- Clay (tables)
+**Import from:**
 - Apollo (saved lists)
 - HubSpot (companies)
 - Salesforce (accounts)
+- PDL / People Data Labs (company search)
+- Lusha (company search)
+- Cognism (company search)
+- ZoomInfo (company search)
+- Google Sheets (rows)
 - CSV upload
 
-**Enrich via:**
-- LeadMagic (contacts)
-- Apollo (contacts)
-- Clearbit (firmographics)
+**Enrich via (BYOK):**
+- Apollo (contacts — free for connected users)
+- PDL (contacts)
+- Lusha (contacts)
+- Cognism (contacts)
 
-**Execute to:**
-- Instantly
-- Outreach
-- Salesloft
-- HubSpot sequences
-- Salesforce
+**Push to:**
+- Instantly (campaigns + contacts)
+- Smartlead (campaigns + contacts)
+- Outreach (sequences)
+- SalesLoft (cadences)
+- Gong Engage (flows)
+- Apollo (CSV export)
+
+**Notify via:**
+- Slack (webhooks)
+- Microsoft Teams (webhooks)
+
+**Automation platforms:**
+- Clay (enrichment column)
+- Make (HTTP modules)
+- n8n (HTTP Request nodes)
+- Zapier (Webhooks by Zapier)
 
 ---
 
 ## Current Status: v2 LIVE IN PRODUCTION + PUBLIC API + CHROME EXTENSION + TEAM ACCOUNTS
-- Core research generation working (Claude Sonnet 4, temperature 0.25)
+- Core research generation working (Gemini 2.5 Flash via OpenRouter, temperature 0.25)
 - Materials upload & RAG working
 - Writing workflow (PVP email sequences) working
-- Consumption pricing (5 free, $10 for 10 credits) working
+- Consumption pricing (10 free credits, tiers: 10/$10, 100/$50, 500/$125) working
 - Admin accounts (unlimited usage for internal users)
 - Public API with async jobs, webhooks, rate limiting, sequence generation
 - Chrome extension with real-time progress tracking and background polling
@@ -76,7 +91,7 @@ Each step filters. Don't pay to enrich or write for accounts that aren't ready.
 - [x] Tech stack detection (B2B + B2C)
 - [x] Job board scraping (Greenhouse, Lever, Workday, Ashby, etc.)
 - [x] User auth (Google OAuth)
-- [x] Stripe billing (Free tier + Pro $9.99/mo)
+- [x] Stripe billing (consumption pricing, prepaid credit packs)
 - [x] Simplified onboarding
 - [x] Materials prompt modal
 
@@ -347,7 +362,7 @@ _Deferred — EDGAR already provides financials for public companies, and the ex
 
 Transform Auggie into the orchestration layer for sales intelligence. Ingest lists from any source, score by problem signals, push to sequencers.
 
-**Build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → Ocean.io → Chrome Extension
+**Build order:** CSV Upload → HubSpot → Instantly → Slack/Zapier → Salesforce → Apollo → PDL → Chrome Extension
 
 ### Stage 1: CSV Upload (foundation) ✅
 - [x] Build CSV upload UI — accept a file of company domains
@@ -372,7 +387,7 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 
 ### Stage 4: Prospecting Tool Ingest ✅
 - [x] Apollo API integration — import saved lists
-- [x] Ocean.io API integration — import lookalike audiences
+- [x] PDL (People Data Labs) — company search and import (BYOK)
 
 ### Stage 5: Execute — First Sequencer ✅
 - [x] Pick sequencer (Instantly likely first — simple API, popular with ICP)
@@ -381,8 +396,9 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 - [x] UI: "Send to Instantly" button on filtered list view
 
 ### Stage 6: Notifications ✅
-- [x] Slack integration — webhook notifications (research complete, high-pain alert)
-- [x] Zapier/Make webhook triggers (covers long tail without custom integrations)
+- [x] Slack integration — webhook notifications (research complete, high-pain alert, list complete)
+- [x] Microsoft Teams integration — Adaptive Card notifications (same events as Slack)
+- [x] Zapier/Make/n8n webhook triggers (covers long tail without custom integrations)
 
 ### Stage 7: Chrome Extension ✅
 - [x] Chrome extension — research any company from their website
@@ -400,10 +416,11 @@ Transform Auggie into the orchestration layer for sales intelligence. Ingest lis
 ### Future Execute Integrations
 _Moved to Phase 11.5 (testing) and Phase 11.75 (new sequencers)._
 
-### Future Enrich Integrations
-- [ ] LeadMagic — contacts for high-pain accounts only (re-enable after data quality improves)
-- [ ] Apollo — contact enrichment
-- [ ] Clearbit — firmographic enrichment
+### Enrichment Integrations (BYOK) ✅
+- [x] Apollo — contact enrichment (free for connected users)
+- [x] PDL — contact enrichment
+- [x] Lusha — contact enrichment
+- [x] Cognism — contact enrichment
 
 ---
 
@@ -578,13 +595,14 @@ End-to-end testing of existing integrations after Phase 11 org-scoped changes.
 - `push_to_instantly` (`main.py:516`) called `get_list(list_id)` without `user_id` — would crash. Fixed to `get_list(list_id, user["id"])`.
 
 - [ ] Webhooks — register, trigger job, verify delivery + HMAC + org_id in DB
-- [ ] HubSpot — OAuth connect, import companies, verify list org_id, write scores back, disconnect
+- [x] HubSpot — OAuth connect, import companies, verify list org_id, write scores back, disconnect
 - [ ] Salesforce — OAuth connect, import accounts, verify list org_id, write scores back, disconnect
-- [ ] Instantly — connect, list campaigns, push accounts from scored list
-- [ ] Apollo — connect, list saved lists, import companies, verify list org_id
-- [ ] Ocean.io — connect, list audiences, import companies, verify list org_id
+- [x] Instantly — connect, list campaigns, push accounts from scored list
+- [x] Apollo — connect, list saved lists, import companies, verify list org_id
+- [x] PDL — connect, search companies, import to list
 - [ ] Clay — POST /v1/clay/enrich, verify response fields, verify cache hit, verify org credit deduction
-- [ ] Slack — connect webhook URL, send test notification, verify high-pain alert
+- [x] Slack — connect webhook URL, send test notification, verify high-pain alert
+- [x] Teams — connect webhook URL, send test notification
 - [ ] Chrome extension — install, configure API key, research from extension, verify cache
 
 ---
@@ -594,8 +612,11 @@ End-to-end testing of existing integrations after Phase 11 org-scoped changes.
 
 Add outbound sequencer integrations so users can push sequences directly from Auggie.
 
-- [x] Outreach — OAuth connection, push contacts + sequences to Outreach
-- [x] Salesloft — OAuth connection, push contacts + sequences to Salesloft
+- [x] Instantly — API key, push contacts + campaigns
+- [x] Smartlead — API key, push contacts + campaigns
+- [x] Outreach — OAuth connection, push contacts + sequences
+- [x] SalesLoft — OAuth connection, push contacts + cadences
+- [x] Gong Engage — OAuth connection, push to flows
 
 ---
 
@@ -619,75 +640,33 @@ Required for enterprise sales.
 Pay per research. No subscriptions. Guaranteed margins on every call.
 UI and API use the same credits. Where you work doesn't change what you pay.
 
-### Two Tiers
+### Credit Packs
 
-| Tier | Price | Includes | Access |
-|------|-------|----------|--------|
-| **Basic** | $1.00 | Research + sequence (BYOC) | UI + API |
-| **Full** | $1.50 | Research + Opportunity Score + LeadMagic contact + sequence | UI + API |
+| Pack | Per Credit | Price | Margin |
+|------|-----------|-------|--------|
+| 10 | $1.00 | $10 | 86.5% |
+| 100 | $0.50 | $50 | 83.0% |
+| 500 | $0.25 | $125 | 68.0% |
+| Enterprise | Custom | Contact us | — |
 
-**Free:** 5 researches to try it out (no API).
+**Free:** 10 researches to try it out. No credit card required.
 
-**BYOC** = Bring Your Own Contact (you provide contact info for sequence personalization)
-
-### What Each Tier Returns
-
-**Basic ($1.00)**
-```
-You provide: Domain
-Auggie returns: Research, talking points, sequence
-No scoring. No contact enrichment.
-```
-
-**Full ($1.50)**
-```
-You provide: Domain
-Auggie returns:
-  - Opportunity Score (Pain + Fit + Timing)
-  - Research document
-  - Contact via LeadMagic
-  - Personalized sequence
-```
-
-**The gate:** Basic users see the research and a locked Opportunity Score.
-$0.50 more unlocks scoring, contact, and full personalization.
-
-### Volume Pricing
-
-| Volume | Basic | Full |
-|--------|-------|------|
-| 1-99 | $1.00 | $1.50 |
-| 100+ | $0.85 | $1.25 |
-| Enterprise | Custom | Custom |
+One credit = one company fully researched, scored, and sequenced. Enrichment and sequencer push use the user's own API keys (BYOK).
 
 ### Unit Economics
 
-_Updated Jan 2026: Switched research model from Claude Opus 4 to Claude Sonnet 4 with extended thinking. ~60% reduction in LLM cost per research._
+_Updated Feb 2026: Switched to Gemini 2.5 Flash for research and Mistral Medium 3.1 for writing. COGS dropped to ~$0.076/research._
 
-**Basic ($1.00):**
 | Cost Component | Estimate |
 |----------------|----------|
-| Firecrawl (~12 scrapes/research) | $0.10-0.14 |
-| Claude Sonnet 4 (research + thinking) | $0.10-0.15 |
-| SerpAPI (news) | $0.01 |
-| Claude Sonnet 4 (sequence) | $0.06 |
-| **COGS** | **$0.27-0.36** |
-| **Revenue** | **$1.00** |
-| **Margin** | **64-73%** |
+| Firecrawl (~7-8 pages) | ~$0.040 |
+| Gemini 2.5 Flash (research) | ~$0.015 |
+| Mistral Medium 3.1 (sequences) | ~$0.006 |
+| SerpAPI (news) | ~$0.015 |
+| OpenAI embeddings (RAG) | ~$0.000 |
+| **Total COGS** | **~$0.076** |
 
-**Full ($1.50):**
-| Cost Component | Estimate |
-|----------------|----------|
-| Firecrawl (~12 scrapes/research) | $0.10-0.14 |
-| Claude Sonnet 4 (research + thinking) | $0.10-0.15 |
-| SerpAPI (news) | $0.01 |
-| Claude Sonnet 4 (sequence) | $0.06 |
-| LeadMagic (contact) | $0.10-0.20 |
-| **COGS** | **$0.37-0.56** |
-| **Revenue** | **$1.50** |
-| **Margin** | **63-75%** |
-
-Positive margin on every research. No utilization risk. No subscription management.
+Positive margin on every research at every tier. No utilization risk. No subscription management.
 
 ### Admin Accounts
 Internal users can be granted unlimited free usage:
@@ -779,14 +758,12 @@ Centralized admin dashboard for internal operations — beyond the current `/adm
 ---
 
 ## ZoomInfo Import
-**Status:** Planned
+**Status:** Complete
 
-Add ZoomInfo as an ingest source (same pattern as Apollo/Ocean.io).
-
-- [ ] ZoomInfo API integration — OAuth or API key connection flow
-- [ ] Import companies/accounts from ZoomInfo lists
-- [ ] Create Auggie list from imported companies, trigger analysis
-- [ ] Add to integrations page UI
+- [x] ZoomInfo OAuth integration with PKCE
+- [x] Import companies/accounts from ZoomInfo
+- [x] Create Auggie list from imported companies, trigger analysis
+- [x] Added to integrations page UI
 
 ---
 
@@ -804,7 +781,7 @@ Add ZoomInfo as an ingest source (same pattern as Apollo/Ocean.io).
 | ✅ Done | Phase 7.5 | Score calibration (anchors, evidence, anti-clustering, concrete examples) |
 | ✅ Done | Phase 7.7 | Data sources (SEC EDGAR, Federal Register; G2/Capterra removed) |
 | ✅ Done | Phase 8.5 | UX polish — progress indicator, errors, export, search |
-| ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, Ocean.io, Slack, Chrome Extension |
+| ✅ Done | Phase 8 | Intelligence orchestration — CSV, HubSpot, Instantly, Salesforce, Apollo, PDL, Slack, Teams, Chrome Extension |
 | ✅ Done | Phase 7.5 Step 6 | Score recalibration (temperature, anchors, Fit cap) |
 | Background | Phase 13 | Clay Marketplace onboarding (external process) |
 | ✅ Done | Phase 10 | Pipeline UI + workflow automation |
@@ -814,7 +791,7 @@ Add ZoomInfo as an ingest source (same pattern as Apollo/Ocean.io).
 | ✅ Done | Phase 11.75 | Sequencer integrations (Outreach, Salesloft) |
 | Planned | — | Fix timezone handling across the app |
 | Planned | — | Master admin portal |
-| Planned | — | ZoomInfo import integration |
+| ✅ Done | — | ZoomInfo import integration |
 | Later | Phase 12 | Enterprise security (SSO, SCIM, audit logs) |
 
 ---

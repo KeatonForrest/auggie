@@ -34,7 +34,7 @@ Every research request triggers a nine-step execution flow:
 
 8. **Outreach Generation (Mistral Medium):** Mistral Medium 3.1 creates a 3-email cold outreach sequence. This sequence is not generic; it utilizes the specific "hooks" identified in the research phase.
 
-9. **Enrichment:** Optionally, LeadMagic enriches key contact data, and Apollo provides firmographic details.
+9. **Enrichment (BYOK):** Users connect their own enrichment providers (Apollo, PDL, Lusha, Cognism) to discover contacts. Apollo enrichment is free for connected users.
 
 ### The Personalization Engine
 
@@ -98,13 +98,14 @@ Auggie is currently live with a usage-based monetization model, removing the fri
 | Pack | Credits | Price | Per Credit |
 |------|---------|-------|-----------|
 | Starter | 10 | $10 | $1.00 |
-| Pro | 50 | $37.50 | $0.75 |
-| Scale | 200 | $100 | $0.50 |
+| Growth | 100 | $50 | $0.50 |
+| Power | 500 | $125 | $0.25 |
 | Enterprise | Custom | Custom | Contact us |
 
-- Contact enrichment costs 0.5 credits per lookup.
+- 10 free credits for new signups. No credit card required.
+- Contact enrichment uses user's own API keys (BYOK) — zero cost to Auggie.
 - All packs are prepaid, non-expiring credits.
-- Enterprise engagements include custom volume pricing, dedicated onboarding, and API access for workflow integration.
+- Enterprise engagements include custom volume pricing and dedicated onboarding.
 
 ### Operational Readiness
 
@@ -120,7 +121,9 @@ Auggie is designed to fit into existing workflows rather than forcing users to a
 - **Sales Engagement:** Compatible with Outreach, SalesLoft, and Gong Engage.
 - **Email Sending:** Integrates with Instantly and Smartlead for sequence automation.
 - **Workflow Automation:** A dedicated `/v1/clay/enrich` endpoint allows Auggie to function as a premium data provider within Clay tables.
-- **Notifications:** Slack alerts for completed research and Google Sheets export capabilities.
+- **Notifications:** Slack and Microsoft Teams alerts for completed research, high-pain accounts, and list completion.
+- **Automation Platforms:** Clay (enrichment column), Make, n8n, and Zapier via REST API.
+- **Data Providers (BYOK):** PDL, Lusha, Cognism, ZoomInfo — users connect their own API keys for company search and import.
 
 ### The Moat
 

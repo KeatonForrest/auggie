@@ -80,7 +80,7 @@ All in one request.
 | Personalization | Manual each time | Built-in |
 | Data sources | 1 (what you paste) | 5+ integrated |
 | Output format | Variable | Consistent |
-| Price | $20/mo + your time | $25/mo, no extra work |
+| Price | $20/mo + your time | $0.25-$1.00/account, no extra work |
 
 **Think of it this way:** ChatGPT is a smart assistant you have to manage. Auggie is a research analyst who already knows what you need.
 
@@ -89,27 +89,42 @@ All in one request.
 ## Pricing
 
 ### How much does Auggie cost?
-$24.99/month for 25 research documents. That's about $1 per account researched.
+Consumption pricing — pay per research, no subscriptions.
+
+| Pack | Credits | Price | Per Credit |
+|------|---------|-------|-----------|
+| Starter | 10 | $10 | $1.00 |
+| Growth | 100 | $50 | $0.50 |
+| Power | 500 | $125 | $0.25 |
+
+One credit = full research + pain/fit/timing scoring + personalized 3-email sequence.
 
 ### Is there a free trial?
 Yes - you get 10 free researches to try it out. No credit card required.
 
-### What if I need more than 25 researches?
-You can buy additional credit packs: $10 for 10 extra researches. Use them whenever you need them.
-
-### Can I cancel anytime?
-Yes. Monthly subscription with no commitment.
+### Need more than 500 credits?
+Contact us for enterprise volume pricing.
 
 ---
 
 ## Features
 
 ### What data sources does Auggie use?
-- **Firecrawl** - Scrapes company websites (homepage, about, careers, blog)
-- **Wappalyzer** - Detects technologies from website code
-- **SerpAPI** - Fetches recent news from Google News
-- **Apollo.io** - Finds key contacts and company info
-- **Your materials** - References your uploaded sales collateral
+- **Firecrawl** — Scrapes company websites (homepage, about, careers, blog, investor relations)
+- **Wappalyzer** — Detects technologies from website code
+- **SerpAPI** — Fetches recent news from Google News
+- **SEC EDGAR** — Public company filings, risk factors, 8-K events
+- **Federal Register** — Regulatory compliance deadlines
+- **DNS/SSL/Security headers** — Infrastructure analysis
+- **Your materials** — References your uploaded sales collateral via RAG
+
+### What enrichment providers are supported?
+Auggie uses a BYOK (Bring Your Own Key) model. You connect your own API keys for:
+- **Apollo** — Contact enrichment (free for connected users)
+- **PDL (People Data Labs)** — Company and contact search
+- **Lusha** — Contact enrichment
+- **Cognism** — Contact enrichment
+- **ZoomInfo** — Company search and import
 
 ### What's included in a research document?
 1. Company Overview
@@ -147,7 +162,7 @@ No. Your data is used only to generate your research documents.
 ## Technical
 
 ### What AI model does Auggie use?
-Claude Opus 4 for research generation (highest quality reasoning) and Claude Sonnet 4 for email sequences.
+Gemini 2.5 Flash (via OpenRouter) for research generation and Mistral Medium 3.1 for email sequences.
 
 ### How accurate is the tech stack detection?
 Very accurate. Wappalyzer analyzes the actual JavaScript, meta tags, and HTTP headers on the website. It detects what's actually running, not what the company claims to use.
