@@ -841,8 +841,8 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Under <strong>Authentication</strong>, choose <strong>Generic Credential Type → Header Auth</strong>. Set Name to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization</code>, Value to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Bearer aug_your_key</code>.</li>
                             <li>Set Body Content Type to <strong>JSON</strong> and add: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code></li>
                             <li>Add a <strong>Wait</strong> node &rarr; set to <strong>5 seconds</strong>.</li>
-                            <li>Add a second <strong>HTTP Request</strong> node. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{{ $('HTTP Request').item.json.job_id }}</code>. Same auth header.</li>
-                            <li>Add an <strong>IF</strong> node. Condition: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{{ $json.status }}</code> <strong>is not equal to</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code>.</li>
+                            <li>Add a second <strong>HTTP Request</strong> node. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{ $('HTTP Request').item.json.job_id }}{% endraw %}</code>. Same auth header.</li>
+                            <li>Add an <strong>IF</strong> node. Condition: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{% raw %}{{ $json.status }}{% endraw %}</code> <strong>is not equal to</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code>.</li>
                             <li>Connect the IF <strong>true</strong> output back to the Wait node (creates a loop). Connect <strong>false</strong> (completed) to your next action.</li>
                         </ol>
                         <p class="text-xs text-gray-500 mb-4">Flow: <strong>HTTP Request</strong> → <strong>Wait</strong> → <strong>HTTP Request (poll)</strong> → <strong>IF</strong> → loops back to Wait or continues.</p>
@@ -864,7 +864,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Add an <strong>HTTP Request</strong> node. POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/bulk</code> with body:</li>
                         </ol>
                         <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
-  "urls": {{ $json.rows.map(r => r.company_url) }},
+  "urls": {% raw %}{{ $json.rows.map(r => r.company_url) }}{% endraw %},
   "list_name": "n8n bulk import"
 }</code></pre>
                         <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside" start="3">
@@ -882,7 +882,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Under <strong>Headers</strong>, add <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization: Bearer aug_your_key</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Content-Type: application/json</code>.</li>
                             <li>Set Request content to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code>. Check <strong>Parse response</strong>.</li>
                             <li>Add a <strong>Sleep</strong> module (Tools &gt; Sleep) set to <strong>5 seconds</strong>.</li>
-                            <li>Add a second <strong>HTTP &gt; Make a request</strong> module. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{{1.body.job_id}}</code>. Same auth header.</li>
+                            <li>Add a second <strong>HTTP &gt; Make a request</strong> module. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{1.body.job_id}}{% endraw %}</code>. Same auth header.</li>
                             <li>Add a <strong>Router</strong> module. Route 1 filter: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">status</code> not equal to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code> — loop back to the Sleep module. Route 2 (fallback): continues to your next action.</li>
                         </ol>
                         <p class="text-xs text-gray-500 mb-4">Flow: <strong>HTTP (POST)</strong> → <strong>Sleep</strong> → <strong>HTTP (GET poll)</strong> → <strong>Router</strong> → loops or continues.</p>
@@ -901,7 +901,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Add an <strong>HTTP &gt; Make a request</strong> module. POST to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/bulk</code> with body:</li>
                         </ol>
                         <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
-  "urls": {{map(2.bundles; "company_url")}},
+  "urls": {% raw %}{{map(2.bundles; "company_url")}}{% endraw %},
   "list_name": "Make bulk import"
 }</code></pre>
                         <ol class="text-sm text-gray-700 space-y-1.5 list-decimal list-inside" start="3">
@@ -920,7 +920,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <li>Add headers: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Authorization | Bearer aug_your_key</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Content-Type | application/json</code>.</li>
                             <li>Set Data to <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">{"company_url": "https://example.com"}</code>.</li>
                             <li>Add a <strong>Delay by Zapier</strong> step set to <strong>30 seconds</strong> (Zapier's minimum).</li>
-                            <li>Add another <strong>Webhooks by Zapier &gt; Custom Request</strong>. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{{steps.2.job_id}}</code>. Same headers.</li>
+                            <li>Add another <strong>Webhooks by Zapier &gt; Custom Request</strong>. Method: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">GET</code>, URL: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">https://auggie.app/v1/research/{% raw %}{{steps.2.job_id}}{% endraw %}</code>. Same headers.</li>
                             <li>Add a <strong>Filter by Zapier</strong> step: only continue when <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">status</code> equals <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">completed</code>. (Zapier doesn't natively loop — see the webhook option below for a cleaner approach.)</li>
                         </ol>
 
