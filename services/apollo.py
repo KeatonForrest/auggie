@@ -256,7 +256,7 @@ async def list_saved_lists(user_id: int) -> list[dict]:
         )
         resp.raise_for_status()
         data = resp.json()
-        return data.get("labels", [])
+        return data if isinstance(data, list) else data.get("labels", [])
 
 
 async def fetch_list_companies(user_id: int, list_id: str, page: int = 1) -> dict:
