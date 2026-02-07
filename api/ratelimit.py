@@ -5,10 +5,13 @@ Interface is kept abstract so a Redis backend can be swapped in later.
 """
 
 import abc
+import logging
 import threading
 import time
 from collections import defaultdict
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 
 MAX_KEYS = 10_000
 CLEANUP_INTERVAL = 60  # seconds
@@ -51,9 +54,10 @@ class BaseRateLimiter(abc.ABC):
 class InMemoryRateLimiter(BaseRateLimiter):
     """Sliding window rate limiter with cleanup and max-key eviction."""
 
-    def __init__(self, requests: int, window_seconds: int):
+    def __init__(self, requests: int, window_seconds: int, enforce: bool = True):
         self.requests = requests
         self.window = window_seconds
+        self.enforce = enforce
         self._hits: dict = defaultdict(list)
         self._lock = threading.Lock()
         _all_limiters.append(self)
@@ -68,12 +72,18 @@ class InMemoryRateLimiter(BaseRateLimiter):
             hits = [t for t in self._hits[key] if t > cutoff]
 
             if len(hits) >= self.requests:
-                retry_after = int(hits[0] - cutoff) + 1
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Rate limit exceeded. Max {self.requests} requests per {self.window}s.",
-                    headers={"Retry-After": str(retry_after)},
-                )
+                if not self.enforce:
+                    logger.warning(
+                        "Rate limit exceeded (warn-only): key=%s, limit=%d/%ds",
+                        key, self.requests, self.window,
+                    )
+                else:
+                    retry_after = int(hits[0] - cutoff) + 1
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Rate limit exceeded. Max {self.requests} requests per {self.window}s.",
+                        headers={"Retry-After": str(retry_after)},
+                    )
 
             hits.append(now)
             self._hits[key] = hits
@@ -104,12 +114,17 @@ class InMemoryRateLimiter(BaseRateLimiter):
 RateLimiter = InMemoryRateLimiter
 IPRateLimiter = InMemoryRateLimiter
 
-# Shared limiters (API key-based)
-research_limiter = RateLimiter(requests=10, window_seconds=60)
-sequence_limiter = RateLimiter(requests=20, window_seconds=60)
-default_limiter = RateLimiter(requests=60, window_seconds=60)
-bulk_limiter = RateLimiter(requests=2, window_seconds=60)
-clay_limiter = RateLimiter(requests=5, window_seconds=60)
+# Load config to determine enforcement mode for API-key-based limiters
+from config import get_settings
+_settings = get_settings()
+_api_enforce = not _settings.cloudflare_rate_limiting
+
+# Shared limiters (API key-based) — warn-only when Cloudflare rate limiting is active
+research_limiter = RateLimiter(requests=10, window_seconds=60, enforce=_api_enforce)
+sequence_limiter = RateLimiter(requests=20, window_seconds=60, enforce=_api_enforce)
+default_limiter = RateLimiter(requests=60, window_seconds=60, enforce=_api_enforce)
+bulk_limiter = RateLimiter(requests=2, window_seconds=60, enforce=_api_enforce)
+clay_limiter = RateLimiter(requests=5, window_seconds=60, enforce=_api_enforce)
 
 
 def get_client_ip(request) -> str:

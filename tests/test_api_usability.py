@@ -398,3 +398,128 @@ class TestErrorResponseFormat:
                 "message": "No credits remaining. Need 5, have 2.",
             }
         }
+
+
+# ============================================================================
+# Rate limiter enforce mode tests
+# ============================================================================
+
+
+class TestRateLimiterEnforceMode:
+    """Tests for InMemoryRateLimiter enforce vs warn-only mode."""
+
+    def test_enforce_true_raises_429(self):
+        """enforce=True raises HTTPException(429) when limit exceeded."""
+        from api.ratelimit import InMemoryRateLimiter
+
+        limiter = InMemoryRateLimiter(requests=2, window_seconds=60, enforce=True)
+        limiter.check("key1")
+        limiter.check("key1")
+
+        with pytest.raises(HTTPException) as exc_info:
+            limiter.check("key1")
+        assert exc_info.value.status_code == 429
+
+    def test_enforce_false_warns_but_does_not_raise(self):
+        """enforce=False logs a warning but does NOT raise 429."""
+        from api.ratelimit import InMemoryRateLimiter
+
+        limiter = InMemoryRateLimiter(requests=2, window_seconds=60, enforce=False)
+        limiter.check("key1")
+        limiter.check("key1")
+
+        # Should not raise — warn-only mode
+        limiter.check("key1")
+        limiter.check("key1")
+
+    def test_enforce_false_still_tracks_hits(self):
+        """enforce=False still records hits for observability."""
+        from api.ratelimit import InMemoryRateLimiter
+
+        limiter = InMemoryRateLimiter(requests=1, window_seconds=60, enforce=False)
+        limiter.check("key1")
+        limiter.check("key1")
+        limiter.check("key1")
+
+        # Hits are tracked even beyond the limit
+        assert len(limiter._hits["key1"]) >= 3
+
+    def test_enforce_default_is_true(self):
+        """enforce defaults to True when not specified."""
+        from api.ratelimit import InMemoryRateLimiter
+
+        limiter = InMemoryRateLimiter(requests=1, window_seconds=60)
+        assert limiter.enforce is True
+
+
+# ============================================================================
+# Clay endpoint timeout tests
+# ============================================================================
+
+
+class TestClayTimeout:
+    """Tests for the 120s timeout on POST /v1/clay/enrich."""
+
+    @pytest.mark.asyncio
+    async def test_clay_enrich_timeout_returns_504(self):
+        """Pipeline exceeding timeout returns 504 with timeout error."""
+        from api.routes import clay_enrich
+
+        body = MagicMock()
+        body.company_url = "https://example.com"
+
+        fake_api_user = {"id": 1, "api_key_id": 42}
+        fake_usage = {"is_admin": False}
+        fake_job = {"id": 100}
+
+        async def hang_forever(user_id, url):
+            await asyncio.Event().wait()
+
+        with patch("api.routes.clay_limiter"), \
+             patch("api.routes.CLAY_TIMEOUT", 0.1), \
+             patch("api.routes.validate_company_url", return_value="https://example.com"), \
+             patch("api.routes.get_recent_document_by_url", new_callable=AsyncMock, return_value=None), \
+             patch("api.routes.get_user_usage", new_callable=AsyncMock, return_value=fake_usage), \
+             patch("api.routes.create_job_with_credit", new_callable=AsyncMock, return_value=fake_job), \
+             patch("api.routes._run_research_pipeline", side_effect=hang_forever), \
+             patch("api.routes.refund_credit", new_callable=AsyncMock) as mock_refund, \
+             patch("database.update_job_status", new_callable=AsyncMock) as mock_update:
+
+            with pytest.raises(APIError) as exc_info:
+                await clay_enrich(body, api_user=fake_api_user)
+
+            assert exc_info.value.status_code == 504
+            assert exc_info.value.error_code == "timeout"
+            mock_refund.assert_called_once_with(1)
+            mock_update.assert_called_once_with(100, "failed", error_message="Research timed out after 120 seconds")
+
+    @pytest.mark.asyncio
+    async def test_clay_enrich_timeout_no_refund_for_admin(self):
+        """Admin users don't get refunded on timeout."""
+        from api.routes import clay_enrich
+
+        body = MagicMock()
+        body.company_url = "https://example.com"
+
+        fake_api_user = {"id": 1, "api_key_id": 42}
+        fake_usage = {"is_admin": True}
+        fake_job = {"id": 100}
+
+        async def hang_forever(user_id, url):
+            await asyncio.Event().wait()
+
+        with patch("api.routes.clay_limiter"), \
+             patch("api.routes.CLAY_TIMEOUT", 0.1), \
+             patch("api.routes.validate_company_url", return_value="https://example.com"), \
+             patch("api.routes.get_recent_document_by_url", new_callable=AsyncMock, return_value=None), \
+             patch("api.routes.get_user_usage", new_callable=AsyncMock, return_value=fake_usage), \
+             patch("api.routes.create_research_job", new_callable=AsyncMock, return_value=fake_job), \
+             patch("api.routes._run_research_pipeline", side_effect=hang_forever), \
+             patch("api.routes.refund_credit", new_callable=AsyncMock) as mock_refund, \
+             patch("database.update_job_status", new_callable=AsyncMock):
+
+            with pytest.raises(APIError) as exc_info:
+                await clay_enrich(body, api_user=fake_api_user)
+
+            assert exc_info.value.status_code == 504
+            mock_refund.assert_not_called()

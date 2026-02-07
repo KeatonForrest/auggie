@@ -1,5 +1,6 @@
 """v1 API routes — authenticated via API key."""
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -42,6 +43,8 @@ class SortOrder(str, Enum):
     asc = "asc"
     desc = "desc"
 
+
+CLAY_TIMEOUT = 120.0
 
 router = APIRouter(prefix="/v1")
 
@@ -461,10 +464,13 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
     else:
         job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
-    # Run pipeline synchronously
+    # Run pipeline synchronously with 120s timeout
     start = time.monotonic()
     try:
-        doc_id = await _run_research_pipeline(api_user["id"], company_url)
+        doc_id = await asyncio.wait_for(
+            _run_research_pipeline(api_user["id"], company_url),
+            timeout=CLAY_TIMEOUT,
+        )
         duration = time.monotonic() - start
 
         await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 1)
@@ -476,6 +482,13 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         inferences = await get_pain_inferences(doc_id)
         pain = synthesize_pain(inferences, doc.pain_evidence)
         return _build_clay_response(doc, cached=False, duration=duration, pain_synthesis=pain)
+
+    except asyncio.TimeoutError:
+        if not is_admin:
+            await refund_credit(api_user["id"])
+        from database import update_job_status
+        await update_job_status(job["id"], "failed", error_message="Research timed out after 120 seconds")
+        raise APIError("timeout", "Research timed out after 120 seconds", 504)
 
     except Exception as e:
         duration = time.monotonic() - start
