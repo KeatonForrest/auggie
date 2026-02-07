@@ -103,7 +103,7 @@ async def update_job_progress(job_id: int, progress: str) -> None:
         )
 
 
-async def list_user_jobs(user_id: int, limit: int = 20) -> list[dict]:
+async def list_user_jobs(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
     """List recent research jobs for a user."""
     async with _db._pool.acquire() as conn:
         rows = await conn.fetch(
@@ -112,8 +112,8 @@ async def list_user_jobs(user_id: int, limit: int = 20) -> list[dict]:
             FROM research_jobs
             WHERE user_id = $1
             ORDER BY created_at DESC
-            LIMIT $2
+            LIMIT $2 OFFSET $3
             """,
-            user_id, limit
+            user_id, limit, offset
         )
         return [dict(row) for row in rows]

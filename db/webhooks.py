@@ -61,14 +61,28 @@ async def update_delivery_status(
     status: str,
     http_status: int = None,
     error_message: str = None,
+    attempts: int = None,
 ) -> None:
-    """Update a webhook delivery result."""
+    """Update a webhook delivery result.
+
+    If attempts is provided, sets the column directly; otherwise increments by 1.
+    """
     async with _db._pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE webhook_deliveries
-            SET status = $2, http_status = $3, error_message = $4, attempts = attempts + 1
-            WHERE id = $1
-            """,
-            delivery_id, status, http_status, error_message
-        )
+        if attempts is not None:
+            await conn.execute(
+                """
+                UPDATE webhook_deliveries
+                SET status = $2, http_status = $3, error_message = $4, attempts = $5
+                WHERE id = $1
+                """,
+                delivery_id, status, http_status, error_message, attempts
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE webhook_deliveries
+                SET status = $2, http_status = $3, error_message = $4, attempts = attempts + 1
+                WHERE id = $1
+                """,
+                delivery_id, status, http_status, error_message
+            )

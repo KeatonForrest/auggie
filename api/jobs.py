@@ -537,8 +537,19 @@ async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | 
         await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
 
 
+WEBHOOK_MAX_RETRIES = 5
+WEBHOOK_BACKOFF_BASE = 5  # seconds
+
+
 async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):
-    """Send webhook notification if the user has one configured."""
+    """Send webhook notification with exponential backoff retries.
+
+    Retry strategy:
+    - Max 5 attempts
+    - Backoff: 5s, 25s, 125s (capped at 125s)
+    - Retries on: network errors, HTTP 5xx, HTTP 429
+    - No retry on: HTTP 4xx (client error)
+    """
     webhook = await get_user_webhook(user_id)
     if not webhook:
         return
@@ -551,26 +562,57 @@ async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: 
     }
 
     delivery = await create_webhook_delivery(webhook["id"], job_id)
+    signature = sign_payload(payload, webhook["secret"])
 
-    try:
-        signature = sign_payload(payload, webhook["secret"])
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                webhook["url"],
-                json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Webhook-Signature": f"sha256={signature}",
-                },
-            )
-        await update_delivery_status(
-            delivery["id"],
-            status="success" if resp.status_code < 400 else "failed",
-            http_status=resp.status_code,
-        )
-    except Exception as e:
-        await update_delivery_status(
-            delivery["id"],
-            status="failed",
-            error_message=str(e)[:500],
-        )
+    last_error = None
+    last_http_status = None
+
+    for attempt in range(1, WEBHOOK_MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    webhook["url"],
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Webhook-Signature": f"sha256={signature}",
+                    },
+                )
+            last_http_status = resp.status_code
+
+            if resp.status_code < 400:
+                await update_delivery_status(
+                    delivery["id"], status="success",
+                    http_status=resp.status_code, attempts=attempt,
+                )
+                return
+
+            if 400 <= resp.status_code < 500 and resp.status_code != 429:
+                # Client error on their receiver — don't retry
+                logger.warning("Webhook delivery %s got %s (client error), not retrying", delivery["id"], resp.status_code)
+                await update_delivery_status(
+                    delivery["id"], status="failed",
+                    http_status=resp.status_code, attempts=attempt,
+                )
+                return
+
+            # 5xx or 429 — retry
+            last_error = f"HTTP {resp.status_code}"
+            logger.warning("Webhook delivery %s attempt %d/%d got %s, retrying", delivery["id"], attempt, WEBHOOK_MAX_RETRIES, resp.status_code)
+
+        except Exception as e:
+            last_error = str(e)[:500]
+            logger.warning("Webhook delivery %s attempt %d/%d failed: %s", delivery["id"], attempt, WEBHOOK_MAX_RETRIES, last_error)
+
+        if attempt < WEBHOOK_MAX_RETRIES:
+            backoff = min(WEBHOOK_BACKOFF_BASE ** attempt, 125)
+            await asyncio.sleep(backoff)
+
+    # All retries exhausted
+    logger.error("Webhook delivery %s failed after %d attempts", delivery["id"], WEBHOOK_MAX_RETRIES)
+    await update_delivery_status(
+        delivery["id"], status="failed",
+        http_status=last_http_status,
+        error_message=last_error,
+        attempts=WEBHOOK_MAX_RETRIES,
+    )

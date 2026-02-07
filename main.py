@@ -3,7 +3,7 @@ main.py - FastAPI Application Entry Point
 
 Run: uvicorn main:app --reload
 Open: http://localhost:8000
-Docs: http://localhost:8000/docs
+Docs: http://localhost:8000/docs/api
 """
 
 import logging
@@ -171,12 +171,23 @@ async def lifespan(app: FastAPI):
     logger.info("Database connections closed.")
 
 
+_openapi_tags = [
+    {"name": "Account", "description": "Account info, credits, and API key usage"},
+    {"name": "Research", "description": "Start and poll async research jobs"},
+    {"name": "Sequences", "description": "Generate outreach email sequences"},
+    {"name": "Bulk", "description": "Bulk research operations (up to 100 URLs)"},
+    {"name": "Lists", "description": "Persistent scored account lists"},
+    {"name": "Team", "description": "Organization member management"},
+    {"name": "Webhooks", "description": "Webhook configuration and delivery"},
+]
+
 app = FastAPI(
     title="Auggie",
     description="AI-powered account research for sales teams",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/openapi-docs",
+    docs_url="/docs/api",
+    openapi_tags=_openapi_tags,
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -239,23 +250,44 @@ _ERROR_TITLES = {
     500: "Something Went Wrong",
 }
 
+_STATUS_TO_CODE = {
+    400: "validation_error",
+    401: "unauthorized",
+    402: "insufficient_credits",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    422: "validation_error",
+    429: "rate_limit_exceeded",
+    500: "internal_error",
+}
+
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         title = _ERROR_TITLES.get(exc.status_code, "Error")
-        detail = exc.detail or "An unexpected error occurred."
+        detail = exc.detail if isinstance(exc.detail, str) else (exc.detail or {}).get("message", "An unexpected error occurred.")
         return templates.TemplateResponse(
             "error.html",
             {"request": request, "status_code": exc.status_code, "title": title, "detail": detail},
             status_code=exc.status_code,
         )
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    # Structured error format: {"error": {"code": ..., "message": ...}}
+    if isinstance(exc.detail, dict) and "code" in exc.detail:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+    # Legacy HTTPException with string detail
+    code = _STATUS_TO_CODE.get(exc.status_code, "internal_error")
+    message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+    return JSONResponse({"error": {"code": code, "message": message}}, status_code=exc.status_code)
 
 
 @app.exception_handler(pydantic.ValidationError)
 async def pydantic_validation_handler(request: Request, exc: pydantic.ValidationError):
-    return JSONResponse({"detail": str(exc)}, status_code=400)
+    return JSONResponse(
+        {"error": {"code": "validation_error", "message": str(exc)}},
+        status_code=400,
+    )
 
 
 @app.exception_handler(Exception)
@@ -268,7 +300,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             {"request": request, "status_code": 500, "title": "Something Went Wrong", "detail": "Internal server error"},
             status_code=500,
         )
-    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+    return JSONResponse(
+        {"error": {"code": "internal_error", "message": "Internal server error"}},
+        status_code=500,
+    )
 
 
 # =============================================================================

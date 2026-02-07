@@ -11,7 +11,7 @@ from pydantic import BaseModel, HttpUrl
 from api.auth import require_api_key
 from database import upsert_webhook, get_user_webhook, delete_user_webhook
 
-router = APIRouter(prefix="/v1/webhooks", tags=["webhooks"])
+router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 
 
 class WebhookRegisterRequest(BaseModel):

@@ -1,12 +1,15 @@
 """v1 API routes — authenticated via API key."""
 
 import time
+from datetime import datetime, timezone
+from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from api.auth import require_api_key
+from api.errors import APIError
 from database import (
     get_user_usage, get_document,
     save_enriched_contacts, get_enriched_contacts,
@@ -26,7 +29,21 @@ from api.tasks import create_tracked_task
 from db.jobs import create_job_with_credit, create_research_job
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
-router = APIRouter(prefix="/v1", tags=["v1"])
+
+class SortField(str, Enum):
+    composite_score = "composite_score"
+    pain_score = "pain_score"
+    fit_score = "fit_score"
+    timing_score = "timing_score"
+    created_at = "created_at"
+
+
+class SortOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+router = APIRouter(prefix="/v1")
 
 
 class ResearchRequest(BaseModel):
@@ -95,14 +112,63 @@ def synthesize_pain(inferences: list[dict], pain_evidence: str | None) -> dict:
     }
 
 
-@router.get("/ping")
+@router.get("/ping", tags=["Account"])
 async def ping(api_user: dict = Depends(require_api_key)):
     """Health check endpoint. Returns 200 if API key is valid."""
     default_limiter.check(api_user["api_key_id"])
     return {"status": "ok", "user_id": api_user["id"]}
 
 
-@router.post("/research", status_code=202)
+@router.get("/account", tags=["Account"])
+async def get_account(api_user: dict = Depends(require_api_key)):
+    """Get account info: credits, subscription, org, and API key usage."""
+    from database import get_user_by_id
+    from db.api_keys import list_api_keys, get_api_key_usage_stats
+
+    default_limiter.check(api_user["api_key_id"])
+
+    user = await get_user_by_id(api_user["id"])
+    if not user:
+        raise APIError("not_found", "User not found", 404)
+
+    usage = await get_user_usage(api_user["id"])
+    keys = await list_api_keys(api_user["id"])
+    key_stats = await get_api_key_usage_stats(api_user["id"])
+
+    return {
+        "user_id": user["id"],
+        "email": user.get("email"),
+        "organization": {
+            "name": user.get("org_name"),
+            "slug": user.get("org_slug"),
+        },
+        "credits": {
+            "balance": usage.get("bonus_credits", 0) // 100,
+            "unit": "credits",
+        },
+        "subscription": {
+            "status": usage.get("subscription_status", "none"),
+            "billing_period_start": (
+                usage["billing_period_start"].isoformat()
+                if usage.get("billing_period_start")
+                else None
+            ),
+        },
+        "api_keys": [
+            {
+                "id": k["id"],
+                "prefix": k["prefix"],
+                "name": k["name"],
+                "created_at": k["created_at"].isoformat(),
+                "last_used_at": k["last_used_at"].isoformat() if k.get("last_used_at") else None,
+                "usage": key_stats.get(k["id"], {"requests": 0, "credits": 0}),
+            }
+            for k in keys
+        ],
+    }
+
+
+@router.post("/research", status_code=202, tags=["Research"])
 async def create_research(body: ResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start an async research job. Returns immediately with a job_id."""
     research_limiter.check(api_user["api_key_id"])
@@ -132,13 +198,27 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
     return {"job_id": job["id"], "status": "processing"}
 
 
-@router.get("/research/{job_id}")
+@router.get("/research/{job_id}", tags=["Research"])
 async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key)):
     """Poll for job status. Returns full result when completed."""
     default_limiter.check(api_user["api_key_id"])
     job = await get_research_job(job_id, api_user["id"])
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    # Read-path timeout: if processing for >10 minutes, mark as failed and refund
+    if job["status"] == "processing" and job["created_at"]:
+        created = job["created_at"]
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - created).total_seconds()
+        if age_seconds > 600:  # 10 minutes
+            from database import update_job_status
+            await update_job_status(job_id, "failed", error_message="Job timed out after 10 minutes")
+            usage = await get_user_usage(api_user["id"])
+            if not usage.get("is_admin", False):
+                await refund_credit(api_user["id"])
+            job = await get_research_job(job_id, api_user["id"])
 
     result = {
         "job_id": job["id"],
@@ -188,11 +268,15 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
     return result
 
 
-@router.get("/research")
-async def list_jobs(api_user: dict = Depends(require_api_key)):
+@router.get("/research", tags=["Research"])
+async def list_jobs(
+    api_user: dict = Depends(require_api_key),
+    limit: int = Query(100, ge=1, le=500, description="Max results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+):
     """List the user's recent research jobs."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_user_jobs(api_user["id"])
+    jobs = await list_user_jobs(api_user["id"], limit=limit, offset=offset)
     return {
         "jobs": [
             {
@@ -232,7 +316,7 @@ class EnrichResponse(BaseModel):
     error: str | None = None
 
 
-@router.post("/enrich", response_model=EnrichResponse)
+@router.post("/enrich", response_model=EnrichResponse, tags=["Research"])
 async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_api_key)):
     """Enrich contacts for an existing research document using LeadMagic."""
     research_limiter.check(api_user["api_key_id"])
@@ -240,11 +324,11 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
     leadmagic = LeadMagicService()
 
     if not leadmagic.is_configured():
-        return EnrichResponse(success=False, error="Contact enrichment is not yet configured.")
+        raise APIError("validation_error", "Contact enrichment is not yet configured.", 422)
 
     document = await get_document(body.document_id, user_id=api_user["id"])
     if not document:
-        return EnrichResponse(success=False, error="Document not found")
+        raise APIError("not_found", "Document not found", 404)
 
     # Check if already enriched
     existing = await get_enriched_contacts(body.document_id, api_user["id"])
@@ -259,7 +343,7 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin and usage.get("bonus_credits", 0) < 50:
-        return EnrichResponse(success=False, error="Insufficient credits (enrichment costs 0.5 credits)")
+        raise APIError("insufficient_credits", "Insufficient credits (enrichment costs 0.5 credits)", 402)
 
     # Use custom titles or fall back to user's ICP
     titles = body.titles
@@ -288,7 +372,7 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
             cached=False,
         )
     except Exception as e:
-        return EnrichResponse(success=False, error=str(e))
+        raise APIError("internal_error", str(e)[:500], 500)
 
 
 
@@ -342,7 +426,7 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
     return resp
 
 
-@router.post("/clay/enrich")
+@router.post("/clay/enrich", tags=["Research"])
 async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_api_key)):
     """Synchronous enrichment endpoint optimized for Clay HTTP columns.
 
@@ -355,7 +439,7 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
     try:
         company_url = validate_company_url(body.company_url)
     except ValueError as e:
-        return JSONResponse(content={"success": False, "error": str(e)})
+        raise APIError("validation_error", str(e), 422)
 
     # Check 24h cache
     cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
@@ -373,7 +457,7 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         try:
             job = await create_job_with_credit(api_user["id"], api_user["api_key_id"], company_url)
         except ValueError:
-            return JSONResponse(content={"success": False, "error": "No credits remaining"})
+            raise APIError("insufficient_credits", "No credits remaining", 402)
     else:
         job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
@@ -399,9 +483,7 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
             await refund_credit(api_user["id"])
         from database import update_job_status
         await update_job_status(job["id"], "failed", error_message=str(e)[:500])
-        return JSONResponse(
-            content={"success": False, "error": str(e)[:500]},
-        )
+        raise APIError("internal_error", str(e)[:500], 500)
 
 
 def _build_default_titles(user: dict) -> list[str]:
@@ -427,7 +509,7 @@ class SequenceResponse(BaseModel):
     error: str | None = None
 
 
-@router.post("/research/{doc_id}/sequence", response_model=SequenceResponse)
+@router.post("/research/{doc_id}/sequence", response_model=SequenceResponse, tags=["Sequences"])
 async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_key)):
     """Generate a 3-email outreach sequence from a completed research document."""
     sequence_limiter.check(api_user["api_key_id"])
@@ -470,7 +552,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
             emails=[SequenceEmail(**e) for e in emails],
         )
     except Exception as e:
-        return SequenceResponse(success=False, document_id=doc_id, error=str(e))
+        raise APIError("internal_error", str(e)[:500], 500)
 
 
 # =============================================================================
@@ -482,7 +564,7 @@ class BulkResearchRequest(BaseModel):
     name: str | None = None
 
 
-@router.post("/research/bulk", status_code=202)
+@router.post("/research/bulk", status_code=202, tags=["Bulk"])
 async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start a bulk research job. Accepts up to 100 URLs."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -522,7 +604,7 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
     return {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
 
 
-@router.get("/research/bulk/{bulk_job_id}")
+@router.get("/research/bulk/{bulk_job_id}", tags=["Bulk"])
 async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require_api_key)):
     """Get bulk job progress and all items."""
     default_limiter.check(api_user["api_key_id"])
@@ -531,6 +613,19 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
         raise HTTPException(status_code=404, detail="Bulk job not found")
 
     items = await get_bulk_job_items(bulk_job_id)
+
+    # Timeout check: mark stale processing items as failed
+    from database import update_bulk_job_item
+    now = datetime.now(timezone.utc)
+    for item in items:
+        if item["status"] == "processing" and item["created_at"]:
+            created = item["created_at"]
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if (now - created).total_seconds() > 600:
+                await update_bulk_job_item(item["id"], "failed", error_message="Item timed out after 10 minutes")
+                item["status"] = "failed"
+                item["error_message"] = "Item timed out after 10 minutes"
 
     return {
         "bulk_job_id": job["id"],
@@ -558,11 +653,15 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
     }
 
 
-@router.get("/research/bulk")
-async def list_bulk_jobs_endpoint(api_user: dict = Depends(require_api_key)):
+@router.get("/research/bulk", tags=["Bulk"])
+async def list_bulk_jobs_endpoint(
+    api_user: dict = Depends(require_api_key),
+    limit: int = Query(100, ge=1, le=500, description="Max results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+):
     """List recent bulk jobs (summaries only)."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_bulk_jobs(api_user["id"])
+    jobs = await list_bulk_jobs(api_user["id"], limit=limit, offset=offset)
     return {
         "bulk_jobs": [
             {
@@ -590,7 +689,7 @@ class CreateListRequest(BaseModel):
     analyze: bool = False
 
 
-@router.post("/lists", status_code=201)
+@router.post("/lists", status_code=201, tags=["Lists"])
 async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends(require_api_key)):
     """Create a persistent list of companies. Optionally trigger analysis immediately."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -648,7 +747,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     }
 
 
-@router.post("/lists/{list_id}/analyze", status_code=202)
+@router.post("/lists/{list_id}/analyze", status_code=202, tags=["Lists"])
 async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
     """Trigger analysis on a list's pending accounts."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -686,16 +785,16 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
     return {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
 
 
-@router.get("/lists/{list_id}")
+@router.get("/lists/{list_id}", tags=["Lists"])
 async def get_list_endpoint(
     list_id: int,
     api_user: dict = Depends(require_api_key),
-    min_pain_score: int | None = None,
-    min_composite_score: int | None = None,
-    sort_by: str = "composite_score",
-    order: str = "desc",
-    limit: int = 100,
-    offset: int = 0,
+    min_pain_score: int | None = Query(None, ge=0, le=100, description="Minimum pain score filter (0-100)"),
+    min_composite_score: int | None = Query(None, ge=0, le=100, description="Minimum composite score filter (0-100)"),
+    sort_by: SortField = Query(SortField.composite_score, description="Field to sort results by"),
+    order: SortOrder = Query(SortOrder.desc, description="Sort direction"),
+    limit: int = Query(100, ge=1, le=500, description="Max results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
 ):
     """Get list details with accounts, optional filtering/sorting."""
     default_limiter.check(api_user["api_key_id"])
@@ -708,8 +807,8 @@ async def get_list_endpoint(
         list_id,
         min_pain=min_pain_score,
         min_composite=min_composite_score,
-        sort_by=sort_by,
-        order=order,
+        sort_by=sort_by.value,
+        order=order.value,
         limit=limit,
         offset=offset,
     )
@@ -739,11 +838,15 @@ async def get_list_endpoint(
     }
 
 
-@router.get("/lists")
-async def list_lists_endpoint(api_user: dict = Depends(require_api_key)):
+@router.get("/lists", tags=["Lists"])
+async def list_lists_endpoint(
+    api_user: dict = Depends(require_api_key),
+    limit: int = Query(100, ge=1, le=500, description="Max results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+):
     """List user's recent lists (summaries, no accounts)."""
     default_limiter.check(api_user["api_key_id"])
-    lists = await db_list_lists(api_user["id"])
+    lists = await db_list_lists(api_user["id"], limit=limit, offset=offset)
     return {
         "lists": [
             {
@@ -761,7 +864,7 @@ async def list_lists_endpoint(api_user: dict = Depends(require_api_key)):
     }
 
 
-@router.delete("/lists/{list_id}", status_code=204)
+@router.delete("/lists/{list_id}", status_code=204, tags=["Lists"])
 async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
     """Delete a list and all its accounts."""
     default_limiter.check(api_user["api_key_id"])
@@ -776,7 +879,7 @@ class PushInstantlyRequest(BaseModel):
     account_ids: list[int] | None = None
 
 
-@router.post("/lists/{list_id}/push")
+@router.post("/lists/{list_id}/push", tags=["Lists"])
 async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_user: dict = Depends(require_api_key)):
     """Push accounts from a list to an Instantly campaign via API."""
     from database import get_integration, get_enriched_contacts as get_contacts
@@ -827,7 +930,7 @@ class RoleUpdate(BaseModel):
     role: str
 
 
-@router.get("/team")
+@router.get("/team", tags=["Team"])
 async def api_list_team(api_user: dict = Depends(require_api_key)):
     """List team members."""
     from database import get_org_members, get_user_by_id
@@ -838,7 +941,7 @@ async def api_list_team(api_user: dict = Depends(require_api_key)):
     return {"members": members}
 
 
-@router.post("/team/invite")
+@router.post("/team/invite", tags=["Team"])
 async def api_invite_member(body: InviteRequest, api_user: dict = Depends(require_api_key)):
     """Invite a team member (admin only)."""
     from database import get_user_by_id, create_org_invite
@@ -851,7 +954,7 @@ async def api_invite_member(body: InviteRequest, api_user: dict = Depends(requir
     return {"invite": {"id": invite["id"], "email": invite["email"], "role": invite["role"], "token": invite["token"], "expires_at": str(invite["expires_at"])}}
 
 
-@router.delete("/team/members/{member_id}")
+@router.delete("/team/members/{member_id}", tags=["Team"])
 async def api_remove_member(member_id: int, api_user: dict = Depends(require_api_key)):
     """Remove a team member (admin only)."""
     from database import get_user_by_id, remove_org_member
@@ -866,7 +969,7 @@ async def api_remove_member(member_id: int, api_user: dict = Depends(require_api
     return {"removed": True}
 
 
-@router.patch("/team/members/{member_id}")
+@router.patch("/team/members/{member_id}", tags=["Team"])
 async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Depends(require_api_key)):
     """Change a team member's role (admin only)."""
     from database import get_user_by_id, update_member_role
