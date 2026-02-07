@@ -39,6 +39,9 @@ class ScoreResponse(BaseModel):
     fit: int | None = None
     timing: int | None = None
     summary: str | None = None
+    pain_evidence: list[str] | None = None
+    pain_categories: dict[str, int] | None = None
+    pain_signals: list[dict] | None = None
 
 
 class ResearchResponse(BaseModel):
@@ -49,6 +52,47 @@ class ResearchResponse(BaseModel):
     scores: ScoreResponse | None = None
     sections: dict | None = None
     error: str | None = None
+
+
+def _parse_evidence(pain_evidence: str | None) -> list[str]:
+    """Parse bullet-point pain_evidence text into a list of strings."""
+    if not pain_evidence:
+        return []
+    lines = []
+    for line in pain_evidence.strip().splitlines():
+        cleaned = line.strip().lstrip("-•*").strip()
+        if cleaned:
+            lines.append(cleaned)
+    return lines
+
+
+def synthesize_pain(inferences: list[dict], pain_evidence: str | None) -> dict:
+    """Build pain_categories + pain_signals from stored inferences."""
+    categories: dict[str, int] = {}
+    signals: list[dict] = []
+
+    for inf in inferences:
+        cat = inf.get("category", "engineering")
+        conf = inf.get("confidence", 0)
+        # Max confidence per category
+        if cat not in categories or conf > categories[cat]:
+            categories[cat] = conf
+        signals.append({
+            "title": inf["title"],
+            "severity": inf["severity"],
+            "confidence": conf,
+            "category": cat,
+        })
+
+    evidence_list = _parse_evidence(pain_evidence)
+    summary = evidence_list[0] if evidence_list else None
+
+    return {
+        "categories": categories or None,
+        "signals": signals or None,
+        "evidence": evidence_list or None,
+        "summary": summary,
+    }
 
 
 @router.get("/ping")
@@ -111,6 +155,10 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
     if job["status"] == "completed" and job["document_id"]:
         doc = await get_document(job["document_id"], api_user["id"])
         if doc:
+            from db.tech_signals import get_pain_inferences
+            inferences = await get_pain_inferences(job["document_id"])
+            pain = synthesize_pain(inferences, doc.pain_evidence)
+
             result["document_id"] = job["document_id"]
             result["company_name"] = doc.company_name
             result["scores"] = {
@@ -119,6 +167,9 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
                 "fit": doc.fit_score,
                 "timing": doc.timing_score,
                 "summary": doc.score_summary,
+                "pain_evidence": pain["evidence"],
+                "pain_categories": pain["categories"],
+                "pain_signals": pain["signals"],
             }
             result["sections"] = {
                 "company_overview": doc.company_overview,
@@ -256,9 +307,14 @@ def _truncate(text: str | None, max_len: int = 500) -> str:
     return text[:max_len] + ("..." if len(text) > max_len else "")
 
 
-def _build_clay_response(doc, *, cached: bool, duration: float | None = None, error: str | None = None) -> dict:
+def _build_clay_response(doc, *, cached: bool, duration: float | None = None, error: str | None = None, pain_synthesis: dict | None = None) -> dict:
     """Build flat Clay-friendly response from a ResearchDocument."""
-    return {
+    cats = (pain_synthesis or {}).get("categories") or {}
+    signals = (pain_synthesis or {}).get("signals") or []
+    top_signal = signals[0]["title"] if signals else None
+    pain_reasons = _truncate(doc.pain_evidence or doc.business_problems)
+
+    resp = {
         "success": True,
         "company_name": doc.company_name,
         "company_url": doc.company_url,
@@ -267,16 +323,23 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
         "timing_score": doc.timing_score,
         "composite_score": doc.opportunity_score,
         "score_summary": _truncate(doc.score_summary),
-        "pain_reasons": _truncate(doc.score_summary or doc.business_problems),
+        "pain_reasons": pain_reasons,
         "business_problems": _truncate(doc.business_problems),
         "product_fit": _truncate(doc.product_fit),
         "talking_points": _truncate(doc.talking_points),
         "existential_data_points": _truncate(doc.existential_data_points),
+        "pain_category_security": cats.get("security"),
+        "pain_category_engineering": cats.get("engineering"),
+        "pain_category_operations": cats.get("operations"),
+        "pain_category_marketing": cats.get("marketing"),
+        "pain_category_data": cats.get("data"),
+        "top_pain_signal": top_signal,
         "document_id": doc.id,
         "cached": cached,
         "research_duration_seconds": round(duration, 2) if duration is not None else None,
         "error": error,
     }
+    return resp
 
 
 @router.post("/clay/enrich")
@@ -298,7 +361,10 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
     cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
     if cached_doc:
         await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
-        return _build_clay_response(cached_doc, cached=True)
+        from db.tech_signals import get_pain_inferences
+        inferences = await get_pain_inferences(cached_doc.id)
+        pain = synthesize_pain(inferences, cached_doc.pain_evidence)
+        return _build_clay_response(cached_doc, cached=True, pain_synthesis=pain)
 
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
@@ -322,7 +388,10 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         await update_job_status(job["id"], "completed", document_id=doc_id)
 
         doc = await get_document(doc_id, api_user["id"])
-        return _build_clay_response(doc, cached=False, duration=duration)
+        from db.tech_signals import get_pain_inferences
+        inferences = await get_pain_inferences(doc_id)
+        pain = synthesize_pain(inferences, doc.pain_evidence)
+        return _build_clay_response(doc, cached=False, duration=duration, pain_synthesis=pain)
 
     except Exception as e:
         duration = time.monotonic() - start

@@ -9,6 +9,7 @@
             <a href="#python-sdk" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Python SDK</a>
             <a href="#getting-started" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Getting Started</a>
             <a href="#authentication" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Authentication</a>
+            <a href="#understanding-scores" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Understanding Scores</a>
             <a href="#research" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Research</a>
             <a href="#sequences" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Sequences</a>
             <a href="#bulk-research" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium">Bulk Research</a>
@@ -56,9 +57,11 @@ client = AuggieClient("aug_your_key")
 # Research a company (blocks until complete)
 result = client.research_and_poll("https://example.com")
 
-print(result["scores"]["composite"])      # Overall score
-print(result["scores"]["pain"])           # Pain score
-print(result["sections"]["talking_points"])  # Ready-to-use talking points</code></pre>
+print(result["scores"]["composite"])          # Overall score
+print(result["scores"]["pain"])               # Pain score
+print(result["scores"]["pain_categories"])    # {"security": 72, "engineering": 85, ...}
+print(result["scores"]["pain_signals"][0])    # Top pain signal with severity + confidence
+print(result["sections"]["talking_points"])   # Ready-to-use talking points</code></pre>
 
                 <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-2">Bulk Research</h3>
                 <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>urls = ["https://example.com", "https://acme.com", "https://widgets.io"]
@@ -103,6 +106,122 @@ except AuggieError as e:
                 <p class="text-gray-700 mb-3">Include the key in the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code> header:</p>
                 <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>Authorization: Bearer aug_your_api_key_here</code></pre>
                 <p class="text-gray-500 text-sm mt-3">Keys are shown once on creation. Store them securely — they cannot be retrieved later.</p>
+            </section>
+
+            <!-- Understanding Scores -->
+            <section id="understanding-scores">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Understanding Scores</h2>
+                <p class="text-gray-700 mb-4">Every research result includes four scores from 0-100, plus a composite score that combines them.</p>
+
+                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Score types</h3>
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Score</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Weight</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">What it measures</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain</td>
+                                <td class="px-4 py-2 text-gray-700">40%</td>
+                                <td class="px-4 py-2 text-gray-700">How much pain the company is likely experiencing in areas your product solves</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">fit</td>
+                                <td class="px-4 py-2 text-gray-700">35%</td>
+                                <td class="px-4 py-2 text-gray-700">How well the company matches your ideal customer profile (ICP)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">timing</td>
+                                <td class="px-4 py-2 text-gray-700">25%</td>
+                                <td class="px-4 py-2 text-gray-700">Signals that the company is ready to buy now (hiring, funding, tech changes)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">composite</td>
+                                <td class="px-4 py-2 text-gray-700">&mdash;</td>
+                                <td class="px-4 py-2 text-gray-700">Weighted combination: <code class="text-xs">(pain &times; 0.4) + (fit &times; 0.35) + (timing &times; 0.25)</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Score calibration</h3>
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Range</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Interpretation</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">85-100</td>
+                                <td class="px-4 py-2 text-gray-700"><strong>Very high.</strong> Strong, clear signals detected. Prioritize these accounts.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">70-84</td>
+                                <td class="px-4 py-2 text-gray-700"><strong>High.</strong> Good signals detected. Worth pursuing with personalized outreach.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">50-69</td>
+                                <td class="px-4 py-2 text-gray-700"><strong>Moderate.</strong> Some signals present. May need further qualification.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">0-49</td>
+                                <td class="px-4 py-2 text-gray-700"><strong>Low.</strong> Weak or absent signals. Likely not a strong fit right now.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Pain categories</h3>
+                <p class="text-gray-700 mb-3">Pain is broken down into five categories. Each category score (0-100) represents the highest-confidence signal detected in that area.</p>
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold text-gray-700">Category</th>
+                                <th class="px-4 py-2 font-semibold text-gray-700">What it covers</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">security</td>
+                                <td class="px-4 py-2 text-gray-700">SSL gaps, auth fragmentation, compliance gaps, email authentication risk</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">engineering</td>
+                                <td class="px-4 py-2 text-gray-700">Tech debt, scaling pressure, database bottlenecks, frontend performance</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">operations</td>
+                                <td class="px-4 py-2 text-gray-700">Multi-cloud complexity, tool sprawl, observability gaps, hiring bottlenecks</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">marketing</td>
+                                <td class="px-4 py-2 text-gray-700">Identity fragmentation, tag bloat, marketing/product tech mismatch</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">data</td>
+                                <td class="px-4 py-2 text-gray-700">Data infrastructure growing pains, ETL/pipeline complexity</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Pain signals</h3>
+                <p class="text-gray-700 mb-3">The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">pain_signals</code> array contains machine-readable signals detected by the pain inference engine. Each signal includes:</p>
+                <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "title": "Database Scaling Pressure",
+  "severity": "high",
+  "confidence": 85,
+  "category": "engineering"
+}</code></pre>
+                <p class="text-gray-500 text-sm mt-3">Signals are sorted by confidence (highest first). Use these to filter accounts by specific pain types or build custom scoring models.</p>
             </section>
 
             <!-- Research -->
@@ -166,7 +285,31 @@ except AuggieError as e:
     "pain": 85,
     "fit": 72,
     "timing": 80,
-    "summary": "Strong fit with active pain points."
+    "summary": "Strong fit with active pain points.",
+    "pain_evidence": [
+      "Database scaling issues with PostgreSQL",
+      "4 open backend engineering roles",
+      "No observability tooling detected"
+    ],
+    "pain_categories": {
+      "engineering": 85,
+      "security": 72,
+      "operations": 60
+    },
+    "pain_signals": [
+      {
+        "title": "Database Scaling Pressure",
+        "severity": "high",
+        "confidence": 85,
+        "category": "engineering"
+      },
+      {
+        "title": "Security Posture Gap",
+        "severity": "medium",
+        "confidence": 72,
+        "category": "security"
+      }
+    ]
   },
   "sections": {
     "company_overview": "...",
@@ -656,6 +799,12 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
   "product_fit": "...",
   "talking_points": "...",
   "existential_data_points": "...",
+  "pain_category_security": 72,
+  "pain_category_engineering": 87,
+  "pain_category_operations": 60,
+  "pain_category_marketing": null,
+  "pain_category_data": null,
+  "top_pain_signal": "Database Scaling Pressure",
   "document_id": 1523,
   "cached": false,
   "research_duration_seconds": 47.32,
@@ -715,6 +864,30 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
                             <tr>
                                 <td class="px-4 py-2 font-mono text-gray-800 text-xs">talking_points</td>
                                 <td class="px-4 py-2 text-gray-700">Ready-to-use talking points</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_category_security</td>
+                                <td class="px-4 py-2 text-gray-700">Security pain score (0-100, null if none detected)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_category_engineering</td>
+                                <td class="px-4 py-2 text-gray-700">Engineering pain score (0-100, null if none detected)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_category_operations</td>
+                                <td class="px-4 py-2 text-gray-700">Operations pain score (0-100, null if none detected)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_category_marketing</td>
+                                <td class="px-4 py-2 text-gray-700">Marketing pain score (0-100, null if none detected)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">pain_category_data</td>
+                                <td class="px-4 py-2 text-gray-700">Data infrastructure pain score (0-100, null if none detected)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2 font-mono text-gray-800 text-xs">top_pain_signal</td>
+                                <td class="px-4 py-2 text-gray-700">Title of highest-confidence pain signal</td>
                             </tr>
                             <tr>
                                 <td class="px-4 py-2 font-mono text-gray-800 text-xs">document_id</td>

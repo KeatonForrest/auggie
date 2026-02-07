@@ -82,6 +82,49 @@ async def save_pain_inferences(document_id: int, inferences: list[PainInference]
     return len(rows)
 
 
+RULE_CATEGORIES: dict[str, str] = {
+    "identity_fragmentation": "marketing",
+    "tech_debt": "engineering",
+    "security_gap": "security",
+    "scaling_pressure": "engineering",
+    "multi_cloud": "operations",
+    "email_risk": "security",
+    "cert_gap": "security",
+    "marketing_product_mismatch": "marketing",
+    "data_infra_pain": "data",
+    "tag_bloat": "marketing",
+    "vendor_lock_in": "operations",
+    "compliance_gap": "security",
+    "frontend_performance_debt": "engineering",
+    "hiring_velocity_anomaly": "operations",
+    "tool_sprawl": "operations",
+    "observability_gap": "operations",
+    "database_scaling_pressure": "engineering",
+    "auth_fragmentation": "security",
+}
+
+
+async def get_pain_inferences(document_id: int) -> list[dict]:
+    """Retrieve pain inferences for a document, ordered by confidence DESC."""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """SELECT rule_id, title, description, severity, confidence, evidence
+               FROM pain_inferences
+               WHERE document_id = $1
+               ORDER BY confidence DESC""",
+            document_id,
+        )
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["category"] = RULE_CATEGORIES.get(d["rule_id"], "engineering")
+            # evidence is stored as JSONB
+            if isinstance(d["evidence"], str):
+                d["evidence"] = json.loads(d["evidence"])
+            results.append(d)
+        return results
+
+
 async def get_signals_for_domain(domain: str, limit: int = 500) -> list[dict]:
     """Query tech signals for a domain with join to research_documents."""
     async with get_connection() as conn:
