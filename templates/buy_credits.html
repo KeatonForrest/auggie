@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Buy Credits — Auggie{% endblock %}
+
+{% block layout %}
+<div class="max-w-4xl mx-auto py-12 px-4">
+    <div class="text-center mb-10">
+        <h1 class="text-3xl font-bold text-gray-900">Buy Credits</h1>
+        <p class="mt-2 text-gray-600">You currently have <strong>{{ '%g' % credits }}</strong> credit{{ 's' if credits != 1 else '' }}. Choose a pack below.</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+        <!-- Starter -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
+            <h3 class="text-lg font-semibold text-gray-900">Starter</h3>
+            <div class="mt-2 flex items-baseline gap-1">
+                <span class="text-3xl font-bold text-gray-900">$10</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">10 credits &middot; $1.00 each</p>
+            <ul class="mt-4 space-y-2 text-sm text-gray-600 flex-1">
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Full research pipeline</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Pain scoring + categories</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Email sequences</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> All integrations</li>
+            </ul>
+            <a href="/billing/buy-credits?tier=starter" class="mt-6 block text-center bg-white text-gray-900 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Buy 10 credits</a>
+        </div>
+
+        <!-- Growth -->
+        <div class="bg-white rounded-xl border-2 border-blue-600 p-6 flex flex-col relative">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-medium px-3 py-0.5 rounded-full">Popular</span>
+            <h3 class="text-lg font-semibold text-gray-900">Growth</h3>
+            <div class="mt-2 flex items-baseline gap-1">
+                <span class="text-3xl font-bold text-gray-900">$50</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">100 credits &middot; $0.50 each</p>
+            <ul class="mt-4 space-y-2 text-sm text-gray-600 flex-1">
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Everything in Starter</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Bulk research (100 URLs)</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Lists with filtering</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> <strong>50% savings</strong> per credit</li>
+            </ul>
+            <a href="/billing/buy-credits?tier=growth" class="mt-6 block text-center bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Buy 100 credits</a>
+        </div>
+
+        <!-- Power -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6 flex flex-col relative">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-xs font-medium px-3 py-0.5 rounded-full">Best value</span>
+            <h3 class="text-lg font-semibold text-gray-900">Power</h3>
+            <div class="mt-2 flex items-baseline gap-1">
+                <span class="text-3xl font-bold text-gray-900">$100</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">500 credits &middot; $0.20 each</p>
+            <ul class="mt-4 space-y-2 text-sm text-gray-600 flex-1">
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Everything in Growth</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> <strong>80% savings</strong> per credit</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Replaces ~125 hrs of SDR time</li>
+                <li class="flex gap-2"><span class="text-green-500">&#10003;</span> Priority support</li>
+            </ul>
+            <a href="/billing/buy-credits?tier=power" class="mt-6 block text-center bg-white text-gray-900 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Buy 500 credits</a>
+        </div>
+    </div>
+
+    <div class="mt-8 bg-gray-50 rounded-xl border border-gray-200 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+            <p class="font-semibold text-gray-900">Need 1,000+ credits?</p>
+            <p class="text-sm text-gray-600 mt-0.5">Custom volume pricing with dedicated support and SLA.</p>
+        </div>
+        <a href="mailto:keaton@auggie.tools" class="flex-shrink-0 bg-white text-gray-900 border border-gray-300 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Contact us</a>
+    </div>
+</div>
+{% endblock %}
