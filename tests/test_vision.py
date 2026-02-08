@@ -30,7 +30,9 @@ class TestParsPersona:
             "COMPANY: Acme Corp\n"
             "HEADLINE: Building scalable systems at Acme\n"
             "ABOUT: Passionate about distributed systems and team building.\n"
-            "EXPERIENCE: VP Engineering at Acme Corp (2022-present), Senior Engineer at BigCo (2019-2022)\n"
+            "EXPERIENCE:\n"
+            "- VP Engineering at Acme Corp (2022-present): Led migration to microservices, grew team from 5 to 30 engineers\n"
+            "- Senior Engineer at BigCo (2019-2022): Built real-time data pipeline processing 1M events/sec\n"
             "SKILLS: Python, Kubernetes, System Design"
         )
         persona = vision_service._parse_persona(text)
@@ -40,7 +42,28 @@ class TestParsPersona:
         assert persona["headline"] == "Building scalable systems at Acme"
         assert "distributed systems" in persona["about"]
         assert "VP Engineering" in persona["experience"]
+        assert "migration to microservices" in persona["experience"]
+        assert "1M events/sec" in persona["experience"]
         assert "Python" in persona["skills"]
+
+    def test_parses_multiline_experience(self, vision_service):
+        text = (
+            "NAME: John Doe\n"
+            "TITLE: CTO\n"
+            "COMPANY: StartupX\n"
+            "EXPERIENCE:\n"
+            "- CTO at StartupX (2023-present): Scaled infrastructure to handle 10x traffic growth\n"
+            "- VP Engineering at MidCo (2020-2023): Rebuilt CI/CD pipeline, reduced deploy time from 2hrs to 15min\n"
+            "- Senior Engineer at BigCorp (2017-2020): Led team of 8, shipped recommendation engine\n"
+            "SKILLS: Go, AWS, System Design"
+        )
+        persona = vision_service._parse_persona(text)
+        assert "CTO at StartupX" in persona["experience"]
+        assert "10x traffic" in persona["experience"]
+        assert "VP Engineering at MidCo" in persona["experience"]
+        assert "deploy time" in persona["experience"]
+        assert "recommendation engine" in persona["experience"]
+        assert persona["skills"] == "Go, AWS, System Design"
 
     def test_parses_partial_output(self, vision_service):
         text = "NAME: John Doe\nTITLE: CTO\nCOMPANY: StartupX\n"

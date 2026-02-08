@@ -17,9 +17,16 @@ NAME: [full name]
 TITLE: [current job title]
 COMPANY: [current company]
 HEADLINE: [LinkedIn headline]
-ABOUT: [about/summary section, first 200 characters]
-EXPERIENCE: [most recent 2-3 roles, formatted as "Title at Company (dates)"]
+ABOUT: [about/summary section, first 300 characters]
+EXPERIENCE:
+- [Title] at [Company] ([dates]): [key accomplishments, projects, or responsibilities visible under this role — include metrics if shown]
+- [Title] at [Company] ([dates]): [key accomplishments, projects, or responsibilities]
+- [repeat for up to 3 most recent roles]
 SKILLS: [top skills if visible, comma-separated]
+
+Important:
+- For EXPERIENCE, capture what they DID in each role, not just the title. Look for bullet points, descriptions, accomplishments, and metrics under each position.
+- If role descriptions are not visible (e.g. the screenshot only shows the experience summary), just list title/company/dates.
 
 If this is not a LinkedIn profile screenshot, respond with:
 NOT_LINKEDIN: [brief description of what the image shows]"""
@@ -50,7 +57,7 @@ class VisionService:
         try:
             response = await self.client.chat.completions.create(
                 model=self.settings.vision_model,
-                max_tokens=1000,
+                max_tokens=1500,
                 messages=[
                     {
                         "role": "user",
@@ -76,6 +83,7 @@ class VisionService:
             return {}
 
         persona = {}
+        labels = ["NAME", "TITLE", "COMPANY", "HEADLINE", "ABOUT", "EXPERIENCE", "SKILLS"]
         field_map = {
             "NAME": "name",
             "TITLE": "title",
@@ -86,8 +94,14 @@ class VisionService:
             "SKILLS": "skills",
         }
 
+        # Build regex that captures from one label to the next (or end of text),
+        # allowing multi-line values for fields like EXPERIENCE.
+        label_pattern = "|".join(labels)
         for label, key in field_map.items():
-            match = re.search(rf"^{label}:[ \t]*(.+)", text, re.MULTILINE)
+            match = re.search(
+                rf"^{label}:[ \t]*(.*?)(?=^(?:{label_pattern}):|\Z)",
+                text, re.MULTILINE | re.DOTALL
+            )
             if match:
                 value = match.group(1).strip()
                 if value and value.lower() not in ("n/a", "not visible", "blank"):
