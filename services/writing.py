@@ -1589,7 +1589,20 @@ Present your final output in this format:
         # Fall back to legacy single <subject> tag
         if not subject_options:
             legacy = re.search(r"<subject>(.*?)</subject>", response, re.DOTALL)
-            subject_options = [legacy.group(1).strip()] if legacy else ["Following up"]
+            if legacy:
+                subject_options = [legacy.group(1).strip()]
+
+        # Fall back to numbered list: 1. `subject` or 1. "subject" or 1. subject
+        if not subject_options:
+            numbered = re.findall(r"^\s*\d+\.\s*[`\"']?([^`\"'\n]+)[`\"']?\s*$", response, re.MULTILINE)
+            # Only take the first 3 that appear near "subject" context
+            subject_block = re.search(r"[Ss]ubject.*?:(.*?)(?:\n\n|---|\*\*Email)", response, re.DOTALL)
+            if subject_block:
+                numbered = re.findall(r"^\s*\d+\.\s*[`\"']?([^`\"'\n]+)[`\"']?\s*$", subject_block.group(1), re.MULTILINE)
+                subject_options = [s.strip() for s in numbered[:3]]
+
+        if not subject_options:
+            subject_options = ["Following up"]
 
         # Use the first subject option as default for all emails
         subject = subject_options[0]
@@ -1610,13 +1623,16 @@ Present your final output in this format:
                     "body": body
                 })
 
-        # Fallback: if XML tags weren't found, try "Email N:" or "## Email N" headers
+        # Fallback: split on any "Email N" header variant the model might use
+        # Handles: "Email 1:", "## Email 1", "**Email 1 - PREVIEW**", "Email 1 -", etc.
         if not emails:
-            fallback = re.split(r"(?:^|\n)(?:##?\s*)?Email\s*(\d)\s*:?\s*\n", response)
+            fallback = re.split(r"(?:^|\n)\s*(?:\*\*|##?\s*)?Email\s*(\d)[^*\n]*(?:\*\*)?\s*\n", response)
             # split gives: [preamble, "1", body1, "2", body2, "3", body3]
             for j in range(1, len(fallback) - 1, 2):
                 num = int(fallback[j])
                 body = fallback[j + 1].strip()
+                # Remove "**Body:**" or "Body:" prefix
+                body = re.sub(r"^\s*\*?\*?Body:?\*?\*?\s*\n?", "", body)
                 # Remove trailing separators
                 body = re.sub(r"\n?---\s*$", "", body).strip()
                 body = body.replace("**", "")
