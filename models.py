@@ -50,6 +50,8 @@ class TechStack(BaseModel):
 
         lines = []
         for tech in self.technologies:
+            if tech.confidence is not None and tech.confidence < 75:
+                continue
             if tech.category and any(c.strip() in self._EXCLUDED_CATEGORIES for c in tech.category.split(",")):
                 continue
             entry = f"- {tech.name}"
