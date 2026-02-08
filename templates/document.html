@@ -415,17 +415,17 @@ This template displays a generated research document with:
         btn.disabled = true;
         btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...';
 
-        // Build FormData (supports optional screenshot)
-        const formData = new FormData();
+        // Build request — only use FormData when there's a screenshot,
+        // otherwise send a plain POST to avoid empty-multipart parse errors.
+        const fetchOptions = { method: 'POST' };
         if (screenshotFile) {
+            const formData = new FormData();
             formData.append('screenshot', screenshotFile);
+            fetchOptions.body = formData;
         }
 
         // Call API
-        fetch('/document/{{ document.id }}/outreach', {
-            method: 'POST',
-            body: formData
-        })
+        fetch('/document/{{ document.id }}/outreach', fetchOptions)
         .then(response => response.json())
         .then(data => {
             btn.disabled = false;
@@ -443,7 +443,8 @@ This template displays a generated research document with:
             } else {
                 document.getElementById('outreach-loading').classList.add('hidden');
                 document.getElementById('outreach-error').classList.remove('hidden');
-                document.getElementById('outreach-error').textContent = data.error || 'Failed to generate outreach';
+                const errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate outreach');
+                document.getElementById('outreach-error').textContent = errMsg;
             }
         })
         .catch(err => {

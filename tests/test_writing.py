@@ -272,8 +272,8 @@ class TestPromptStructure:
 
     def test_includes_output_format(self, writing_service):
         prompt = writing_service._build_prompt("test report", opportunity_score=None)
-        assert "<email_series>" in prompt
-        assert "<email1>" in prompt
+        assert "Subject 1:" in prompt
+        assert "Email 1:" in prompt
 
 
 # --- _parse_emails ---
@@ -327,7 +327,7 @@ Third email body.
     def test_legacy_single_subject_fallback(self, writing_service):
         response = """
 <email_series>
-<subject>Legacy subject</subject>
+<subject1>Legacy subject</subject1>
 <email1>Body 1</email1>
 <email2>Body 2</email2>
 <email3>Body 3</email3>
@@ -367,12 +367,16 @@ class TestGenerateEmailSequence:
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = """
-<email_series>
-<subject>Following up on database scaling</subject>
-<email1>Hi, noticed you're growing fast. Curious how you're handling data scale.</email1>
-<email2>Following up on my previous note about scaling.</email2>
-<email3>Last check-in - still interested in discussing database performance?</email3>
-</email_series>
+Subject 1: Following up on database scaling
+
+Email 1:
+Hi, noticed you're growing fast. Curious how you're handling data scale.
+
+Email 2:
+Following up on my previous note about scaling.
+
+Email 3:
+Last check-in - still interested in discussing database performance?
 """
 
             mock_client = AsyncMock()
