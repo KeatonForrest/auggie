@@ -20,6 +20,7 @@ class ClaudeService:
         self.client = AsyncOpenAI(
             api_key=self.settings.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
+            timeout=90.0,
         )
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",

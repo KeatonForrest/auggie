@@ -19,6 +19,7 @@ class WritingService:
         self.client = AsyncOpenAI(
             api_key=self.settings.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
+            timeout=60.0,
         )
 
     def _build_report(self, document: ResearchDocument, product_context: str, retrieved_materials: str = "",

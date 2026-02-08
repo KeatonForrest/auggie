@@ -94,7 +94,7 @@ class Settings(BaseSettings):
 
     # Database pool sizing
     db_pool_min: int = 5
-    db_pool_max: int = 20
+    db_pool_max: int = 40
     db_pool_acquire_timeout: int = 10
     db_statement_timeout: int = 30
 
@@ -110,7 +110,7 @@ class Settings(BaseSettings):
 
     # In-process worker
     worker_enabled: bool = True
-    worker_concurrency: int = 10
+    worker_concurrency: int = 25
     worker_poll_interval: int = 2
 
     @property
