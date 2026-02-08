@@ -5,7 +5,7 @@ import logging
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Depends, Form
+from fastapi import APIRouter, HTTPException, Request, Depends, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 
 from auth import get_current_user, require_auth, require_onboarding
@@ -18,7 +18,7 @@ from database import (
     save_feedback, get_feedback,
 )
 from db.jobs import create_job_with_credit, create_research_job
-from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service
+from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service, vision_service
 from services.collect import collect_enrichment_data
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
@@ -194,6 +194,7 @@ async def get_markdown(doc_id: int, user: dict = Depends(require_auth)):
 @router.post("/document/{doc_id}/outreach")
 async def generate_outreach(
     doc_id: int,
+    screenshot: UploadFile = File(None),
     user: dict = Depends(require_onboarding),
 ):
     """Generate a 3-email outreach sequence from a research document."""
@@ -202,6 +203,22 @@ async def generate_outreach(
         raise HTTPException(status_code=404, detail="Document not found")
 
     try:
+        # Extract persona from screenshot if provided (non-fatal)
+        persona_context = ""
+        if screenshot and screenshot.filename:
+            try:
+                image_bytes = await screenshot.read()
+                if len(image_bytes) > 10 * 1024 * 1024:
+                    logger.warning("Screenshot too large (%d bytes), skipping", len(image_bytes))
+                elif screenshot.content_type and screenshot.content_type.startswith("image/"):
+                    persona = await vision_service.extract_persona_from_screenshot(
+                        image_bytes, screenshot.content_type
+                    )
+                    if persona:
+                        persona_context = vision_service.format_persona_for_prompt(persona)
+            except Exception:
+                logger.warning("Failed to extract persona from screenshot", exc_info=True)
+
         # Retrieve relevant materials (non-fatal if unavailable)
         materials = ""
         try:
@@ -223,6 +240,7 @@ async def generate_outreach(
             retrieved_materials=materials,
             seller_company=user.get("company_name", ""),
             problems_solved=user.get("problems_solved", ""),
+            persona_context=persona_context,
         )
         return JSONResponse({
             "success": True,

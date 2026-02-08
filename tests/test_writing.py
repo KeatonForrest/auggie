@@ -550,3 +550,46 @@ class TestFormatEmailsMarkdown:
         emails = []
         markdown = writing_service.format_emails_markdown(emails)
         assert "# Email Sequence" in markdown
+
+
+# --- persona_context ---
+
+
+class TestPersonaContext:
+    def test_persona_context_included_in_report(self, writing_service, sample_document):
+        """persona_context adds Target Contact section to report."""
+        report = writing_service._build_report(
+            sample_document, "Product",
+            persona_context="**Name:** Jane Smith\n**Title:** VP Engineering"
+        )
+        assert "## Target Contact" in report
+        assert "Jane Smith" in report
+        assert "VP Engineering" in report
+
+    def test_persona_context_omitted_when_empty(self, writing_service, sample_document):
+        """No Target Contact section when persona_context is empty."""
+        report = writing_service._build_report(sample_document, "Product", persona_context="")
+        assert "## Target Contact" not in report
+
+    def test_persona_instructions_in_prompt(self, writing_service):
+        """Persona instructions appear in prompt when has_persona=True."""
+        prompt = writing_service._build_prompt("test report", has_persona=True)
+        assert "**PERSONA-TARGETED OUTREACH:**" in prompt
+        assert "first name naturally" in prompt
+
+    def test_no_persona_instructions_without_persona(self, writing_service):
+        """No persona instructions when has_persona=False."""
+        prompt = writing_service._build_prompt("test report", has_persona=False)
+        assert "**PERSONA-TARGETED OUTREACH:**" not in prompt
+
+    def test_recommended_contacts_in_report(self, writing_service, sample_document):
+        """recommended_contacts field appears in report."""
+        sample_document.recommended_contacts = "VP of Engineering - owns scaling problems"
+        report = writing_service._build_report(sample_document, "Product")
+        assert "## Recommended Contacts" in report
+        assert "VP of Engineering" in report
+
+    def test_recommended_contacts_omitted_when_empty(self, writing_service, sample_document):
+        """No Recommended Contacts section when field is empty."""
+        report = writing_service._build_report(sample_document, "Product")
+        assert "## Recommended Contacts" not in report

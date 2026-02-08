@@ -486,6 +486,16 @@ Relevant contacts with:
 
 If no contact data available, state "No contact data available."
 
+## Recommended Contacts
+Based on all research signals — existential data points, before scenario, discovery paths, and product fit — recommend 2-3 persona types who would be the best entry points for a sales conversation. For each persona:
+
+- **Title/Role**: The specific title or function (e.g., "VP of Engineering", "Director of Data Infrastructure")
+- **Why This Person**: Connect their role to a specific pain signal or discovery path from the research. Reference the evidence.
+- **Recommended Angle**: The specific conversation opener or insight that would resonate with this persona based on the research
+- **Confidence**: HIGH (strong evidence links this role to observed pain), MEDIUM (role likely owns the problem based on indirect signals), or LOW (inferred from industry patterns, not company-specific evidence)
+
+Map each recommendation to a Discovery Path — the persona who owns a problem is the person to talk to about it. If the research found no meaningful pain signals, recommend based on product fit and common buyer personas for the seller's product.
+
 ## Information Gaps
 What important information could not be found? What would strengthen this research? Be specific about what is missing and why it matters.
 
@@ -871,6 +881,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             talking_points=sections.get("talking_points", ""),
             recent_news=sections.get("recent_news", ""),
             key_contacts=sections.get("key_contacts", ""),
+            recommended_contacts=sections.get("recommended_contacts", ""),
             information_gaps=sections.get("information_gaps", ""),
             opportunity_score=scores.get("composite"),
             pain_score=scores.get("pain"),
@@ -909,6 +920,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             "recent news": "recent_news",
             "key contacts": "key_contacts",
             "contacts": "key_contacts",
+            "recommended contacts": "recommended_contacts",
             "information gaps": "information_gaps",
             "before scenario": "before_scenario",
             "pvp seed": "pvp_seed",

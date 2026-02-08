@@ -267,6 +267,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
                 "talking_points": doc.talking_points,
                 "recent_news": doc.recent_news,
                 "key_contacts": doc.key_contacts,
+                "recommended_contacts": doc.recommended_contacts,
                 "information_gaps": doc.information_gaps,
             }
 

@@ -8,6 +8,7 @@ from services.dns_analyzer import DNSAnalyzer
 from services.ssl_analyzer import SSLAnalyzer
 from services.job_parser import JobParser
 from services.pain_inference import PainInferenceEngine
+from services.vision import VisionService
 
 firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
@@ -17,3 +18,4 @@ dns_analyzer = DNSAnalyzer()
 ssl_analyzer = SSLAnalyzer()
 job_parser = JobParser()
 pain_engine = PainInferenceEngine()
+vision_service = VisionService()

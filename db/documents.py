@@ -21,8 +21,8 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 pain_evidence, fit_evidence, timing_evidence,
                 thinking_content, model_used,
                 full_markdown,
-                before_scenario, pvp_seed
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+                before_scenario, pvp_seed, recommended_contacts
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
             RETURNING id
             """,
             user_id,
@@ -53,6 +53,7 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.full_markdown,
             doc.before_scenario,
             doc.pvp_seed,
+            doc.recommended_contacts,
         )
         return row['id']
 
@@ -79,7 +80,7 @@ async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocum
                    information_gaps,
                    opportunity_score, pain_score, fit_score, timing_score,
                    score_summary, pain_evidence, fit_evidence, timing_evidence,
-                   before_scenario, pvp_seed
+                   before_scenario, pvp_seed, recommended_contacts
             FROM research_documents
             WHERE user_id = $1
             ORDER BY created_at DESC
@@ -109,6 +110,7 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",
         key_contacts=row.get("key_contacts") or "",
+        recommended_contacts=row.get("recommended_contacts") or "",
         information_gaps=row["information_gaps"] or "",
         opportunity_score=row.get("opportunity_score"),
         pain_score=row.get("pain_score"),
@@ -143,6 +145,7 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",
         key_contacts=row.get("key_contacts") or "",
+        recommended_contacts=row.get("recommended_contacts") or "",
         information_gaps=row["information_gaps"] or "",
         opportunity_score=row.get("opportunity_score"),
         pain_score=row.get("pain_score"),

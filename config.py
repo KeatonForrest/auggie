@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     research_model: str = "google/gemini-2.5-flash"
     writing_model: str = "mistralai/mistral-medium-3.1"
+    vision_model: str = "anthropic/claude-sonnet-4"
     database_url: str  # Required: postgresql://user:pass@host:port/db
 
     # Google OAuth

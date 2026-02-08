@@ -23,7 +23,7 @@ class WritingService:
         )
 
     def _build_report(self, document: ResearchDocument, product_context: str, retrieved_materials: str = "",
-                       seller_company: str = "", problems_solved: str = "") -> str:
+                       seller_company: str = "", problems_solved: str = "", persona_context: str = "") -> str:
         """Build the report content from research document."""
         sections = []
 
@@ -79,6 +79,16 @@ class WritingService:
             sections.append(document.key_contacts)
             sections.append("")
 
+        if document.recommended_contacts:
+            sections.append("## Recommended Contacts")
+            sections.append(document.recommended_contacts)
+            sections.append("")
+
+        if persona_context:
+            sections.append("## Target Contact")
+            sections.append(persona_context)
+            sections.append("")
+
         sections.append("## Our Product (What We're Selling)")
         if seller_company:
             sections.append(f"**Company:** {seller_company}")
@@ -97,7 +107,7 @@ class WritingService:
 
         return "\n".join(sections)
 
-    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None, product_type: str = "saas") -> str:
+    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None, product_type: str = "saas", has_persona: bool = False) -> str:
         """Build the full prompt with the report inserted."""
         low_confidence_block = ""
         low_confidence_closing = ""
@@ -153,6 +163,23 @@ If any violations appear, rewrite those sentences before outputting. Do not outp
                 "---\n"
                 "\n"
             )
+        persona_block = ""
+        if has_persona:
+            persona_block = (
+                "**PERSONA-TARGETED OUTREACH:**\n"
+                "\n"
+                "The report includes a Target Contact section with a specific person's LinkedIn profile data. "
+                "Personalize emails for this individual:\n"
+                "- Use their first name naturally in the email body (not in subject lines)\n"
+                "- Reference their specific role and responsibilities when connecting to pain points\n"
+                "- Frame insights through the lens of what matters to someone in their position\n"
+                "- Do NOT mention that you saw their LinkedIn profile or researched them personally\n"
+                "- Do NOT reference their career history, skills section, or about section directly\n"
+                "- The personalization should feel like you understand their role, not like you stalked their profile\n"
+                "\n"
+                "---\n"
+                "\n"
+            )
         prompt = f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
 
 Count words before submitting each email. If over the limit, rewrite shorter.
@@ -182,7 +209,7 @@ Email 3:
 
 ---
 
-{low_confidence_block}{msp_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
+{low_confidence_block}{msp_block}{persona_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
 **Your job:** Use research to demonstrate you understand their problem, then explain why you can help. The research is proof of understanding, not the point of the email.
 
@@ -900,6 +927,7 @@ Word limits — count every word:
         retrieved_materials: str = "",
         seller_company: str = "",
         problems_solved: str = "",
+        persona_context: str = "",
     ) -> tuple[list[dict], list[str]]:
         """Generate a 3-email sequence from a research document.
 
@@ -909,10 +937,12 @@ Word limits — count every word:
 
         # Build the report from research
         report = self._build_report(document, product_context, retrieved_materials,
-                                     seller_company=seller_company, problems_solved=problems_solved)
+                                     seller_company=seller_company, problems_solved=problems_solved,
+                                     persona_context=persona_context)
 
         # Build the full prompt
-        prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
+        prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type,
+                                     has_persona=bool(persona_context))
 
         # Call writing model
         message = await self.client.chat.completions.create(

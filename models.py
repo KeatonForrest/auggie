@@ -184,6 +184,7 @@ class ResearchDocument(BaseModel):
     talking_points: str
     recent_news: str = ""
     key_contacts: str = ""
+    recommended_contacts: str = ""
     information_gaps: str
 
     # Opportunity Scoring (Full tier only)
