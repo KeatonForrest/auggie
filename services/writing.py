@@ -1533,14 +1533,20 @@ Count the words in each subject line. If any exceeds 4 words, rewrite shorter.
 
 ---
 
-Return your final output as a JSON object with this exact structure (no other text before or after):
+Present your final output in EXACTLY this format (no other headers or commentary):
 
-{{
-  "subjects": ["subject line option 1", "subject line option 2", "subject line option 3"],
-  "email1": "body of email 1",
-  "email2": "body of email 2",
-  "email3": "body of email 3"
-}}
+Subject 1: [subject line option 1]
+Subject 2: [subject line option 2 — different angle]
+Subject 3: [subject line option 3 — different angle]
+
+Email 1:
+[body]
+
+Email 2:
+[body]
+
+Email 3:
+[body]
 {low_confidence_closing}"""
 
         # Strip Section A examples for low-score prospects so the model
@@ -1562,45 +1568,75 @@ Return your final output as a JSON object with this exact structure (no other te
         return prompt
 
     def _parse_emails(self, response: str) -> tuple[list[dict], list[str]]:
-        """Parse the JSON email response from the model.
+        """Parse the email series from freeform model output.
+
+        Handles multiple formats the model might use:
+        - "Subject N: text" or numbered lists or <subjectN> XML tags
+        - "Email N:" headers, "**Email N**" bold headers, "## Email N" markdown, <emailN> XML tags
 
         Returns:
             Tuple of (emails list, subject_options list).
         """
-        try:
-            data = json.loads(response)
-        except json.JSONDecodeError:
-            # Try extracting JSON from markdown code fences
-            m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
-            if m:
-                try:
-                    data = json.loads(m.group(1))
-                except json.JSONDecodeError:
-                    data = None
-            else:
-                data = None
+        emails = []
 
-        if not data:
-            logger.warning("Failed to parse JSON from model response. First 500 chars: %s", response[:500])
-            return [], ["Following up"]
+        # --- Subject parsing ---
+        subject_options = []
 
-        subject_options = data.get("subjects", ["Following up"])
+        # "Subject N: text"
+        subject_matches = re.findall(r"[Ss]ubject\s*\d\s*:\s*(.+)", response)
+        if subject_matches:
+            subject_options = [s.strip().strip("`\"'") for s in subject_matches[:3]]
+
+        # <subject1>text</subject1> XML tags
+        if not subject_options:
+            for i in range(1, 4):
+                m = re.search(rf"<subject{i}>(.*?)</subject{i}>", response, re.DOTALL)
+                if m:
+                    subject_options.append(m.group(1).strip())
+
+        # Numbered list near "subject" context: 1. `text`
+        if not subject_options:
+            subject_block = re.search(r"[Ss]ubject.*?:(.*?)(?:\n\n|---|\*\*Email|Email \d)", response, re.DOTALL)
+            if subject_block:
+                numbered = re.findall(r"^\s*\d+\.\s*[`\"']?([^`\"'\n]+)[`\"']?\s*$", subject_block.group(1), re.MULTILINE)
+                subject_options = [s.strip() for s in numbered[:3]]
+
         if not subject_options:
             subject_options = ["Following up"]
+
         subject = subject_options[0]
 
-        emails = []
-        for i in range(1, 4):
-            body = data.get(f"email{i}", "")
-            if body:
+        # --- Email body parsing ---
+
+        # Split on any "Email N" header variant
+        parts = re.split(r"(?:^|\n)\s*(?:\*\*|##?\s*)?Email\s*(\d)[^\n]*\n", response)
+        if len(parts) >= 3:
+            for j in range(1, len(parts) - 1, 2):
+                num = int(parts[j])
+                body = parts[j + 1].strip()
+                body = re.sub(r"^\s*\*?\*?Body:?\*?\*?\s*\n?", "", body)
+                body = re.sub(r"\n?---\s*$", "", body).strip()
+                body = body.replace("**", "")
                 emails.append({
-                    "email_number": i,
+                    "email_number": num,
                     "subject": subject,
-                    "body": body.replace("**", ""),
+                    "body": body
                 })
 
+        # Fallback: <email1>text</email1> XML tags
         if not emails:
-            logger.warning("JSON parsed but no email bodies found. Keys: %s", list(data.keys()))
+            for i in range(1, 4):
+                m = re.search(rf"<email{i}>(.*?)</email{i}>", response, re.DOTALL)
+                if m:
+                    body = m.group(1).strip().replace("**", "")
+                    emails.append({
+                        "email_number": i,
+                        "subject": subject,
+                        "body": body
+                    })
+
+        if not emails:
+            logger.warning("Failed to parse emails from model response. First 500 chars: %s", response[:500])
 
         return emails, subject_options
 
@@ -1626,12 +1662,11 @@ Return your final output as a JSON object with this exact structure (no other te
         # Build the full prompt
         prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type)
 
-        # Call writing model with JSON output
+        # Call writing model
         message = await self.client.chat.completions.create(
             model=self.settings.writing_model,
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
         )
 
         response = message.choices[0].message.content or ""
