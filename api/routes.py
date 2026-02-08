@@ -548,7 +548,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
         except Exception:
             pass
 
-        emails = await writing_service.generate_email_sequence(
+        emails, subject_options = await writing_service.generate_email_sequence(
             document=document,
             product_context=api_user.get("product_context", ""),
             product_type=api_user.get("product_type", "saas"),

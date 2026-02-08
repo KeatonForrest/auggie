@@ -1499,7 +1499,9 @@ Count the words in each email body. If any email exceeds its limit, rewrite shor
 Present your final output in this format:
 
 <email_series>
-<subject>[subject line for entire sequence]</subject>
+<subject1>[subject line option 1]</subject1>
+<subject2>[subject line option 2 — different angle or hook]</subject2>
+<subject3>[subject line option 3 — different angle or hook]</subject3>
 
 <email1>
 [body]
@@ -1513,6 +1515,8 @@ Present your final output in this format:
 [body]
 </email3>
 </email_series>
+
+IMPORTANT: Each subject line option must take a genuinely different angle — different hook, framing, or emphasis. Do NOT just rephrase the same idea three times.
 {low_confidence_closing}"""
 
         # Strip Section A examples for low-score prospects so the model
@@ -1533,13 +1537,28 @@ Present your final output in this format:
 
         return prompt
 
-    def _parse_emails(self, response: str) -> list[dict]:
-        """Parse the email series from the response."""
+    def _parse_emails(self, response: str) -> tuple[list[dict], list[str]]:
+        """Parse the email series from the response.
+
+        Returns:
+            Tuple of (emails list, subject_options list).
+        """
         emails = []
 
-        # Extract the single subject line for the sequence
-        subject_match = re.search(r"<subject>(.*?)</subject>", response, re.DOTALL)
-        subject = subject_match.group(1).strip() if subject_match else "Following up"
+        # Extract subject line options (new format: subject1/subject2/subject3)
+        subject_options = []
+        for i in range(1, 4):
+            m = re.search(rf"<subject{i}>(.*?)</subject{i}>", response, re.DOTALL)
+            if m:
+                subject_options.append(m.group(1).strip())
+
+        # Fall back to legacy single <subject> tag
+        if not subject_options:
+            legacy = re.search(r"<subject>(.*?)</subject>", response, re.DOTALL)
+            subject_options = [legacy.group(1).strip()] if legacy else ["Following up"]
+
+        # Use the first subject option as default for all emails
+        subject = subject_options[0]
 
         # Extract each email block
         for i in range(1, 4):
@@ -1555,7 +1574,7 @@ Present your final output in this format:
                     "body": body
                 })
 
-        return emails
+        return emails, subject_options
 
     async def generate_email_sequence(
         self,
@@ -1565,8 +1584,12 @@ Present your final output in this format:
         retrieved_materials: str = "",
         seller_company: str = "",
         problems_solved: str = "",
-    ) -> list[dict]:
-        """Generate a 3-email sequence from a research document."""
+    ) -> tuple[list[dict], list[str]]:
+        """Generate a 3-email sequence from a research document.
+
+        Returns:
+            Tuple of (emails list, subject_options list).
+        """
 
         # Build the report from research
         report = self._build_report(document, product_context, retrieved_materials,
@@ -1585,9 +1608,9 @@ Present your final output in this format:
         response = message.choices[0].message.content or ""
 
         # Parse the emails
-        emails = self._parse_emails(response)
+        emails, subject_options = self._parse_emails(response)
 
-        return emails
+        return emails, subject_options
 
     def format_emails_markdown(self, emails: list[dict]) -> str:
         """Format emails as markdown for display."""

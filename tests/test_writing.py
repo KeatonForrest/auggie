@@ -280,10 +280,12 @@ class TestPromptStructure:
 
 
 class TestParseEmails:
-    def test_parses_three_emails(self, writing_service):
+    def test_parses_three_emails_with_subject_options(self, writing_service):
         response = """
 <email_series>
-<subject>Test subject</subject>
+<subject1>Test subject</subject1>
+<subject2>Alternative angle</subject2>
+<subject3>Third hook</subject3>
 
 <email1>
 First email body.
@@ -298,38 +300,57 @@ Third email body.
 </email3>
 </email_series>
 """
-        emails = writing_service._parse_emails(response)
+        emails, subject_options = writing_service._parse_emails(response)
         assert len(emails) == 3
         assert emails[0]["subject"] == "Test subject"
         assert emails[0]["body"] == "First email body."
         assert emails[1]["email_number"] == 2
         assert emails[2]["body"] == "Third email body."
+        assert subject_options == ["Test subject", "Alternative angle", "Third hook"]
 
     def test_shared_subject_across_emails(self, writing_service):
         response = """
 <email_series>
-<subject>Shared subject line</subject>
+<subject1>Shared subject line</subject1>
+<subject2>Option two</subject2>
+<subject3>Option three</subject3>
 <email1>Body 1</email1>
 <email2>Body 2</email2>
 <email3>Body 3</email3>
 </email_series>
 """
-        emails = writing_service._parse_emails(response)
+        emails, subject_options = writing_service._parse_emails(response)
+        # All emails default to the first subject option
         assert all(e["subject"] == "Shared subject line" for e in emails)
+        assert len(subject_options) == 3
+
+    def test_legacy_single_subject_fallback(self, writing_service):
+        response = """
+<email_series>
+<subject>Legacy subject</subject>
+<email1>Body 1</email1>
+<email2>Body 2</email2>
+<email3>Body 3</email3>
+</email_series>
+"""
+        emails, subject_options = writing_service._parse_emails(response)
+        assert emails[0]["subject"] == "Legacy subject"
+        assert subject_options == ["Legacy subject"]
 
     def test_fallback_subject_when_missing(self, writing_service):
         response = "<email1>Body</email1>"
-        emails = writing_service._parse_emails(response)
+        emails, subject_options = writing_service._parse_emails(response)
         assert emails[0]["subject"] == "Following up"
+        assert subject_options == ["Following up"]
 
     def test_handles_partial_response(self, writing_service):
         response = """
 <email_series>
-<subject>Test</subject>
+<subject1>Test</subject1>
 <email1>Only one email returned.</email1>
 </email_series>
 """
-        emails = writing_service._parse_emails(response)
+        emails, subject_options = writing_service._parse_emails(response)
         assert len(emails) == 1
 
 
@@ -361,7 +382,7 @@ class TestGenerateEmailSequence:
                 mock_openai.return_value = mock_client
 
                 service = WritingService()
-                emails = await service.generate_email_sequence(
+                emails, subject_options = await service.generate_email_sequence(
                     sample_document,
                     "MongoDB Atlas - scalable database platform"
                 )
@@ -369,6 +390,7 @@ class TestGenerateEmailSequence:
         assert len(emails) == 3
         assert emails[0]["subject"] == "Following up on database scaling"
         assert "growing fast" in emails[0]["body"]
+        assert len(subject_options) >= 1
 
         # Verify the API call was made correctly
         mock_client.chat.completions.create.assert_called_once()
@@ -402,7 +424,7 @@ class TestGenerateEmailSequence:
                 mock_openai.return_value = mock_client
 
                 service = WritingService()
-                emails = await service.generate_email_sequence(
+                emails, subject_options = await service.generate_email_sequence(
                     full_document,
                     "MongoDB Atlas",
                     product_type="saas",
@@ -444,7 +466,7 @@ class TestGenerateEmailSequence:
                 mock_openai.return_value = mock_client
 
                 service = WritingService()
-                emails = await service.generate_email_sequence(
+                emails, subject_options = await service.generate_email_sequence(
                     sample_document,
                     "Managed IT Services",
                     product_type="msp"

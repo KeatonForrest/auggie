@@ -282,6 +282,12 @@ This template displays a generated research document with:
                     <div class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-blue-600 border-t-transparent"></div>
                     <p class="mt-2 text-gray-600">Auggie is writing your sequence...</p>
                 </div>
+                <div id="subject-picker" class="hidden mb-4">
+                    <label class="block text-xs font-medium text-gray-500 mb-2">Subject line — pick one</label>
+                    <div id="subject-options" class="flex flex-col gap-2">
+                        <!-- Subject option buttons inserted by JS -->
+                    </div>
+                </div>
                 <div id="outreach-content" class="hidden prose max-w-none">
                     <!-- Emails will be inserted here -->
                 </div>
@@ -334,6 +340,7 @@ This template displays a generated research document with:
 
     // Outreach Modal Functions
     let outreachMarkdown = '';
+    let currentSubjectOptions = [];
 
     function generateOutreach() {
         // Show modal
@@ -343,6 +350,7 @@ This template displays a generated research document with:
         document.getElementById('outreach-error').classList.add('hidden');
         document.getElementById('regenerate-btn').classList.add('hidden');
         document.getElementById('copy-outreach-btn').classList.add('hidden');
+        document.getElementById('subject-picker').classList.add('hidden');
 
         // Disable button while generating
         const btn = document.getElementById('outreach-btn');
@@ -361,9 +369,11 @@ This template displays a generated research document with:
 
             if (data.success) {
                 outreachMarkdown = data.markdown;
+                currentSubjectOptions = data.subject_options || [];
                 document.getElementById('outreach-loading').classList.add('hidden');
                 document.getElementById('outreach-content').classList.remove('hidden');
                 renderEditableEmails(data.markdown);
+                renderSubjectPicker(currentSubjectOptions);
                 document.getElementById('regenerate-btn').classList.remove('hidden');
                 document.getElementById('copy-outreach-btn').classList.remove('hidden');
             } else {
@@ -424,6 +434,44 @@ This template displays a generated research document with:
         } else {
             container.innerHTML = html;
         }
+    }
+
+    function renderSubjectPicker(options) {
+        var picker = document.getElementById('subject-picker');
+        var container = document.getElementById('subject-options');
+        if (!options || options.length <= 1) {
+            picker.classList.add('hidden');
+            return;
+        }
+        picker.classList.remove('hidden');
+        var html = '';
+        options.forEach(function(opt, idx) {
+            var isActive = idx === 0;
+            html += '<button onclick="selectSubject(' + idx + ')" '
+                + 'class="subject-opt text-left px-3 py-2 text-sm rounded-lg border transition-colors '
+                + (isActive
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50')
+                + '">' + opt.replace(/</g, '&lt;') + '</button>';
+        });
+        container.innerHTML = html;
+    }
+
+    function selectSubject(idx) {
+        var subject = currentSubjectOptions[idx];
+        if (!subject) return;
+        // Update all email subject inputs
+        document.querySelectorAll('.email-subject').forEach(function(input) {
+            input.value = subject;
+        });
+        // Update button styles
+        document.querySelectorAll('.subject-opt').forEach(function(btn, i) {
+            if (i === idx) {
+                btn.className = 'subject-opt text-left px-3 py-2 text-sm rounded-lg border transition-colors border-blue-500 bg-blue-50 text-blue-700 font-medium';
+            } else {
+                btn.className = 'subject-opt text-left px-3 py-2 text-sm rounded-lg border transition-colors border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50';
+            }
+        });
     }
 
     function copyOutreach() {

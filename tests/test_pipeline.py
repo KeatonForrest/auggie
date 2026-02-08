@@ -456,7 +456,7 @@ class TestRunBatchWriteSequences:
              patch("database.save_outreach_draft", new_callable=AsyncMock, return_value=1), \
              patch("services.instances.writing_service") as mock_writing:
 
-            mock_writing.generate_email_sequence = AsyncMock(return_value=fake_emails)
+            mock_writing.generate_email_sequence = AsyncMock(return_value=(fake_emails, ["Subject option"]))
 
             await run_batch_write_sequences(list_id=1, user_id=1)
 

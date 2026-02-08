@@ -216,7 +216,7 @@ async def generate_outreach(
         except Exception:
             pass
 
-        emails = await writing_service.generate_email_sequence(
+        emails, subject_options = await writing_service.generate_email_sequence(
             document=document,
             product_context=user.get("product_context", ""),
             product_type=user.get("product_type", "saas"),
@@ -227,6 +227,7 @@ async def generate_outreach(
         return JSONResponse({
             "success": True,
             "emails": emails,
+            "subject_options": subject_options,
             "markdown": writing_service.format_emails_markdown(emails),
         })
     except Exception as e:
