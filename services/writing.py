@@ -1,10 +1,13 @@
 """writing.py - AI-powered outreach generation using Claude Sonnet."""
 
+import logging
 import re
 from openai import AsyncOpenAI
 from typing import Optional
 from models import ResearchDocument
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class WritingService:
@@ -1591,7 +1594,7 @@ Present your final output in this format:
         # Use the first subject option as default for all emails
         subject = subject_options[0]
 
-        # Extract each email block
+        # Extract each email block — try XML tags first, then fallback patterns
         for i in range(1, 4):
             pattern = f"<email{i}>(.*?)</email{i}>"
             match = re.search(pattern, response, re.DOTALL)
@@ -1606,6 +1609,25 @@ Present your final output in this format:
                     "subject": subject,
                     "body": body
                 })
+
+        # Fallback: if XML tags weren't found, try "Email N:" or "## Email N" headers
+        if not emails:
+            fallback = re.split(r"(?:^|\n)(?:##?\s*)?Email\s*(\d)\s*:?\s*\n", response)
+            # split gives: [preamble, "1", body1, "2", body2, "3", body3]
+            for j in range(1, len(fallback) - 1, 2):
+                num = int(fallback[j])
+                body = fallback[j + 1].strip()
+                # Remove trailing separators
+                body = re.sub(r"\n?---\s*$", "", body).strip()
+                body = body.replace("**", "")
+                emails.append({
+                    "email_number": num,
+                    "subject": subject,
+                    "body": body
+                })
+
+        if not emails:
+            logger.warning("Failed to parse emails from model response. First 500 chars: %s", response[:500])
 
         return emails, subject_options
 
