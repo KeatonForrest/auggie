@@ -579,7 +579,7 @@ class TestPersonaContext:
         """Persona instructions appear in prompt when has_persona=True."""
         prompt = writing_service._build_prompt("test report", has_persona=True)
         assert "**PERSONA-TARGETED OUTREACH:**" in prompt
-        assert "first name naturally" in prompt
+        assert "first name naturally in EVERY email" in prompt
 
     def test_no_persona_instructions_without_persona(self, writing_service):
         """No persona instructions when has_persona=False."""

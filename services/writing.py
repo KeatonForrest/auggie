@@ -54,6 +54,11 @@ class WritingService:
             sections.append(document.pvp_seed)
             sections.append("")
 
+        if document.required_capabilities:
+            sections.append("## Required Capabilities (What They Need → What We Offer)")
+            sections.append(document.required_capabilities)
+            sections.append("")
+
         if document.projects_initiatives:
             sections.append("## Current Projects & Initiatives")
             sections.append(document.projects_initiatives)
@@ -170,7 +175,7 @@ If any violations appear, rewrite those sentences before outputting. Do not outp
                 "\n"
                 "The report includes a Target Contact section with a specific person's LinkedIn profile data. "
                 "Personalize emails for this individual:\n"
-                "- Use their first name naturally in the email body (not in subject lines)\n"
+                "- Use their first name naturally in EVERY email body (not in subject lines)\n"
                 "- Reference their specific role and responsibilities when connecting to pain points\n"
                 "- Frame insights through the lens of what matters to someone in their position\n"
                 "- Do NOT mention that you saw their LinkedIn profile or researched them personally\n"

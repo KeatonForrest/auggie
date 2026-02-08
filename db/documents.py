@@ -21,8 +21,8 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 pain_evidence, fit_evidence, timing_evidence,
                 thinking_content, model_used,
                 full_markdown,
-                before_scenario, pvp_seed, recommended_contacts
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+                before_scenario, pvp_seed, recommended_contacts, required_capabilities
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
             RETURNING id
             """,
             user_id,
@@ -54,6 +54,7 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.before_scenario,
             doc.pvp_seed,
             doc.recommended_contacts,
+            doc.required_capabilities,
         )
         return row['id']
 
@@ -80,7 +81,8 @@ async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocum
                    information_gaps,
                    opportunity_score, pain_score, fit_score, timing_score,
                    score_summary, pain_evidence, fit_evidence, timing_evidence,
-                   before_scenario, pvp_seed, recommended_contacts
+                   before_scenario, pvp_seed, recommended_contacts,
+                   required_capabilities
             FROM research_documents
             WHERE user_id = $1
             ORDER BY created_at DESC
@@ -106,6 +108,7 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         existential_data_points=row.get("existential_data_points") or "",
         before_scenario=row.get("before_scenario") or "",
         pvp_seed=row.get("pvp_seed") or "",
+        required_capabilities=row.get("required_capabilities") or "",
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",
@@ -141,6 +144,7 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
         existential_data_points=row.get("existential_data_points") or "",
         before_scenario=row.get("before_scenario") or "",
         pvp_seed=row.get("pvp_seed") or "",
+        required_capabilities=row.get("required_capabilities") or "",
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",

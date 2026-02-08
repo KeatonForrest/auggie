@@ -527,6 +527,25 @@ The PVP Seed should make the prospect think "that's a really good point" — not
 observation about my industry." If you cannot produce a genuinely valuable insight, say so and
 explain what data would be needed.
 
+## Required Capabilities (Seller: Validate Before Using)
+
+For each major pain signal identified in the Before Scenario and Existential Data Points,
+infer what the prospect likely needs to solve it. State requirements in the PROSPECT's
+language, not the seller's.
+
+For each requirement:
+- **Pain Signal**: [The specific observed pain this maps to]
+- **They Likely Need**: [Vendor-neutral description of what would solve it]
+- **Your Product May Address This Via**: [Best guess from product context — or "Unknown: check your capabilities"]
+- **Confidence**: HIGH (product context explicitly mentions this capability), MEDIUM (inferred from product description), LOW (guessing based on product category)
+- **If Your Product Does NOT Do This**: Do not lead with this angle in outreach
+
+Important:
+- State requirements from the prospect's perspective, not the seller's feature list
+- If you cannot confidently map a pain to a seller capability, say so — "Unknown" is better than fabrication
+- A gap (pain exists but no product capability maps to it) is valuable information, not a failure
+- Maximum 3-5 requirements — focus on the strongest pain-to-capability links
+
 ---
 
 QUALITY CHECKLIST:
@@ -544,6 +563,8 @@ Before submitting, verify:
 - [ ] Discovery paths are ranked by evidence strength
 - [ ] PVP Seed combines 2+ data sources into a non-obvious insight
 - [ ] Consequence chains project forward, not just describe current state
+- [ ] Required capabilities stated in prospect language, not seller feature names
+- [ ] Confidence levels are honest (LOW when guessing, not inflated to MEDIUM)
 
 ---
 
@@ -877,6 +898,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             existential_data_points=sections.get("existential_data_points", ""),
             before_scenario=sections.get("before_scenario", ""),
             pvp_seed=sections.get("pvp_seed", ""),
+            required_capabilities=sections.get("required_capabilities", ""),
             product_fit=sections.get("product_fit", ""),
             talking_points=sections.get("talking_points", ""),
             recent_news=sections.get("recent_news", ""),
@@ -924,6 +946,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             "information gaps": "information_gaps",
             "before scenario": "before_scenario",
             "pvp seed": "pvp_seed",
+            "required capabilities": "required_capabilities",
+            "required capabilities (seller: validate before using)": "required_capabilities",
         }
 
         current_section = None

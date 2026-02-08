@@ -180,6 +180,7 @@ class ResearchDocument(BaseModel):
     existential_data_points: str = ""
     before_scenario: str = ""
     pvp_seed: str = ""
+    required_capabilities: str = ""
     product_fit: str
     talking_points: str
     recent_news: str = ""
