@@ -1532,25 +1532,20 @@ Count the words in each subject line. If any exceeds 4 words, rewrite shorter.
 
 ---
 
-Present your final output in this format:
+Present your final output in EXACTLY this format (no other headers or commentary):
 
-<email_series>
-<subject1>[subject line option 1]</subject1>
-<subject2>[subject line option 2 — different angle]</subject2>
-<subject3>[subject line option 3 — different angle]</subject3>
+Subject 1: [subject line option 1]
+Subject 2: [subject line option 2 — different angle]
+Subject 3: [subject line option 3 — different angle]
 
-<email1>
+Email 1:
 [body]
-</email1>
 
-<email2>
+Email 2:
 [body]
-</email2>
 
-<email3>
+Email 3:
 [body]
-</email3>
-</email_series>
 {low_confidence_closing}"""
 
         # Strip Section A examples for low-score prospects so the model
@@ -1579,24 +1574,24 @@ Present your final output in this format:
         """
         emails = []
 
-        # Extract subject line options (new format: subject1/subject2/subject3)
+        # --- Subject parsing (try multiple formats) ---
         subject_options = []
-        for i in range(1, 4):
-            m = re.search(rf"<subject{i}>(.*?)</subject{i}>", response, re.DOTALL)
-            if m:
-                subject_options.append(m.group(1).strip())
 
-        # Fall back to legacy single <subject> tag
-        if not subject_options:
-            legacy = re.search(r"<subject>(.*?)</subject>", response, re.DOTALL)
-            if legacy:
-                subject_options = [legacy.group(1).strip()]
+        # Format: "Subject N: text"
+        subject_matches = re.findall(r"[Ss]ubject\s*\d\s*:\s*(.+)", response)
+        if subject_matches:
+            subject_options = [s.strip().strip("`\"'") for s in subject_matches[:3]]
 
-        # Fall back to numbered list: 1. `subject` or 1. "subject" or 1. subject
+        # Fallback: <subject1>text</subject1> XML tags
         if not subject_options:
-            numbered = re.findall(r"^\s*\d+\.\s*[`\"']?([^`\"'\n]+)[`\"']?\s*$", response, re.MULTILINE)
-            # Only take the first 3 that appear near "subject" context
-            subject_block = re.search(r"[Ss]ubject.*?:(.*?)(?:\n\n|---|\*\*Email)", response, re.DOTALL)
+            for i in range(1, 4):
+                m = re.search(rf"<subject{i}>(.*?)</subject{i}>", response, re.DOTALL)
+                if m:
+                    subject_options.append(m.group(1).strip())
+
+        # Fallback: numbered list near "subject" context (1. `text`)
+        if not subject_options:
+            subject_block = re.search(r"[Ss]ubject.*?:(.*?)(?:\n\n|---|\*\*Email|Email \d)", response, re.DOTALL)
             if subject_block:
                 numbered = re.findall(r"^\s*\d+\.\s*[`\"']?([^`\"'\n]+)[`\"']?\s*$", subject_block.group(1), re.MULTILINE)
                 subject_options = [s.strip() for s in numbered[:3]]
@@ -1604,33 +1599,18 @@ Present your final output in this format:
         if not subject_options:
             subject_options = ["Following up"]
 
-        # Use the first subject option as default for all emails
         subject = subject_options[0]
 
-        # Extract each email block — try XML tags first, then fallback patterns
-        for i in range(1, 4):
-            pattern = f"<email{i}>(.*?)</email{i}>"
-            match = re.search(pattern, response, re.DOTALL)
+        # --- Email body parsing (try multiple formats) ---
 
-            if match:
-                body = match.group(1).strip()
-                # Strip markdown bold syntax — emails are plain text
-                body = body.replace("**", "")
-
-                emails.append({
-                    "email_number": i,
-                    "subject": subject,
-                    "body": body
-                })
-
-        # Fallback: split on any "Email N" header variant the model might use
-        # Handles: "Email 1:", "## Email 1", "**Email 1 - PREVIEW**", "Email 1 -", etc.
-        if not emails:
-            fallback = re.split(r"(?:^|\n)\s*(?:\*\*|##?\s*)?Email\s*(\d)[^*\n]*(?:\*\*)?\s*\n", response)
-            # split gives: [preamble, "1", body1, "2", body2, "3", body3]
-            for j in range(1, len(fallback) - 1, 2):
-                num = int(fallback[j])
-                body = fallback[j + 1].strip()
+        # Primary: split on any "Email N" header variant
+        # Handles: "Email 1:", "## Email 1", "**Email 1 - PREVIEW**", etc.
+        parts = re.split(r"(?:^|\n)\s*(?:\*\*|##?\s*)?Email\s*(\d)[^\n]*\n", response)
+        # split gives: [preamble, "1", body1, "2", body2, "3", body3]
+        if len(parts) >= 3:
+            for j in range(1, len(parts) - 1, 2):
+                num = int(parts[j])
+                body = parts[j + 1].strip()
                 # Remove "**Body:**" or "Body:" prefix
                 body = re.sub(r"^\s*\*?\*?Body:?\*?\*?\s*\n?", "", body)
                 # Remove trailing separators
@@ -1641,6 +1621,18 @@ Present your final output in this format:
                     "subject": subject,
                     "body": body
                 })
+
+        # Fallback: <email1>text</email1> XML tags
+        if not emails:
+            for i in range(1, 4):
+                m = re.search(rf"<email{i}>(.*?)</email{i}>", response, re.DOTALL)
+                if m:
+                    body = m.group(1).strip().replace("**", "")
+                    emails.append({
+                        "email_number": i,
+                        "subject": subject,
+                        "body": body
+                    })
 
         if not emails:
             logger.warning("Failed to parse emails from model response. First 500 chars: %s", response[:500])
