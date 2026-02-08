@@ -178,6 +178,8 @@ class ResearchDocument(BaseModel):
     hiring_signals: str
     business_problems: str
     existential_data_points: str = ""
+    before_scenario: str = ""
+    pvp_seed: str = ""
     product_fit: str
     talking_points: str
     recent_news: str = ""

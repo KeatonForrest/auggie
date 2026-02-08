@@ -44,6 +44,16 @@ class WritingService:
             sections.append(document.existential_data_points)
             sections.append("")
 
+        if document.before_scenario:
+            sections.append("## Before Scenario (Problems → Consequences → Current Attempts)")
+            sections.append(document.before_scenario)
+            sections.append("")
+
+        if document.pvp_seed:
+            sections.append("## PVP Seed (Key Insight for Outreach)")
+            sections.append(document.pvp_seed)
+            sections.append("")
+
         if document.projects_initiatives:
             sections.append("## Current Projects & Initiatives")
             sections.append(document.projects_initiatives)

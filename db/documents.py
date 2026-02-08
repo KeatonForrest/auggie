@@ -20,8 +20,9 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
                 opportunity_score, pain_score, fit_score, timing_score, score_summary,
                 pain_evidence, fit_evidence, timing_evidence,
                 thinking_content, model_used,
-                full_markdown
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+                full_markdown,
+                before_scenario, pvp_seed
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
             RETURNING id
             """,
             user_id,
@@ -50,6 +51,8 @@ async def save_document(doc: ResearchDocument, user_id: int) -> int:
             doc.thinking_content,
             doc.model_used,
             doc.full_markdown,
+            doc.before_scenario,
+            doc.pvp_seed,
         )
         return row['id']
 
@@ -75,7 +78,8 @@ async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocum
                    product_fit, talking_points, recent_news, key_contacts,
                    information_gaps,
                    opportunity_score, pain_score, fit_score, timing_score,
-                   score_summary, pain_evidence, fit_evidence, timing_evidence
+                   score_summary, pain_evidence, fit_evidence, timing_evidence,
+                   before_scenario, pvp_seed
             FROM research_documents
             WHERE user_id = $1
             ORDER BY created_at DESC
@@ -99,6 +103,8 @@ def _row_to_document(row: asyncpg.Record) -> ResearchDocument:
         hiring_signals=row["hiring_signals"] or "",
         business_problems=row["business_problems"] or "",
         existential_data_points=row.get("existential_data_points") or "",
+        before_scenario=row.get("before_scenario") or "",
+        pvp_seed=row.get("pvp_seed") or "",
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",
@@ -131,6 +137,8 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
         hiring_signals=row["hiring_signals"] or "",
         business_problems=row["business_problems"] or "",
         existential_data_points=row.get("existential_data_points") or "",
+        before_scenario=row.get("before_scenario") or "",
+        pvp_seed=row.get("pvp_seed") or "",
         product_fit=row["product_fit"] or "",
         talking_points=row["talking_points"] or "",
         recent_news=row["recent_news"] or "",

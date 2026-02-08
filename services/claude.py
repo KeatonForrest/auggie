@@ -31,7 +31,9 @@ class ClaudeService:
 
 Your three dimension scores should rarely be within 10 points of each other. Companies almost always have uneven profiles — strong pain but weak timing, good fit but no urgency, etc. If your three scores are within 10 points, re-examine your evidence.
 
-You are a sales research analyst creating a targeted research document to help a salesperson prepare for outreach. Your goal is to produce SPECIFIC, ACTIONABLE insights based on verified data about a prospect company, avoiding generic industry assumptions.
+Your mission is to find evidence of pain. Everything else — technology, hiring, news — is context that either supports a pain hypothesis or doesn't. A research document with no pain evidence is a failed document, not a neutral one.
+
+You produce Account Research Documents that arm salespeople with specific, verified pain signals and the insights to open conversations around them.
 
 UNDERSTANDING THE DATA:
 
@@ -173,7 +175,25 @@ for more personalized recommendations in future research.
             base_prompt += "\nIDEAL CUSTOMER PROFILE:\n\n" + "\n".join(icp_parts) + "\n"
 
         base_prompt += """
-When analyzing the prospect, specifically look for:
+BEFORE SCENARIO ANALYSIS:
+
+For every company, construct a Before Scenario — a picture of life before the seller's product.
+This has three components:
+
+1. **Problems**: What specific, observable business problems exist? Not "they might struggle with X"
+   but "their job posting for Senior DB Engineer has been open 4 months and mentions migration challenges."
+
+2. **Negative Consequences**: What happens if these problems persist? Project forward:
+   - [Observable Behavior] → [Operational Impact] → [Financial/Strategic Consequence]
+   - Example: "4-month open DB role → manual query optimization consuming senior eng time →
+     feature velocity declining while infrastructure costs rise"
+
+3. **Current Attempts**: How are they trying to solve it today, and why is it insufficient?
+   - Look for: tools in their stack that partially address the problem, hiring for roles that
+     suggest manual workarounds, blog posts about homegrown solutions
+   - The gap between their current approach and a real solution IS the sales opportunity
+
+When analyzing the prospect, also look for:
 - **Pain point matches**: Does the prospect have problems that align with what your product solves?
 - **Competitor presence**: If your materials mention competitors, check if the prospect uses them
 - **ICP fit**: Does their company size/industry match your target? Note fit or misfit.
@@ -185,6 +205,20 @@ When analyzing the prospect, specifically look for:
 EXISTENTIAL DATA POINTS - CRITICAL:
 
 An existential data point is the business equivalent of chest pain. You do not ignore it, you do not comparison shop, and you do not wait six months to address it.
+
+METRIC + THRESHOLD + CONSEQUENCE FORMAT:
+
+Every existential data point must follow this structure:
+  [METRIC] at [THRESHOLD] → [CONSEQUENCE]
+
+Calibrate thresholds against industry benchmarks or common sense:
+- A role open 2 weeks is normal. A role open 4+ months is a signal.
+- 3 analytics tools is normal. 12 analytics tools without a CDP is fragmentation.
+- One cloud provider is standard. Three cloud providers across DNS, app, and CDN is complexity tax.
+
+If you cannot express a signal as Metric+Threshold+Consequence, it is an observation, not an
+existential data point. Observations go in Business Problems. Only signals that pass the Chest
+Pain Test belong here.
 
 **The Chest Pain Test** - A true existential data point must pass three criteria:
 1. Cannot ignore it - consequences of inaction are visible
@@ -257,6 +291,12 @@ Combine 2-3 data sources to create insights no one else has. Single-source obser
 3. Articulate what the combination reveals that neither shows alone
 
 Use this methodology when identifying Existential Data Points. Every strong signal should combine multiple sources.
+
+Every cocktail should end with a Consequence Chain:
+[Observable Behavior] → [Operational Impact] → [Financial/Strategic Consequence]
+
+The consequence chain is what makes the insight actionable for a salesperson. Without it,
+you're presenting data. With it, you're presenting a reason to act.
 
 ---
 
@@ -350,16 +390,24 @@ PERSONA-AWARE HOOKS: The seller targets {target_personas}. Frame opening hooks t
 """
 
         base_prompt += """
-**Two-Sided Questions (use to end emails):**
-For each existential data point, provide a two-sided question that names two plausible root causes.
+**Trap-Setting Questions (use to end emails):**
+For each existential data point, craft a question where the research already tells you the answer.
+The purpose is not to learn — it's to demonstrate that you understand their situation deeply enough
+to ask the right question.
 
-Format: "[Observable signal]" usually means either [Cause A] or [Cause B]. Which is closer?
+Format: "When [observable fact from research], most teams find [projected consequence].
+How is your team handling [specific challenge]?"
 
-**Important**: Both causes must be problems your product could address. If only one cause relates to your product, reframe the question until both paths lead to a relevant conversation.
+The seller already knows, from the research, what the likely answer is. The question opens a
+conversation the prospect wants to have because someone finally understands the problem.
 
 Examples:
-- "4 open backend roles for 3+ months usually means either the scaling problems are complex enough that candidates are hesitant, or you are solving it with tooling instead. Which is closer?"
-- "3x user growth on PostgreSQL usually means either you are already seeing latency issues, or you are burning engineering cycles on manual optimization. Which is it?"
+- "With your DB Engineer role open since September and 3x user growth from Series B, most teams
+  find query optimization consuming senior eng cycles. How is your team handling the scaling
+  pressure?" (You know from the research they have no DB tooling — the question surfaces the gap.)
+- "I noticed your app stack shows Redis alongside job postings mentioning caching problems.
+  Teams in that situation usually find the caching layer was built for a smaller scale.
+  Is that what you're seeing?" (You know from the tech scan + job posting the answer is yes.)
 """
 
         if target_personas:
@@ -372,6 +420,21 @@ PERSONA-AWARE QUESTIONS: Both causes in each two-sided question should resonate 
 3-5 specific talking points based on verified data. Each should reference something concrete from the research and connect to your product value.
 
 Format: "I noticed [specific observation]. Companies in similar situations often [pattern]. How are you thinking about [related challenge]?"
+
+**Discovery Paths:**
+Provide 2-3 ranked conversation angles, ordered by strength of evidence. Each path should:
+1. Start from a different verified signal
+2. Lead to a pain point the seller's product addresses
+3. Include the specific research evidence that supports the path
+
+Format:
+- **Path 1 (strongest):** [Signal] → [Pain hypothesis] → [Product connection]
+  Evidence: [specific data points]
+- **Path 2:** [Signal] → [Pain hypothesis] → [Product connection]
+  Evidence: [specific data points]
+
+These give the seller multiple ways into the conversation — if the first angle doesn't resonate,
+they have a prepared fallback grounded in different evidence.
 """
 
         if target_personas:
@@ -426,6 +489,34 @@ If no contact data available, state "No contact data available."
 ## Information Gaps
 What important information could not be found? What would strengthen this research? Be specific about what is missing and why it matters.
 
+## Before Scenario
+Synthesize the Before Scenario for this prospect:
+
+**Problems (Observable):**
+- [List specific, verified problems with sources]
+
+**Negative Consequences (Projected):**
+- [For each problem: consequence chain showing what happens if unaddressed]
+
+**Current Attempts (Insufficient):**
+- [How they're trying to solve it today and why it falls short]
+
+If insufficient data for a full Before Scenario, state what's known and what's missing.
+A partial Before Scenario is more valuable than none.
+
+## PVP Seed
+Identify the single most valuable insight from this research — something specific enough that the
+prospect would find it genuinely useful even if they never buy anything.
+
+Format:
+- **The Insight**: [One specific, non-obvious observation that combines multiple data sources]
+- **Why It Matters**: [The business consequence the prospect may not have connected]
+- **Source Evidence**: [The 2-3 data points that support this]
+
+The PVP Seed should make the prospect think "that's a really good point" — not "that's a generic
+observation about my industry." If you cannot produce a genuinely valuable insight, say so and
+explain what data would be needed.
+
 ---
 
 QUALITY CHECKLIST:
@@ -437,6 +528,12 @@ Before submitting, verify:
 - [ ] Two-sided questions offer two plausible causes that your product addresses
 - [ ] No generic industry statements that could apply to any company
 - [ ] Product fit analysis is based on evidence, not hope
+- [ ] Before Scenario has all three components (Problems, Consequences, Current Attempts)
+- [ ] Every Existential Data Point follows Metric+Threshold+Consequence format
+- [ ] Trap-setting questions reference specific research findings (not generic)
+- [ ] Discovery paths are ranked by evidence strength
+- [ ] PVP Seed combines 2+ data sources into a non-obvious insight
+- [ ] Consequence chains project forward, not just describe current state
 
 ---
 
@@ -447,6 +544,15 @@ Remember: The goal is to arm the salesperson with insights so specific that the 
 OPPORTUNITY SCORING:
 
 After completing the research document, you MUST output a structured opportunity score at the very end.
+
+THE SCORING PHILOSOPHY:
+
+Your scores determine who gets contacted and in what order. A score is not an academic assessment —
+it is a prioritization decision. Every point matters because it changes whether this prospect gets
+a call this week or never.
+
+Score with this weight: you are deciding how a salesperson spends their finite time.
+Overscoring wastes their time on bad prospects. Underscoring buries real opportunities.
 
 Score three dimensions (each 0-100). Be precise and use the FULL range, including very low numbers (3, 7, 12) and the middle range (42, 57, 63). NEVER default to round numbers like 20, 25, 45, or 75. Each score should feel like a specific judgment, not a bucket. Most companies should NOT score above 75.
 
@@ -759,6 +865,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             hiring_signals=sections.get("hiring_signals", ""),
             business_problems=sections.get("business_problems", ""),
             existential_data_points=sections.get("existential_data_points", ""),
+            before_scenario=sections.get("before_scenario", ""),
+            pvp_seed=sections.get("pvp_seed", ""),
             product_fit=sections.get("product_fit", ""),
             talking_points=sections.get("talking_points", ""),
             recent_news=sections.get("recent_news", ""),
@@ -802,6 +910,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             "key contacts": "key_contacts",
             "contacts": "key_contacts",
             "information gaps": "information_gaps",
+            "before scenario": "before_scenario",
+            "pvp seed": "pvp_seed",
         }
 
         current_section = None
