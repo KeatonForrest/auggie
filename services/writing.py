@@ -1598,6 +1598,8 @@ Present your final output in this format:
 
             if match:
                 body = match.group(1).strip()
+                # Strip markdown bold syntax — emails are plain text
+                body = body.replace("**", "")
 
                 emails.append({
                     "email_number": i,
