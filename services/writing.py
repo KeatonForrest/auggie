@@ -1535,12 +1535,12 @@ Count the words in each subject line. If any exceeds 4 words, rewrite shorter.
 
 Return your final output as a JSON object with this exact structure (no other text before or after):
 
-{
+{{
   "subjects": ["subject line option 1", "subject line option 2", "subject line option 3"],
   "email1": "body of email 1",
   "email2": "body of email 2",
   "email3": "body of email 3"
-}
+}}
 {low_confidence_closing}"""
 
         # Strip Section A examples for low-score prospects so the model
