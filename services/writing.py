@@ -1479,20 +1479,44 @@ We build the customer intelligence layer that helped that company find their NPS
 
 ---
 
-**SUBJECT LINE**
+**SUBJECT LINE RULES**
 
-Write one subject line for the entire sequence. Emails 2 and 3 will appear as replies in the same thread.
+Write 3 subject line options for the sequence. Emails 2 and 3 will appear as replies in the same thread.
 
-Subject should:
-- Hint at a specific insight, not generic
-- Under 50 characters
-- No clickbait
+Keep subject lines simple, short, and boring. No pitching. Think of them as a casual internal note, not a sales email.
+
+Rules:
+- MAX 4 words. Shorter is better. 1-2 words is ideal.
+- All lowercase. No title case. No sentence case.
+- No pitching, no value props, no benefits, no "how to" framing
+- No clickbait, no questions, no exclamation marks
+- Reference something specific from the prospect's world: a project, initiative, industry term, competitor name, internal challenge, or metric
+- Each of the 3 options must take a genuinely different angle — different hook entirely, not a rephrase
+
+Good examples:
+- "learning gaps"
+- "welders"
+- "metro push"
+- "Ultromics, MEDRhythms, SOFIE" (competitor names relevant to the prospect)
+- "warehouse automation"
+- "q4 pipeline"
+- "denial rates"
+
+Bad examples (DO NOT write subject lines like these):
+- "How a mid-market company cut costs by 40%" (too long, pitchy, case study framing)
+- "Pipeline visibility before Q4" (too long, too descriptive)
+- "Quick funnel audit" (pitching your product)
+- "Improving your hiring process" (pitchy, generic, too long)
+- "Following up on database scaling" (too long, generic)
+
+NOTE: The PVP examples in this prompt have older-style subject lines. IGNORE those example subject lines. Follow THESE rules instead.
 
 ---
 
 **BEFORE YOU SUBMIT**
 
 Count the words in each email body. If any email exceeds its limit, rewrite shorter.
+Count the words in each subject line. If any exceeds 4 words, rewrite shorter.
 
 ---
 
@@ -1500,8 +1524,8 @@ Present your final output in this format:
 
 <email_series>
 <subject1>[subject line option 1]</subject1>
-<subject2>[subject line option 2 — different angle or hook]</subject2>
-<subject3>[subject line option 3 — different angle or hook]</subject3>
+<subject2>[subject line option 2 — different angle]</subject2>
+<subject3>[subject line option 3 — different angle]</subject3>
 
 <email1>
 [body]
@@ -1515,8 +1539,6 @@ Present your final output in this format:
 [body]
 </email3>
 </email_series>
-
-IMPORTANT: Each subject line option must take a genuinely different angle — different hook, framing, or emphasis. Do NOT just rephrase the same idea three times.
 {low_confidence_closing}"""
 
         # Strip Section A examples for low-score prospects so the model
