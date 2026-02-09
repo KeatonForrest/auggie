@@ -115,7 +115,6 @@ class WritingService:
     def _build_prompt(self, report: str, opportunity_score: Optional[int] = None, product_type: str = "saas", has_persona: bool = False) -> str:
         """Build the full prompt with the report inserted."""
         low_confidence_block = ""
-        low_confidence_closing = ""
         if opportunity_score is not None and opportunity_score < 50:
             low_confidence_block = f"""
 **LOW-CONFIDENCE RESEARCH -- PARTIAL-SIGNAL MODE**
@@ -136,23 +135,10 @@ You MUST use partial-signal patterns for this sequence:
 - Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
 - Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
 
-Refer to Section B (Examples 41-50) for tone and structure. Those are your primary models for this sequence.
+Refer to Section B (Examples 41-47) for tone and structure. Those are your primary models for this sequence.
 
 ---
 
-"""
-            low_confidence_closing = """
-
----
-
-**FINAL CHECK -- PARTIAL-SIGNAL MODE**
-
-BEFORE outputting your emails, re-read the PARTIAL-SIGNAL MODE block at the top. Then scan every sentence you wrote for:
-- Banned phrases: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "that combination"
-- Any sentence describing what your research did NOT find -- rewrite to state only what you observed
-- Any condescending framing: "basic", "simple", "limited", "rudimentary", "might work fine", "works fine for now", "worth knowing" -- describe their stack neutrally without grading it
-
-If any violations appear, rewrite those sentences before outputting. Do not output a first draft.
 """
         msp_block = ""
         if product_type == "msp":
@@ -396,11 +382,11 @@ NOTE: The PVP examples in this prompt have older-style subject lines. IGNORE tho
 
 **ADDITIONAL PVP EXAMPLES**
 
-The following 17 examples show the PEA framework in action. They are split into two sections:
+The following 13 examples show the PEA framework in action. They are split into two sections:
 
-**Section A (Examples 1-7): Full-Confidence PVPs** -- Multiple confirming signals triangulate to a specific pain. Use these as patterns for standard outreach.
+**Section A (Examples 1-6): Full-Confidence PVPs** -- Multiple confirming signals triangulate to a specific pain. Use these as patterns for standard outreach.
 
-**Section B (Examples 41-50): Partial-Signal PVPs** -- Only one signal available, signal is ambiguous, stale, or lacks company-specific confirmation. These demonstrate how to write valuable sequences when data is incomplete.
+**Section B (Examples 41-47): Partial-Signal PVPs** -- Only one signal available, signal is ambiguous, stale, or lacks company-specific confirmation. These demonstrate how to write valuable sequences when data is incomplete.
 
 ---
 
@@ -452,30 +438,7 @@ We build the product intelligence layer that helped a video communication compan
 
 ---
 
-Example 3: Insurance Tech (Loss Ratio Pain)
-Target: VP of Underwriting or Chief Actuary
-Existential Data Point: Loss ratio > 70%
-Data Cocktail: Job posting for "Pricing Analyst" + recent rate filing visible in state records + competitor just raised rates
-
-Email 1 - PREVIEW
-Subject: Loss ratio and pricing pressure
-I noticed your recent rate filing and the Pricing Analyst role you're hiring. That combination usually means loss ratio has crept above where it should be.
-When loss ratio crosses 70%, you're choosing between raising rates and losing share, or holding rates and losing margin. The companies breaking this trade-off have found that the problem isn't pricing. It's risk selection.
-
-Email 2 - ENGAGE
-Subject: How a digital-first insurance company improved loss ratio by 15 points
-A digital-first insurance company faced the same squeeze. Loss ratio at 73%. Competitors raising rates. Growth team wanted volume. Finance wanted margin. Neither could win.
-They rebuilt their risk scoring model to catch bad risks at quote, not at claim. Loss ratio dropped from 73% to 58% over two quarters. They gained share while competitors raised rates.
-Your filing pattern and hiring suggest the same pressure.
-
-Email 3 - ASK
-Subject: Risk selection audit
-Happy to look at your current underwriting criteria and show where adverse selection likely hides. Takes 20 minutes and you keep the analysis.
-We build the risk intelligence layer that helped a digital-first insurance company fix their loss ratio. Worth a look?
-
----
-
-Example 4: MSP Break-Fix Burnout
+Example 3: MSP Break-Fix Burnout
 Target: Owner or Office Manager at a 50-person professional services firm
 Existential Data Point: IT incidents > 10/month with no dedicated IT staff
 Data Cocktail: Job posting for "Office Manager" mentioning "tech support responsibilities" + Google reviews mentioning service delays + growing headcount on LinkedIn
@@ -498,7 +461,7 @@ We handle IT for 30+ firms your size. Worth a conversation?
 
 ---
 
-Example 5: Construction Tech (Project Schedule Variance Pain)
+Example 4: Construction Tech (Project Schedule Variance Pain)
 Target: VP of Operations or Head of Project Management at a GC or specialty contractor
 Existential Data Point: Schedule variance > 15% behind
 Data Cocktail: Job posting for "Project Controls Manager" + multiple active projects on website + industry known for delays
@@ -521,30 +484,7 @@ We build the project intelligence layer that helped a national general contracto
 
 ---
 
-Example 6: Nonprofit / Association (Donor Retention Pain)
-Target: VP of Development or Director of Fundraising at a nonprofit
-Existential Data Point: Donor retention rate < 45%
-Data Cocktail: Job posting for "Development Associate" + annual campaign visible + GuideStar profile showing flat or declining revenue
-
-Email 1 - PREVIEW
-Subject: Donor retention and fundraising efficiency
-I noticed you're hiring a Development Associate and your annual campaign is active. That combination usually means donor retention has dropped below sustainable levels.
-When retention falls under 45%, you're replacing nearly half your donor base every year. Acquisition can't outpace churn. The organizations stabilizing revenue have found that retention fails at predictable moments, not randomly.
-
-Email 2 - ENGAGE
-Subject: How a fast-growing nonprofit pushed retention to 68%
-A fast-growing nonprofit faced this during rapid growth. Acquiring donors faster, but retention dropping. Net revenue flat despite bigger campaigns.
-They mapped the donor journey and found three moments where lapse risk spiked. Rebuilt touchpoints at those moments. Retention jumped from 41% to 68%. Acquisition spend finally compounded instead of just replacing churn.
-Your hiring and revenue patterns suggest the same opportunity.
-
-Email 3 - ASK
-Subject: Retention risk analysis
-Happy to map your donor journey and show where lapse risk likely concentrates. Takes 20 minutes and you keep the analysis.
-We build the donor intelligence layer that helped a fast-growing nonprofit find their retention moments. Worth a conversation?
-
----
-
-Example 7: Government / GovTech (Citizen Service Backlog Pain)
+Example 5: Government / GovTech (Citizen Service Backlog Pain)
 Target: CIO or Director of Digital Services at a city or county government
 Existential Data Point: Service request backlog > 30 days average response
 Data Cocktail: 311 data showing long resolution times + job posting for "Constituent Services Manager" + public complaints in local news
@@ -564,6 +504,29 @@ Email 3 - ASK
 Subject: Backlog analysis
 Happy to look at your current request flow and show where delays likely compound. Takes 20 minutes and you keep the analysis.
 We build the constituent services layer that helped a major city government clear their backlog. Worth a look?
+
+---
+
+Example 6: Dev Tooling / API Platform (Integration Velocity Pain)
+Target: VP of Engineering or Head of Platform at a mid-market SaaS company
+Existential Data Point: API integration backlog > 6 months
+Data Cocktail: Job posting for "Integrations Engineer" + partner page listing 30+ integrations + changelog showing slow release cadence
+
+Email 1 - PREVIEW
+Subject: Integration backlog and partner pressure
+I noticed you have 30+ integrations listed and you're hiring an Integrations Engineer. That usually means the backlog of partner requests has outgrown what the current team can ship.
+When integration velocity drops, partners lose patience and customers build brittle workarounds. The platforms shipping integrations fastest have found that most of the delay is boilerplate, not business logic.
+
+Email 2 - ENGAGE
+Subject: How a B2B platform cut integration build time by 70%
+A B2B platform had the same bottleneck. Forty partner integrations queued. Each one took 6-8 weeks. Engineering kept getting pulled off product work to build connectors.
+They moved the repeatable parts of each integration to a managed runtime. Build time dropped from 6 weeks to 9 days. The integrations engineer focused on edge cases instead of auth flows and retry logic. Partner satisfaction scores jumped.
+Your integration count and hiring suggest the same pressure.
+
+Email 3 - ASK
+Subject: Integration audit
+Happy to look at your current integration architecture and show where build time likely clusters. Takes 15 minutes and you keep the analysis.
+We handle the infrastructure layer that helped that platform ship integrations faster. Worth a look?
 
 ---
 
@@ -600,31 +563,7 @@ We build the data reliability layer that helped that company clear their debt. I
 
 ---
 
-Example 42: Signal Present, Severity Unknown
-Signal quality: Low-Confidence -- Unconfirmed severity
-What Auggie found: G2 reviews mention "steep learning curve" -- no other confirmation
-What's missing: Activation rate data, volume of affected users, CS team response
-Hedging pattern: Acknowledges inability to gauge severity from outside, offers benchmark value either way
-
-Email 1 - PREVIEW
-Subject: Onboarding feedback
-I saw a few G2 reviews mention a learning curve with your product. Hard to tell from the outside whether that's a handful of vocal users or something affecting activation rates more broadly.
-If it's the latter and your CS team is working on it, I've mapped where similar products see the biggest drop-off moments. The pattern is consistent enough to be a useful benchmark even if your situation is different.
-
-Email 2 - ENGAGE
-Subject: Where learning curves usually break activation
-A company in a similar situation had the same G2 feedback. They assumed it was a small vocal group. When they instrumented onboarding, they found 60% of new users stalled at the same three screens.
-They simplified those screens without changing the product's power. Activation jumped 35%. The G2 reviews shifted from "steep learning curve" to "powerful but easy to start." Same product, different first experience.
-That might not match your scale at all. But if it does, the fix was smaller than they expected.
-
-Email 3 - ASK
-Subject: Onboarding benchmark
-I have a drop-off benchmark showing where similar products lose users during onboarding. Happy to share. Useful as a comparison point even if your activation is healthy.
-We build the onboarding analytics layer that helped that company find their stall points. If the learning curve feedback is a real pattern, worth a conversation.
-
----
-
-Example 43: Timing-Based Hedge
+Example 42: Timing-Based Hedge
 Signal quality: Low-Confidence -- Pain may not have materialized yet
 What Auggie found: Series B announcement, expanding to enterprise segment
 What's missing: Confirmation that security questionnaires or procurement friction have started
@@ -648,7 +587,7 @@ We help companies prepare for enterprise security requirements before deals stal
 
 ---
 
-Example 44: Industry Pressure Without Company Confirmation
+Example 43: Industry Pressure Without Company Confirmation
 Signal quality: Low-Confidence -- Industry trend only, no company-specific signal
 What Auggie found: Company is in healthcare IT, no specific pain signals
 What's missing: Any company-specific indicator of compliance pressure, audit burden, or security review friction
@@ -672,7 +611,7 @@ We build the compliance automation layer that helped that company scale their au
 
 ---
 
-Example 45: Role Hire Without Context
+Example 44: Role Hire Without Context
 Signal quality: Low-Confidence -- Leadership hire with ambiguous intent
 What Auggie found: Hired VP of Customer Success (LinkedIn) -- no other signals
 What's missing: NRR data, churn indicators, expansion metrics, or team maturity signals
@@ -696,55 +635,7 @@ We build the customer intelligence layer that helped that company find their NRR
 
 ---
 
-Example 46: Competitor Signal Only
-Signal quality: Low-Confidence -- External market event, no company-specific reaction
-What Auggie found: Competitor just raised Series C, likely creating pressure
-What's missing: Any indication the company is changing strategy, accelerating spend, or feeling competitive pressure
-Hedging pattern: Frames as market context, explicitly acknowledges it may not be changing anything for the company
-
-Email 1 - PREVIEW
-Subject: Market timing
-I noticed your competitor just raised a big round. That usually creates some urgency for others in the space, either to accelerate roadmap or tighten up GTM efficiency.
-No idea if that's changing anything for you. But if you're looking at CAC or sales cycle as a response, the companies that respond well focus on efficiency, not just speed.
-
-Email 2 - ENGAGE
-Subject: How companies respond to competitor funding
-A company in a similar situation saw their main competitor raise a large round. The instinct was to spend faster. Instead, they audited their GTM efficiency and found their CAC was 40% higher than it needed to be.
-They tightened targeting and shortened their sales cycle by two weeks. Growth actually accelerated while spend stayed flat. When the competitor burned through their raise, they were still standing with better unit economics.
-That might not be your playbook at all. But if competitive pressure is driving any GTM conversations, the efficiency-first approach has a strong track record.
-
-Email 3 - ASK
-Subject: GTM benchmark data
-I have benchmark data on CAC and sales cycle for companies in your space. Yours if useful. Good context regardless of competitive dynamics.
-We help companies build efficient GTM motions. If you're evaluating any changes in response to market shifts, might be worth a conversation.
-
----
-
-Example 47: Partial Funnel Visibility
-Signal quality: Low-Confidence -- Conflicting public signals
-What Auggie found: High traffic (SimilarWeb) but low app store ratings with friction themes
-What's missing: Actual conversion data, activation rates, whether ratings reflect current or legacy experience
-Hedging pattern: Names the ambiguity between traffic and ratings, offers framework rather than diagnosis
-
-Email 1 - PREVIEW
-Subject: Traffic vs. activation
-Your web traffic looks strong, but I noticed your app store ratings have some friction themes in recent reviews. Hard to know from the outside if that's a conversion issue or just a vocal minority.
-If there's a gap between traffic and activated users you're trying to close, I've mapped where similar products find the biggest drop-off. The pattern is consistent enough to be a useful framework.
-
-Email 2 - ENGAGE
-Subject: Closing the traffic-to-activation gap
-A company in a similar situation had strong acquisition but soft activation. App reviews flagged friction, but the team wasn't sure if it was widespread or a few loud voices. Turns out it was both: a real issue amplified by vocal users.
-They instrumented the first-session flow and found one screen where 40% of new users bounced. A single UX change recovered half of them. Ratings improved as a side effect. The vocal minority was just the visible tip.
-That may not match your situation. But if traffic and activation feel misaligned, the diagnostic approach is straightforward.
-
-Email 3 - ASK
-Subject: Activation framework
-I have a framework showing where products with strong traffic typically lose users before activation. Happy to share. Useful as a benchmark even if your conversion is healthy.
-We build the product analytics layer that helped that company find their drop-off point. If there's a gap you're working on, worth a look.
-
----
-
-Example 48: Stale Signal
+Example 45: Stale Signal
 Signal quality: Low-Confidence -- Signal older than 60 days
 What Auggie found: Job posting from 3 months ago for "Revenue Operations Manager" -- may be filled
 What's missing: Confirmation role is still open, whether the hire has ramped, current state of pipeline visibility
@@ -768,7 +659,7 @@ We build the revenue intelligence layer that helped that company fix their forec
 
 ---
 
-Example 49: Inferred Pain From Funding Stage
+Example 46: Inferred Pain From Funding Stage
 Signal quality: Low-Confidence -- Stage-based inference only
 What Auggie found: Series A announced, 30 employees on LinkedIn
 What's missing: Any specific operational pain signal -- just stage and size
@@ -792,34 +683,27 @@ We help companies build the ops foundation that scales past 30 people. If any of
 
 ---
 
-Example 50: Public Metric Without Context
-Signal quality: Low-Confidence -- Visible metric without trend data
-What Auggie found: NPS score visible on website (42) -- no trend data
-What's missing: Historical trend, segment breakdown, whether the score is improving or declining
-Hedging pattern: Acknowledges the number without judging it, offers context that's valuable regardless of direction
+Example 47: Dev Tooling Adoption Without Usage Data
+Signal quality: Low-Confidence -- Stack presence only, no usage or pain signals
+What Auggie found: Company uses a serverless provider (visible in job posts or tech profile) -- no other signals
+What's missing: Scale of usage, cold start complaints, cost pressure, migration intent
+Hedging pattern: Leads with a stage-typical pattern, offers benchmark, gives permission to opt out
 
 Email 1 - PREVIEW
-Subject: NPS context
-I saw your NPS is posted at 42. Solid number in most contexts, but impossible to know from the outside whether it's trending up, flat, or down from where it was.
-If you're working on moving it and looking for where similar companies find the most leverage, I've got a breakdown of what typically drives the biggest swings. The drivers are surprisingly consistent across company size.
+Subject: Serverless at scale
+I saw your team is running on serverless. At a certain point most teams hit a predictable set of tradeoffs: cold starts slow down user-facing flows, costs get harder to predict, and debugging distributed functions becomes its own job.
+No idea if any of that applies to you yet. But if one of those has started showing up, the pattern for what to fix first is surprisingly consistent.
 
 Email 2 - ENGAGE
-Subject: What typically moves NPS the most
-A company in a similar situation had their NPS at 40 and couldn't figure out what would move it. They surveyed detractors. Got vague feedback. Tried fixing everything. Nothing moved.
-They segmented NPS by customer journey stage and found that scores cratered at one specific moment: the transition from onboarding to steady-state. Fixing that handoff moved NPS from 40 to 58 in two quarters. One moment, not ten initiatives.
-If your 42 is trending up, you might already know your lever. If it's flat or down, segmentation usually reveals it.
+Subject: What usually breaks first on serverless
+A company in a similar situation was happy with serverless until traffic grew. Cold starts added 2-3 seconds to API responses. Costs spiked unpredictably with each launch. The team spent more time tracing failures across functions than building features.
+They kept serverless for background jobs but moved latency-sensitive paths to a managed compute layer. API response times dropped 80%. Monthly cloud bill became predictable. Engineering time shifted back to product.
+That might not match where you are at all. Plenty of teams run serverless without hitting these walls.
 
 Email 3 - ASK
-Subject: NPS driver breakdown
-I have a breakdown of what drives NPS movement for companies at your stage, segmented by journey moment. Yours if useful, no strings attached.
-We build the customer intelligence layer that helped that company find their NPS lever. If you're actively working on the score, worth a conversation.
-
----
-
-**BEFORE YOU SUBMIT**
-
-Count the words in each email body. If any email exceeds its limit, rewrite shorter.
-Count the words in each subject line. If any exceeds 4 words, rewrite shorter.
+Subject: Compute cost benchmark
+I have a benchmark showing where serverless costs typically inflect relative to request volume. Yours regardless of whether it's relevant today.
+We handle the compute layer that helped that company solve their latency and cost problems. If any of those tradeoffs are showing up, worth a conversation.
 
 ---
 
@@ -831,8 +715,7 @@ No other headers or commentary.
 Word limits — count every word:
 - Email 1: 75 words max
 - Email 2: 100 words max
-- Email 3: 60 words max
-{low_confidence_closing}"""
+- Email 3: 60 words max"""
 
         # Strip Section A examples for low-score prospects so the model
         # can't pattern-match off full-confidence examples.
@@ -845,7 +728,7 @@ Word limits — count every word:
             if start_idx != -1 and end_idx != -1:
                 replacement = (
                     "**PARTIAL-SIGNAL PVP EXAMPLES**\n\n"
-                    "The following 10 examples show how to write valuable sequences "
+                    "The following 7 examples show how to write valuable sequences "
                     "when data is incomplete.\n\n---\n\n"
                 )
                 prompt = prompt[:start_idx] + replacement + prompt[end_idx:]

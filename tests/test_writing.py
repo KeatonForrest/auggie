@@ -216,9 +216,9 @@ class TestPartialSignalDirective:
         assert '"basic"' in prompt
         assert '"might work fine now"' in prompt
 
-    def test_low_score_includes_self_review_closing(self, writing_service):
+    def test_low_score_excludes_self_review_closing(self, writing_service):
         prompt = writing_service._build_prompt("test report", opportunity_score=30)
-        assert "FINAL CHECK" in prompt
+        assert "FINAL CHECK" not in prompt
 
     def test_high_score_excludes_self_review_closing(self, writing_service):
         prompt = writing_service._build_prompt("test report", opportunity_score=70)
