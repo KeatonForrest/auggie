@@ -422,10 +422,12 @@ PERSONA-AWARE QUESTIONS: Both causes in each two-sided question should resonate 
 Format: "I noticed [specific observation]. Companies in similar situations often [pattern]. How are you thinking about [related challenge]?"
 
 **Discovery Paths:**
-Provide 2-3 ranked conversation angles, ordered by strength of evidence. Each path should:
+Provide 2-3 ranked conversation angles, ordered by strength of evidence. Each path MUST:
 1. Start from a different verified signal
-2. Lead to a pain point the seller's product addresses
+2. Lead to a pain point the seller's product **directly** addresses
 3. Include the specific research evidence that supports the path
+
+CRITICAL: Only include paths where the product connection is direct and obvious. 2 strong paths are better than 2 strong + 1 weak. If you cannot draw a straight line from the signal to a core product capability, drop the path. Never pad with tangential connections (e.g. DNS issues for a database product).
 
 Format:
 - **Path 1 (strongest):** [Signal] → [Pain hypothesis] → [Product connection]
