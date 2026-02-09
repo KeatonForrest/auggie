@@ -959,6 +959,9 @@ Word limits — count every word:
 
         response = message.choices[0].message.content or ""
 
+        # Strip emdashes — model ignores the "no emdashes" style rule occasionally
+        response = response.replace("—", " -- ").replace("–", " -- ")
+
         # Parse the emails
         emails, subject_options = self._parse_emails(response)
 
