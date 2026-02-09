@@ -73,19 +73,6 @@
         {% endif %}
     </div>
 
-    <!-- Import from ZoomInfo -->
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Import from ZoomInfo</h2>
-        {% if zoominfo_connected %}
-        <p class="text-sm text-gray-500 mb-4">Search ZoomInfo's company database and import matches.</p>
-        <button onclick="openZoomInfoImport()" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 text-sm font-medium">
-            Search & Import
-        </button>
-        {% else %}
-        <p class="text-sm text-gray-500">Connect ZoomInfo on the <a href="/integrations" class="text-blue-600 hover:text-blue-800 font-medium">Integrations page</a> to search and import companies.</p>
-        {% endif %}
-    </div>
-
     <!-- Import from People Data Labs -->
     <div class="bg-white shadow rounded-lg p-6 mb-8">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Import from People Data Labs</h2>
@@ -206,36 +193,6 @@
         </div>
     </div>
     {% endif %}
-
-{% if zoominfo_connected %}
-<!-- ZoomInfo Import Modal -->
-<div id="zoominfo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeZoomInfoImport()">
-    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Import from ZoomInfo</h2>
-            <button onclick="closeZoomInfoImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
-        </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div class="mb-4">
-                <input type="text" id="zi-search" placeholder="Search companies by name..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            </div>
-            <div id="zi-loading" class="hidden text-center py-8 text-gray-500">Searching...</div>
-            <div id="zi-results" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
-            <div id="zi-empty" class="hidden text-center py-8 text-gray-400">Type a company name to search ZoomInfo</div>
-            <div id="zi-error" class="hidden text-center py-8 text-red-600"></div>
-        </div>
-        <div class="p-6 border-t flex justify-between items-center">
-            <span id="zi-selected-count" class="text-sm text-gray-500">0 selected</span>
-            <div class="flex gap-3">
-                <input type="text" id="zi-list-name" placeholder="List name" value="ZoomInfo Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48">
-                <button onclick="importZiSelected()" id="zi-import-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50" disabled>
-                    Import & Analyze
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% if pdl_connected %}
 <!-- PDL Import Modal -->
@@ -490,113 +447,6 @@ function importApolloList() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) window.location.href = '/lists/' + data.list_id;
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
-    })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
-}
-
-// ZoomInfo import
-var ziResults = [];
-var ziSelected = new Set();
-var ziSearchTimer = null;
-
-function openZoomInfoImport() {
-    document.getElementById('zoominfo-modal').classList.remove('hidden');
-    document.getElementById('zi-empty').classList.remove('hidden');
-    document.getElementById('zi-results').innerHTML = '';
-    ziResults = [];
-    ziSelected = new Set();
-    updateZiCount();
-}
-
-function closeZoomInfoImport() {
-    document.getElementById('zoominfo-modal').classList.add('hidden');
-}
-
-function searchZoomInfo(query) {
-    if (!query || query.length < 2) {
-        document.getElementById('zi-results').innerHTML = '';
-        document.getElementById('zi-empty').classList.remove('hidden');
-        document.getElementById('zi-loading').classList.add('hidden');
-        return;
-    }
-    document.getElementById('zi-empty').classList.add('hidden');
-    document.getElementById('zi-loading').classList.remove('hidden');
-    document.getElementById('zi-error').classList.add('hidden');
-
-    fetch('/integrations/zoominfo/companies?q=' + encodeURIComponent(query))
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(data) {
-            document.getElementById('zi-loading').classList.add('hidden');
-            ziResults = data || [];
-            renderZiResults();
-        })
-        .catch(function() {
-            document.getElementById('zi-loading').classList.add('hidden');
-            document.getElementById('zi-error').classList.remove('hidden');
-            document.getElementById('zi-error').textContent = 'Failed to search ZoomInfo.';
-        });
-}
-
-function renderZiResults() {
-    var container = document.getElementById('zi-results');
-    container.innerHTML = '';
-    if (ziResults.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-400">No results found</div>';
-        return;
-    }
-    ziResults.forEach(function(c) {
-        var div = document.createElement('div');
-        div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (ziSelected.has(c.id) ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:bg-gray-50');
-        var details = [c.website || '', c.city, c.state, c.country].filter(Boolean).join(', ');
-        var meta = [];
-        if (c.employeeCount) meta.push(c.employeeCount + ' employees');
-        if (c.revenue) meta.push('$' + (c.revenue / 1e6).toFixed(0) + 'M rev');
-        div.innerHTML = '<input type="checkbox" ' + (ziSelected.has(c.id) ? 'checked' : '') + ' class="rounded border-gray-300 text-red-600">'
-            + '<div class="flex-1"><div class="text-sm font-medium text-gray-900">' + (c.name || 'Unknown') + '</div>'
-            + '<div class="text-xs text-gray-500">' + details + '</div>'
-            + (meta.length ? '<div class="text-xs text-gray-400">' + meta.join(' · ') + '</div>' : '')
-            + '</div>';
-        div.querySelector('input').addEventListener('change', function(e) {
-            if (e.target.checked) ziSelected.add(c.id);
-            else ziSelected.delete(c.id);
-            updateZiCount();
-            div.className = 'flex items-center gap-3 p-3 rounded-lg border ' + (ziSelected.has(c.id) ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:bg-gray-50');
-        });
-        container.appendChild(div);
-    });
-}
-
-function updateZiCount() {
-    document.getElementById('zi-selected-count').textContent = ziSelected.size + ' selected';
-    document.getElementById('zi-import-btn').disabled = ziSelected.size === 0;
-}
-
-if (document.getElementById('zi-search')) {
-    document.getElementById('zi-search').addEventListener('input', function() {
-        clearTimeout(ziSearchTimer);
-        var q = this.value.trim();
-        ziSearchTimer = setTimeout(function() { searchZoomInfo(q); }, 400);
-    });
-}
-
-function importZiSelected() {
-    var btn = document.getElementById('zi-import-btn');
-    btn.disabled = true;
-    btn.textContent = 'Importing...';
-
-    var companies = ziResults.filter(function(c) { return ziSelected.has(c.id); }).map(function(c) {
-        return { id: c.id, website: c.website || '', name: c.name || '' };
-    });
-
-    fetch('/integrations/zoominfo/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companies: companies, name: document.getElementById('zi-list-name').value || 'ZoomInfo Import' })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) { window.location.href = '/lists/' + data.list_id; }
         else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
     })
     .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
