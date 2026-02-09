@@ -843,7 +843,13 @@ Word limits — count every word:
         response = message.choices[0].message.content or ""
 
         # Strip emdashes — model ignores the "no emdashes" style rule occasionally
-        response = response.replace("—", " -- ").replace("–", " -- ")
+        response = (
+            response
+            .replace("—", " - ")   # U+2014 em dash
+            .replace("–", " - ")   # U+2013 en dash
+            .replace("―", " - ")   # U+2015 horizontal bar
+            .replace("‒", " - ")   # U+2012 figure dash
+        )
 
         # Parse the emails
         emails, subject_options = self._parse_emails(response)
