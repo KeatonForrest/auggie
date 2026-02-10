@@ -392,11 +392,6 @@ Brief summary of what the company does, stage, and market position. 2-3 sentence
 ## Specific Projects & Initiatives
 Named projects, product launches, or strategic initiatives mentioned in their content. Be specific. If none found, say so.
 
-## Recent News & Press
-Any recent announcements, press coverage, or public statements. Include dates and sources. Flag anything that suggests timing sensitivity.
-
-If no news provided, state "No recent news available."
-
 ## Confirmed Technology Stack
 Separate by subdomain type, then group technologies by category within each subdomain. Use sub-bullets for categories.
 
@@ -791,11 +786,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(scraped.additional_pages[:8000])
             sections.append("")
 
-        if scraped.news:
-            sections.append("## Recent News & Press")
-            sections.append(scraped.news[:5000])
-            sections.append("")
-
         if scraped.investor_relations:
             sections.append("## Investor Relations (Public Company)")
             sections.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
@@ -883,7 +873,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             required_capabilities=sections.get("required_capabilities", ""),
             product_fit=sections.get("product_fit", ""),
             talking_points=sections.get("talking_points", ""),
-            recent_news=sections.get("recent_news", ""),
+            recent_news="",
             key_contacts=sections.get("key_contacts", ""),
             recommended_contacts=sections.get("recommended_contacts", ""),
             information_gaps=sections.get("information_gaps", ""),
@@ -919,9 +909,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             "fit analysis": "product_fit",
             "recommended talking points": "talking_points",
             "talking points": "talking_points",
-            "recent news & press": "recent_news",
-            "recent news and press": "recent_news",
-            "recent news": "recent_news",
             "key contacts": "key_contacts",
             "contacts": "key_contacts",
             "recommended contacts": "recommended_contacts",

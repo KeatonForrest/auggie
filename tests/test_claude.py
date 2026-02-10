@@ -193,7 +193,6 @@ class TestBuildUserPrompt:
             blog="Blog content",
             job_postings="Job posting 1\nJob posting 2",
             additional_pages="Additional content",
-            news="News article 1",
             investor_relations="Investor relations content",
             edgar_filings="SEC filing 1",
             federal_regulations="Regulation 1",
@@ -218,8 +217,6 @@ class TestBuildUserPrompt:
         assert "Job posting 1" in result
         assert "## Additional Website Pages" in result
         assert "Additional content" in result
-        assert "## Recent News & Press" in result
-        assert "News article 1" in result
         assert "## Investor Relations (Public Company)" in result
         assert "Investor relations content" in result
         assert "## SEC EDGAR Filings (Public Company)" in result
@@ -375,15 +372,15 @@ Project Alpha, Project Beta
 ## Hiring Signals
 Rapid hiring
 
-## Recent News
-Series B funding announced
+## Before Scenario
+Problems identified
 """
 
         result = claude_service._parse_sections(markdown)
 
         assert result["projects_initiatives"] == "Project Alpha, Project Beta"
         assert result["hiring_signals"] == "Rapid hiring"
-        assert result["recent_news"] == "Series B funding announced"
+        assert result["before_scenario"] == "Problems identified"
 
     def test_unknown_headers_ignored(self, claude_service):
         """Test that unknown headers are ignored."""
@@ -677,9 +674,6 @@ High fit
 ## Recommended Talking Points
 Database optimization
 
-## Recent News & Press
-Series B funding
-
 ## Key Contacts
 Jane Doe, CTO
 
@@ -733,7 +727,7 @@ SCORE_SUMMARY: Strong opportunity.
                 assert result.business_problems == "Database performance"
                 assert result.product_fit == "High fit"
                 assert result.talking_points == "Database optimization"
-                assert result.recent_news == "Series B funding"
+                assert result.recent_news == ""
                 assert result.key_contacts == "Jane Doe, CTO"
                 assert result.information_gaps == "No technical blog"
 

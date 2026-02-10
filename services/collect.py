@@ -13,7 +13,6 @@ import httpx
 
 from config import get_settings
 from models import ScrapedContent
-from services.news import NewsService
 from services.edgar import EdgarService
 from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
@@ -24,7 +23,6 @@ from services.apollo import get_firmographics_for_user as apollo_get_firmographi
 logger = logging.getLogger(__name__)
 
 # Module-level singletons (shared across callers within the same process)
-news_service = NewsService()
 edgar_service = EdgarService()
 federal_register_service = FederalRegisterService()
 
@@ -77,10 +75,10 @@ async def collect_enrichment_data(
     *,
     verbose: bool = False,
 ) -> str:
-    """Fetch news, EDGAR, reviews, Federal Register, and materials in parallel.
+    """Fetch EDGAR, Federal Register, firmographics, and materials in parallel.
 
-    Mutates scraped_content in place (sets news, edgar_filings, reviews,
-    federal_regulations). Returns the retrieved_materials string.
+    Mutates scraped_content in place (sets edgar_filings,
+    federal_regulations, firmographics). Returns the retrieved_materials string.
 
     Args:
         scraped_content: Already-scraped website content to enrich.
@@ -95,14 +93,6 @@ async def collect_enrichment_data(
     settings = get_settings()
 
     client = await get_shared_http_client()
-
-    async def _fetch_news():
-        try:
-            return await news_service.get_company_news(company_name, client=client)
-        except Exception as e:
-            if verbose:
-                logger.warning("News fetch failed (non-fatal): %s", e)
-            return None
 
     async def _fetch_edgar():
         if not settings.edgar_enabled:
@@ -164,9 +154,8 @@ async def collect_enrichment_data(
     if verbose:
         logger.debug("Fetching enrichment data for %s (parallel)...", company_name)
 
-    # Run EDGAR, news, materials in parallel
-    news_result, edgar_content, materials_result, firmographics_result = await asyncio.gather(
-        _fetch_news(),
+    # Run EDGAR, materials, firmographics in parallel
+    edgar_content, materials_result, firmographics_result = await asyncio.gather(
         _fetch_edgar(),
         _fetch_materials(),
         _fetch_firmographics(),
@@ -176,10 +165,6 @@ async def collect_enrichment_data(
     fed_content = await _fetch_fedreg()
 
     # Assign results
-    if news_result:
-        scraped_content.news = news_result
-        if verbose:
-            logger.debug("Found recent news articles")
     if edgar_content:
         scraped_content.edgar_filings = edgar_content
         if verbose:

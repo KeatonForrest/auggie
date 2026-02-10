@@ -223,15 +223,13 @@ class TestCollectEnrichmentData:
         # Mock all service methods
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration, \
              patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo:
 
             # Set up mock returns
-            mock_news.get_company_news = AsyncMock(return_value="News content")
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = "1234"
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
@@ -253,7 +251,6 @@ class TestCollectEnrichmentData:
             )
 
             # Verify all enrichments were set
-            assert scraped_content.news == "News content"
             assert scraped_content.edgar_filings == "EDGAR content"
             assert scraped_content.federal_regulations == "Federal Register content"
             assert scraped_content.firmographics == "ZoomInfo firmographics"
@@ -267,14 +264,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            # News fails, EDGAR succeeds
-            mock_news.get_company_news = AsyncMock(side_effect=Exception("News API error"))
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
@@ -288,8 +282,6 @@ class TestCollectEnrichmentData:
                 verbose=False
             )
 
-            # EDGAR succeeded, news failed
-            assert scraped_content.news is None
             assert scraped_content.edgar_filings == "EDGAR content"
             assert scraped_content.federal_regulations == "Federal Register content"
 
@@ -301,13 +293,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = "5678"
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
@@ -335,13 +325,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -369,15 +357,13 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration, \
              patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo, \
              patch("services.collect.apollo_get_firmographics") as mock_apollo:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -408,15 +394,13 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration, \
              patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo, \
              patch("services.collect.apollo_get_firmographics") as mock_apollo:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -459,13 +443,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value="Should not be called")
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -496,13 +478,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = "1234"
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Should not be called")
@@ -528,13 +508,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value="News content")
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -549,7 +527,6 @@ class TestCollectEnrichmentData:
                 verbose=True
             )
 
-            assert scraped_content.news == "News content"
             assert isinstance(result, str)
 
     @pytest.mark.asyncio
@@ -560,13 +537,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -584,8 +559,8 @@ class TestCollectEnrichmentData:
             )
 
             # Verify the extracted company name was used
-            mock_news.get_company_news.assert_called_once()
-            call_args = mock_news.get_company_news.call_args
+            mock_edgar.get_company_filings.assert_called_once()
+            call_args = mock_edgar.get_company_filings.call_args
             assert call_args[0][0] == "acme-corp.com"
 
     @pytest.mark.asyncio
@@ -596,13 +571,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
@@ -631,13 +604,11 @@ class TestCollectEnrichmentData:
 
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-             patch("services.collect.news_service") as mock_news, \
-             patch("services.collect.edgar_service") as mock_edgar, \
+patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration:
 
-            mock_news.get_company_news = AsyncMock(return_value=None)
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)

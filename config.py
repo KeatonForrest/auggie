@@ -42,9 +42,6 @@ class Settings(BaseSettings):
     stripe_secret_key: str
     stripe_webhook_secret: str = ""
 
-    # SerpAPI (for Google News)
-    serp_api_key: str = ""
-
     # OpenAI (for embeddings in v2 materials feature)
     openai_api_key: str = ""
 
