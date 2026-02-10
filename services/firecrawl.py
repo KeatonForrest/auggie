@@ -1,8 +1,10 @@
 """firecrawl.py - Web scraping service using Firecrawl API."""
 
 import logging
+import re
 import httpx
 import asyncio
+import xml.etree.ElementTree as ET
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
@@ -236,6 +238,7 @@ class FirecrawlService:
         investor_task = self._scrape_investor_relations(client, domain)
         engineering_task = self._scrape_engineering_blog(client, domain)
         docs_task = self._scrape_developer_docs(client, domain)
+        sitemap_task = self._fetch_sitemap(client, base_url)
 
         results = await asyncio.gather(
             homepage_task,
@@ -244,6 +247,7 @@ class FirecrawlService:
             investor_task,
             engineering_task,
             docs_task,
+            sitemap_task,
             return_exceptions=True
         )
 
@@ -260,10 +264,43 @@ class FirecrawlService:
             if not isinstance(result, Exception):
                 core_results[name] = result
 
-        job_postings = results[-4] if not isinstance(results[-4], Exception) else None
-        investor_content = results[-3] if not isinstance(results[-3], Exception) else None
-        engineering_subdomain = results[-2] if not isinstance(results[-2], Exception) else None
-        docs_content = results[-1] if not isinstance(results[-1], Exception) else None
+        job_postings = results[-5] if not isinstance(results[-5], Exception) else None
+        investor_content = results[-4] if not isinstance(results[-4], Exception) else None
+        engineering_subdomain = results[-3] if not isinstance(results[-3], Exception) else None
+        docs_content = results[-2] if not isinstance(results[-2], Exception) else None
+        sitemap_urls = results[-1] if not isinstance(results[-1], Exception) else {}
+
+        # Sitemap fallbacks: scrape alternative URLs for empty content categories
+        sitemap_fallback_tasks = {}
+        if sitemap_urls:
+            if not core_results.get("about") and "about" in sitemap_urls:
+                logger.debug("Sitemap fallback: scraping %s for about page", sitemap_urls["about"])
+                sitemap_fallback_tasks["about"] = self._scrape_url(client, sitemap_urls["about"])
+            if not core_results.get("blog") and "blog" in sitemap_urls:
+                logger.debug("Sitemap fallback: scraping %s for blog/content", sitemap_urls["blog"])
+                sitemap_fallback_tasks["blog"] = self._scrape_url(client, sitemap_urls["blog"])
+            if not job_postings and "careers" in sitemap_urls:
+                logger.debug("Sitemap fallback: scraping %s for careers", sitemap_urls["careers"])
+                sitemap_fallback_tasks["careers"] = self._scrape_url(client, sitemap_urls["careers"])
+            if "products" in sitemap_urls:
+                logger.debug("Sitemap fallback: scraping %s for products/solutions", sitemap_urls["products"])
+                sitemap_fallback_tasks["products"] = self._scrape_url(client, sitemap_urls["products"])
+
+        if sitemap_fallback_tasks:
+            fallback_results = await asyncio.gather(
+                *sitemap_fallback_tasks.values(), return_exceptions=True
+            )
+            for key, result in zip(sitemap_fallback_tasks.keys(), fallback_results):
+                if isinstance(result, Exception) or not result or len(result) < 200:
+                    continue
+                if key == "about":
+                    core_results["about"] = result
+                elif key == "blog":
+                    core_results["blog"] = result
+                elif key == "careers":
+                    job_postings = result
+                elif key == "products":
+                    core_results["products"] = result
 
         # Combine engineering content from /engineering path, subdomains, and docs
         engineering_path = core_results.get("engineering")
@@ -274,6 +311,10 @@ class FirecrawlService:
             additional_parts.append(engineering_subdomain)
         if docs_content and len(docs_content) > 200:
             additional_parts.append(docs_content)
+        # Include products/solutions page from sitemap if found
+        products_content = core_results.get("products")
+        if products_content and len(products_content) > 200:
+            additional_parts.append(f"## Products/Solutions Page\n\n{products_content}")
         additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
 
         # Thin-profile detection: count how many content sources returned data
@@ -314,6 +355,115 @@ class FirecrawlService:
             investor_relations=investor_content,
             web_mentions=web_mentions,
         )
+
+    # URL path patterns for sitemap categorization
+    _SITEMAP_PATTERNS: dict[str, list[re.Pattern]] = {
+        "about": [
+            re.compile(r"^/about-?us/?$", re.I),
+            re.compile(r"^/company/?$", re.I),
+            re.compile(r"^/our-?story/?$", re.I),
+            re.compile(r"^/who-?we-?are/?$", re.I),
+            re.compile(r"^/team/?$", re.I),
+        ],
+        "blog": [
+            re.compile(r"^/news/?$", re.I),
+            re.compile(r"^/resources/?$", re.I),
+            re.compile(r"^/insights/?$", re.I),
+            re.compile(r"^/articles/?$", re.I),
+            re.compile(r"^/media/?$", re.I),
+        ],
+        "careers": [
+            re.compile(r"^/careers/?$", re.I),
+            re.compile(r"^/jobs/?$", re.I),
+            re.compile(r"^/join-?us/?$", re.I),
+            re.compile(r"^/work-?with-?us/?$", re.I),
+            re.compile(r"^/openings/?$", re.I),
+        ],
+        "products": [
+            re.compile(r"^/products/?$", re.I),
+            re.compile(r"^/solutions/?$", re.I),
+            re.compile(r"^/services/?$", re.I),
+            re.compile(r"^/platform/?$", re.I),
+            re.compile(r"^/features/?$", re.I),
+        ],
+    }
+
+    async def _fetch_sitemap(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+    ) -> dict[str, str]:
+        """Fetch and parse sitemap.xml for high-value page URLs.
+
+        Returns a dict mapping category (about, blog, careers, products) to
+        the best URL found for that category. Uses plain HTTP — zero Firecrawl
+        credits.
+        """
+        try:
+            response = await client.get(
+                f"{base_url}/sitemap.xml",
+                timeout=5.0,
+                follow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"},
+            )
+            if response.status_code != 200:
+                return {}
+
+            content = response.text
+            # Handle sitemap index: grab the first child sitemap URL
+            if "<sitemapindex" in content:
+                try:
+                    root = ET.fromstring(content)
+                    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+                    first_loc = root.find(".//sm:loc", ns)
+                    if first_loc is None or not first_loc.text:
+                        return {}
+                    child_resp = await client.get(
+                        first_loc.text.strip(),
+                        timeout=5.0,
+                        follow_redirects=True,
+                        headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"},
+                    )
+                    if child_resp.status_code != 200:
+                        return {}
+                    content = child_resp.text
+                except Exception:
+                    return {}
+
+            root = ET.fromstring(content)
+            ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+            locs = root.findall(".//sm:loc", ns)
+            # Fallback: try without namespace (some sitemaps omit it)
+            if not locs:
+                locs = root.findall(".//{*}loc")
+            if not locs:
+                locs = root.findall(".//loc")
+
+            discovered: dict[str, str] = {}
+            for loc in locs:
+                url = (loc.text or "").strip()
+                if not url:
+                    continue
+                path = urlparse(url).path
+                for category, patterns in self._SITEMAP_PATTERNS.items():
+                    if category in discovered:
+                        continue
+                    for pat in patterns:
+                        if pat.match(path):
+                            discovered[category] = url
+                            break
+
+            if discovered:
+                logger.debug("Sitemap discovered pages: %s", list(discovered.keys()))
+            return discovered
+
+        except (httpx.TimeoutException, httpx.ConnectError):
+            return {}
+        except ET.ParseError:
+            logger.debug("Failed to parse sitemap.xml (malformed XML)")
+            return {}
+        except Exception:
+            return {}
 
     async def _search_web_mentions(
         self,

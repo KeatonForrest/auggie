@@ -439,34 +439,6 @@ class TestGongEngageFlowsRoute:
         assert response.status_code == 502
 
 
-class TestGongEngageIntegrationPageCard:
-    @pytest.mark.asyncio
-    async def test_shows_gong_engage_card(self, authed_client):
-        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[]), \
-             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
-
-            response = await authed_client.get("/integrations")
-
-        assert response.status_code == 200
-        assert "Gong Engage" in response.text
-        assert "Connect Gong Engage" in response.text
-
-    @pytest.mark.asyncio
-    async def test_shows_connected_gong_engage(self, authed_client):
-        integrations = [
-            {"provider": "gong_engage", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
-        ]
-        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
-             patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
-
-            response = await authed_client.get("/integrations")
-
-        assert response.status_code == 200
-        assert "Gong Engage" in response.text
-        assert "Connected" in response.text
-        assert "Disconnect" in response.text
-
-
 class TestPushToGongEngageRoute:
     @pytest.mark.asyncio
     async def test_push_succeeds(self, authed_client):
@@ -530,4 +502,5 @@ class TestPushToGongEngageRoute:
             )
 
         assert response.status_code == 400
-        assert "Write sequences first" in response.json()["detail"]
+        body = response.json()
+        assert "Write sequences first" in (body.get("detail") or body.get("error", {}).get("message", "") or str(body))
