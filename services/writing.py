@@ -1,6 +1,5 @@
-"""writing.py - AI-powered outreach generation using Claude Sonnet."""
+"""writing.py - AI-powered outreach generation."""
 
-import json
 import logging
 import re
 from openai import AsyncOpenAI
@@ -9,6 +8,8 @@ from models import ResearchDocument
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+WORD_LIMITS = {1: 75, 2: 100, 3: 60}
 
 
 class WritingService:
@@ -52,11 +53,6 @@ class WritingService:
         if document.pvp_seed:
             sections.append("## PVP Seed (Key Insight for Outreach)")
             sections.append(document.pvp_seed)
-            sections.append("")
-
-        if document.required_capabilities:
-            sections.append("## Required Capabilities (What They Need → What We Offer)")
-            sections.append(document.required_capabilities)
             sections.append("")
 
         if document.projects_initiatives:
@@ -112,104 +108,12 @@ class WritingService:
 
         return "\n".join(sections)
 
-    def _build_prompt(self, report: str, opportunity_score: Optional[int] = None, product_type: str = "saas", has_persona: bool = False) -> str:
-        """Build the full prompt with the report inserted."""
-        low_confidence_block = ""
-        if opportunity_score is not None and opportunity_score < 50:
-            low_confidence_block = f"""
-**LOW-CONFIDENCE RESEARCH -- PARTIAL-SIGNAL MODE**
+    def _build_system_prompt(self, opportunity_score: Optional[int] = None) -> str:
+        """Build the system message with framework, rules, and examples."""
 
-The research score for this prospect is {opportunity_score}/100. The data is thin, ambiguous, or unconfirmed.
-
-You MUST use partial-signal patterns for this sequence:
-- Do NOT use "that combination usually means" or similar confident framing
-- Name what you observed and explicitly acknowledge what you don't know
-- Offer value conditionally: "If X is true, here's something useful"
-- Give permission to ignore: "If this isn't relevant, no worries"
-- Position insights as benchmarks, not diagnoses
-- Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
-- Frame the ASK as "yours regardless" or "useful either way"
-- Lead with business initiatives, product launches, or market moves -- not tech stack details
-- Never reference what your research did or didn't uncover. Talk about what the prospect is DOING, not what your search turned up. Do not narrate the research process.
-- If you only have partial signals, lead with the business activity and pivot to the value question: "You're expanding into X -- curious whether Y is on your radar."
-- Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
-- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
-
-Refer to Section B (Examples 41-47) for tone and structure. Those are your primary models for this sequence.
-
----
-
-"""
-        msp_block = ""
-        if product_type == "msp":
-            msp_block = (
-                "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**\n"
-                "\n"
-                "- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.\n"
-                "- Frame around reliability, compliance, and freeing up leadership attention -- not digital transformation or innovation.\n"
-                "- The prospect is not a tech buyer -- avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.\n"
-                "- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.\n"
-                "- Position managed services as removing a burden, not adding a capability.\n"
-                "\n"
-                "---\n"
-                "\n"
-            )
-        persona_block = ""
-        if has_persona:
-            persona_block = (
-                "**PERSONA-TARGETED OUTREACH:**\n"
-                "\n"
-                "The report includes a Target Contact section with a specific person's LinkedIn profile data. "
-                "Personalize emails for this individual:\n"
-                "- Use their first name naturally in EVERY email body — Email 1, Email 2, AND Email 3 (not in subject lines)\n"
-                "- Email 2 (the proof email): bridge back to the prospect by name when connecting the case study to their situation\n"
-                "- Reference their specific role and responsibilities when connecting to pain points\n"
-                "- Frame insights through the lens of what matters to someone in their position\n"
-                "- Do NOT mention that you saw their LinkedIn profile or researched them personally\n"
-                "- Do NOT reference their career history, skills section, or about section directly\n"
-                "- The personalization should feel like you understand their role, not like you stalked their profile\n"
-                "\n"
-                "---\n"
-                "\n"
-            )
-        prompt = f"""**CRITICAL: WORD LIMITS ARE MANDATORY**
-
-Count words before submitting each email. If over the limit, rewrite shorter.
-
-- Email 1: 75 words max
-- Email 2: 100 words max
-- Email 3: 60 words max
-
-These are requirements, not guidelines.
-
----
-
-Present your final output in EXACTLY this format (no other headers or commentary):
-
-Subject 1: [subject line option 1]
-Subject 2: [subject line option 2 — different angle]
-Subject 3: [subject line option 3 — different angle]
-
-Email 1:
-[body]
-
-Email 2:
-[body]
-
-Email 3:
-[body]
-
----
-
-{low_confidence_block}{msp_block}{persona_block}You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
+        prompt = """You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
 **Your job:** Use research to demonstrate you understand their problem, then explain why you can help. The research is proof of understanding, not the point of the email.
-
-Here is the research content you will be working with:
-
-<report>
-{report}
-</report>
 
 ---
 
@@ -341,9 +245,9 @@ MongoDB handles the mixed workload pattern your AI agents need. Worth a short co
 
 Write 3 subject line options for the sequence. Emails 2 and 3 will appear as replies in the same thread.
 
-Subject lines must be PRIORITY-BASED — name something from the prospect's world, not yours. Use language that speaks to:
+Subject lines must be PRIORITY-BASED -- name something from the prospect's world, not yours. Use language that speaks to:
 - **Priorities**: Specific initiatives your buyer cares about (stated publicly or common among their peers)
-- **Current solutions & problems**: How they're making progress — their tools, people, process, and associated problems
+- **Current solutions & problems**: How they're making progress -- their tools, people, process, and associated problems
 - **Aspirations**: Outcomes they hope to achieve, their desired future state
 
 Keep it simple, short, and boring. Think casual internal note, not sales email.
@@ -355,7 +259,7 @@ Rules:
 - No questions, no exclamation marks, no numbers/stats, no buzzwords
 - NEVER use the word "AI" in a subject line
 - Reference something specific from the prospect's world: a project, initiative, industry term, competitor name, internal challenge, or metric
-- Each of the 3 options must take a genuinely different angle — different hook entirely, not a rephrase
+- Each of the 3 options must take a genuinely different angle -- different hook entirely, not a rephrase
 
 Good examples (priority-based, from the prospect's world):
 - "WCUS achievement gaps" (references their specific challenge by name)
@@ -707,20 +611,32 @@ We handle the compute layer that helped that company solve their latency and cos
 
 ---
 
-**FINAL REMINDER**
+**WORD LIMITS (MANDATORY)**
 
-Output format: Subject 1, Subject 2, Subject 3, then Email 1, Email 2, Email 3.
-No other headers or commentary.
+Count words before submitting each email. If over the limit, rewrite shorter. These are requirements, not guidelines.
 
-Word limits — count every word:
 - Email 1: 75 words max
 - Email 2: 100 words max
-- Email 3: 60 words max"""
+- Email 3: 60 words max
+
+Present your output in EXACTLY this format (no other headers or commentary):
+
+Subject 1: [subject line option 1]
+Subject 2: [subject line option 2 -- different angle]
+Subject 3: [subject line option 3 -- different angle]
+
+Email 1:
+[body]
+
+Email 2:
+[body]
+
+Email 3:
+[body]"""
 
         # Strip Section A examples for low-score prospects so the model
         # can't pattern-match off full-confidence examples.
         if opportunity_score is not None and opportunity_score < 50:
-            # Find the section intro and Section A, replace with partial-signal header
             section_a_start = "**ADDITIONAL PVP EXAMPLES**"
             section_b_start = "**SECTION B: PARTIAL-SIGNAL PVP EXAMPLES**"
             start_idx = prompt.find(section_a_start)
@@ -734,6 +650,63 @@ Word limits — count every word:
                 prompt = prompt[:start_idx] + replacement + prompt[end_idx:]
 
         return prompt
+
+    def _build_user_prompt(self, report: str, opportunity_score: Optional[int] = None,
+                            product_type: str = "saas", has_persona: bool = False) -> str:
+        """Build the user message with prospect-specific context and task."""
+
+        parts = ["Generate a 3-email PVP sequence for the following prospect."]
+
+        if opportunity_score is not None and opportunity_score < 50:
+            parts.append(f"""**LOW-CONFIDENCE RESEARCH -- PARTIAL-SIGNAL MODE**
+
+The research score for this prospect is {opportunity_score}/100. The data is thin, ambiguous, or unconfirmed.
+
+You MUST use partial-signal patterns for this sequence:
+- Do NOT use "that combination usually means" or similar confident framing
+- Name what you observed and explicitly acknowledge what you don't know
+- Offer value conditionally: "If X is true, here's something useful"
+- Give permission to ignore: "If this isn't relevant, no worries"
+- Position insights as benchmarks, not diagnoses
+- Use "a company in a similar situation" framing in ENGAGE, not definitive case studies
+- Frame the ASK as "yours regardless" or "useful either way"
+- Lead with business initiatives, product launches, or market moves -- not tech stack details
+- Never reference what your research did or didn't uncover. Talk about what the prospect is DOING, not what your search turned up. Do not narrate the research process.
+- If you only have partial signals, lead with the business activity and pivot to the value question: "You're expanding into X -- curious whether Y is on your radar."
+- Never use condescending qualifiers about their stack: "basic", "simple", "limited", "rudimentary", "might work fine now", "works fine for now". Describe what they have neutrally without grading it.
+- Do NOT use these phrases or similar: "no obvious", "lacking", "without any", "missing", "doesn't appear to have", "I couldn't find", "worth knowing the pattern"
+
+Use the partial-signal examples as your primary models for this sequence.""")
+
+        if product_type == "msp":
+            parts.append(
+                "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**\n"
+                "\n"
+                "- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.\n"
+                "- Frame around reliability, compliance, and freeing up leadership attention -- not digital transformation or innovation.\n"
+                "- The prospect is not a tech buyer -- avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.\n"
+                "- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.\n"
+                "- Position managed services as removing a burden, not adding a capability."
+            )
+
+        if has_persona:
+            parts.append(
+                "**PERSONA-TARGETED OUTREACH:**\n"
+                "\n"
+                "The report includes a Target Contact section with a specific person's LinkedIn profile data. "
+                "Personalize emails for this individual:\n"
+                "- Use their first name naturally in EVERY email body -- Email 1, Email 2, AND Email 3 (not in subject lines)\n"
+                "- Email 2 (the proof email): bridge back to the prospect by name when connecting the case study to their situation\n"
+                "- Reference their specific role and responsibilities when connecting to pain points\n"
+                "- Frame insights through the lens of what matters to someone in their position\n"
+                "- Do NOT mention that you saw their LinkedIn profile or researched them personally\n"
+                "- Do NOT reference their career history, skills section, or about section directly\n"
+                "- The personalization should feel like you understand their role, not like you stalked their profile"
+            )
+
+        parts.append(f"<report>\n{report}\n</report>")
+
+        return "\n\n".join(parts)
 
     def _parse_emails(self, response: str) -> tuple[list[dict], list[str]]:
         """Parse the email series from freeform model output.
@@ -808,6 +781,41 @@ Word limits — count every word:
 
         return emails, subject_options
 
+    def _over_limit_emails(self, emails: list[dict]) -> list[dict]:
+        """Return emails that exceed their word limit."""
+        over = []
+        for email in emails:
+            limit = WORD_LIMITS.get(email["email_number"], 100)
+            count = len(email["body"].split())
+            if count > limit:
+                over.append({**email, "word_count": count, "limit": limit})
+        return over
+
+    async def _shorten_email(self, email: dict) -> str:
+        """Ask the model to rewrite an over-limit email shorter."""
+        prompt = (
+            f"Rewrite this email to be UNDER {email['limit']} words. "
+            f"It is currently {email['word_count']} words.\n"
+            "Keep the same message, tone, and structure. Just cut it down.\n"
+            "Output ONLY the rewritten email body. No headers, labels, or commentary.\n\n"
+            f"{email['body']}"
+        )
+        message = await self.client.chat.completions.create(
+            model=self.settings.writing_model,
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        result = message.choices[0].message.content or ""
+        result = (
+            result
+            .replace("\u2014", " - ")
+            .replace("\u2013", " - ")
+            .replace("\u2015", " - ")
+            .replace("\u2012", " - ")
+        )
+        result = re.sub(r"\*+(.+?)\*+", r"\1", result)
+        return result.strip()
+
     async def generate_email_sequence(
         self,
         document: ResearchDocument,
@@ -829,15 +837,19 @@ Word limits — count every word:
                                      seller_company=seller_company, problems_solved=problems_solved,
                                      persona_context=persona_context)
 
-        # Build the full prompt
-        prompt = self._build_prompt(report, document.opportunity_score, product_type=product_type,
-                                     has_persona=bool(persona_context))
+        # Build system and user prompts
+        system_prompt = self._build_system_prompt(document.opportunity_score)
+        user_prompt = self._build_user_prompt(report, document.opportunity_score, product_type=product_type,
+                                              has_persona=bool(persona_context))
 
         # Call writing model
         message = await self.client.chat.completions.create(
             model=self.settings.writing_model,
             max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
         )
 
         response = message.choices[0].message.content or ""
@@ -845,10 +857,10 @@ Word limits — count every word:
         # Strip emdashes — model ignores the "no emdashes" style rule occasionally
         response = (
             response
-            .replace("—", " - ")   # U+2014 em dash
-            .replace("–", " - ")   # U+2013 en dash
-            .replace("―", " - ")   # U+2015 horizontal bar
-            .replace("‒", " - ")   # U+2012 figure dash
+            .replace("\u2014", " - ")   # em dash
+            .replace("\u2013", " - ")   # en dash
+            .replace("\u2015", " - ")   # horizontal bar
+            .replace("\u2012", " - ")   # figure dash
         )
 
         # Strip markdown bold/italic markers — emails are plain text
@@ -856,6 +868,21 @@ Word limits — count every word:
 
         # Parse the emails
         emails, subject_options = self._parse_emails(response)
+
+        # Enforce word limits — retry over-limit emails once
+        over = self._over_limit_emails(emails)
+        if over:
+            for ov in over:
+                try:
+                    shortened = await self._shorten_email(ov)
+                    # Replace the email body in the list
+                    for email in emails:
+                        if email["email_number"] == ov["email_number"]:
+                            email["body"] = shortened
+                            break
+                except Exception:
+                    logger.warning("Failed to shorten email %d (was %d words, limit %d)",
+                                   ov["email_number"], ov["word_count"], ov["limit"])
 
         return emails, subject_options
 

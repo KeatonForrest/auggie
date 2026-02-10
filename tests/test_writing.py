@@ -167,34 +167,34 @@ class TestBuildReport:
 
 class TestSectionAStripping:
     def test_high_score_includes_section_a(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=70)
+        prompt = writing_service._build_system_prompt(opportunity_score=70)
         assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" in prompt
         assert "**ADDITIONAL PVP EXAMPLES**" in prompt
 
     def test_low_score_excludes_section_a(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_system_prompt(opportunity_score=30)
         assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" not in prompt
         assert "**ADDITIONAL PVP EXAMPLES**" not in prompt
 
     def test_low_score_keeps_section_b(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_system_prompt(opportunity_score=30)
         assert "**SECTION B: PARTIAL-SIGNAL PVP EXAMPLES**" in prompt
 
     def test_low_score_adds_partial_signal_header(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_system_prompt(opportunity_score=30)
         assert "**PARTIAL-SIGNAL PVP EXAMPLES**" in prompt
         assert "when data is incomplete" in prompt
 
     def test_no_score_includes_section_a(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=None)
+        prompt = writing_service._build_system_prompt(opportunity_score=None)
         assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" in prompt
 
     def test_score_boundary_49_strips(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=49)
+        prompt = writing_service._build_system_prompt(opportunity_score=49)
         assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" not in prompt
 
     def test_score_boundary_50_keeps(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=50)
+        prompt = writing_service._build_system_prompt(opportunity_score=50)
         assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" in prompt
 
 
@@ -203,25 +203,25 @@ class TestSectionAStripping:
 
 class TestPartialSignalDirective:
     def test_low_score_includes_directive(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_user_prompt("test report", opportunity_score=30)
         assert "PARTIAL-SIGNAL MODE" in prompt
 
     def test_high_score_excludes_directive(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=70)
+        prompt = writing_service._build_user_prompt("test report", opportunity_score=70)
         assert "PARTIAL-SIGNAL MODE" not in prompt
 
     def test_low_score_includes_banned_phrases(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_user_prompt("test report", opportunity_score=30)
         assert '"no obvious"' in prompt
         assert '"basic"' in prompt
         assert '"might work fine now"' in prompt
 
     def test_low_score_excludes_self_review_closing(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=30)
+        prompt = writing_service._build_user_prompt("test report", opportunity_score=30)
         assert "FINAL CHECK" not in prompt
 
     def test_high_score_excludes_self_review_closing(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=70)
+        prompt = writing_service._build_user_prompt("test report", opportunity_score=70)
         assert "FINAL CHECK" not in prompt
 
 
@@ -231,19 +231,19 @@ class TestPartialSignalDirective:
 class TestMSPProductType:
     def test_msp_includes_msp_block(self, writing_service):
         """Test uncovered line 126: MSP product type includes msp_block."""
-        prompt = writing_service._build_prompt("test report", product_type="msp")
+        prompt = writing_service._build_user_prompt("test report", product_type="msp")
         assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in prompt
         assert "operational complexity" in prompt
         assert "managed services" in prompt
 
     def test_saas_excludes_msp_block(self, writing_service):
         """Test default product_type does not include msp_block."""
-        prompt = writing_service._build_prompt("test report", product_type="saas")
+        prompt = writing_service._build_user_prompt("test report", product_type="saas")
         assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" not in prompt
 
     def test_msp_with_low_score(self, writing_service):
         """Test MSP block with low confidence score."""
-        prompt = writing_service._build_prompt(
+        prompt = writing_service._build_user_prompt(
             "test report",
             opportunity_score=30,
             product_type="msp"
@@ -257,21 +257,21 @@ class TestMSPProductType:
 
 class TestPromptStructure:
     def test_includes_word_limits(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=None)
+        prompt = writing_service._build_system_prompt(opportunity_score=None)
         assert "75 words max" in prompt
         assert "100 words max" in prompt
         assert "60 words max" in prompt
 
     def test_includes_report(self, writing_service):
-        prompt = writing_service._build_prompt("my custom report", opportunity_score=None)
+        prompt = writing_service._build_user_prompt("my custom report", opportunity_score=None)
         assert "my custom report" in prompt
 
     def test_includes_writing_style(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=None)
+        prompt = writing_service._build_system_prompt(opportunity_score=None)
         assert "**WRITING STYLE**" in prompt
 
     def test_includes_output_format(self, writing_service):
-        prompt = writing_service._build_prompt("test report", opportunity_score=None)
+        prompt = writing_service._build_system_prompt(opportunity_score=None)
         assert "Subject 1:" in prompt
         assert "Email 1:" in prompt
 
@@ -401,8 +401,9 @@ Last check-in - still interested in discussing database performance?
         call_args = mock_client.chat.completions.create.call_args
         assert call_args.kwargs["model"] == "mistralai/mistral-medium-3.1"
         assert call_args.kwargs["max_tokens"] == 2000
-        assert len(call_args.kwargs["messages"]) == 1
-        assert call_args.kwargs["messages"][0]["role"] == "user"
+        assert len(call_args.kwargs["messages"]) == 2
+        assert call_args.kwargs["messages"][0]["role"] == "system"
+        assert call_args.kwargs["messages"][1]["role"] == "user"
 
     @pytest.mark.asyncio
     async def test_generate_sequence_with_all_parameters(self, full_document):
@@ -439,12 +440,12 @@ Last check-in - still interested in discussing database performance?
 
         assert len(emails) == 3
 
-        # Verify the prompt includes all the optional parameters
+        # Verify the user prompt includes all the optional parameters
         call_args = mock_client.chat.completions.create.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
-        assert "MongoDB Inc" in prompt
-        assert "Scalability, Performance" in prompt
-        assert "Case study: 40% cost reduction" in prompt
+        user_prompt = call_args.kwargs["messages"][1]["content"]
+        assert "MongoDB Inc" in user_prompt
+        assert "Scalability, Performance" in user_prompt
+        assert "Case study: 40% cost reduction" in user_prompt
 
     @pytest.mark.asyncio
     async def test_generate_sequence_msp_type(self, sample_document):
@@ -476,10 +477,10 @@ Last check-in - still interested in discussing database performance?
                     product_type="msp"
                 )
 
-        # Verify MSP framing was included in the prompt
+        # Verify MSP framing was included in the user prompt
         call_args = mock_client.chat.completions.create.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
-        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in prompt
+        user_prompt = call_args.kwargs["messages"][1]["content"]
+        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in user_prompt
 
 
 # --- format_emails_markdown ---
@@ -576,14 +577,14 @@ class TestPersonaContext:
         assert "## Target Contact" not in report
 
     def test_persona_instructions_in_prompt(self, writing_service):
-        """Persona instructions appear in prompt when has_persona=True."""
-        prompt = writing_service._build_prompt("test report", has_persona=True)
+        """Persona instructions appear in user prompt when has_persona=True."""
+        prompt = writing_service._build_user_prompt("test report", has_persona=True)
         assert "**PERSONA-TARGETED OUTREACH:**" in prompt
         assert "first name naturally in EVERY email" in prompt
 
     def test_no_persona_instructions_without_persona(self, writing_service):
         """No persona instructions when has_persona=False."""
-        prompt = writing_service._build_prompt("test report", has_persona=False)
+        prompt = writing_service._build_user_prompt("test report", has_persona=False)
         assert "**PERSONA-TARGETED OUTREACH:**" not in prompt
 
     def test_recommended_contacts_in_report(self, writing_service, sample_document):

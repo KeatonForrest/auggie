@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openrouter_api_key: str = ""
     research_model: str = "google/gemini-2.5-flash"
-    writing_model: str = "mistralai/mistral-medium-3.1"
+    writing_model: str = "mistralai/mistral-small-creative"
     vision_model: str = "google/gemini-2.5-flash"
     database_url: str  # Required: postgresql://user:pass@host:port/db
 
