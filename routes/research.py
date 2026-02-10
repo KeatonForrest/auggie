@@ -363,6 +363,7 @@ async def api_create_research(
             target_industries=user.get("target_industries", ""),
             problems_solved=user.get("problems_solved", ""),
             product_type=user.get("product_type", "saas"),
+            custom_signals=user.get("custom_signals", ""),
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id
