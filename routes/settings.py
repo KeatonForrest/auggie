@@ -203,7 +203,7 @@ async def revoke_api_key_route(key_id: int, user: dict = Depends(require_auth)):
 async def create_webhook_route(request: Request, webhook_url: str = Form(...), user: dict = Depends(require_auth)):
     """Register a webhook URL."""
     secret = _secrets.token_hex(32)
-    await upsert_webhook(user["id"], webhook_url, secret)
+    await upsert_webhook(user["id"], webhook_url, secret, org_id=user.get("org_id"))
     return RedirectResponse(url=f"/api-keys?webhook_secret={secret}", status_code=303)
 
 

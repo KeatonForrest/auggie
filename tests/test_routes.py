@@ -28,7 +28,8 @@ async def test_research_creates_document(authed_client, mock_services, sample_re
          patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
          patch("routes.research.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
          patch("routes.research.create_job_with_credit", new_callable=AsyncMock) as mock_create_job, \
-         patch("routes.research.create_tracked_task", new_callable=AsyncMock) as mock_task:
+         patch("routes.research.create_tracked_task", new_callable=AsyncMock) as mock_task, \
+         patch("db.documents.get_recent_document_by_url", new_callable=AsyncMock, return_value=None):
 
         mock_save.return_value = 1
         mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}

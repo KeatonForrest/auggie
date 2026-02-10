@@ -42,6 +42,12 @@ async def start_research(
     except ValueError as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 
+    # 24h cache: return existing document instead of re-running pipeline
+    from db.documents import get_recent_document_by_url
+    cached_doc = await get_recent_document_by_url(user["id"], company_url)
+    if cached_doc:
+        return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc.id}", "cached": True})
+
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:

@@ -212,7 +212,7 @@ It extends base.html and fills in the 'content' block.
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        window.location.href = '/research/job/' + data.job_id;
+                        window.location.href = data.redirect || ('/research/job/' + data.job_id);
                     } else {
                         if (typeof showToast === 'function') showToast(data.error || 'Research failed', 'error');
                         btn.disabled = false;

@@ -181,6 +181,11 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    # 24h cache: return existing document instead of re-running pipeline
+    cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
+    if cached_doc:
+        return {"job_id": None, "status": "completed", "document_id": cached_doc.id, "cached": True}
+
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
@@ -743,7 +748,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
         if not ok:
             raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
 
-    lst = await create_list(api_user["id"], api_user["api_key_id"], body.name.strip())
+    lst = await create_list(api_user["id"], api_user["api_key_id"], body.name.strip(), org_id=api_user.get("org_id"))
     await add_list_accounts(lst["id"], validated_urls)
 
     if body.analyze:

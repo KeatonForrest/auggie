@@ -144,7 +144,7 @@ async def import_google_sheet(
             raise HTTPException(status_code=402, detail="Not enough credits.")
 
     name = body.list_name.strip() or "Google Sheets Import"
-    lst = await create_list(user["id"], api_key_id=None, name=name)
+    lst = await create_list(user["id"], api_key_id=None, name=name, org_id=user.get("org_id"))
     await add_list_accounts(lst["id"], valid_urls)
     await update_list_credits(lst["id"], needed)
 
@@ -249,7 +249,7 @@ async def upload_list_csv(
 
     # Create list
     name = list_name.strip() or (file.filename.rsplit(".", 1)[0] if file.filename else "Uploaded List")
-    lst = await create_list(user["id"], api_key_id=None, name=name)
+    lst = await create_list(user["id"], api_key_id=None, name=name, org_id=user.get("org_id"))
     await add_list_accounts(lst["id"], valid_urls)
     await update_list_credits(lst["id"], needed)
 

@@ -39,7 +39,7 @@ def sign_payload(payload: dict, secret: str) -> str:
 async def register_webhook(body: WebhookRegisterRequest, api_user: dict = Depends(require_api_key)):
     """Register or update a webhook URL. Returns the secret for signature verification."""
     secret = secrets.token_hex(32)
-    wh = await upsert_webhook(api_user["user_id"], str(body.url), secret)
+    wh = await upsert_webhook(api_user["user_id"], str(body.url), secret, org_id=api_user.get("org_id"))
     return WebhookResponse(url=wh["url"], secret=wh["secret"], active=wh["active"])
 
 

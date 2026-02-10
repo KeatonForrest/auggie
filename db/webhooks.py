@@ -5,10 +5,11 @@ from typing import Optional
 import db._pool as _db
 
 
-async def upsert_webhook(user_id: int, url: str, secret: str) -> dict:
+async def upsert_webhook(user_id: int, url: str, secret: str, *, org_id: int | None = None) -> dict:
     """Create or update user's webhook (org-scoped). Returns the webhook record."""
     async with _db._pool.acquire() as conn:
-        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
+        if org_id is None:
+            org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
             INSERT INTO webhooks (user_id, url, secret, org_id)

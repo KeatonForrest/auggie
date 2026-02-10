@@ -5,10 +5,11 @@ import json
 import db._pool as _db
 
 
-async def create_list(user_id: int, api_key_id: int | None, name: str) -> dict:
+async def create_list(user_id: int, api_key_id: int | None, name: str, *, org_id: int | None = None) -> dict:
     """Create a new list (org-scoped). Returns the list record."""
     async with _db._pool.acquire() as conn:
-        org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
+        if org_id is None:
+            org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
             INSERT INTO lists (user_id, api_key_id, name, org_id)

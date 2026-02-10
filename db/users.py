@@ -2,8 +2,17 @@
 
 import asyncpg
 from typing import Optional
+from cachetools import TTLCache
 
 import db._pool as _db
+
+# 256 users, 30s TTL — avoids hitting DB on every page load / credit check
+_usage_cache: TTLCache = TTLCache(maxsize=256, ttl=30)
+
+
+def _invalidate_usage_cache(user_id: int) -> None:
+    """Remove cached usage so next call fetches fresh data."""
+    _usage_cache.pop(user_id, None)
 
 
 async def get_user_by_google_id(google_id: str) -> Optional[dict]:
@@ -261,7 +270,10 @@ async def update_user_stripe(
 
 
 async def get_user_usage(user_id: int) -> dict:
-    """Get user's current usage stats (credits from org)."""
+    """Get user's current usage stats (credits from org). Cached for 30s."""
+    cached = _usage_cache.get(user_id)
+    if cached is not None:
+        return cached
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -273,7 +285,10 @@ async def get_user_usage(user_id: int) -> dict:
             """,
             user_id
         )
-        return dict(row) if row else None
+        result = dict(row) if row else None
+        if result is not None:
+            _usage_cache[user_id] = result
+        return result
 
 
 async def add_credits(user_id: int, credits: int) -> int:
@@ -290,6 +305,7 @@ async def add_credits(user_id: int, credits: int) -> int:
             """,
             user_id, cents
         )
+        _invalidate_usage_cache(user_id)
         return row['bonus_credits']
 
 
@@ -306,6 +322,7 @@ async def use_credit(user_id: int, cents: int = 100) -> bool:
             """,
             user_id, cents
         )
+        _invalidate_usage_cache(user_id)
         return row is not None
 
 
@@ -319,6 +336,7 @@ async def refund_credit(user_id: int, cents: int = 100) -> None:
             """,
             user_id, cents
         )
+        _invalidate_usage_cache(user_id)
 
 
 async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:

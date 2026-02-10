@@ -47,7 +47,11 @@ async def create_job_with_credit(
             ok = await _use_credit_conn(conn, user_id, cents)
             if not ok:
                 raise ValueError("Insufficient credits")
-            return await _insert_job(conn, user_id, api_key_id, company_url)
+            job = await _insert_job(conn, user_id, api_key_id, company_url)
+    # Invalidate usage cache after credit deduction
+    from db.users import _invalidate_usage_cache
+    _invalidate_usage_cache(user_id)
+    return job
 
 
 
