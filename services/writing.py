@@ -851,6 +851,9 @@ Word limits — count every word:
             .replace("‒", " - ")   # U+2012 figure dash
         )
 
+        # Strip markdown bold/italic markers — emails are plain text
+        response = re.sub(r"\*+(.+?)\*+", r"\1", response)
+
         # Parse the emails
         emails, subject_options = self._parse_emails(response)
 
