@@ -276,6 +276,30 @@ class FirecrawlService:
             additional_parts.append(docs_content)
         additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
 
+        # Thin-profile detection: count how many content sources returned data
+        content_sources = [
+            core_results.get("about"),
+            core_results.get("blog"),
+            job_postings,
+            investor_content,
+            engineering_subdomain,
+            docs_content,
+        ]
+        filled_count = sum(1 for s in content_sources if s and len(s) > 200)
+
+        web_mentions = None
+        if filled_count < 3:
+            logger.debug(
+                "Thin profile detected for %s (%d/6 sources). Searching web for mentions...",
+                domain, filled_count
+            )
+            try:
+                web_mentions = await self._search_web_mentions(client, company_name, domain)
+                if web_mentions:
+                    logger.debug("Found web mentions for thin profile %s", domain)
+            except Exception as e:
+                logger.warning("Web mentions search failed (non-fatal): %s", e)
+
         logger.debug("Scraping complete!")
 
         return ScrapedContent(
@@ -286,9 +310,59 @@ class FirecrawlService:
             blog=core_results.get("blog"),
             job_postings=job_postings,
             additional_pages=additional_content,
-            news=None,  # Populated by NewsService in main.py
+            news=None,
             investor_relations=investor_content,
+            web_mentions=web_mentions,
         )
+
+    async def _search_web_mentions(
+        self,
+        client: httpx.AsyncClient,
+        company_name: str,
+        domain: str
+    ) -> Optional[str]:
+        """Search the web for third-party mentions of a company.
+
+        Targets Crunchbase profiles, G2 reviews, press coverage, and other
+        sources that provide firmographic and market context when the company's
+        own website is sparse.
+        """
+        searches = [
+            f'"{company_name}" company about funding',
+            f'"{company_name}" reviews OR customers OR product',
+        ]
+
+        tasks = [
+            self._web_search(client, q, num_results=3) for q in searches
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        parts = []
+        seen_urls: set[str] = set()
+        for result in results:
+            if isinstance(result, Exception) or not result:
+                continue
+            # Deduplicate across searches by checking source URLs
+            for block in result.split("\n\n---\n\n"):
+                source_line = ""
+                for line in block.split("\n"):
+                    if line.startswith("Source: "):
+                        source_line = line[8:].strip()
+                        break
+                # Skip results from the company's own domain
+                if source_line and domain in source_line:
+                    continue
+                if source_line and source_line in seen_urls:
+                    continue
+                if source_line:
+                    seen_urls.add(source_line)
+                parts.append(block)
+
+        if not parts:
+            return None
+
+        # Cap at 5 results to avoid token bloat
+        return "\n\n---\n\n".join(parts[:5])
 
     async def _check_subdomain_exists(
         self,

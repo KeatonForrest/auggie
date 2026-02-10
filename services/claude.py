@@ -111,6 +111,14 @@ The company data contains several types of information with different reliabilit
 
 13. **Firmographic Data** - Company size, industry, funding, contacts
 
+14. **Third-Party Web Mentions** - Search results from across the web about this company:
+    - Crunchbase/PitchBook profiles: founding year, employee count, funding rounds, investors, leadership
+    - G2/Capterra pages: product category, competitor comparisons, customer reviews, pricing tier
+    - Press coverage: product launches, partnerships, acquisitions, funding announcements
+    - These are EXTERNAL perspectives — they fill gaps when the company's own website is sparse
+    - Cross-reference with first-party data. If a Crunchbase profile says "50 employees" and job postings show 30+ open roles, that's a growth signal
+    - This data only appears for companies with thin web presence, so when you see it, lean on it heavily
+
 YOUR COMPANY: {seller_company}
 
 YOUR PRODUCT CONTEXT (the product you are selling):
@@ -804,6 +812,11 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(scraped.federal_regulations[:6000])
             sections.append("")
 
+        if scraped.web_mentions:
+            sections.append("## Third-Party Web Mentions")
+            sections.append("(From web search — Crunchbase, G2, press coverage, and other external sources. This company had a thin web presence, so these fill critical gaps.)")
+            sections.append(scraped.web_mentions[:10000])
+            sections.append("")
 
         sections.append("---")
         sections.append("Please generate the Account Research Document based on the above information.")
