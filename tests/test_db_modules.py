@@ -1110,38 +1110,11 @@ class TestDocuments:
 
     @pytest.mark.asyncio
     async def test_get_recent_document_by_url_exists(self, mock_pool):
-        """Test getting a recent document by URL."""
+        """Test getting a recent document id by URL."""
         from db import documents
 
         mock_pool_obj, mock_conn = mock_pool
-        mock_conn.fetchrow.return_value = {
-            "id": 1,
-            "company_name": "Acme Corp",
-            "created_at": datetime(2024, 1, 1),
-            "company_url": "https://example.com",
-            "company_overview": "Overview",
-            "projects_initiatives": "Projects",
-            "confirmed_tech_stack": "Python",
-            "hiring_signals": "Hiring",
-            "business_problems": "Problems",
-            "existential_data_points": "Data",
-            "product_fit": "Fit",
-            "talking_points": "Points",
-            "recent_news": "",
-            "key_contacts": "Contacts",
-            "information_gaps": "Gaps",
-            "opportunity_score": 8,
-            "pain_score": 7,
-            "fit_score": 9,
-            "timing_score": 6,
-            "score_summary": "Summary",
-            "pain_evidence": "Pain",
-            "fit_evidence": "Fit",
-            "timing_evidence": "Timing",
-            "thinking_content": "Thinking",
-            "model_used": "claude-3",
-            "full_markdown": "# Full",
-        }
+        mock_conn.fetchrow.return_value = {"id": 42}
 
         with patch("db._pool._pool", mock_pool_obj):
             result = await documents.get_recent_document_by_url(
@@ -1150,8 +1123,7 @@ class TestDocuments:
                 hours=24
             )
 
-        assert result is not None
-        assert result.company_name == "Acme Corp"
+        assert result == 42
         mock_conn.fetchrow.assert_called_once()
         call_args = mock_conn.fetchrow.call_args[0]
         assert "make_interval(hours => $3)" in call_args[0]

@@ -44,9 +44,9 @@ async def start_research(
 
     # 24h cache: return existing document instead of re-running pipeline
     from db.documents import get_recent_document_by_url
-    cached_doc = await get_recent_document_by_url(user["id"], company_url)
-    if cached_doc:
-        return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc.id}", "cached": True})
+    cached_doc_id = await get_recent_document_by_url(user["id"], company_url)
+    if cached_doc_id:
+        return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc_id}", "cached": True})
 
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)

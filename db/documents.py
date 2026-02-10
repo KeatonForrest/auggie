@@ -165,12 +165,12 @@ def _row_to_document_summary(row: asyncpg.Record) -> ResearchDocument:
     )
 
 
-async def get_recent_document_by_url(user_id: int, company_url: str, hours: int = 24) -> Optional[ResearchDocument]:
-    """Find a recent research document for this URL within the time window."""
+async def get_recent_document_by_url(user_id: int, company_url: str, hours: int = 24) -> Optional[int]:
+    """Find a recent research document for this URL within the time window. Returns document id or None."""
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, company_name, created_at FROM research_documents
+            SELECT id FROM research_documents
             WHERE user_id = $1 AND company_url = $2
               AND created_at > NOW() - make_interval(hours => $3)
             ORDER BY created_at DESC
@@ -178,7 +178,7 @@ async def get_recent_document_by_url(user_id: int, company_url: str, hours: int 
             """,
             user_id, company_url, hours
         )
-        return _row_to_document(row) if row else None
+        return row["id"] if row else None
 
 
 async def check_duplicate_research(user_id: int, company_url: str, days: int = 7) -> dict | None:

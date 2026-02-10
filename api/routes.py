@@ -182,9 +182,9 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
         raise HTTPException(status_code=422, detail=str(e))
 
     # 24h cache: return existing document instead of re-running pipeline
-    cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
-    if cached_doc:
-        return {"job_id": None, "status": "completed", "document_id": cached_doc.id, "cached": True}
+    cached_doc_id = await get_recent_document_by_url(api_user["id"], company_url)
+    if cached_doc_id:
+        return {"job_id": None, "status": "completed", "document_id": cached_doc_id, "cached": True}
 
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
@@ -456,13 +456,15 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         raise APIError("validation_error", str(e), 422)
 
     # Check 24h cache
-    cached_doc = await get_recent_document_by_url(api_user["id"], company_url)
-    if cached_doc:
-        await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
-        from db.tech_signals import get_pain_inferences
-        inferences = await get_pain_inferences(cached_doc.id)
-        pain = synthesize_pain(inferences, cached_doc.pain_evidence)
-        return _build_clay_response(cached_doc, cached=True, pain_synthesis=pain)
+    cached_doc_id = await get_recent_document_by_url(api_user["id"], company_url)
+    if cached_doc_id:
+        cached_doc = await get_document(cached_doc_id, api_user["id"])
+        if cached_doc:
+            await record_api_usage(api_user["api_key_id"], "/v1/clay/enrich", 0)
+            from db.tech_signals import get_pain_inferences
+            inferences = await get_pain_inferences(cached_doc.id)
+            pain = synthesize_pain(inferences, cached_doc.pain_evidence)
+            return _build_clay_response(cached_doc, cached=True, pain_synthesis=pain)
 
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
