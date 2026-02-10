@@ -75,41 +75,41 @@ The company data contains several types of information with different reliabilit
    - Match these to the company's industry to assess regulatory pressure
    - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
 
-8. **DNS Infrastructure Signals** - From automated DNS record analysis:
+7. **DNS Infrastructure Signals** - From automated DNS record analysis:
    - NS provider reveals cloud infrastructure (AWS, Cloudflare, GCP, Azure)
    - MX records reveal email provider (Google Workspace, Microsoft 365)
    - SPF/DKIM/DMARC presence indicates email security maturity — missing records are a concrete pain signal
    - These are VERIFIED facts from public DNS records
 
-9. **SSL/TLS Certificate** - From automated certificate inspection:
+8. **SSL/TLS Certificate** - From automated certificate inspection:
    - Issuer and expiry reveal certificate management practices
    - Let's Encrypt = automated renewal (good hygiene); short expiry without automation = operational risk
    - Wildcard certs and SAN count hint at infrastructure complexity
 
-10. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
+9. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
    - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
    - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
    - Cross-reference with DNS email auth gaps for compounding security narratives
 
-11. **Robots.txt Signals** - Parsed from the company's robots.txt:
+10. **Robots.txt Signals** - Parsed from the company's robots.txt:
     - Disallowed /api or /graphql paths confirm API infrastructure exists
     - Disallowed /admin paths confirm internal tooling
     - Crawl-delay values hint at server capacity concerns
 
-12. **Parsed Job Signals** - Structured extraction from job posting text:
+11. **Parsed Job Signals** - Structured extraction from job posting text:
     - Technology mentions by category (language, framework, database, cloud, data, devops, security)
     - Role types (backend, frontend, fullstack, data, devops, security, mobile)
     - Seniority distribution — heavy senior/staff hiring signals hard problems; heavy junior hiring signals scaling
     - Use these to cross-reference and validate the detected tech stack
 
-13. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
+12. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
     - Each signal has a rule ID, severity, confidence score, and evidence list
     - These are STARTING POINTS — validate against other data before including in the document
     - Do NOT repeat these verbatim. Synthesize them into your own analysis using the Data Cocktail methodology
     - High-confidence signals (70+) should be strongly considered for Existential Data Points
     - Lower-confidence signals are hypotheses — include only if corroborated by other evidence
 
-14. **Firmographic Data** - Company size, industry, funding, contacts
+13. **Firmographic Data** - Company size, industry, funding, contacts
 
 YOUR COMPANY: {seller_company}
 
@@ -174,8 +174,44 @@ for more personalized recommendations in future research.
         if icp_parts:
             base_prompt += "\nIDEAL CUSTOMER PROFILE:\n\n" + "\n".join(icp_parts) + "\n"
 
+        if product_type == "msp":
+            base_prompt += """
+
+MSP / IT SERVICES MODIFIER — READ BEFORE SCORING:
+
+You are researching on behalf of a Managed Service Provider (MSP) / IT Services company. This fundamentally changes how you interpret signals:
+
+**Research Focus:**
+- Look for location count, multi-site operations, compliance needs (HIPAA, PCI, SOC2, CMMC), absence of internal IT roles, legacy infrastructure, physical operations complexity, and regulated industry indicators.
+- Employee count in the 20-500 range with NO dedicated IT staff is a strong signal.
+
+**Pain Inversion:**
+- Absence of IT hiring is a POSITIVE pain signal — it means the company likely lacks internal IT capacity and needs managed services.
+- Do NOT penalize for lacking technical job postings. For MSP prospects, zero IT roles = maximum pain (they have no one managing their infrastructure).
+- Manual processes, compliance gaps, and operational complexity without IT support are critical pain indicators.
+
+**Fit Reframe:**
+- Traditional industries with physical operations (manufacturing, distribution, dealerships, healthcare, legal, construction, logistics) are HIGH fit. Do not penalize for lacking digital transformation signals — that IS the opportunity.
+- Multi-location businesses score higher — each location multiplies IT complexity.
+- Companies in regulated industries (healthcare, finance, legal) that lack IT staff face compliance risk — this is both pain and fit.
+
+**Timing Signals for MSP:**
+- Compliance deadlines (HIPAA audits, PCI recertification, cyber insurance renewals) are strong timing signals.
+- Lease renewals, office moves, location expansion = infrastructure refresh moments.
+- Insurance audit cycles, new regulatory requirements, and security incidents create urgency.
+- Leadership changes at non-tech companies often trigger IT modernization.
+
+"""
+
         base_prompt += """
-BEFORE SCENARIO ANALYSIS:
+
+---
+
+ANALYTICAL METHODOLOGIES:
+
+The following methodologies govern how you analyze signals and construct insights. Reference these when producing the corresponding output sections.
+
+### Before Scenario Analysis
 
 For every company, construct a Before Scenario — a picture of life before the seller's product.
 This has three components:
@@ -200,9 +236,7 @@ When analyzing the prospect, also look for:
 - **Persona alignment**: Are the job titles you target present in their hiring or org?
 - **Opportunity signals**: Look for initiatives, projects, or challenges where your product could help
 
----
-
-EXISTENTIAL DATA POINTS - CRITICAL:
+### Existential Data Points
 
 An existential data point is the business equivalent of chest pain. You do not ignore it, you do not comparison shop, and you do not wait six months to address it.
 
@@ -270,9 +304,7 @@ Infrastructure & Security Gaps:
 - Single database + data/backend hiring + no caching layer = database scaling pressure
 - Multiple auth/identity providers across subdomains = auth fragmentation and identity management pain
 
----
-
-DATA COCKTAIL METHODOLOGY:
+### Data Cocktail Methodology
 
 Combine 2-3 data sources to create insights no one else has. Single-source observations feel generic. Combined sources demonstrate real research and create unique value.
 
@@ -298,6 +330,58 @@ Every cocktail should end with a Consequence Chain:
 The consequence chain is what makes the insight actionable for a salesperson. Without it,
 you're presenting data. With it, you're presenting a reason to act.
 
+### Talking Points Methodology
+
+AUDIENCE FILTER RULES — apply to all Opening Hooks and Conversation Starters:
+
+1. **Security details are for security buyers only.** Do NOT lead with security header grades, missing DKIM/SPF/DMARC, certificate expiry, or security posture scores UNLESS the seller's product is a security product or the target persona is a security role (CISO, security engineer, etc.). These signals are valuable for the Existential Data Points section but make terrible opening hooks for non-security buyers — they come across as a vulnerability scan, not a sales conversation.
+
+2. **Match signal to buyer's domain.** An engineering leader cares about tech debt, scaling pressure, and hiring gaps. A marketing leader cares about analytics sprawl and identity fragmentation. A CTO cares about architecture and platform decisions. Choose hooks that match what the buyer thinks about daily.
+
+3. **No duplicate signals.** Each opening hook should surface a DIFFERENT insight. Do not use security headers in one hook and DKIM in another — those are the same signal reworded. Spread hooks across different categories (engineering, operations, business, competitive).
+
+4. **Business impact > technical detail.** "50% staff reduction while maintaining 29M users" is a strong hook. "Missing DKIM authentication" is not — unless you are selling email security.
+
+**Opening Hook Construction:**
+List 3-5 specific, concrete facts that could open a cold email. These must be things the prospect will immediately recognize as true about their business.
+
+Good examples:
+- "Your /api subdomain shows response times averaging 340ms"
+- "You have had a Senior Database Engineer role open since September"
+- "Your app stack shows Redis but your job posting mentions caching problems"
+
+Do NOT include generic statements like "You are a fast-growing fintech" or "Companies like yours often struggle with X."
+
+**Trap-Setting Questions:**
+For each existential data point, craft a question where the research already tells you the answer.
+The purpose is not to learn — it's to demonstrate that you understand their situation deeply enough
+to ask the right question.
+
+Format: "When [observable fact from research], most teams find [projected consequence].
+How is your team handling [specific challenge]?"
+
+The seller already knows, from the research, what the likely answer is. The question opens a
+conversation the prospect wants to have because someone finally understands the problem.
+
+Examples:
+- "With your DB Engineer role open since September and 3x user growth from Series B, most teams
+  find query optimization consuming senior eng cycles. How is your team handling the scaling
+  pressure?" (You know from the research they have no DB tooling — the question surfaces the gap.)
+- "I noticed your app stack shows Redis alongside job postings mentioning caching problems.
+  Teams in that situation usually find the caching layer was built for a smaller scale.
+  Is that what you're seeing?" (You know from the tech scan + job posting the answer is yes.)
+"""
+
+        if target_personas:
+            base_prompt += f"""
+PERSONA-AWARE DIRECTIVES (target: {target_personas}):
+- **Hooks**: Frame opening hooks through the lens of what matters to {target_personas}. For example, for marketing leaders emphasize marketing tech, campaign infrastructure, and attribution signals; for legal ops emphasize compliance, contract management, and regulatory exposure; for engineering leaders emphasize tech stack, scaling, and developer productivity signals.
+- **Trap-Setting Questions**: Both causes in each two-sided question should resonate with the daily concerns of {target_personas}. Frame root causes in terms these personas would naturally think about.
+- **Conversation Starters**: Reference challenges specific to {target_personas}'s function, not just generic company observations. Connect observations to what these personas care about day-to-day.
+"""
+
+        base_prompt += """
+
 ---
 
 OUTPUT FORMAT:
@@ -307,6 +391,11 @@ Brief summary of what the company does, stage, and market position. 2-3 sentence
 
 ## Specific Projects & Initiatives
 Named projects, product launches, or strategic initiatives mentioned in their content. Be specific. If none found, say so.
+
+## Recent News & Press
+Any recent announcements, press coverage, or public statements. Include dates and sources. Flag anything that suggests timing sensitivity.
+
+If no news provided, state "No recent news available."
 
 ## Confirmed Technology Stack
 Separate by subdomain type, then group technologies by category within each subdomain. Use sub-bullets for categories.
@@ -336,7 +425,7 @@ Current open roles with:
 Direct quotes or paraphrases of challenges the company has publicly acknowledged. Source each one (careers page, blog post, press release, etc.).
 
 ## Existential Data Points
-For each data point found, use the Data Cocktail methodology to combine signals:
+For each data point found, use the Data Cocktail methodology (see Analytical Methodologies above) to combine signals:
 
 **Format for each:**
 - **Signal**: What you observed (be specific)
@@ -351,6 +440,21 @@ Example: "PostgreSQL as primary database (detected on app.company.com) + 3x user
 
 If no existential signals found, state "No immediate urgency signals identified - this may be a longer sales cycle."
 
+## Before Scenario
+Using the Before Scenario methodology (see Analytical Methodologies above), synthesize the Before Scenario for this prospect:
+
+**Problems (Observable):**
+- [List specific, verified problems with sources]
+
+**Negative Consequences (Projected):**
+- [For each problem: consequence chain showing what happens if unaddressed]
+
+**Current Attempts (Insufficient):**
+- [How they're trying to solve it today and why it falls short]
+
+If insufficient data for a full Before Scenario, state what's known and what's missing.
+A partial Before Scenario is more valuable than none.
+
 ## Product Fit Analysis
 Based on the research, identify:
 - **Strong fit signals**: Specific evidence this prospect has problems your product solves
@@ -361,61 +465,14 @@ Based on the research, identify:
 Overall fit: HIGH / MEDIUM / LOW with justification.
 
 ## Recommended Talking Points
+Apply the Audience Filter Rules and construction guidelines from the Talking Points Methodology (see Analytical Methodologies above) to each sub-section below.
 
 **Opening Hooks (use in first line of outreach):**
-List 3-5 specific, concrete facts that could open a cold email. These must be things the prospect will immediately recognize as true about their business.
+3-5 hooks following the Opening Hook Construction rules above.
 
-Good examples:
-- "Your /api subdomain shows response times averaging 340ms"
-- "You have had a Senior Database Engineer role open since September"
-- "Your app stack shows Redis but your job posting mentions caching problems"
-
-Do NOT include generic statements like "You are a fast-growing fintech" or "Companies like yours often struggle with X."
-
-CRITICAL — AUDIENCE FILTER FOR TALKING POINTS:
-Opening hooks and conversation starters must resonate with the BUYER, not just be technically true. Apply these filters:
-
-1. **Security details are for security buyers only.** Do NOT lead with security header grades, missing DKIM/SPF/DMARC, certificate expiry, or security posture scores UNLESS the seller's product is a security product or the target persona is a security role (CISO, security engineer, etc.). These signals are valuable for the Existential Data Points section but make terrible opening hooks for non-security buyers — they come across as a vulnerability scan, not a sales conversation.
-
-2. **Match signal to buyer's domain.** An engineering leader cares about tech debt, scaling pressure, and hiring gaps. A marketing leader cares about analytics sprawl and identity fragmentation. A CTO cares about architecture and platform decisions. Choose hooks that match what the buyer thinks about daily.
-
-3. **No duplicate signals.** Each opening hook should surface a DIFFERENT insight. Do not use security headers in one hook and DKIM in another — those are the same signal reworded. Spread hooks across different categories (engineering, operations, business, competitive).
-
-4. **Business impact > technical detail.** "50% staff reduction while maintaining 29M users" is a strong hook. "Missing DKIM authentication" is not — unless you are selling email security.
-"""
-
-        if target_personas:
-            base_prompt += f"""
-PERSONA-AWARE HOOKS: The seller targets {target_personas}. Frame opening hooks through the lens of what matters to those personas. For example, for marketing leaders emphasize marketing tech, campaign infrastructure, and attribution signals; for legal ops emphasize compliance, contract management, and regulatory exposure; for engineering leaders emphasize tech stack, scaling, and developer productivity signals.
-"""
-
-        base_prompt += """
 **Trap-Setting Questions (use to end emails):**
-For each existential data point, craft a question where the research already tells you the answer.
-The purpose is not to learn — it's to demonstrate that you understand their situation deeply enough
-to ask the right question.
+Questions following the Trap-Setting Question format and examples above.
 
-Format: "When [observable fact from research], most teams find [projected consequence].
-How is your team handling [specific challenge]?"
-
-The seller already knows, from the research, what the likely answer is. The question opens a
-conversation the prospect wants to have because someone finally understands the problem.
-
-Examples:
-- "With your DB Engineer role open since September and 3x user growth from Series B, most teams
-  find query optimization consuming senior eng cycles. How is your team handling the scaling
-  pressure?" (You know from the research they have no DB tooling — the question surfaces the gap.)
-- "I noticed your app stack shows Redis alongside job postings mentioning caching problems.
-  Teams in that situation usually find the caching layer was built for a smaller scale.
-  Is that what you're seeing?" (You know from the tech scan + job posting the answer is yes.)
-"""
-
-        if target_personas:
-            base_prompt += f"""
-PERSONA-AWARE QUESTIONS: Both causes in each two-sided question should resonate with the daily concerns of {target_personas}. Frame root causes in terms these personas would naturally think about.
-"""
-
-        base_prompt += """
 **Conversation Starters:**
 3-5 specific talking points based on verified data. Each should reference something concrete from the research and connect to your product value.
 
@@ -437,48 +494,24 @@ Format:
 
 These give the seller multiple ways into the conversation — if the first angle doesn't resonate,
 they have a prepared fallback grounded in different evidence.
-"""
 
-        if target_personas:
-            base_prompt += f"""
-PERSONA-AWARE STARTERS: Reference challenges specific to {target_personas}'s function, not just generic company observations. Connect observations to what these personas care about day-to-day.
-"""
+**Required Capabilities (Seller: Validate Before Using):**
+For each major pain signal identified in the Before Scenario and Existential Data Points,
+infer what the prospect likely needs to solve it. State requirements in the PROSPECT's
+language, not the seller's.
 
-        if product_type == "msp":
-            base_prompt += """
+For each requirement:
+- **Pain Signal**: [The specific observed pain this maps to]
+- **They Likely Need**: [Vendor-neutral description of what would solve it]
+- **Your Product May Address This Via**: [Best guess from product context — or "Unknown: check your capabilities"]
+- **Confidence**: HIGH (product context explicitly mentions this capability), MEDIUM (inferred from product description), LOW (guessing based on product category)
+- **If Your Product Does NOT Do This**: Do not lead with this angle in outreach
 
-MSP / IT SERVICES MODIFIER — READ BEFORE SCORING:
-
-You are researching on behalf of a Managed Service Provider (MSP) / IT Services company. This fundamentally changes how you interpret signals:
-
-**Research Focus:**
-- Look for location count, multi-site operations, compliance needs (HIPAA, PCI, SOC2, CMMC), absence of internal IT roles, legacy infrastructure, physical operations complexity, and regulated industry indicators.
-- Employee count in the 20-500 range with NO dedicated IT staff is a strong signal.
-
-**Pain Inversion:**
-- Absence of IT hiring is a POSITIVE pain signal — it means the company likely lacks internal IT capacity and needs managed services.
-- Do NOT penalize for lacking technical job postings. For MSP prospects, zero IT roles = maximum pain (they have no one managing their infrastructure).
-- Manual processes, compliance gaps, and operational complexity without IT support are critical pain indicators.
-
-**Fit Reframe:**
-- Traditional industries with physical operations (manufacturing, distribution, dealerships, healthcare, legal, construction, logistics) are HIGH fit. Do not penalize for lacking digital transformation signals — that IS the opportunity.
-- Multi-location businesses score higher — each location multiplies IT complexity.
-- Companies in regulated industries (healthcare, finance, legal) that lack IT staff face compliance risk — this is both pain and fit.
-
-**Timing Signals for MSP:**
-- Compliance deadlines (HIPAA audits, PCI recertification, cyber insurance renewals) are strong timing signals.
-- Lease renewals, office moves, location expansion = infrastructure refresh moments.
-- Insurance audit cycles, new regulatory requirements, and security incidents create urgency.
-- Leadership changes at non-tech companies often trigger IT modernization.
-
-"""
-
-        base_prompt += """
-
-## Recent News & Press
-Any recent announcements, press coverage, or public statements. Include dates and sources. Flag anything that suggests timing sensitivity.
-
-If no news provided, state "No recent news available."
+Important:
+- State requirements from the prospect's perspective, not the seller's feature list
+- If you cannot confidently map a pain to a seller capability, say so — "Unknown" is better than fabrication
+- A gap (pain exists but no product capability maps to it) is valuable information, not a failure
+- Maximum 3-5 requirements — focus on the strongest pain-to-capability links
 
 ## Key Contacts
 Relevant contacts with:
@@ -501,21 +534,6 @@ Map each recommendation to a Discovery Path — the persona who owns a problem i
 ## Information Gaps
 What important information could not be found? What would strengthen this research? Be specific about what is missing and why it matters.
 
-## Before Scenario
-Synthesize the Before Scenario for this prospect:
-
-**Problems (Observable):**
-- [List specific, verified problems with sources]
-
-**Negative Consequences (Projected):**
-- [For each problem: consequence chain showing what happens if unaddressed]
-
-**Current Attempts (Insufficient):**
-- [How they're trying to solve it today and why it falls short]
-
-If insufficient data for a full Before Scenario, state what's known and what's missing.
-A partial Before Scenario is more valuable than none.
-
 ## PVP Seed
 Identify the single most valuable insight from this research — something specific enough that the
 prospect would find it genuinely useful even if they never buy anything.
@@ -528,25 +546,6 @@ Format:
 The PVP Seed should make the prospect think "that's a really good point" — not "that's a generic
 observation about my industry." If you cannot produce a genuinely valuable insight, say so and
 explain what data would be needed.
-
-## Required Capabilities (Seller: Validate Before Using)
-
-For each major pain signal identified in the Before Scenario and Existential Data Points,
-infer what the prospect likely needs to solve it. State requirements in the PROSPECT's
-language, not the seller's.
-
-For each requirement:
-- **Pain Signal**: [The specific observed pain this maps to]
-- **They Likely Need**: [Vendor-neutral description of what would solve it]
-- **Your Product May Address This Via**: [Best guess from product context — or "Unknown: check your capabilities"]
-- **Confidence**: HIGH (product context explicitly mentions this capability), MEDIUM (inferred from product description), LOW (guessing based on product category)
-- **If Your Product Does NOT Do This**: Do not lead with this angle in outreach
-
-Important:
-- State requirements from the prospect's perspective, not the seller's feature list
-- If you cannot confidently map a pain to a seller capability, say so — "Unknown" is better than fabrication
-- A gap (pain exists but no product capability maps to it) is valuable information, not a failure
-- Maximum 3-5 requirements — focus on the strongest pain-to-capability links
 
 ---
 

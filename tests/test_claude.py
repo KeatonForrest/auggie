@@ -91,9 +91,10 @@ class TestBuildSystemPrompt:
         assert "IDEAL CUSTOMER PROFILE:" in result
         assert "Persona emphasis" in result
         assert "CTO, VP Engineering" in result
-        assert "PERSONA-AWARE HOOKS:" in result
-        assert "PERSONA-AWARE QUESTIONS:" in result
-        assert "PERSONA-AWARE STARTERS:" in result
+        assert "PERSONA-AWARE DIRECTIVES" in result
+        assert "Hooks" in result
+        assert "Trap-Setting Questions" in result
+        assert "Conversation Starters" in result
 
     def test_with_problems_solved(self, claude_service):
         """Test prompt with problems_solved adds ICP section."""
@@ -163,7 +164,7 @@ class TestBuildSystemPrompt:
         assert "Fintech" in result
         assert "Scaling" in result
         assert "MSP / IT SERVICES MODIFIER" in result
-        assert "PERSONA-AWARE HOOKS:" in result
+        assert "PERSONA-AWARE DIRECTIVES" in result
 
 
 class TestBuildUserPrompt:
