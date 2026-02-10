@@ -566,6 +566,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
             retrieved_materials=materials,
             seller_company=api_user.get("company_name", ""),
             problems_solved=api_user.get("problems_solved", ""),
+            custom_signals=api_user.get("custom_signals", ""),
         )
 
         await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)

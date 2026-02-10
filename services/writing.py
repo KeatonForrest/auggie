@@ -24,7 +24,8 @@ class WritingService:
         )
 
     def _build_report(self, document: ResearchDocument, product_context: str, retrieved_materials: str = "",
-                       seller_company: str = "", problems_solved: str = "", persona_context: str = "") -> str:
+                       seller_company: str = "", problems_solved: str = "", persona_context: str = "",
+                       custom_signals: str = "") -> str:
         """Build the report content from research document."""
         sections = []
 
@@ -99,6 +100,11 @@ class WritingService:
             sections.append("")
             sections.append("## Specific Problems We Solve")
             sections.append(f"Align email angles to these problems when the research shows a match: {problems_solved}")
+
+        if custom_signals:
+            sections.append("")
+            sections.append("## Custom Signals to Emphasize")
+            sections.append(f"If the research mentions any of these, use them as email hooks: {custom_signals}")
 
         if retrieved_materials:
             sections.append("")
@@ -825,6 +831,7 @@ Use the partial-signal examples as your primary models for this sequence.""")
         seller_company: str = "",
         problems_solved: str = "",
         persona_context: str = "",
+        custom_signals: str = "",
     ) -> tuple[list[dict], list[str]]:
         """Generate a 3-email sequence from a research document.
 
@@ -835,7 +842,7 @@ Use the partial-signal examples as your primary models for this sequence.""")
         # Build the report from research
         report = self._build_report(document, product_context, retrieved_materials,
                                      seller_company=seller_company, problems_solved=problems_solved,
-                                     persona_context=persona_context)
+                                     persona_context=persona_context, custom_signals=custom_signals)
 
         # Build system and user prompts
         system_prompt = self._build_system_prompt(document.opportunity_score)

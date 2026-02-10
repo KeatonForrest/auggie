@@ -151,6 +151,7 @@ async def update_user_profile(
     target_personas: str,
     competitors: str,
     product_type: str = "saas",
+    custom_signals: str = "",
 ) -> dict:
     """Update user's onboarding profile with enhanced fields."""
     # Build a rich product_context string for Claude
@@ -164,6 +165,7 @@ async def update_user_profile(
         target_personas=target_personas,
         competitors=competitors,
         product_type=product_type,
+        custom_signals=custom_signals,
     )
 
     async with _db._pool.acquire() as conn:
@@ -180,14 +182,15 @@ async def update_user_profile(
                 target_industries = $9,
                 target_personas = $10,
                 competitors = $11,
-                product_type = $12
+                product_type = $12,
+                custom_signals = $13
             WHERE id = $1
             RETURNING *
             """,
             user_id, company_name, product_context,
             product_name, product_description, problems_solved, differentiators,
             target_company_size, target_industries, target_personas, competitors,
-            product_type
+            product_type, custom_signals
         )
         # Invalidate auth cache so the next request sees updated profile
         from auth_cache import invalidate_user_cache
@@ -205,6 +208,7 @@ def build_product_context(
     target_personas: str,
     competitors: str,
     product_type: str = "saas",
+    custom_signals: str = "",
 ) -> str:
     """Build a rich product context string for Claude from onboarding data.
 
@@ -239,6 +243,9 @@ def build_product_context(
 
     if product_type and product_type != "saas":
         parts.append(f"**Product type:** {product_type}")
+
+    if custom_signals:
+        parts.append(f"**Custom signals:** {custom_signals}")
 
     # Ensure we always return something
     if not parts:

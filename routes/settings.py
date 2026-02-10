@@ -53,6 +53,7 @@ async def complete_onboarding(
     target_industries: list[str] = Form([]),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
+    custom_signals: str = Form(""),
     product_type: str = Form("saas"),
     user: dict = Depends(require_auth),
 ):
@@ -82,6 +83,7 @@ async def complete_onboarding(
         target_personas=target_personas_str,
         competitors="",  # No longer collected in onboarding
         product_type=product_type,
+        custom_signals=custom_signals,
     )
     return RedirectResponse(url="/", status_code=302)
 
@@ -125,6 +127,7 @@ async def save_settings(
     target_industries: list[str] = Form([]),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
+    custom_signals: str = Form(""),
     product_type: str = Form("saas"),
     user: dict = Depends(require_onboarding),
 ):
@@ -153,6 +156,7 @@ async def save_settings(
         target_personas=target_personas_str,
         competitors="",
         product_type=product_type,
+        custom_signals=custom_signals,
     )
     return RedirectResponse(url="/settings?saved=true", status_code=302)
 

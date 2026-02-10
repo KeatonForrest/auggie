@@ -25,7 +25,7 @@ class ClaudeService:
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
-                               product_type: str = "saas") -> str:
+                               product_type: str = "saas", custom_signals: str = "") -> str:
         """Build the system prompt defining Claude's research analyst role."""
         base_prompt = f"""Follow every section in OUTPUT FORMAT exactly. Do not skip or merge sections. Output all SCORE_ fields at the end in the exact format specified.
 
@@ -181,6 +181,13 @@ for more personalized recommendations in future research.
 
         if icp_parts:
             base_prompt += "\nIDEAL CUSTOMER PROFILE:\n\n" + "\n".join(icp_parts) + "\n"
+
+        if custom_signals:
+            base_prompt += f"""
+CUSTOM SIGNAL TRACKING:
+The seller has asked you to pay special attention to these signals: {custom_signals}
+When you find evidence of any of these in the scraped data, job postings, tech stack, or news — call them out explicitly in the relevant sections. If a custom signal appears in job titles or descriptions, highlight it in Hiring Signals. If it appears in tech stack, highlight it in Confirmed Tech Stack. Mention custom signal matches in the score evidence when relevant.
+"""
 
         if product_type == "msp":
             base_prompt += """
@@ -841,12 +848,14 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         robots_signals: Optional[RobotsSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
+        custom_signals: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(
             product_context, retrieved_materials, seller_company,
             target_personas=target_personas, target_industries=target_industries,
             problems_solved=problems_solved, product_type=product_type,
+            custom_signals=custom_signals,
         )
         user_prompt = self._build_user_prompt(
             company_url, scraped, tech_by_domain,

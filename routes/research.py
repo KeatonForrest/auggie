@@ -247,6 +247,7 @@ async def generate_outreach(
             seller_company=user.get("company_name", ""),
             problems_solved=user.get("problems_solved", ""),
             persona_context=persona_context,
+            custom_signals=user.get("custom_signals", ""),
         )
         return JSONResponse({
             "success": True,
