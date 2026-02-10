@@ -109,19 +109,19 @@ This template displays a generated research document with:
                 {% if document.pain_evidence %}
                 <div>
                     <span class="font-semibold text-gray-900">Pain signals</span>
-                    <div class="mt-1 whitespace-pre-line">{{ document.pain_evidence }}</div>
+                    <div class="mt-1 markdown-content">{{ document.pain_evidence }}</div>
                 </div>
                 {% endif %}
                 {% if document.fit_evidence %}
                 <div>
                     <span class="font-semibold text-gray-900">Fit signals</span>
-                    <div class="mt-1 whitespace-pre-line">{{ document.fit_evidence }}</div>
+                    <div class="mt-1 markdown-content">{{ document.fit_evidence }}</div>
                 </div>
                 {% endif %}
                 {% if document.timing_evidence %}
                 <div>
                     <span class="font-semibold text-gray-900">Timing signals</span>
-                    <div class="mt-1 whitespace-pre-line">{{ document.timing_evidence }}</div>
+                    <div class="mt-1 markdown-content">{{ document.timing_evidence }}</div>
                 </div>
                 {% endif %}
             </div>
@@ -193,7 +193,7 @@ This template displays a generated research document with:
         <!-- Stated Business Problems -->
         <section class="mb-8">
             <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Stated Business Problems</h2>
-            <div class="mt-3 text-gray-700 markdown-content">{{ document.business_problems }}</div>
+            <div class="mt-3 text-gray-700 markdown-content" id="business-problems">{{ document.business_problems }}</div>
         </section>
 
         <!-- Product Fit Analysis -->
@@ -205,14 +205,14 @@ This template displays a generated research document with:
         <!-- Recommended Talking Points -->
         <section class="mb-8">
             <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Recommended Talking Points</h2>
-            <div class="mt-3 text-gray-700 markdown-content">{{ document.talking_points }}</div>
+            <div class="mt-3 text-gray-700 markdown-content" id="talking-points">{{ document.talking_points }}</div>
         </section>
 
         <!-- Recommended Contacts -->
         {% if document.recommended_contacts %}
         <section class="mb-8">
             <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Recommended Contacts</h2>
-            <div class="mt-3 text-gray-700 markdown-content">{{ document.recommended_contacts }}</div>
+            <div class="mt-3 text-gray-700 markdown-content" id="recommended-contacts">{{ document.recommended_contacts }}</div>
         </section>
         {% endif %}
 
@@ -382,6 +382,37 @@ This template displays a generated research document with:
     document.querySelectorAll('.markdown-content').forEach(el => {
         el.innerHTML = marked.parse(el.textContent);
     });
+
+    // Post-processing: cosmetic fixes for specific sections
+
+    // 1. Stated Business Problems: remove bold formatting for readability
+    (function() {
+        var bp = document.getElementById('business-problems');
+        if (!bp) return;
+        bp.querySelectorAll('strong').forEach(function(s) {
+            s.outerHTML = s.innerHTML;
+        });
+    })();
+
+    // 2. Discovery Paths: break up dense paragraphs into readable lines
+    (function() {
+        var tp = document.getElementById('talking-points');
+        if (!tp) return;
+        tp.innerHTML = tp.innerHTML
+            .replace(/\u2192\s*Pain hypothesis:/g, '<br><br>\u2192 <strong>Pain hypothesis:</strong>')
+            .replace(/\u2192\s*Product connection:/g, '<br>\u2192 <strong>Product connection:</strong>')
+            .replace(/([."])\s*Evidence:/g, '$1<br><strong>Evidence:</strong>');
+    })();
+
+    // 3. Recommended Contacts: break fields onto separate lines
+    (function() {
+        var rc = document.getElementById('recommended-contacts');
+        if (!rc) return;
+        rc.innerHTML = rc.innerHTML
+            .replace(/<strong>Why This Person:<\/strong>/g, '<br><strong>Why This Person:</strong>')
+            .replace(/<strong>Recommended Angle:<\/strong>/g, '<br><strong>Recommended Angle:</strong>')
+            .replace(/<strong>Confidence:<\/strong>/g, '<br><strong>Confidence:</strong>');
+    })();
 
     function copyToClipboard() {
         const content = document.getElementById('markdown-content').value;
