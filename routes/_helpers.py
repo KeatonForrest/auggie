@@ -312,6 +312,62 @@ async def _push_drafts_to_integration(user: dict, list_id: int, account_ids: lis
     return JSONResponse(result)
 
 
+async def _push_campaigns_to_integration(
+    user: dict,
+    list_id: int,
+    account_ids: list[int],
+    include_leads: bool,
+    push_fn,
+):
+    """Push drafted sequences as new campaigns to Instantly/Smartlead.
+
+    Creates one campaign per account with personalized sequences.
+    Optionally includes contacts as leads in each campaign.
+    """
+    from database import get_list, get_outreach_draft
+
+    lst = await get_list(list_id, user["id"])
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+
+    if account_ids:
+        accounts = await get_list_accounts(list_id, account_ids=account_ids, limit=10000)
+    else:
+        accounts = await get_list_accounts(list_id, status="completed", limit=10000)
+
+    if not accounts:
+        raise HTTPException(status_code=400, detail="No accounts to push")
+
+    # Get drafts for each account
+    drafts_by_account = {}
+    for account in accounts:
+        if account.get("document_id"):
+            draft = await get_outreach_draft(account["document_id"])
+            if draft and draft.get("content"):
+                content = draft["content"]
+                if isinstance(content, str):
+                    content = json.loads(content)
+                emails = content.get("emails", [])
+                if emails:
+                    drafts_by_account[account["id"]] = emails
+
+    if not drafts_by_account:
+        raise HTTPException(status_code=400, detail="No written sequences found. Write sequences first.")
+
+    # Optionally get contacts for each account
+    contacts_by_account = None
+    if include_leads:
+        contacts_by_account = {}
+        for account in accounts:
+            if account.get("document_id"):
+                contacts = await get_enriched_contacts(account["document_id"], user["id"])
+                if contacts:
+                    contacts_by_account[account["id"]] = contacts
+
+    result = await push_fn(user["id"], accounts, drafts_by_account, contacts_by_account)
+    return JSONResponse(result)
+
+
 # ---------------------------------------------------------------------------
 # Retry helper
 # ---------------------------------------------------------------------------

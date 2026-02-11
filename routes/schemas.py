@@ -63,6 +63,11 @@ class PushSequencesRequest(BaseModel):
     account_ids: list[int] = []
 
 
+class PushCampaignWithSequencesRequest(BaseModel):
+    account_ids: list[int] = []
+    include_leads: bool = False
+
+
 class PushGongEngageRequest(BaseModel):
     flow_id: str
     flow_owner_email: str

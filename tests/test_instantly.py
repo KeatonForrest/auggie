@@ -688,3 +688,263 @@ class TestPushAccountsToInstantly:
         # Error message should be truncated to 500 chars
         assert len(result["error"]) == 500
         assert result["error"] == "x" * 500
+
+
+class TestEmailsToInstantlySequences:
+    """Tests for _emails_to_instantly_sequences helper."""
+
+    def test_converts_emails_to_sequences_format(self):
+        """Test that Auggie email format is converted to Instantly sequences format."""
+        emails = [
+            {"email_number": 1, "subject": "Subject 1", "body": "Body 1"},
+            {"email_number": 2, "subject": "Subject 2", "body": "Body 2"},
+            {"email_number": 3, "subject": "Subject 3", "body": "Body 3"},
+        ]
+
+        result = instantly._emails_to_instantly_sequences(emails)
+
+        assert len(result) == 1  # Single sequences array
+        assert len(result[0]["steps"]) == 3
+
+        # First email - no delay
+        assert result[0]["steps"][0]["type"] == "email"
+        assert result[0]["steps"][0]["delay"] == 0
+        assert result[0]["steps"][0]["variants"][0]["subject"] == "Subject 1"
+        assert result[0]["steps"][0]["variants"][0]["body"] == "Body 1"
+
+        # Second email - 3 day delay
+        assert result[0]["steps"][1]["delay"] == 3
+        assert result[0]["steps"][1]["variants"][0]["subject"] == "Subject 2"
+
+        # Third email - 3 day delay
+        assert result[0]["steps"][2]["delay"] == 3
+        assert result[0]["steps"][2]["variants"][0]["subject"] == "Subject 3"
+
+    def test_handles_empty_emails(self):
+        """Test that empty emails list returns empty steps."""
+        result = instantly._emails_to_instantly_sequences([])
+        assert result == [{"steps": []}]
+
+    def test_handles_missing_fields(self):
+        """Test that missing fields default to empty strings."""
+        emails = [{"email_number": 1}]
+        result = instantly._emails_to_instantly_sequences(emails)
+        assert result[0]["steps"][0]["variants"][0]["subject"] == ""
+        assert result[0]["steps"][0]["variants"][0]["body"] == ""
+
+
+class TestDefaultCampaignSchedule:
+    """Tests for _default_campaign_schedule helper."""
+
+    def test_returns_default_schedule(self):
+        """Test that default schedule is 9-5 weekdays."""
+        result = instantly._default_campaign_schedule()
+
+        assert len(result["schedules"]) == 1
+        schedule = result["schedules"][0]
+        assert schedule["timing"]["from"] == "09:00"
+        assert schedule["timing"]["to"] == "17:00"
+        assert schedule["days"]["mon"] is True
+        assert schedule["days"]["sat"] is False
+        assert schedule["days"]["sun"] is False
+        assert schedule["timezone"] == "America/New_York"
+
+    def test_accepts_custom_timezone(self):
+        """Test that custom timezone is used."""
+        result = instantly._default_campaign_schedule("Europe/London")
+        assert result["schedules"][0]["timezone"] == "Europe/London"
+
+
+class TestCreateCampaignWithSequences:
+    """Tests for create_campaign_with_sequences function."""
+
+    @pytest.mark.asyncio
+    async def test_creates_campaign_successfully(self):
+        """Test successful campaign creation with sequences."""
+        emails = [
+            {"email_number": 1, "subject": "Subject 1", "body": "Body 1"},
+            {"email_number": 2, "subject": "Subject 2", "body": "Body 2"},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "campaign_123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                result = await instantly.create_campaign_with_sequences(
+                    1, "Auggie – Acme Corp", emails
+                )
+
+        assert result["campaign_id"] == "campaign_123"
+        assert result["name"] == "Auggie – Acme Corp"
+
+        # Verify API was called correctly
+        call_args = mock_client.post.call_args
+        assert "campaigns" in call_args[0][0]
+        payload = call_args[1]["json"]
+        assert payload["name"] == "Auggie – Acme Corp"
+        assert "sequences" in payload
+        assert "campaign_schedule" in payload
+
+    @pytest.mark.asyncio
+    async def test_handles_api_error(self):
+        """Test that API errors return error dict."""
+        emails = [{"email_number": 1, "subject": "Subject", "body": "Body"}]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad request"
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                result = await instantly.create_campaign_with_sequences(
+                    1, "Auggie – Acme Corp", emails
+                )
+
+        assert "error" in result
+        assert "Failed to create campaign" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_adds_leads_when_provided(self):
+        """Test that leads are added to the campaign when provided."""
+        emails = [{"email_number": 1, "subject": "Subject", "body": "Body"}]
+        leads = [{"email": "test@example.com", "first_name": "Test"}]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "campaign_123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.instantly.add_leads_to_campaign", new_callable=AsyncMock) as mock_add:
+                    result = await instantly.create_campaign_with_sequences(
+                        1, "Auggie – Acme Corp", emails, leads=leads
+                    )
+
+        assert result["campaign_id"] == "campaign_123"
+        mock_add.assert_called_once_with(1, "campaign_123", leads)
+
+
+class TestPushCampaignsToInstantly:
+    """Tests for push_campaigns_to_instantly function."""
+
+    @pytest.mark.asyncio
+    async def test_creates_campaigns_for_multiple_accounts(self):
+        """Test that campaigns are created for each account with drafts."""
+        accounts = [
+            {"id": 1, "company_name": "Acme Corp"},
+            {"id": 2, "company_name": "TechCo"},
+        ]
+        drafts_by_account = {
+            1: [{"email_number": 1, "subject": "Subject 1", "body": "Body 1"}],
+            2: [{"email_number": 1, "subject": "Subject 2", "body": "Body 2"}],
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "campaign_123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.instantly.update_list_account_pushed", new_callable=AsyncMock):
+                    result = await instantly.push_campaigns_to_instantly(
+                        1, accounts, drafts_by_account
+                    )
+
+        assert result["campaigns_created"] == 2
+        assert result["skipped"] == 0
+        assert result["errors"] == 0
+        assert len(result["campaign_ids"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_skips_accounts_without_drafts(self):
+        """Test that accounts without drafts are skipped."""
+        accounts = [
+            {"id": 1, "company_name": "Acme Corp"},
+            {"id": 2, "company_name": "TechCo"},
+        ]
+        drafts_by_account = {
+            1: [{"email_number": 1, "subject": "Subject", "body": "Body"}],
+            # Account 2 has no draft
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "campaign_123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.instantly.update_list_account_pushed", new_callable=AsyncMock):
+                    result = await instantly.push_campaigns_to_instantly(
+                        1, accounts, drafts_by_account
+                    )
+
+        assert result["campaigns_created"] == 1
+        assert result["skipped"] == 1
+        assert result["errors"] == 0
+
+    @pytest.mark.asyncio
+    async def test_includes_leads_when_contacts_provided(self):
+        """Test that leads are included when contacts_by_account is provided."""
+        accounts = [{"id": 1, "company_name": "Acme Corp", "company_url": "https://acme.com"}]
+        drafts_by_account = {
+            1: [{"email_number": 1, "subject": "Subject", "body": "Body"}],
+        }
+        contacts_by_account = {
+            1: [{"email": "john@acme.com", "first_name": "John", "last_name": "Doe", "title": "CEO"}],
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "campaign_123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.instantly._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.instantly.add_leads_to_campaign", new_callable=AsyncMock) as mock_add:
+                    with patch("services.instantly.update_list_account_pushed", new_callable=AsyncMock):
+                        result = await instantly.push_campaigns_to_instantly(
+                            1, accounts, drafts_by_account, contacts_by_account
+                        )
+
+        assert result["campaigns_created"] == 1
+        mock_add.assert_called_once()
+        leads_arg = mock_add.call_args[0][2]
+        assert len(leads_arg) == 1
+        assert leads_arg[0]["email"] == "john@acme.com"

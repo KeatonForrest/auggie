@@ -24,10 +24,14 @@ from api.tasks import create_tracked_task
 from routes._helpers import (
     normalize_url, templates, logger,
     _push_contacts_to_integration, _push_drafts_to_integration,
+    _push_campaigns_to_integration,
 )
-from routes.schemas import PushCampaignRequest, PushSequencesRequest, PushGongEngageRequest, AccountIdsRequest
-from services.instantly import push_accounts_to_instantly
-from services.smartlead import push_accounts_to_smartlead
+from routes.schemas import (
+    PushCampaignRequest, PushSequencesRequest, PushGongEngageRequest,
+    AccountIdsRequest, PushCampaignWithSequencesRequest,
+)
+from services.instantly import push_accounts_to_instantly, push_campaigns_to_instantly
+from services.smartlead import push_accounts_to_smartlead, push_campaigns_to_smartlead
 from services.outreach import push_sequences_to_outreach
 from services.salesloft import push_sequences_to_salesloft
 from services.gong_engage import push_sequences_to_gong_engage
@@ -793,6 +797,42 @@ async def push_to_smartlead(
     body = PushCampaignRequest(**(await request.json()))
     return await _push_contacts_to_integration(
         user, list_id, body.campaign_id, body.account_ids, push_accounts_to_smartlead,
+    )
+
+
+@router.post("/lists/{list_id}/push-instantly-campaign")
+async def push_to_instantly_campaign(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Bulk create Instantly campaigns with Auggie-generated sequences.
+
+    Creates one campaign per account with personalized 3-email sequences.
+    Campaigns are created in paused state with default schedule (9am-5pm weekdays).
+    Optionally includes enriched contacts as leads.
+    """
+    body = PushCampaignWithSequencesRequest(**(await request.json()))
+    return await _push_campaigns_to_integration(
+        user, list_id, body.account_ids, body.include_leads, push_campaigns_to_instantly,
+    )
+
+
+@router.post("/lists/{list_id}/push-smartlead-campaign")
+async def push_to_smartlead_campaign(
+    request: Request,
+    list_id: int,
+    user: dict = Depends(require_onboarding),
+):
+    """Bulk create Smartlead campaigns with Auggie-generated sequences.
+
+    Creates one campaign per account with personalized 3-email sequences.
+    Campaigns are created in draft state with default schedule (9am-5pm weekdays).
+    Optionally includes enriched contacts as leads.
+    """
+    body = PushCampaignWithSequencesRequest(**(await request.json()))
+    return await _push_campaigns_to_integration(
+        user, list_id, body.account_ids, body.include_leads, push_campaigns_to_smartlead,
     )
 
 

@@ -418,3 +418,229 @@ class TestPushAccountsToSmartlead:
         assert result["pushed"] == 0
         assert result["skipped"] == 2
         assert result["errors"] == 0
+
+
+class TestEmailsToSmartleadSequences:
+    """Tests for _emails_to_smartlead_sequences helper."""
+
+    def test_converts_emails_to_sequences_format(self):
+        """Test that Auggie email format is converted to Smartlead sequences format."""
+        emails = [
+            {"email_number": 1, "subject": "Subject 1", "body": "Body 1"},
+            {"email_number": 2, "subject": "Subject 2", "body": "Body 2"},
+            {"email_number": 3, "subject": "Subject 3", "body": "Body 3"},
+        ]
+
+        result = smartlead._emails_to_smartlead_sequences(emails)
+
+        assert len(result) == 3
+
+        # First email - no delay
+        assert result[0]["seq_number"] == 1
+        assert result[0]["seq_delay_details"]["delay_in_days"] == 0
+        assert result[0]["seq_variants"][0]["subject"] == "Subject 1"
+        assert "<p>" in result[0]["seq_variants"][0]["email_body"]  # HTML wrapped
+        assert result[0]["seq_variants"][0]["variant_label"] == "A"
+        assert result[0]["seq_variants"][0]["variant_distribution_percentage"] == 100
+
+        # Second email - 3 day delay
+        assert result[1]["seq_number"] == 2
+        assert result[1]["seq_delay_details"]["delay_in_days"] == 3
+
+        # Third email - 3 day delay
+        assert result[2]["seq_number"] == 3
+        assert result[2]["seq_delay_details"]["delay_in_days"] == 3
+
+    def test_handles_empty_emails(self):
+        """Test that empty emails list returns empty list."""
+        result = smartlead._emails_to_smartlead_sequences([])
+        assert result == []
+
+
+class TestPlainToHtml:
+    """Tests for _plain_to_html helper."""
+
+    def test_escapes_html_chars(self):
+        """Test that HTML characters are escaped."""
+        result = smartlead._plain_to_html("<script>alert('xss')</script>")
+        assert "<script>" not in result
+        assert "&lt;script&gt;" in result
+
+    def test_converts_newlines(self):
+        """Test that newlines are converted to HTML."""
+        result = smartlead._plain_to_html("Line 1\n\nLine 2\nLine 3")
+        assert "</p><p>" in result
+        assert "<br>" in result
+
+
+class TestCreateCampaignWithSequencesSmartlead:
+    """Tests for create_campaign_with_sequences function."""
+
+    @pytest.mark.asyncio
+    async def test_creates_campaign_successfully(self):
+        """Test successful campaign creation with sequences."""
+        emails = [
+            {"email_number": 1, "subject": "Subject 1", "body": "Body 1"},
+            {"email_number": 2, "subject": "Subject 2", "body": "Body 2"},
+        ]
+
+        # Mock responses for create, sequences, and schedule
+        create_response = MagicMock()
+        create_response.status_code = 200
+        create_response.json.return_value = {"id": 123, "name": "Auggie – Acme Corp"}
+
+        seq_response = MagicMock()
+        seq_response.status_code = 200
+
+        sched_response = MagicMock()
+        sched_response.status_code = 200
+
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = [create_response, seq_response, sched_response]
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.smartlead._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                result = await smartlead.create_campaign_with_sequences(
+                    1, "Auggie – Acme Corp", emails
+                )
+
+        assert result["campaign_id"] == "123"
+        assert result["name"] == "Auggie – Acme Corp"
+        assert mock_client.post.call_count == 3  # create, sequences, schedule
+
+    @pytest.mark.asyncio
+    async def test_handles_create_api_error(self):
+        """Test that API errors during create return error dict."""
+        emails = [{"email_number": 1, "subject": "Subject", "body": "Body"}]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad request"
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.smartlead._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                result = await smartlead.create_campaign_with_sequences(
+                    1, "Auggie – Acme Corp", emails
+                )
+
+        assert "error" in result
+        assert "Failed to create campaign" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_adds_leads_when_provided(self):
+        """Test that leads are added to the campaign when provided."""
+        emails = [{"email_number": 1, "subject": "Subject", "body": "Body"}]
+        leads = [{"email": "test@example.com", "first_name": "Test"}]
+
+        create_response = MagicMock()
+        create_response.status_code = 200
+        create_response.json.return_value = {"id": 123}
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = [create_response, success_response, success_response]
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.smartlead._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.smartlead.add_leads_to_campaign", new_callable=AsyncMock) as mock_add:
+                    result = await smartlead.create_campaign_with_sequences(
+                        1, "Auggie – Acme Corp", emails, leads=leads
+                    )
+
+        assert result["campaign_id"] == "123"
+        mock_add.assert_called_once_with(1, "123", leads)
+
+
+class TestPushCampaignsToSmartlead:
+    """Tests for push_campaigns_to_smartlead function."""
+
+    @pytest.mark.asyncio
+    async def test_creates_campaigns_for_multiple_accounts(self):
+        """Test that campaigns are created for each account with drafts."""
+        accounts = [
+            {"id": 1, "company_name": "Acme Corp"},
+            {"id": 2, "company_name": "TechCo"},
+        ]
+        drafts_by_account = {
+            1: [{"email_number": 1, "subject": "Subject 1", "body": "Body 1"}],
+            2: [{"email_number": 1, "subject": "Subject 2", "body": "Body 2"}],
+        }
+
+        create_response = MagicMock()
+        create_response.status_code = 200
+        create_response.json.return_value = {"id": 123}
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+
+        mock_client = AsyncMock()
+        # Each campaign: create + sequences + schedule = 3 calls, x2 accounts = 6 calls
+        mock_client.post.side_effect = [
+            create_response, success_response, success_response,
+            create_response, success_response, success_response,
+        ]
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.smartlead._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.smartlead.update_list_account_pushed", new_callable=AsyncMock):
+                    result = await smartlead.push_campaigns_to_smartlead(
+                        1, accounts, drafts_by_account
+                    )
+
+        assert result["campaigns_created"] == 2
+        assert result["skipped"] == 0
+        assert result["errors"] == 0
+        assert len(result["campaign_ids"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_skips_accounts_without_drafts(self):
+        """Test that accounts without drafts are skipped."""
+        accounts = [
+            {"id": 1, "company_name": "Acme Corp"},
+            {"id": 2, "company_name": "TechCo"},
+        ]
+        drafts_by_account = {
+            1: [{"email_number": 1, "subject": "Subject", "body": "Body"}],
+            # Account 2 has no draft
+        }
+
+        create_response = MagicMock()
+        create_response.status_code = 200
+        create_response.json.return_value = {"id": 123}
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = [create_response, success_response, success_response]
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+
+        with patch("services.smartlead._get_api_key", new_callable=AsyncMock) as mock_get_key:
+            mock_get_key.return_value = "test_api_key"
+            with patch("httpx.AsyncClient", return_value=mock_client):
+                with patch("services.smartlead.update_list_account_pushed", new_callable=AsyncMock):
+                    result = await smartlead.push_campaigns_to_smartlead(
+                        1, accounts, drafts_by_account
+                    )
+
+        assert result["campaigns_created"] == 1
+        assert result["skipped"] == 1
+        assert result["errors"] == 0
