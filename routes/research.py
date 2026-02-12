@@ -50,7 +50,7 @@ async def start_research(
         # Still add to watchlist if requested
         if watch:
             from database import create_watchlist_item
-            await create_watchlist_item(user["id"], company_url, schedule="weekly")
+            await create_watchlist_item(user["id"], company_url, schedule="biweekly")
         return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc_id}", "cached": True})
 
     usage = await get_user_usage(user["id"])
@@ -66,7 +66,7 @@ async def start_research(
     # Add to watchlist if requested
     if watch:
         from database import create_watchlist_item
-        await create_watchlist_item(user["id"], company_url, schedule="weekly")
+        await create_watchlist_item(user["id"], company_url, schedule="biweekly")
 
     await create_tracked_task(
         "research",

@@ -1020,7 +1020,7 @@ async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Dep
 class WatchlistAddRequest(BaseModel):
     company_url: str
     company_name: str | None = None
-    schedule: str = "weekly"
+    schedule: str = "biweekly"
 
 
 class WatchlistUpdateRequest(BaseModel):

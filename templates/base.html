@@ -57,7 +57,7 @@
                 <div class="hidden sm:flex items-center gap-4">
                     <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Research</a>
                     <a href="/lists" class="text-sm text-gray-600 hover:text-gray-900">Lists</a>
-                    <a href="/watchlist" class="text-sm text-gray-600 hover:text-gray-900">Watchlist</a>
+                    <a href="/watchlist" class="text-sm text-gray-600 hover:text-gray-900 relative">Watchlist<span id="watchlist-badge-desktop" class="hidden absolute -top-1.5 -right-3 w-4 h-4 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"></span></a>
                     <a href="/materials" class="text-sm text-gray-600 hover:text-gray-900">Materials</a>
                     <div class="relative" id="more-menu-wrapper">
                         <button onclick="document.getElementById('more-dropdown').classList.toggle('hidden')" class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-0.5">
@@ -127,7 +127,7 @@
                 <div class="flex flex-wrap gap-x-4 gap-y-2">
                     <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Research</a>
                     <a href="/lists" class="text-sm text-gray-600 hover:text-gray-900">Lists</a>
-                    <a href="/watchlist" class="text-sm text-gray-600 hover:text-gray-900">Watchlist</a>
+                    <a href="/watchlist" class="text-sm text-gray-600 hover:text-gray-900 relative">Watchlist<span id="watchlist-badge-mobile" class="hidden ml-1 inline-flex w-4 h-4 bg-amber-500 text-white text-[10px] font-bold rounded-full items-center justify-center"></span></a>
                     <a href="/materials" class="text-sm text-gray-600 hover:text-gray-900">Materials</a>
                     <a href="/integrations" class="text-sm text-gray-600 hover:text-gray-900">Integrations</a>
                     <span class="text-gray-300">|</span>
@@ -309,6 +309,19 @@
         });
     })();
     </script>
+
+    {% if user %}
+    <script>
+    fetch('/watchlist/badge').then(function(r){return r.json()}).then(function(d){
+        if(d.count>0){
+            ['watchlist-badge-desktop','watchlist-badge-mobile'].forEach(function(id){
+                var el=document.getElementById(id);
+                if(el){el.textContent=d.count;el.classList.remove('hidden');}
+            });
+        }
+    }).catch(function(){});
+    </script>
+    {% endif %}
 
     {% block scripts %}{% endblock %}
 </body>

@@ -3,12 +3,12 @@
 from fastapi import APIRouter, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-from auth import require_onboarding
+from auth import require_onboarding, get_current_user
 from database import (
     get_user_usage,
     list_watchlist_items, create_watchlist_item, get_watchlist_item,
     update_watchlist_item, delete_watchlist_item, get_score_history,
-    get_watchlist_item_by_url,
+    get_watchlist_item_by_url, count_significant_changes,
 )
 from api.validation import validate_company_url
 from routes._helpers import templates
@@ -47,11 +47,11 @@ async def watchlist_add(
     user: dict = Depends(require_onboarding),
     company_url: str = Form(...),
     company_name: str = Form(None),
-    schedule: str = Form("weekly"),
+    schedule: str = Form("biweekly"),
 ):
     """Add a company to the watchlist (form POST from web UI)."""
     if schedule not in ("weekly", "biweekly", "monthly"):
-        schedule = "weekly"
+        schedule = "biweekly"
 
     try:
         company_url = validate_company_url(company_url)
@@ -127,3 +127,13 @@ async def watchlist_history_json(
             for h in history
         ]
     })
+
+
+@router.get("/watchlist/badge")
+async def watchlist_badge(request: Request):
+    """Lightweight JSON endpoint returning count of recent significant changes."""
+    user = await get_current_user(request)
+    if not user:
+        return JSONResponse({"count": 0})
+    count = await count_significant_changes(user["id"])
+    return JSONResponse({"count": count})

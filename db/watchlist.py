@@ -23,7 +23,7 @@ async def create_watchlist_item(
     user_id: int,
     company_url: str,
     company_name: str | None = None,
-    schedule: str = "weekly",
+    schedule: str = "biweekly",
 ) -> dict:
     """Add a company to the user's watchlist. Returns the new row."""
     async with _db._pool.acquire() as conn:
@@ -215,6 +215,22 @@ async def mark_skipped_no_credits(item_id: int) -> None:
             WHERE id = $1
             """,
             item_id,
+        )
+
+
+async def count_significant_changes(user_id: int, days: int = 7) -> int:
+    """Count watchlist items with significant score changes in the last N days."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT COUNT(DISTINCT sc.watchlist_item_id)
+            FROM watchlist_score_changes sc
+            JOIN watchlist_items wi ON wi.id = sc.watchlist_item_id
+            WHERE wi.user_id = $1
+              AND sc.is_significant = TRUE
+              AND sc.created_at > NOW() - make_interval(days := $2)
+            """,
+            user_id, days,
         )
 
 
