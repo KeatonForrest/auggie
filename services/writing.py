@@ -61,10 +61,9 @@ class WritingService:
             sections.append(document.projects_initiatives)
             sections.append("")
 
-        if document.confirmed_tech_stack:
-            sections.append("## Technology Stack")
-            sections.append(document.confirmed_tech_stack)
-            sections.append("")
+        # Tech stack intentionally excluded from outreach context —
+        # leads the model to open with technology observations instead of
+        # business problems, which reads as robotic to prospects.
 
         if document.product_fit:
             sections.append("## Product Fit Analysis")
