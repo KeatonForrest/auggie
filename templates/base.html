@@ -150,6 +150,20 @@
                     <a href="/billing/buy-credits" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Buy</a>
                 </div>
                 {% endif %}
+                {% if recent_docs %}
+                <details class="mt-3 border-t pt-3">
+                    <summary class="text-sm font-semibold text-gray-700 cursor-pointer">Recent Research</summary>
+                    <ul class="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                        {% for doc in recent_docs %}
+                        <li>
+                            <a href="/document/{{ doc.id }}" class="block px-2 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded">
+                                {{ doc.company_name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
             </div>
             {% endif %}
         </div>
