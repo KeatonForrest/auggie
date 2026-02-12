@@ -166,7 +166,7 @@ async def login(request: Request):
     auth_limiter.check(get_client_ip(request))
     # Preserve ?next= param so we can redirect back after auth
     next_url = request.query_params.get("next")
-    if next_url and next_url.startswith("/"):
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
         request.session["next_url"] = next_url
     redirect_uri = f"{settings.app_url}/auth/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -214,7 +214,7 @@ async def callback(request: Request):
     next_url = request.session.pop("next_url", None)
     if not user.get("product_context"):
         redirect_url = "/onboarding"
-    elif next_url and next_url.startswith("/"):
+    elif next_url and next_url.startswith("/") and not next_url.startswith("//"):
         redirect_url = next_url
     else:
         redirect_url = "/"
@@ -235,7 +235,7 @@ async def login_microsoft(request: Request):
 
     # Preserve ?next= param so we can redirect back after auth
     next_url = request.query_params.get("next")
-    if next_url and next_url.startswith("/"):
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
         request.session["next_url"] = next_url
 
     # Generate and store state for CSRF protection
@@ -354,7 +354,7 @@ async def microsoft_callback(request: Request):
     next_url = request.session.pop("next_url", None)
     if not user.get("product_context"):
         redirect_url = "/onboarding"
-    elif next_url and next_url.startswith("/"):
+    elif next_url and next_url.startswith("/") and not next_url.startswith("//"):
         redirect_url = next_url
     else:
         redirect_url = "/"
