@@ -60,6 +60,25 @@ def format_slack_message(event: str, data: dict) -> dict:
             ],
         }
 
+    if event == "watchlist_significant_change":
+        company = data.get("company_name", data.get("company_url", "Unknown"))
+        pain = data.get("pain_score", "N/A")
+        old_pain = data.get("old_pain_score", "N/A")
+        composite = data.get("composite_score", "N/A")
+        old_composite = data.get("old_composite_score", "N/A")
+        doc_url = data.get("doc_url", "")
+        watchlist_url = data.get("watchlist_url", "")
+        return {
+            "blocks": [
+                {"type": "header", "text": {"type": "plain_text", "text": f"Watchlist Alert: {company}"}},
+                {"type": "section", "fields": [
+                    {"type": "mrkdwn", "text": f"*Pain Score:* {old_pain} -> {pain}"},
+                    {"type": "mrkdwn", "text": f"*Composite Score:* {old_composite} -> {composite}"},
+                ]},
+                *([{"type": "section", "text": {"type": "mrkdwn", "text": f"<{doc_url}|View Report> | <{watchlist_url}|View Watchlist>"}}] if doc_url else []),
+            ],
+        }
+
     # Fallback
     return {
         "blocks": [
@@ -174,6 +193,23 @@ def format_teams_message(event: str, data: dict) -> dict:
         body = [
             {"type": "TextBlock", "size": "Medium", "weight": "Bolder", "text": f"High Pain Alert: {company} ({pain})"},
             {"type": "TextBlock", "text": f"**{company}** has a pain score of **{pain}** — this account may need immediate attention.", "wrap": True},
+        ]
+        actions = [{"type": "Action.OpenUrl", "title": "View Report", "url": doc_url}] if doc_url else []
+        return _wrap_adaptive_card(body, actions)
+
+    if event == "watchlist_significant_change":
+        company = data.get("company_name", data.get("company_url", "Unknown"))
+        pain = data.get("pain_score", "N/A")
+        old_pain = data.get("old_pain_score", "N/A")
+        composite = data.get("composite_score", "N/A")
+        old_composite = data.get("old_composite_score", "N/A")
+        doc_url = data.get("doc_url", "")
+        body = [
+            {"type": "TextBlock", "size": "Medium", "weight": "Bolder", "text": f"Watchlist Alert: {company}"},
+            {"type": "FactSet", "facts": [
+                {"title": "Pain Score", "value": f"{old_pain} -> {pain}"},
+                {"title": "Composite Score", "value": f"{old_composite} -> {composite}"},
+            ]},
         ]
         actions = [{"type": "Action.OpenUrl", "title": "View Report", "url": doc_url}] if doc_url else []
         return _wrap_adaptive_card(body, actions)

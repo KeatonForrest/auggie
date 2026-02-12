@@ -1011,3 +1011,143 @@ async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Dep
     if not updated:
         raise HTTPException(status_code=404, detail="Member not found")
     return {"updated": True}
+
+
+# =================================================================
+# Watchlist API Routes
+# =================================================================
+
+class WatchlistAddRequest(BaseModel):
+    company_url: str
+    company_name: str | None = None
+    schedule: str = "weekly"
+
+
+class WatchlistUpdateRequest(BaseModel):
+    schedule: str | None = None
+    status: str | None = None
+
+
+@router.post("/watchlist", status_code=201, tags=["Watchlist"])
+async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(require_api_key)):
+    """Add a company URL to the watchlist with a recurring schedule."""
+    default_limiter.check(api_user["api_key_id"])
+
+    if body.schedule not in ("weekly", "biweekly", "monthly"):
+        raise HTTPException(status_code=422, detail="schedule must be weekly, biweekly, or monthly")
+
+    try:
+        company_url = validate_company_url(body.company_url)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    from database import create_watchlist_item
+    item = await create_watchlist_item(
+        api_user["id"], company_url, body.company_name, body.schedule,
+    )
+    return {
+        "id": item["id"],
+        "company_url": item["company_url"],
+        "company_name": item["company_name"],
+        "schedule": item["schedule"],
+        "status": item["status"],
+        "next_run_at": item["next_run_at"].isoformat(),
+    }
+
+
+@router.get("/watchlist", tags=["Watchlist"])
+async def list_watchlist(
+    api_user: dict = Depends(require_api_key),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """List all watched companies."""
+    default_limiter.check(api_user["api_key_id"])
+    from database import list_watchlist_items
+    items = await list_watchlist_items(api_user["id"], limit=limit, offset=offset)
+    return {
+        "items": [
+            {
+                "id": i["id"],
+                "company_url": i["company_url"],
+                "company_name": i["company_name"],
+                "schedule": i["schedule"],
+                "status": i["status"],
+                "last_document_id": i["last_document_id"],
+                "last_run_at": i["last_run_at"].isoformat() if i["last_run_at"] else None,
+                "next_run_at": i["next_run_at"].isoformat(),
+                "created_at": i["created_at"].isoformat(),
+            }
+            for i in items
+        ]
+    }
+
+
+@router.patch("/watchlist/{item_id}", tags=["Watchlist"])
+async def update_watchlist(item_id: int, body: WatchlistUpdateRequest, api_user: dict = Depends(require_api_key)):
+    """Update schedule or pause/resume a watchlist item."""
+    default_limiter.check(api_user["api_key_id"])
+
+    if body.schedule and body.schedule not in ("weekly", "biweekly", "monthly"):
+        raise HTTPException(status_code=422, detail="schedule must be weekly, biweekly, or monthly")
+    if body.status and body.status not in ("active", "paused"):
+        raise HTTPException(status_code=422, detail="status must be active or paused")
+
+    from database import update_watchlist_item
+    item = await update_watchlist_item(item_id, api_user["id"], body.schedule, body.status)
+    if not item:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    return {
+        "id": item["id"],
+        "company_url": item["company_url"],
+        "schedule": item["schedule"],
+        "status": item["status"],
+        "next_run_at": item["next_run_at"].isoformat(),
+    }
+
+
+@router.delete("/watchlist/{item_id}", status_code=204, tags=["Watchlist"])
+async def remove_from_watchlist(item_id: int, api_user: dict = Depends(require_api_key)):
+    """Remove a company from the watchlist."""
+    default_limiter.check(api_user["api_key_id"])
+    from database import delete_watchlist_item
+    deleted = await delete_watchlist_item(item_id, api_user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    return JSONResponse(status_code=204, content=None)
+
+
+@router.get("/watchlist/{item_id}/history", tags=["Watchlist"])
+async def watchlist_history(item_id: int, api_user: dict = Depends(require_api_key)):
+    """Get score change history for a watched company."""
+    default_limiter.check(api_user["api_key_id"])
+    from database import get_watchlist_item, get_score_history
+    item = await get_watchlist_item(item_id, api_user["id"])
+    if not item:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    history = await get_score_history(item_id, api_user["id"])
+    return {
+        "item_id": item_id,
+        "company_url": item["company_url"],
+        "changes": [
+            {
+                "old_document_id": h["old_document_id"],
+                "new_document_id": h["new_document_id"],
+                "old_scores": {
+                    "opportunity": h["old_opportunity_score"],
+                    "pain": h["old_pain_score"],
+                    "fit": h["old_fit_score"],
+                    "timing": h["old_timing_score"],
+                },
+                "new_scores": {
+                    "opportunity": h["new_opportunity_score"],
+                    "pain": h["new_pain_score"],
+                    "fit": h["new_fit_score"],
+                    "timing": h["new_timing_score"],
+                },
+                "is_significant": h["is_significant"],
+                "created_at": h["created_at"].isoformat(),
+            }
+            for h in history
+        ],
+    }

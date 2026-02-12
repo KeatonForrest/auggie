@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Watchlist - Auggie{% endblock %}
+
+{% block layout %}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Watchlist</h1>
+            <p class="text-sm text-gray-500 mt-1">Track companies and get notified when scores change</p>
+        </div>
+    </div>
+
+    <!-- Add Form -->
+    <div class="bg-white rounded-lg shadow p-5 mb-6">
+        <form method="post" action="/watchlist/add" class="flex flex-col sm:flex-row gap-3">
+            <input type="text" name="company_url" placeholder="Company website (e.g. acme.com)"
+                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                   required>
+            <input type="text" name="company_name" placeholder="Company name (optional)"
+                   class="sm:w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <select name="schedule"
+                    class="sm:w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+            <button type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition whitespace-nowrap">
+                Add to Watchlist
+            </button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Each scheduled re-research uses 1 credit. You can pause or remove items at any time.</p>
+    </div>
+
+    {% if items %}
+    <!-- Items Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
+                    <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden sm:table-cell">Schedule</th>
+                    <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden md:table-cell">Last Run</th>
+                    <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
+                    <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden sm:table-cell">Latest Scores</th>
+                    <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for item in items %}
+                {% set latest = item.history[0] if item.history else none %}
+                {% set is_sig = latest.is_significant if latest else false %}
+                <tr class="{% if is_sig %}bg-amber-50{% endif %} hover:bg-gray-50 transition">
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-gray-900 text-sm">
+                            {% if item.company_name %}{{ item.company_name }}{% else %}{{ item.company_url }}{% endif %}
+                        </div>
+                        <a href="{{ item.company_url if item.company_url.startswith('http') else 'https://' + item.company_url }}"
+                           target="_blank" class="text-xs text-gray-400 hover:text-blue-500">{{ item.company_url }}</a>
+                        {% if item.last_document_id %}
+                        <a href="/document/{{ item.last_document_id }}" class="ml-2 text-xs text-blue-500 hover:text-blue-700">View report</a>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600 hidden sm:table-cell capitalize">{{ item.schedule }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
+                        {% if item.last_run_at %}
+                        <time datetime="{{ item.last_run_at.isoformat() }}" data-format="short-noyr">{{ item.last_run_at.strftime('%b %d') }}</time>
+                        {% else %}
+                        <span class="text-gray-400">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if item.status == 'active' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        {% elif item.status == 'paused' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Paused</span>
+                        {% elif item.status == 'skipped_no_credits' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No credits</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 hidden sm:table-cell">
+                        {% if latest %}
+                        <div class="flex gap-3 text-xs">
+                            {% macro score_delta(label, old_val, new_val) %}
+                            <span class="text-gray-500">{{ label }}:
+                                {% if old_val is not none and new_val is not none %}
+                                    {% set delta = new_val - old_val %}
+                                    <span class="font-medium text-gray-700">{{ new_val }}</span>
+                                    {% if delta > 0 %}
+                                    <span class="text-green-600">+{{ delta }}</span>
+                                    {% elif delta < 0 %}
+                                    <span class="text-red-500">{{ delta }}</span>
+                                    {% endif %}
+                                {% elif new_val is not none %}
+                                    <span class="font-medium text-gray-700">{{ new_val }}</span>
+                                {% else %}
+                                    <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </span>
+                            {% endmacro %}
+                            {{ score_delta("Pain", latest.old_pain_score, latest.new_pain_score) }}
+                            {{ score_delta("Fit", latest.old_fit_score, latest.new_fit_score) }}
+                            {{ score_delta("Timing", latest.old_timing_score, latest.new_timing_score) }}
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-400">No data yet</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            <!-- Toggle pause/active -->
+                            <form method="post" action="/watchlist/{{ item.id }}/update" class="inline">
+                                {% if item.status == 'active' %}
+                                <input type="hidden" name="status" value="paused">
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-yellow-600 rounded hover:bg-gray-100" title="Pause">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </button>
+                                {% else %}
+                                <input type="hidden" name="status" value="active">
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="Resume">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </button>
+                                {% endif %}
+                            </form>
+                            <!-- History toggle -->
+                            {% if item.history %}
+                            <button onclick="toggleHistory({{ item.id }})" class="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Score history">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            </button>
+                            {% endif %}
+                            <!-- Delete -->
+                            <form method="post" action="/watchlist/{{ item.id }}/delete" class="inline"
+                                  onsubmit="return confirm('Remove from watchlist?')">
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-gray-100" title="Remove">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <!-- Expandable history row -->
+                {% if item.history %}
+                <tr id="history-{{ item.id }}" class="hidden">
+                    <td colspan="6" class="px-4 py-3 bg-gray-50">
+                        <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Score History</div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-xs text-gray-500">
+                                        <th class="text-left py-1 pr-4">Date</th>
+                                        <th class="text-left py-1 pr-4">Opportunity</th>
+                                        <th class="text-left py-1 pr-4">Pain</th>
+                                        <th class="text-left py-1 pr-4">Fit</th>
+                                        <th class="text-left py-1 pr-4">Timing</th>
+                                        <th class="text-left py-1">Report</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for h in item.history %}
+                                    <tr class="{% if h.is_significant %}text-amber-700 font-medium{% else %}text-gray-600{% endif %}">
+                                        <td class="py-1 pr-4">
+                                            <time datetime="{{ h.created_at.isoformat() }}" data-format="short-noyr">{{ h.created_at.strftime('%b %d') }}</time>
+                                        </td>
+                                        <td class="py-1 pr-4">
+                                            {% if h.old_opportunity_score is not none %}{{ h.old_opportunity_score }} &rarr; {% endif %}{{ h.new_opportunity_score or '-' }}
+                                        </td>
+                                        <td class="py-1 pr-4">
+                                            {% if h.old_pain_score is not none %}{{ h.old_pain_score }} &rarr; {% endif %}{{ h.new_pain_score or '-' }}
+                                        </td>
+                                        <td class="py-1 pr-4">
+                                            {% if h.old_fit_score is not none %}{{ h.old_fit_score }} &rarr; {% endif %}{{ h.new_fit_score or '-' }}
+                                        </td>
+                                        <td class="py-1 pr-4">
+                                            {% if h.old_timing_score is not none %}{{ h.old_timing_score }} &rarr; {% endif %}{{ h.new_timing_score or '-' }}
+                                        </td>
+                                        <td class="py-1">
+                                            <a href="/document/{{ h.new_document_id }}" class="text-blue-500 hover:text-blue-700">View</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-12 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-1">No companies watched yet</h3>
+        <p class="text-sm text-gray-500 mb-4">Add a company above or click "Watch" on any research report to track score changes over time.</p>
+    </div>
+    {% endif %}
+
+    <div class="mt-6 text-sm text-gray-500">
+        <p>Watched companies are re-researched on their schedule. Each re-research costs 1 credit. Significant changes (score delta &ge; 10 points) are highlighted.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleHistory(itemId) {
+    var row = document.getElementById('history-' + itemId);
+    if (row) row.classList.toggle('hidden');
+}
+</script>
+{% endblock %}

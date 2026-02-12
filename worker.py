@@ -20,6 +20,7 @@ from config import get_settings
 
 WORKER_ID = f"worker-{uuid.uuid4().hex[:8]}"
 STALE_CHECK_INTERVAL = 60  # seconds
+WATCHLIST_CHECK_INTERVAL = 60  # seconds
 
 _settings = get_settings()
 POLL_INTERVAL = _settings.worker_poll_interval
@@ -36,7 +37,7 @@ def _handle_signal():
 async def _dispatch(task: dict) -> None:
     """Route a claimed task to the appropriate job function."""
     from db import task_queue
-    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_batch_enrich, run_retry_account, run_bulk_item, run_list_item
+    from api.jobs import run_research_job, run_list_analysis, run_bulk_job, run_batch_write_sequences, run_batch_enrich, run_retry_account, run_bulk_item, run_list_item, run_watchlist_item
     from services.automation import evaluate_rules
 
     task_id = task["id"]
@@ -60,6 +61,8 @@ async def _dispatch(task: dict) -> None:
             await run_batch_enrich(**payload)
         elif task_type == "batch_write":
             await run_batch_write_sequences(**payload)
+        elif task_type == "watchlist_item":
+            await run_watchlist_item(**payload)
         elif task_type == "automation":
             await evaluate_rules(payload["user_id"], payload["trigger_event"], payload["context"])
         else:
@@ -83,11 +86,30 @@ async def _dispatch(task: dict) -> None:
                 logger.exception("Failed to send failure alert for task %d", task_id)
 
 
+async def _enqueue_due_watchlist_items() -> None:
+    """Claim due watchlist items and enqueue them as tasks."""
+    from db.watchlist import claim_due_items
+    from db.task_queue import enqueue
+
+    items = await claim_due_items()
+    for item in items:
+        await enqueue("watchlist_item", {
+            "watchlist_item_id": item["id"],
+            "user_id": item["user_id"],
+            "company_url": item["company_url"],
+            "schedule": item["schedule"],
+            "last_document_id": item["last_document_id"],
+        })
+    if items:
+        logger.info("Watchlist scheduler: enqueued %d due items", len(items))
+
+
 async def _poll_loop(semaphore: asyncio.Semaphore) -> None:
     """Continuously claim and dispatch tasks."""
     from db import task_queue
 
     stale_counter = 0
+    watchlist_counter = 0
 
     while not _shutdown.is_set():
         # Periodically requeue stale tasks
@@ -98,6 +120,15 @@ async def _poll_loop(semaphore: asyncio.Semaphore) -> None:
                 await task_queue.requeue_stale()
             except Exception as e:
                 logger.warning("Stale requeue failed: %s", e)
+
+        # Periodically enqueue due watchlist items
+        watchlist_counter += POLL_INTERVAL
+        if watchlist_counter >= WATCHLIST_CHECK_INTERVAL:
+            watchlist_counter = 0
+            try:
+                await _enqueue_due_watchlist_items()
+            except Exception as e:
+                logger.warning("Watchlist scheduler failed: %s", e)
 
         # Try to claim a task
         await semaphore.acquire()

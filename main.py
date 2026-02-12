@@ -82,6 +82,7 @@ from routes.research import router as research_router
 from routes.team import router as team_router
 from routes.settings import router as settings_router
 from routes.admin import router as admin_router
+from routes.watchlist import router as watchlist_router
 from routes._helpers import templates
 
 settings = get_settings()
@@ -179,6 +180,7 @@ _openapi_tags = [
     {"name": "Lists", "description": "Persistent scored account lists"},
     {"name": "Team", "description": "Organization member management"},
     {"name": "Webhooks", "description": "Webhook configuration and delivery"},
+    {"name": "Watchlist", "description": "Recurring research on watched companies"},
 ]
 
 app = FastAPI(
@@ -229,6 +231,7 @@ app.include_router(research_router)
 app.include_router(team_router)
 app.include_router(settings_router)
 app.include_router(admin_router)
+app.include_router(watchlist_router)
 
 
 @app.get("/health")

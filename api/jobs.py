@@ -539,6 +539,93 @@ async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | 
         await asyncio.gather(*(process(a) for a in batch), return_exceptions=True)
 
 
+async def run_watchlist_item(
+    watchlist_item_id: int, user_id: int, company_url: str,
+    schedule: str, last_document_id: int | None = None,
+):
+    """Re-research a watched company: deduct credit, run pipeline, record score delta."""
+    from db.watchlist import (
+        record_score_change, complete_watchlist_run, mark_skipped_no_credits,
+    )
+    from db.jobs import create_job_with_credit
+
+    # Deduct 1 credit (100 cents)
+    try:
+        job = await create_job_with_credit(user_id, None, company_url)
+    except ValueError:
+        logger.info("Watchlist item %d: skipped (no credits)", watchlist_item_id)
+        await mark_skipped_no_credits(watchlist_item_id)
+        return
+
+    try:
+        # Capture old scores
+        old_scores: dict = {}
+        if last_document_id:
+            old_doc = await get_document(last_document_id, user_id)
+            if old_doc:
+                old_scores = {
+                    "opportunity_score": old_doc.opportunity_score,
+                    "pain_score": old_doc.pain_score,
+                    "fit_score": old_doc.fit_score,
+                    "timing_score": old_doc.timing_score,
+                }
+
+        # Run pipeline
+        doc_id = await _run_research_pipeline(user_id, company_url, job_id=job["id"])
+        await update_job_status(job["id"], "completed", document_id=doc_id)
+
+        # Get new scores
+        new_doc = await get_document(doc_id, user_id)
+        new_scores = {
+            "opportunity_score": new_doc.opportunity_score if new_doc else None,
+            "pain_score": new_doc.pain_score if new_doc else None,
+            "fit_score": new_doc.fit_score if new_doc else None,
+            "timing_score": new_doc.timing_score if new_doc else None,
+        }
+
+        # Record delta
+        change = await record_score_change(
+            watchlist_item_id, last_document_id, doc_id, old_scores, new_scores,
+        )
+
+        # Update watchlist item
+        await complete_watchlist_run(watchlist_item_id, doc_id, schedule)
+
+        # Notify if significant change
+        if change.get("is_significant"):
+            try:
+                from services.notifications import send_slack_notification, send_teams_notification
+                from database import get_integration as _get_integ
+                slack = await _get_integ(user_id, "slack")
+                teams = await _get_integ(user_id, "teams")
+                if slack or teams:
+                    settings = get_settings()
+                    notify_data = {
+                        "company_name": new_doc.company_name if new_doc else company_url,
+                        "company_url": company_url,
+                        "pain_score": new_scores.get("pain_score"),
+                        "old_pain_score": old_scores.get("pain_score"),
+                        "composite_score": new_scores.get("opportunity_score"),
+                        "old_composite_score": old_scores.get("opportunity_score"),
+                        "doc_url": f"{settings.app_url}/document/{doc_id}",
+                        "watchlist_url": f"{settings.app_url}/watchlist",
+                    }
+                    if slack:
+                        await send_slack_notification(slack["access_token"], "watchlist_significant_change", notify_data)
+                    if teams:
+                        await send_teams_notification(teams["access_token"], "watchlist_significant_change", notify_data)
+            except Exception:
+                logger.exception("Notification failed for watchlist item %s", watchlist_item_id)
+
+    except Exception as e:
+        logger.exception("Watchlist item %s failed", watchlist_item_id)
+        error_msg = str(e)[:500]
+        await update_job_status(job["id"], "failed", error_message=error_msg)
+        # Re-schedule despite failure so it tries again next cycle
+        await complete_watchlist_run(watchlist_item_id, last_document_id, schedule)
+        raise
+
+
 WEBHOOK_MAX_RETRIES = 5
 WEBHOOK_BACKOFF_BASE = 5  # seconds
 
