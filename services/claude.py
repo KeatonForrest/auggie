@@ -89,7 +89,7 @@ The company data contains several types of information with different reliabilit
 9. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
    - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
    - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
-   - Cross-reference with DNS email auth gaps for compounding security narratives
+   - Cross-reference with other infrastructure signals for compounding security narratives
 
 10. **Robots.txt Signals** - Parsed from the company's robots.txt:
     - Disallowed /api or /graphql paths confirm API infrastructure exists
@@ -302,17 +302,17 @@ Organizational Pain:
 - Reorg announcements + duplicate tool purchases = integration mess
 
 Infrastructure & Security Gaps:
-- Security header grade D/F + missing DMARC/SPF = broad security underinvestment
+- Security header grade D/F = broad security underinvestment
 - SSL cert expiring soon without automation = operational process gap
 - Multiple cloud providers (DNS + tech stack) = multi-cloud complexity tax
 - 6+ analytics/ad tools without a CDP = identity fragmentation and data governance pain
 - Heavy data role hiring + single database tech = data infrastructure scaling pressure
-- Single cloud vendor across DNS, email, tech stack, CDN = vendor lock-in risk
-- Weak security headers + missing email auth + security hiring = compliance gap exposure
+- Single cloud vendor across DNS, tech stack, CDN = vendor lock-in risk
+- Weak security headers + security hiring = compliance gap exposure
 - Multiple JS frameworks without CDN = frontend performance debt
 - Skewed seniority hiring (all senior or all junior) = organizational imbalance
 - 40+ distinct technologies = tool sprawl and governance burden
-- Multiple security signals compounding (headers + email + certs) = systemic security underinvestment
+- Multiple security signals compounding (headers + certs) = systemic security underinvestment
 - Tech debt + scaling pressure + hiring anomaly compounding = engineering capacity crisis
 - Identity fragmentation + tag bloat + marketing mismatch compounding = marketing infrastructure debt
 - Product subdomains present but no APM/monitoring detected = observability gap
@@ -685,12 +685,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("## DNS Infrastructure Signals")
             if dns_profile.ns_provider:
                 sections.append(f"- NS Provider: {dns_profile.ns_provider}")
-            if dns_profile.mx_provider:
-                sections.append(f"- Email Provider: {dns_profile.mx_provider}")
-            sections.append(f"- SPF: {'Present' if dns_profile.has_spf else 'Missing'}")
-            sections.append(f"- DKIM: {'Present' if dns_profile.has_dkim else 'Missing'}")
-            sections.append(f"- DMARC: {'Present' if dns_profile.has_dmarc else 'Missing'}" +
-                          (f" (policy: {dns_profile.dmarc_policy})" if dns_profile.dmarc_policy else ""))
             if dns_profile.cloud_provider_hints:
                 sections.append(f"- Cloud hints: {', '.join(dns_profile.cloud_provider_hints)}")
             sections.append("")
