@@ -23,6 +23,23 @@ class ClaudeService:
             timeout=90.0,
         )
 
+    _SECURITY_KEYWORDS = {"security", "compliance", "soc2", "gdpr", "vulnerability", "firewall", "identity", "auth", "zero trust", "siem", "threat", "encryption", "pentest"}
+
+    def _sells_security(self, problems_solved: str, product_type: str) -> bool:
+        """Check if the seller's product addresses security."""
+        if product_type == "msp":
+            return True
+        text = problems_solved.lower()
+        return any(kw in text for kw in self._SECURITY_KEYWORDS)
+
+    def _security_suppression_note(self, problems_solved: str, product_type: str) -> str:
+        """Return prompt instruction to suppress security signals for non-security sellers."""
+        if self._sells_security(problems_solved, product_type):
+            return ""
+        return """**IMPORTANT — SECURITY SIGNAL SUPPRESSION**: The seller does NOT sell a security product. Completely ignore all email security signals (SPF, DKIM, DMARC), SSL/TLS certificate issues, and security header grades when writing this document. Do NOT mention them in Existential Data Points, Stated Business Problems, Before Scenario, score evidence, or any other section. These signals are irrelevant to this seller's product and will confuse the reader. Focus exclusively on pain signals relevant to what the seller actually sells.
+
+"""
+
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
                                product_type: str = "saas", custom_signals: str = "") -> str:
@@ -91,6 +108,7 @@ The company data contains several types of information with different reliabilit
    - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
    - Cross-reference with other infrastructure signals for compounding security narratives
 
+{self._security_suppression_note(problems_solved, product_type)}
 10. **Robots.txt Signals** - Parsed from the company's robots.txt:
     - Disallowed /api or /graphql paths confirm API infrastructure exists
     - Disallowed /admin paths confirm internal tooling
