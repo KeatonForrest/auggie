@@ -6,8 +6,12 @@
     <title>{{ meta.company_name }} - Auggie</title>
     <meta property="og:title" content="{{ meta.company_name }} - Research Report">
     <meta property="og:description" content="Opportunity {{ meta.opportunity_score or '-' }} | Pain {{ meta.pain_score or '-' }} | Fit {{ meta.fit_score or '-' }} | Timing {{ meta.timing_score or '-' }}{% if meta.score_summary %} — {{ meta.score_summary[:150] }}{% endif %}">
+    <meta property="og:image" content="{{ app_url }}/document/{{ doc_id }}/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Auggie">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>

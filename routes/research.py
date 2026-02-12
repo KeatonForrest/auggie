@@ -23,7 +23,7 @@ from services.instances import firecrawl_service, claude_service, wappalyzer_ser
 from services.collect import collect_enrichment_data
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
-from routes._helpers import templates, logger, _build_target_titles
+from routes._helpers import templates, logger, _build_target_titles, settings
 
 router = APIRouter()
 
@@ -163,7 +163,7 @@ async def view_document(
             raise HTTPException(status_code=404, detail="Document not found")
         return templates.TemplateResponse(
             "document_preview.html",
-            {"request": request, "meta": meta, "doc_id": doc_id},
+            {"request": request, "meta": meta, "doc_id": doc_id, "app_url": settings.app_url},
         )
 
     # Try owner-scoped first, then unscoped for shared links
@@ -191,6 +191,7 @@ async def view_document(
             "enriched_contacts": enriched_contacts,
             "feedback": feedback,
             "is_owner": is_owner,
+            "app_url": settings.app_url,
         }
     )
 
@@ -222,6 +223,31 @@ async def get_markdown(doc_id: int, user: dict = Depends(require_auth)):
         BytesIO(document.full_markdown.encode()),
         media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="{safe_name}_research.md"'}
+    )
+
+
+@router.get("/document/{doc_id}/og-image.png")
+async def document_og_image(doc_id: int):
+    """Generate a dynamic OG image for link previews (no auth required)."""
+    from database import get_document_og_meta
+    from services.og_image import generate_og_image
+
+    meta = await get_document_og_meta(doc_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    png_bytes = generate_og_image(
+        company_name=meta["company_name"],
+        opportunity_score=meta.get("opportunity_score"),
+        pain_score=meta.get("pain_score"),
+        fit_score=meta.get("fit_score"),
+        timing_score=meta.get("timing_score"),
+        score_summary=meta.get("score_summary"),
+    )
+    return StreamingResponse(
+        BytesIO(png_bytes),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 
