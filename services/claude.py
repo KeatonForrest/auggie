@@ -159,7 +159,7 @@ The company data contains several types of information with different reliabilit
 12. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
     - Each signal has a rule ID, severity, confidence score, and evidence list
     - These are STARTING POINTS — validate against other data before including in the document
-    - Do NOT repeat these verbatim. Synthesize them into your own analysis using the Data Cocktail methodology
+    - Do NOT repeat these verbatim. Synthesize them into your own analysis by combining multiple data sources
     - High-confidence signals (70+) should be strongly considered for Existential Data Points
     - Lower-confidence signals are hypotheses — include only if corroborated by other evidence
 
@@ -369,32 +369,6 @@ Infrastructure Gaps:
 - Single database + data/backend hiring + no caching layer = database scaling pressure
 - Multiple auth/identity providers across subdomains = auth fragmentation and identity management pain
 
-### Data Cocktail Methodology
-
-Combine 2-3 data sources to create insights no one else has. Single-source observations feel generic. Combined sources demonstrate real research and create unique value.
-
-**Powerful combinations:**
-- Tech stack + hiring velocity = scaling pain timeline
-- Funding announcement + job postings = where they are investing
-- Product tech vs marketing tech mismatch = internal resource priorities
-- Competitor presence + open roles = potential displacement opportunity
-- Growth claims + infrastructure tech = performance cliff prediction
-- Job posting age + role seniority = problem complexity signal
-- Public API performance + backend stack = bottleneck identification
-
-**How to build a cocktail:**
-1. Start with one verified signal (tech stack, job posting, funding)
-2. Find a second signal that adds context or tension
-3. Articulate what the combination reveals that neither shows alone
-
-Use this methodology when identifying Existential Data Points. Every strong signal should combine multiple sources.
-
-Every cocktail should end with a Consequence Chain:
-[Observable Behavior] → [Operational Impact] → [Financial/Strategic Consequence]
-
-The consequence chain is what makes the insight actionable for a salesperson. Without it,
-you're presenting data. With it, you're presenting a reason to act.
-
 ### Talking Points Methodology
 
 AUDIENCE FILTER RULES — apply to all Opening Hooks and Conversation Starters:
@@ -485,11 +459,11 @@ Current open roles with:
 Direct quotes or paraphrases of challenges the company has publicly acknowledged. Source each one (careers page, blog post, press release, etc.).
 
 ## Existential Data Points
-For each data point found, use the Data Cocktail methodology (see Analytical Methodologies above) to combine signals:
+For each data point found, combine multiple data sources to build the case:
 
 **Format for each:**
 - **Signal**: What you observed (be specific)
-- **Data Cocktail**: What sources you combined to identify this
+- **Sources**: What data you combined to identify this
 - **Threshold**: Why it matters now (the tipping point)
 - **Consequence**: What happens if ignored
 - **Time Pressure**: How long before it becomes critical (if estimable)
@@ -595,7 +569,7 @@ QUALITY CHECKLIST:
 
 Before submitting, verify:
 - [ ] Every insight references specific, verified data (not assumptions)
-- [ ] Existential data points combine multiple data sources (Data Cocktail)
+- [ ] Existential data points combine multiple data sources
 - [ ] Opening hooks contain only facts the prospect would recognize as true
 - [ ] Two-sided questions offer two plausible causes that your product addresses
 - [ ] No generic industry statements that could apply to any company
