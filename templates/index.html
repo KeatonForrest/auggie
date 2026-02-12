@@ -88,6 +88,13 @@ It extends base.html and fills in the 'content' block.
                 </p>
             </div>
 
+            <!-- Watch checkbox -->
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="watch_company" name="watch" value="1"
+                       class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="text-sm text-gray-600">Watch this company <span class="text-gray-400">(re-research weekly, 1 credit per run)</span></span>
+            </label>
+
             <!-- Submit Button -->
             <button
                 type="submit"
@@ -208,6 +215,9 @@ It extends base.html and fills in the 'content' block.
         function submitResearch(companyUrl) {
             var formData = new FormData();
             formData.append('company_url', companyUrl);
+            if (document.getElementById('watch_company').checked) {
+                formData.append('watch', '1');
+            }
             fetch('/research/start', { method: 'POST', body: formData })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {

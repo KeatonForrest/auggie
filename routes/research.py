@@ -31,6 +31,7 @@ router = APIRouter()
 async def start_research(
     request: Request,
     company_url: str = Form(...),
+    watch: str = Form(None),
     user: dict = Depends(require_onboarding),
 ):
     """Start async research job, return JSON with job_id."""
@@ -46,6 +47,10 @@ async def start_research(
     from db.documents import get_recent_document_by_url
     cached_doc_id = await get_recent_document_by_url(user["id"], company_url)
     if cached_doc_id:
+        # Still add to watchlist if requested
+        if watch:
+            from database import create_watchlist_item
+            await create_watchlist_item(user["id"], company_url, schedule="weekly")
         return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc_id}", "cached": True})
 
     usage = await get_user_usage(user["id"])
@@ -57,6 +62,11 @@ async def start_research(
             return JSONResponse({"success": False, "error": "No credits remaining."}, status_code=402)
     else:
         job = await create_research_job(user["id"], api_key_id=None, company_url=company_url)
+
+    # Add to watchlist if requested
+    if watch:
+        from database import create_watchlist_item
+        await create_watchlist_item(user["id"], company_url, schedule="weekly")
 
     await create_tracked_task(
         "research",
