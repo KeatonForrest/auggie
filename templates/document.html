@@ -14,46 +14,47 @@ This template displays a generated research document with:
 <div class="space-y-6">
     <!-- Header -->
     <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-start justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">
-                    {{ document.company_name }}
-                </h1>
-                <p class="text-gray-500 mt-1">
-                    <a href="{{ document.company_url }}" target="_blank" class="hover:text-blue-600">
-                        {{ document.company_url }}
-                    </a>
-                </p>
-                <p class="text-sm text-gray-400 mt-2">
-                    Generated <time datetime="{{ document.created_at.isoformat() }}" data-format="long">{{ document.created_at.strftime('%B %d, %Y at %I:%M %p') }} UTC</time>
-                </p>
-            </div>
+        <div>
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">
+                        {{ document.company_name }}
+                    </h1>
+                    <p class="text-gray-500 mt-1">
+                        <a href="{{ document.company_url }}" target="_blank" class="hover:text-blue-600">
+                            {{ document.company_url }}
+                        </a>
+                    </p>
+                    <p class="text-sm text-gray-400 mt-2">
+                        Generated <time datetime="{{ document.created_at.isoformat() }}" data-format="long">{{ document.created_at.strftime('%B %d, %Y at %I:%M %p') }} UTC</time>
+                    </p>
+                </div>
 
-            <!-- Export Buttons -->
-            <div class="flex gap-2">
-                <!-- Enrich Contacts (disabled - evaluating enrichment providers) -->
-                <button onclick="generateOutreach()"
-                        id="outreach-btn"
-                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
-                    Write Outreach
-                </button>
-                <a href="/document/{{ document.id }}/markdown"
-                   class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                    </svg>
-                    Markdown
-                </a>
-                <button onclick="copyToClipboard()"
-                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                    </svg>
-                    Copy
-                </button>
+                <!-- Export Buttons -->
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="generateOutreach()"
+                            id="outreach-btn"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                        Write Outreach
+                    </button>
+                    <a href="/document/{{ document.id }}/markdown"
+                       class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Markdown
+                    </a>
+                    <button onclick="copyToClipboard()"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -62,9 +63,9 @@ This template displays a generated research document with:
     {% if document.opportunity_score is not none %}
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Opportunity Score</h2>
-        <div class="flex items-center gap-6">
+        <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
             <!-- Composite Score Circle -->
-            <div class="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold
+            <div class="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-white text-2xl sm:text-3xl font-bold
                 {% if document.opportunity_score >= 70 %}bg-green-500
                 {% elif document.opportunity_score >= 40 %}bg-yellow-500
                 {% else %}bg-red-400{% endif %}">
@@ -264,7 +265,7 @@ This template displays a generated research document with:
     <div class="flex items-center justify-center min-h-screen px-4">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOutreachModal()"></div>
 
-        <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden mx-4">
             <!-- Modal Header -->
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-900">Email Sequence for {{ document.company_name }}</h3>
@@ -612,7 +613,7 @@ This template displays a generated research document with:
             html += '<label class="block text-xs font-medium text-gray-500 mb-1">Subject</label>';
             html += '<input type="text" class="email-subject w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" value="' + subject.replace(/"/g, '&quot;') + '">';
             html += '<label class="block text-xs font-medium text-gray-500 mb-1">Body</label>';
-            html += '<textarea class="email-body w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="8">' + body.replace(/</g, '&lt;') + '</textarea>';
+            html += '<textarea class="email-body w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="5">' + body.replace(/</g, '&lt;') + '</textarea>';
             html += '</div>';
         });
         if (!emailCount) {
