@@ -122,6 +122,7 @@ async def settings_page(
 async def save_settings(
     request: Request,
     company_name: str = Form(...),
+    product_description: str = Form(""),
     problems_solved: str = Form(...),
     target_company_size: list[str] = Form([]),
     target_industries: list[str] = Form([]),
@@ -148,7 +149,7 @@ async def save_settings(
         user_id=user["id"],
         company_name=company_name,
         product_name=user.get("product_name") or "",
-        product_description=user.get("product_description") or "",
+        product_description=product_description,
         problems_solved=problems_solved,
         differentiators=user.get("differentiators") or "",
         target_company_size=target_size_str,
