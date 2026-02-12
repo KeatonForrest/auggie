@@ -21,6 +21,12 @@
         .markdown-content pre { overflow-x: auto; }
         .markdown-content table { display: block; overflow-x: auto; white-space: nowrap; }
 
+        /* Smooth scroll & section offset for sticky nav */
+        html { scroll-behavior: smooth; }
+        [id^="section-"], #reference-sections { scroll-margin-top: 4rem; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
         /* Toast animations */
         @keyframes toast-slide-in {
             from { transform: translateX(100%); opacity: 0; }
