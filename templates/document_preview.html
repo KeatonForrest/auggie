@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ meta.company_name }} - Auggie</title>
+    <meta property="og:title" content="{{ meta.company_name }} - Research Report">
+    <meta property="og:description" content="Opportunity {{ meta.opportunity_score or '-' }} | Pain {{ meta.pain_score or '-' }} | Fit {{ meta.fit_score or '-' }} | Timing {{ meta.timing_score or '-' }}{% if meta.score_summary %} — {{ meta.score_summary[:150] }}{% endif %}">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Auggie">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full mx-4">
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <img src="/static/auggie-logo.jpg" alt="Auggie" class="w-16 h-16 rounded-full mx-auto mb-4">
+            <h1 class="text-xl font-bold text-gray-900 mb-1">{{ meta.company_name }}</h1>
+            <p class="text-sm text-gray-500 mb-4">Research Report on Auggie</p>
+
+            {% if meta.opportunity_score is not none %}
+            <div class="flex justify-center gap-4 mb-6 text-sm">
+                <div class="text-center">
+                    <div class="text-2xl font-bold {% if meta.opportunity_score >= 70 %}text-green-600{% elif meta.opportunity_score >= 40 %}text-yellow-600{% else %}text-gray-400{% endif %}">{{ meta.opportunity_score }}</div>
+                    <div class="text-gray-500">Opportunity</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-gray-700">{{ meta.pain_score or '-' }}</div>
+                    <div class="text-gray-500">Pain</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-gray-700">{{ meta.fit_score or '-' }}</div>
+                    <div class="text-gray-500">Fit</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-gray-700">{{ meta.timing_score or '-' }}</div>
+                    <div class="text-gray-500">Timing</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <a href="/auth/login"
+               class="block w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition">
+                Sign in to view full report
+            </a>
+        </div>
+    </div>
+</body>
+</html>

@@ -10,6 +10,13 @@ This template displays a generated research document with:
 
 {% block title %}{{ document.company_name }} - Auggie{% endblock %}
 
+{% block og_meta %}
+<meta property="og:title" content="{{ document.company_name }} - Research Report">
+<meta property="og:description" content="Opportunity {{ document.opportunity_score or '-' }} | Pain {{ document.pain_score or '-' }} | Fit {{ document.fit_score or '-' }} | Timing {{ document.timing_score or '-' }}{% if document.score_summary %} — {{ document.score_summary[:150] }}{% endif %}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Auggie">
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->

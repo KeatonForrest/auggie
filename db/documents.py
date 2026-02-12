@@ -69,6 +69,20 @@ async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
         return _row_to_document(row) if row else None
 
 
+async def get_document_og_meta(doc_id: int) -> Optional[dict]:
+    """Fetch minimal metadata for OG tags (no user scoping)."""
+    async with _db._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, company_name, company_url, opportunity_score,
+                   pain_score, fit_score, timing_score, score_summary
+            FROM research_documents WHERE id = $1
+            """,
+            doc_id,
+        )
+        return dict(row) if row else None
+
+
 async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocument]:
     """Get all research documents for a user, most recent first (summary only)."""
     async with _db._pool.acquire() as conn:

@@ -150,9 +150,21 @@ async def check_duplicate(
 async def view_document(
     request: Request,
     doc_id: int,
-    user: dict = Depends(require_onboarding),
 ):
-    """View a saved research document."""
+    """View a saved research document. Unauthenticated requests get OG meta + login prompt."""
+    user = await get_current_user(request)
+
+    # Unauthenticated: serve minimal page with OG meta tags for link previews
+    if not user:
+        from database import get_document_og_meta
+        meta = await get_document_og_meta(doc_id)
+        if not meta:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return templates.TemplateResponse(
+            "document_preview.html",
+            {"request": request, "meta": meta, "doc_id": doc_id},
+        )
+
     document = await get_document(doc_id, user_id=user["id"])
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
