@@ -72,6 +72,7 @@ class PainInferenceEngine:
         self._apply_detection_confidence(results, bundle)
         if seller is not None:
             self._apply_seller_weighting(results, seller)
+            results = [r for r in results if r.confidence > 0]
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
 
@@ -637,7 +638,7 @@ class PainInferenceEngine:
                 result_map["tool_sprawl"].confidence -= 10 * extra
                 result_map["tool_sprawl"].confidence = max(result_map["tool_sprawl"].confidence, 30)
 
-        # Floor all confidences at 10
+        # Floor all confidences at 10 (seller weighting may override to 0 later)
         for r in results:
             if r.confidence < 10:
                 r.confidence = 10
@@ -658,8 +659,15 @@ class PainInferenceEngine:
         if max_hits == 0:
             return
 
+        # Hard-suppress security signals for non-security sellers
+        sells_security = relevance.get("security", 0) >= 1 or seller.product_type == "msp"
+        if not sells_security:
+            for r in results:
+                if r.category == "security":
+                    r.confidence = 0
+
         for r in results:
-            if not r.category:
+            if not r.category or r.confidence == 0:
                 continue
             hits = relevance.get(r.category, 0)
             if hits >= 1:
@@ -673,9 +681,10 @@ class PainInferenceEngine:
                 if r.category in ("operations", "security"):
                     r.confidence += 5
 
-        # Clamp all to [10, 95]
+        # Clamp all to [10, 95] (suppressed signals stay at 0)
         for r in results:
-            r.confidence = max(10, min(95, r.confidence))
+            if r.confidence > 0:
+                r.confidence = max(10, min(95, r.confidence))
 
     def _apply_detection_confidence(self, results: list[PainInference], bundle: SignalBundle) -> None:
         """Adjust pain confidence based on underlying tech detection confidence."""
