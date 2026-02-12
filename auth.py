@@ -164,6 +164,10 @@ async def login(request: Request):
     """Redirect to Google OAuth."""
     from api.ratelimit import auth_limiter, get_client_ip
     auth_limiter.check(get_client_ip(request))
+    # Preserve ?next= param so we can redirect back after auth
+    next_url = request.query_params.get("next")
+    if next_url and next_url.startswith("/"):
+        request.session["next_url"] = next_url
     redirect_uri = f"{settings.app_url}/auth/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -206,11 +210,14 @@ async def callback(request: Request):
     request.session["user_id"] = user["id"]
     logger.debug("Stored user_id in session")
 
-    # Redirect based on onboarding status
-    if user.get("product_context"):
-        redirect_url = "/"
-    else:
+    # Redirect to stored next_url, or based on onboarding status
+    next_url = request.session.pop("next_url", None)
+    if not user.get("product_context"):
         redirect_url = "/onboarding"
+    elif next_url and next_url.startswith("/"):
+        redirect_url = next_url
+    else:
+        redirect_url = "/"
 
     logger.debug("Redirecting to %s", redirect_url)
     return RedirectResponse(url=redirect_url, status_code=302)
@@ -225,6 +232,11 @@ async def login_microsoft(request: Request):
 
     if not settings.microsoft_client_id:
         raise HTTPException(status_code=404, detail="Microsoft sign-in not available")
+
+    # Preserve ?next= param so we can redirect back after auth
+    next_url = request.query_params.get("next")
+    if next_url and next_url.startswith("/"):
+        request.session["next_url"] = next_url
 
     # Generate and store state for CSRF protection
     state = secrets.token_urlsafe(24)
@@ -338,11 +350,14 @@ async def microsoft_callback(request: Request):
     request.session["user_id"] = user["id"]
     logger.debug("Stored user_id in session")
 
-    # Redirect based on onboarding status
-    if user.get("product_context"):
-        redirect_url = "/"
-    else:
+    # Redirect to stored next_url, or based on onboarding status
+    next_url = request.session.pop("next_url", None)
+    if not user.get("product_context"):
         redirect_url = "/onboarding"
+    elif next_url and next_url.startswith("/"):
+        redirect_url = next_url
+    else:
+        redirect_url = "/"
 
     logger.debug("Redirecting to %s", redirect_url)
     return RedirectResponse(url=redirect_url, status_code=302)

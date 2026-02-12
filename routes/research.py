@@ -17,6 +17,7 @@ from database import (
     get_research_job, check_duplicate_research,
     save_feedback, get_feedback,
 )
+from db.documents import get_document_by_id
 from db.jobs import create_job_with_credit, create_research_job
 from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service, vision_service
 from services.collect import collect_enrichment_data
@@ -165,14 +166,18 @@ async def view_document(
             {"request": request, "meta": meta, "doc_id": doc_id},
         )
 
+    # Try owner-scoped first, then unscoped for shared links
     document = await get_document(doc_id, user_id=user["id"])
+    is_owner = document is not None
+    if not is_owner:
+        document = await get_document_by_id(doc_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
-    enriched_contacts = await get_enriched_contacts(doc_id, user["id"])
-    feedback = await get_feedback(doc_id, user["id"])
+    enriched_contacts = await get_enriched_contacts(doc_id, user["id"]) if is_owner else []
+    feedback = await get_feedback(doc_id, user["id"]) if is_owner else None
 
     return templates.TemplateResponse(
         "document.html",
@@ -185,6 +190,7 @@ async def view_document(
             "is_admin": usage.get("is_admin", False),
             "enriched_contacts": enriched_contacts,
             "feedback": feedback,
+            "is_owner": is_owner,
         }
     )
 

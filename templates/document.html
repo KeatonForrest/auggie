@@ -39,6 +39,7 @@ This template displays a generated research document with:
 
                 <!-- Export Buttons -->
                 <div class="flex flex-wrap gap-2">
+                    {% if is_owner %}
                     <button onclick="generateOutreach()"
                             id="outreach-btn"
                             class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
@@ -54,6 +55,7 @@ This template displays a generated research document with:
                         </svg>
                         Markdown
                     </a>
+                    {% endif %}
                     <button onclick="copyToClipboard()"
                             class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,6 +63,7 @@ This template displays a generated research document with:
                         </svg>
                         Copy
                     </button>
+                    {% if is_owner %}
                     <form method="post" action="/watchlist/add" class="inline">
                         <input type="hidden" name="company_url" value="{{ document.company_url }}">
                         <input type="hidden" name="company_name" value="{{ document.company_name }}">
@@ -75,6 +78,7 @@ This template displays a generated research document with:
                             Watch
                         </button>
                     </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -168,6 +172,7 @@ This template displays a generated research document with:
                 </div>
             </div>
         </details>
+    {% if is_owner %}
     <!-- Feedback Widget -->
     <div class="mt-4 border-t pt-4">
         <div class="flex items-center gap-3">
@@ -183,6 +188,7 @@ This template displays a generated research document with:
         </div>
         <div id="feedback-toast" class="hidden mt-2 text-sm text-green-600 font-medium">Feedback saved!</div>
     </div>
+    {% endif %}
     </div>
     {% endif %}
 
@@ -378,6 +384,7 @@ This template displays a generated research document with:
 <!-- Hidden textarea for copy functionality -->
 <textarea id="markdown-content" class="hidden">{{ document.full_markdown }}</textarea>
 
+{% if is_owner %}
 <!-- Outreach Modal -->
 <div id="outreach-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4">
@@ -491,6 +498,7 @@ This template displays a generated research document with:
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -552,6 +560,7 @@ This template displays a generated research document with:
         });
     }
 
+    {% if is_owner %}
     // Outreach Modal Functions
     let outreachMarkdown = '';
     let currentSubjectOptions = [];
@@ -840,6 +849,7 @@ This template displays a generated research document with:
             }
         });
     }
+    {% endif %}
 
 </script>
 {% endblock %}

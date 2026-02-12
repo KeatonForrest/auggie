@@ -69,6 +69,16 @@ async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
         return _row_to_document(row) if row else None
 
 
+async def get_document_by_id(doc_id: int) -> Optional[ResearchDocument]:
+    """Retrieve a research document by ID (no user scoping, for shared links)."""
+    async with _db._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM research_documents WHERE id = $1",
+            doc_id,
+        )
+        return _row_to_document(row) if row else None
+
+
 async def get_document_og_meta(doc_id: int) -> Optional[dict]:
     """Fetch minimal metadata for OG tags (no user scoping)."""
     async with _db._pool.acquire() as conn:
