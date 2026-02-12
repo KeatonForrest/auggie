@@ -24,6 +24,7 @@ class ClaudeService:
         )
 
     _SECURITY_KEYWORDS = {"security", "compliance", "soc2", "gdpr", "vulnerability", "firewall", "identity", "auth", "zero trust", "siem", "threat", "encryption", "pentest"}
+    _WEB_INFRA_KEYWORDS = {"website", "monitoring", "uptime", "seo", "page speed", "web performance", "broken link", "crawl", "accessibility", "web development", "agency", "site reliability", "synthetic monitoring", "real user monitoring"}
 
     def _sells_security(self, problems_solved: str, product_type: str) -> bool:
         """Check if the seller's product addresses security."""
@@ -32,11 +33,60 @@ class ClaudeService:
         text = problems_solved.lower()
         return any(kw in text for kw in self._SECURITY_KEYWORDS)
 
+    def _sells_web_infrastructure(self, problems_solved: str, product_type: str) -> bool:
+        """Check if the seller's product addresses website quality/monitoring."""
+        if product_type == "msp":
+            return True
+        text = problems_solved.lower()
+        return any(kw in text for kw in self._WEB_INFRA_KEYWORDS)
+
     def _security_suppression_note(self, problems_solved: str, product_type: str) -> str:
         """Return prompt instruction to suppress security signals for non-security sellers."""
         if self._sells_security(problems_solved, product_type):
             return ""
         return """**IMPORTANT — SECURITY SIGNAL SUPPRESSION**: The seller does NOT sell a security product. Completely ignore all email security signals (SPF, DKIM, DMARC), SSL/TLS certificate issues, and security header grades when writing this document. Do NOT mention them in Existential Data Points, Stated Business Problems, Before Scenario, score evidence, or any other section. These signals are irrelevant to this seller's product and will confuse the reader. Focus exclusively on pain signals relevant to what the seller actually sells.
+
+"""
+
+    def _infrastructure_data_descriptions(self, problems_solved: str, product_type: str) -> str:
+        """Return data source descriptions for DNS/SSL/security headers, tailored to seller type."""
+        sells_sec = self._sells_security(problems_solved, product_type)
+
+        dns_desc = """7. **DNS Infrastructure Signals** - From automated DNS record analysis:
+   - NS provider reveals cloud infrastructure (AWS, Cloudflare, GCP, Azure)
+   - MX records reveal email provider (Google Workspace, Microsoft 365)"""
+        if sells_sec:
+            dns_desc += """
+   - SPF/DKIM/DMARC presence indicates email security maturity — missing records are a concrete pain signal"""
+        dns_desc += """
+   - These are VERIFIED facts from public DNS records"""
+
+        ssl_desc = """
+
+8. **SSL/TLS Certificate** - From automated certificate inspection:
+   - Issuer and expiry reveal certificate management practices"""
+        if sells_sec:
+            ssl_desc += """
+   - Let's Encrypt = automated renewal (good hygiene); short expiry without automation = operational risk"""
+        ssl_desc += """
+   - Wildcard certs and SAN count hint at infrastructure complexity"""
+
+        sec_desc = ""
+        if sells_sec:
+            sec_desc = """
+
+9. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
+   - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+   - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
+   - Cross-reference with other infrastructure signals for compounding security narratives"""
+
+        return dns_desc + ssl_desc + sec_desc
+
+    def _website_quality_suppression_note(self, problems_solved: str, product_type: str) -> str:
+        """Return prompt instruction to suppress website quality signals for non-web-infra sellers."""
+        if self._sells_web_infrastructure(problems_solved, product_type):
+            return ""
+        return """**IMPORTANT — WEBSITE QUALITY SIGNAL SUPPRESSION**: The seller does NOT sell a website monitoring, SEO, or web development product. Completely ignore all website quality issues — 404 errors, broken links, dead pages, misconfigured captchas, page load problems, missing meta tags, accessibility issues, and similar website defects — when writing this document. Do NOT mention them in Existential Data Points, Stated Business Problems, Before Scenario, score evidence, or any other section. These are website maintenance issues, not business pain signals relevant to this seller's product.
 
 """
 
@@ -92,23 +142,9 @@ The company data contains several types of information with different reliabilit
    - Match these to the company's industry to assess regulatory pressure
    - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
 
-7. **DNS Infrastructure Signals** - From automated DNS record analysis:
-   - NS provider reveals cloud infrastructure (AWS, Cloudflare, GCP, Azure)
-   - MX records reveal email provider (Google Workspace, Microsoft 365)
-   - SPF/DKIM/DMARC presence indicates email security maturity — missing records are a concrete pain signal
-   - These are VERIFIED facts from public DNS records
+{self._infrastructure_data_descriptions(problems_solved, product_type)}
 
-8. **SSL/TLS Certificate** - From automated certificate inspection:
-   - Issuer and expiry reveal certificate management practices
-   - Let's Encrypt = automated renewal (good hygiene); short expiry without automation = operational risk
-   - Wildcard certs and SAN count hint at infrastructure complexity
-
-9. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
-   - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-   - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
-   - Cross-reference with other infrastructure signals for compounding security narratives
-
-{self._security_suppression_note(problems_solved, product_type)}
+{self._security_suppression_note(problems_solved, product_type)}{self._website_quality_suppression_note(problems_solved, product_type)}
 10. **Robots.txt Signals** - Parsed from the company's robots.txt:
     - Disallowed /api or /graphql paths confirm API infrastructure exists
     - Disallowed /admin paths confirm internal tooling
@@ -319,18 +355,14 @@ Organizational Pain:
 - High turnover signals + critical function hiring = instability
 - Reorg announcements + duplicate tool purchases = integration mess
 
-Infrastructure & Security Gaps:
-- Security header grade D/F = broad security underinvestment
-- SSL cert expiring soon without automation = operational process gap
+Infrastructure Gaps:
 - Multiple cloud providers (DNS + tech stack) = multi-cloud complexity tax
 - 6+ analytics/ad tools without a CDP = identity fragmentation and data governance pain
 - Heavy data role hiring + single database tech = data infrastructure scaling pressure
 - Single cloud vendor across DNS, tech stack, CDN = vendor lock-in risk
-- Weak security headers + security hiring = compliance gap exposure
 - Multiple JS frameworks without CDN = frontend performance debt
 - Skewed seniority hiring (all senior or all junior) = organizational imbalance
 - 40+ distinct technologies = tool sprawl and governance burden
-- Multiple security signals compounding (headers + certs) = systemic security underinvestment
 - Tech debt + scaling pressure + hiring anomaly compounding = engineering capacity crisis
 - Identity fragmentation + tag bloat + marketing mismatch compounding = marketing infrastructure debt
 - Product subdomains present but no APM/monitoring detected = observability gap
