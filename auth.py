@@ -1,6 +1,7 @@
 """auth.py - Google OAuth authentication."""
 
 import logging
+import re
 import jwt
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,14 @@ from database import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Strict pattern for ?next= redirect URLs: only safe internal paths
+_SAFE_NEXT_RE = re.compile(r"^/[a-zA-Z0-9][a-zA-Z0-9/_\-\.]*$")
+
+
+def _is_safe_next_url(url: str) -> bool:
+    """Validate that a next_url is a safe internal path (no open redirect)."""
+    return bool(_SAFE_NEXT_RE.match(url))
 
 # OAuth setup
 oauth = OAuth()
@@ -166,7 +175,7 @@ async def login(request: Request):
     auth_limiter.check(get_client_ip(request))
     # Preserve ?next= param so we can redirect back after auth
     next_url = request.query_params.get("next")
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    if next_url and _is_safe_next_url(next_url):
         request.session["next_url"] = next_url
     redirect_uri = f"{settings.app_url}/auth/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -214,7 +223,7 @@ async def callback(request: Request):
     next_url = request.session.pop("next_url", None)
     if not user.get("product_context"):
         redirect_url = "/onboarding"
-    elif next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    elif next_url and _is_safe_next_url(next_url):
         redirect_url = next_url
     else:
         redirect_url = "/"
@@ -235,7 +244,7 @@ async def login_microsoft(request: Request):
 
     # Preserve ?next= param so we can redirect back after auth
     next_url = request.query_params.get("next")
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    if next_url and _is_safe_next_url(next_url):
         request.session["next_url"] = next_url
 
     # Generate and store state for CSRF protection
@@ -354,7 +363,7 @@ async def microsoft_callback(request: Request):
     next_url = request.session.pop("next_url", None)
     if not user.get("product_context"):
         redirect_url = "/onboarding"
-    elif next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    elif next_url and _is_safe_next_url(next_url):
         redirect_url = next_url
     else:
         redirect_url = "/"
