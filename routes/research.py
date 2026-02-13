@@ -17,7 +17,7 @@ from database import (
     get_research_job, check_duplicate_research,
     save_feedback, get_feedback,
 )
-from db.documents import get_document_by_id
+from db.documents import get_document_by_share_token, get_share_token
 from db.jobs import create_job_with_credit, create_research_job
 from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service, vision_service
 from services.collect import collect_enrichment_data
@@ -151,14 +151,15 @@ async def check_duplicate(
 async def view_document(
     request: Request,
     doc_id: int,
+    token: Optional[str] = None,
 ):
-    """View a saved research document. Unauthenticated requests get OG meta + login prompt."""
+    """View a saved research document. Requires ownership or a valid share token."""
     user = await get_current_user(request)
 
     # Unauthenticated: serve minimal page with OG meta tags for link previews
     if not user:
         from database import get_document_og_meta
-        meta = await get_document_og_meta(doc_id)
+        meta = await get_document_og_meta(doc_id, share_token=token)
         if not meta:
             raise HTTPException(status_code=404, detail="Document not found")
         return templates.TemplateResponse(
@@ -166,13 +167,20 @@ async def view_document(
             {"request": request, "meta": meta, "doc_id": doc_id, "app_url": settings.app_url},
         )
 
-    # Try owner-scoped first, then unscoped for shared links
+    # Try owner-scoped first
     document = await get_document(doc_id, user_id=user["id"])
     is_owner = document is not None
+
+    # If not owner, require a valid share token
     if not is_owner:
-        document = await get_document_by_id(doc_id)
+        if not token:
+            raise HTTPException(status_code=404, detail="Document not found")
+        document = await get_document_by_share_token(doc_id, token)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Get the share token for owners so they can share links
+    share_token = await get_share_token(doc_id, user["id"]) if is_owner else token
 
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
@@ -191,6 +199,7 @@ async def view_document(
             "enriched_contacts": enriched_contacts,
             "feedback": feedback,
             "is_owner": is_owner,
+            "share_token": share_token,
             "app_url": settings.app_url,
         }
     )
@@ -227,12 +236,12 @@ async def get_markdown(doc_id: int, user: dict = Depends(require_auth)):
 
 
 @router.get("/document/{doc_id}/og-image.png")
-async def document_og_image(doc_id: int):
-    """Generate a dynamic OG image for link previews (no auth required)."""
+async def document_og_image(doc_id: int, token: Optional[str] = None):
+    """Generate a dynamic OG image for link previews (requires share token)."""
     from database import get_document_og_meta
     from services.og_image import generate_og_image
 
-    meta = await get_document_og_meta(doc_id)
+    meta = await get_document_og_meta(doc_id, share_token=token)
     if not meta:
         raise HTTPException(status_code=404, detail="Document not found")
 

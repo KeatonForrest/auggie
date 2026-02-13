@@ -50,9 +50,11 @@ async def test_research_creates_document(authed_client, mock_services, sample_re
 
 
 @pytest.mark.asyncio
-async def test_view_document(authed_client, sample_research_document):
-    """GET /document/{id} should return the document."""
-    with patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
+async def test_view_document(authed_client, fake_user, sample_research_document):
+    """GET /document/{id} should return the document for the owner."""
+    with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
+         patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
+         patch("routes.research.get_share_token", new_callable=AsyncMock, return_value="abc-token"), \
          patch("routes.research.get_all_documents", new_callable=AsyncMock, return_value=[]), \
          patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
          patch("routes.research.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts, \
@@ -70,14 +72,60 @@ async def test_view_document(authed_client, sample_research_document):
 
 
 @pytest.mark.asyncio
-async def test_document_not_found(authed_client):
+async def test_document_not_found(authed_client, fake_user):
     """GET /document/{id} should return 404 for missing documents."""
-    with patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc:
+    with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
+         patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc:
         mock_get_doc.return_value = None
 
         response = await authed_client.get("/document/999")
 
         assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_view_document_non_owner_without_token(authed_client, fake_user):
+    """GET /document/{id} should return 404 for non-owners without a share token."""
+    with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
+         patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc:
+        mock_get_doc.return_value = None  # Not the owner
+
+        response = await authed_client.get("/document/42")
+
+        assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_view_document_non_owner_with_invalid_token(authed_client, fake_user):
+    """GET /document/{id} should return 404 for non-owners with wrong share token."""
+    with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
+         patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
+         patch("routes.research.get_document_by_share_token", new_callable=AsyncMock) as mock_shared:
+        mock_get_doc.return_value = None  # Not the owner
+        mock_shared.return_value = None   # Invalid token
+
+        response = await authed_client.get("/document/42?token=bad-token")
+
+        assert response.status_code == 404
+        mock_shared.assert_called_once_with(42, "bad-token")
+
+
+@pytest.mark.asyncio
+async def test_view_document_non_owner_with_valid_token(authed_client, fake_user, sample_research_document):
+    """GET /document/{id}?token=... should work for non-owners with a valid share token."""
+    with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
+         patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
+         patch("routes.research.get_document_by_share_token", new_callable=AsyncMock) as mock_shared, \
+         patch("routes.research.get_all_documents", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage:
+        mock_get_doc.return_value = None  # Not the owner
+        mock_shared.return_value = sample_research_document
+        mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
+
+        response = await authed_client.get("/document/1?token=valid-share-token")
+
+        assert response.status_code == 200
+        mock_shared.assert_called_once_with(1, "valid-share-token")
 
 
 @pytest.mark.asyncio
