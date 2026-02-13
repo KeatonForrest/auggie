@@ -87,7 +87,15 @@ async def update_watchlist_item(
             SET schedule = COALESCE($3, schedule),
                 status = COALESCE($4, status),
                 next_run_at = CASE
-                    WHEN $4 = 'active' AND status != 'active' THEN NOW()
+                    WHEN $4 = 'active' AND status != 'active'
+                        THEN NOW() + (
+                            CASE COALESCE($3, schedule)
+                                WHEN 'weekly' THEN INTERVAL '1 week'
+                                WHEN 'biweekly' THEN INTERVAL '2 weeks'
+                                WHEN 'monthly' THEN INTERVAL '30 days'
+                                ELSE INTERVAL '2 weeks'
+                            END
+                        )
                     ELSE next_run_at
                 END,
                 updated_at = NOW()
