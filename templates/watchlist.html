@@ -213,5 +213,10 @@ function toggleHistory(itemId) {
     var row = document.getElementById('history-' + itemId);
     if (row) row.classList.toggle('hidden');
 }
+// User is viewing the watchlist — hide the notification badge immediately
+['watchlist-badge-desktop','watchlist-badge-mobile'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.classList.add('hidden');
+});
 </script>
 {% endblock %}

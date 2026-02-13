@@ -8,7 +8,7 @@ from database import (
     get_user_usage,
     list_watchlist_items, create_watchlist_item, get_watchlist_item,
     update_watchlist_item, delete_watchlist_item, get_score_history,
-    get_watchlist_item_by_url, count_significant_changes,
+    get_watchlist_item_by_url, count_significant_changes, mark_changes_seen,
 )
 from api.validation import validate_company_url
 from routes._helpers import templates
@@ -21,6 +21,7 @@ async def watchlist_page(request: Request, user: dict = Depends(require_onboardi
     """Watchlist management page."""
     usage = await get_user_usage(user["id"])
     items = await list_watchlist_items(user["id"])
+    await mark_changes_seen(user["id"])
 
     # Fetch recent score history per item
     items_with_history = []
