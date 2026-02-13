@@ -607,6 +607,7 @@ SCORING DISCIPLINE:
 - Do NOT cluster scores at round numbers. Scores like 20, 25, 45, 50, 75 suggest you are bucketing rather than scoring precisely. Use the exact number your evidence justifies — 17, 23, 38, 52, 71, etc.
 - Each dimension must be scored INDEPENDENTLY. Do not give similar scores across all three dimensions. A company can have high Pain but low Fit, or strong Timing but no Pain.
 - When two companies have very different profiles, their scores MUST look different. If a SaaS company and a baseball training company get similar Fit scores, something is wrong.
+- Use the sub-band criteria below to determine your score. Identify which sub-band your evidence matches, then pick a number within that 5-8 point range.
 
 **Pain Score (40% weight):**
 - How many existential data points did you find?
@@ -617,12 +618,17 @@ IMPORTANT: You are scoring based on publicly available web data, not insider kno
 
 GROWTH-AS-PAIN RULE: Rapid growth is itself a pain signal when the company fits the seller's ICP. Fast-growing companies that match the ICP inevitably face scaling pressure in the seller's domain — even if they haven't publicly complained about it yet. If a company shows strong growth evidence (hiring velocity, funding, revenue growth, product expansion) AND fits the seller's ICP (Fit score would be 60+), treat growth as at least one clear pain signal. This floors the Pain score at 50 minimum. The stronger the growth evidence, the higher within the 50-69 range. Do NOT leave fast-growing ICP-fit companies in the 25-49 "speculative" bucket — growth at scale reliably produces the problems the seller solves.
 
-Calibration anchors:
-- 85-100: 3+ compounding pain signals directly addressable by seller's product. Long-open roles (4+ months) in relevant functions. Visible tech debt or scaling failures. Active complaints or incident signals.
-- 70-84: 2+ pain signals with product relevance. Job postings mentioning relevant challenges (scaling, migration, performance). Hiring for roles that suggest unresolved problems in the seller's domain.
-- 50-69: 1 clear pain signal — a job posting mentioning a relevant problem, tech debt visible in stack, data-intensive operations that imply infrastructure needs, OR rapid growth combined with ICP fit (growth-as-pain rule). This is the EXPECTED range for most prospects where you find something relevant.
-- 25-49: Speculative pain only. No job postings mention relevant problems. Pain is inferred purely from industry or company type, not observed. NOTE: If the company is clearly growing fast and fits the ICP, this bucket is wrong — apply the growth-as-pain rule and score 50+.
-- 0-24: No observable pain signals whatsoever. No relevant hiring, no tech indicators, nothing to suggest they need the seller's product.
+Calibration sub-bands (pick the sub-band that matches your evidence, then choose a precise number within it):
+- 93-100: 3+ compounding signals with explicit pain language ("struggling", "migrating from", "replacing") AND long-open roles (4+ months). Active incident/complaint evidence.
+- 85-92: 3+ compounding signals directly addressable by seller's product. Long-open roles (4+ months) OR visible tech debt/scaling failures, but no explicit complaint language.
+- 78-84: 2 pain signals, at least one specific and directly addressable (job posting names the exact problem domain). Corroborating evidence across data sources (e.g., job posting + tech stack gap).
+- 70-77: 2 pain signals with product relevance but both indirect/inferred (e.g., hiring pattern + adjacent tech in stack).
+- 63-69: 1 pain signal, specific and directly addressable, with corroborating context (e.g., problem mentioned + role open 2+ months).
+- 57-62: 1 pain signal, explicit but generic (e.g., job posting mentions "scaling" or "performance" without specifics).
+- 50-56: 1 pain signal, inferred/indirect only. Growth-as-pain with no explicit mention. Industry-typical pain with some tech evidence.
+- 38-49: Speculative pain with some supporting context — right industry, some tech overlap, but no signals in postings or content. NOTE: If the company is clearly growing fast and fits the ICP, this sub-band is wrong — apply the growth-as-pain rule and score 50+.
+- 25-37: Speculative pain only — inferred purely from company type. No supporting evidence.
+- 0-24: No observable pain signals. Nothing suggests they need the seller's product.
 
 **Fit Score (35% weight):**
 - Does their company size/industry match the seller's ICP?
@@ -630,12 +636,17 @@ Calibration anchors:
 - Is there competitor presence that creates displacement opportunity?
 - Does their tech stack align with integration requirements?
 
-Calibration anchors:
-- 85-100: Exact ICP match — right industry, right company size, target personas confirmed in job postings, tech stack aligns perfectly. Competitor presence creates clear displacement opportunity. REQUIRES confirmed firmographic data to score here.
-- 70-84: Strong ICP overlap — most dimensions match. Right industry, reasonable size, some target personas visible. Tech stack suggests relevance.
-- 45-69: Partial fit — adjacent industry or size is outside sweet spot. Some tech stack overlap but not core. Few or no target personas visible.
-- 20-44: Weak fit — different industry, wrong size, no persona signals. Would require significant stretching of ICP definition.
-- 0-19: No fit — completely outside ICP. Different market, wrong tech ecosystem, no relevant personas. A consumer app, a restaurant, a sports team with no data infrastructure needs.
+Calibration sub-bands (pick the sub-band that matches your evidence, then choose a precise number within it):
+- 93-100: Exact ICP match — confirmed size + confirmed industry + target personas in postings + competitor in stack + tech alignment. Confirmed firmographic data required.
+- 85-92: Exact ICP match — confirmed size + right industry + target personas visible. No competitor displacement opportunity. Confirmed firmographic data required.
+- 78-84: Strong overlap: right industry + reasonable size + some personas. Missing 1 dimension OR lacking confirmed firmographics. (Ceiling without confirmed data.)
+- 70-77: Strong overlap: right industry but size uncertain, OR right size but adjacent industry. Tech stack alignment present.
+- 60-69: Partial fit: adjacent industry, some tech overlap. Company is plausibly in ICP but not clearly.
+- 45-59: Partial fit: 1 dimension matches (industry OR size OR personas) but others don't. Requires stretching ICP definition.
+- 30-44: Weak fit: different industry, wrong size. Only tech stack overlap or tangential connection.
+- 20-29: Weak fit: no meaningful overlap. One tangential connection at best.
+- 10-19: No fit: completely different market, wrong tech ecosystem.
+- 0-9: Anti-fit: actively contradicts ICP. A consumer app, a restaurant, a sports team with no data infrastructure needs.
 
 IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue from SEC EDGAR filings or other verified sources), cap Fit at 84 maximum. You may infer fit from strong indirect signals (job postings, tech stack, industry presence) up to 84. Scores above 84 require confirmed data. A networking company is not an 88 Fit just because they are "enterprise tech."
 
@@ -647,19 +658,24 @@ IMPORTANT: Without confirmed firmographic data (headcount, funding, revenue from
 
 IMPORTANT: Active hiring and recent product launches ARE timing signals. A company that is actively posting technical roles and shipping new features is in a building phase — that's a real window. Don't require a funding round or leadership change to score above 50.
 
-Calibration anchors:
-- 85-100: Multiple concurrent urgency signals — recent funding + hiring spike + leadership change. Active vendor evaluation. Deadline-driven need.
-- 70-84: Clear urgency — recent funding OR significant hiring spike OR leadership change. Evidence of active building/transformation.
-- 50-69: Active building phase — steady technical hiring, recent product launches, or platform expansion. The company is investing and making decisions. This is the EXPECTED range for growing companies without a specific urgency trigger.
-- 25-49: Minimal activity — limited hiring, no recent news, no visible investment. Company appears stable but not actively building.
-- 0-24: Anti-timing — recent layoffs, budget cuts, hiring freeze, or sunsetting product. OR: zero timing signals of any kind found.
+Calibration sub-bands (pick the sub-band that matches your evidence, then choose a precise number within it):
+- 93-100: 3+ concurrent urgency signals (funding + hiring spike + leadership change). Active vendor evaluation or RFP evidence.
+- 85-92: 2 concurrent urgency signals (e.g., recent funding + leadership change). Evidence of active transformation program.
+- 78-84: 1 major urgency signal (recent funding OR leadership change) PLUS active hiring confirming follow-through.
+- 70-77: 1 major urgency signal without corroborating hiring. OR significant hiring spike alone (5+ relevant roles).
+- 63-69: Active building: steady technical hiring (3-4 relevant roles) + recent product launches or platform expansion.
+- 57-62: Active building: moderate hiring (1-2 relevant roles) OR recent product launches. Some evidence of investment.
+- 50-56: Mild activity: some hiring present, no specific urgency trigger. Company is not dormant but not visibly accelerating.
+- 38-49: Minimal: limited hiring, no recent news. Company appears stable but not actively building.
+- 25-37: Low activity: no hiring in relevant areas. Last news 6+ months old.
+- 0-24: Anti-timing: layoffs, budget cuts, hiring freeze, product sunsetting. OR zero timing signals found.
 
 CONCRETE EXAMPLE (for a database product seller):
-- A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 88, Fit: 85, Timing: 82, Composite: 86
-- A SaaS platform (enterprise customers, right industry) hiring multiple backend engineers with postings mentioning "search infrastructure" and "recommendation systems," active product launches, but no confirmed database pain or long-open roles → Pain: 57, Fit: 76, Timing: 61, Composite: 64
-- A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 27, Fit: 48, Timing: 23, Composite: 33
-- A fast-growing enterprise healthcare company (strong ICP fit, data-intensive operations, recent product expansion, active hiring) but no explicit pain signals in job postings or public content → Pain: 53, Fit: 72, Timing: 57, Composite: 60. Growth-as-pain rule applies: rapid growth + ICP fit floors pain at 50+, not the 38 it would get from speculative inference alone.
-- A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 33, Fit: 41, Timing: 24, Composite: 33
+- A mid-market fintech company (confirmed 500 employees via SEC filings) hiring 3 backend engineers and 1 data engineer, with job postings open 4+ months mentioning "scaling challenges" and "migration from legacy systems," recently raised Series C, and using a competitor's product visible in their tech stack → Pain: 88 (85-92: 3+ compounding signals, long-open roles), Fit: 85 (85-92: confirmed size + industry + personas + competitor), Timing: 82 (78-84: funding + active hiring confirming follow-through), Composite: 86
+- A SaaS platform (enterprise customers, right industry) hiring multiple backend engineers with postings mentioning "search infrastructure" and "recommendation systems," active product launches, but no confirmed database pain or long-open roles → Pain: 57 (57-62: 1 explicit but generic signal), Fit: 76 (70-77: right industry, size uncertain), Timing: 61 (57-62: moderate hiring + product launches), Composite: 64
+- A regional bank with no technical hiring, no visible API infrastructure, no recent funding or leadership changes, and steady-state operations → Pain: 27 (25-37: speculative pain only), Fit: 48 (45-59: partial fit, 1 dimension matches), Timing: 23 (0-24: zero timing signals), Composite: 33
+- A fast-growing enterprise healthcare company (strong ICP fit, data-intensive operations, recent product expansion, active hiring) but no explicit pain signals in job postings or public content → Pain: 53 (50-56: growth-as-pain, inferred), Fit: 72 (70-77: right industry, size uncertain), Timing: 57 (57-62: moderate hiring + product launches), Composite: 60. Growth-as-pain rule applies: rapid growth + ICP fit floors pain at 50+, not the 38 it would get from speculative inference alone.
+- A baseball analytics company with data-intensive operations but no database pain signals, MySQL in their stack, no technical hiring, private company → Pain: 33 (25-37: speculative pain only), Fit: 41 (30-44: weak fit, tangential connection), Timing: 24 (0-24: zero timing signals), Composite: 33
 
 Composite = (Pain × 0.4) + (Fit × 0.35) + (Timing × 0.25), rounded to nearest integer.
 
