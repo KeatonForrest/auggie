@@ -220,7 +220,7 @@ async def mark_skipped_no_credits(item_id: int) -> None:
 
 
 async def count_significant_changes(user_id: int, days: int = 7) -> int:
-    """Count watchlist items with significant score changes in the last N days."""
+    """Count watchlist items with unseen significant score changes in the last N days."""
     async with _db._pool.acquire() as conn:
         return await conn.fetchval(
             """
@@ -229,9 +229,27 @@ async def count_significant_changes(user_id: int, days: int = 7) -> int:
             JOIN watchlist_items wi ON wi.id = sc.watchlist_item_id
             WHERE wi.user_id = $1
               AND sc.is_significant = TRUE
+              AND sc.seen_at IS NULL
               AND sc.created_at > NOW() - make_interval(days := $2)
             """,
             user_id, days,
+        )
+
+
+async def mark_changes_seen(user_id: int) -> None:
+    """Mark all significant score changes as seen for this user."""
+    async with _db._pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE watchlist_score_changes sc
+            SET seen_at = NOW()
+            FROM watchlist_items wi
+            WHERE sc.watchlist_item_id = wi.id
+              AND wi.user_id = $1
+              AND sc.is_significant = TRUE
+              AND sc.seen_at IS NULL
+            """,
+            user_id,
         )
 
 

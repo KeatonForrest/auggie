@@ -75,6 +75,7 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
                         {% elif item.status == 'paused' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Paused</span>
+                        <span class="block text-[10px] text-gray-400 mt-0.5">Resuming triggers immediate re-research</span>
                         {% elif item.status == 'skipped_no_credits' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No credits</span>
                         {% endif %}
@@ -118,7 +119,7 @@
                                 </button>
                                 {% else %}
                                 <input type="hidden" name="status" value="active">
-                                <button type="submit" class="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="Resume">
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="Resume (triggers immediate re-research)">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </button>
                                 {% endif %}
@@ -212,5 +213,10 @@ function toggleHistory(itemId) {
     var row = document.getElementById('history-' + itemId);
     if (row) row.classList.toggle('hidden');
 }
+// User is viewing the watchlist — hide the notification badge immediately
+['watchlist-badge-desktop','watchlist-badge-mobile'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.classList.add('hidden');
+});
 </script>
 {% endblock %}
