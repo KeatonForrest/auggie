@@ -26,19 +26,20 @@ async def create_watchlist_item(
     schedule: str = "biweekly",
 ) -> dict:
     """Add a company to the user's watchlist. Returns the new row."""
+    next_at = _next_run(schedule)
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO watchlist_items (user_id, company_url, company_name, schedule, next_run_at)
-            VALUES ($1, $2, $3, $4, NOW())
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (user_id, company_url) DO UPDATE
                 SET status = 'active',
                     schedule = EXCLUDED.schedule,
-                    next_run_at = NOW(),
+                    next_run_at = EXCLUDED.next_run_at,
                     updated_at = NOW()
             RETURNING *
             """,
-            user_id, company_url, company_name, schedule,
+            user_id, company_url, company_name, schedule, next_at,
         )
         return dict(row)
 
