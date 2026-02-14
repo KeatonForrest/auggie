@@ -30,7 +30,9 @@ TECH_KEYWORDS = {
     "devops": [
         "Docker", "Kubernetes", "Terraform", "Ansible", "Jenkins", "CircleCI",
         "GitHub Actions", "GitLab CI", "ArgoCD", "Helm", "Pulumi", "Datadog",
-        "Prometheus", "Grafana", "New Relic", "PagerDuty",
+        "Prometheus", "Grafana", "New Relic", "PagerDuty", "Chronosphere",
+        "Honeycomb", "Lightstep", "Dynatrace", "AppDynamics", "Elastic APM",
+        "SignalFx", "Splunk", "OpenTelemetry", "Jaeger", "Zipkin",
     ],
     "security": [
         "OAuth", "SAML", "SSO", "Vault", "Okta", "Auth0", "CrowdStrike",
