@@ -19,6 +19,7 @@ class PainInferenceEngine:
     APM_NAMES = {
         "datadog", "new relic", "sentry", "pagerduty", "grafana", "prometheus",
         "splunk", "dynatrace", "appdynamics", "honeycomb", "lightstep", "elastic apm",
+        "chronosphere", "signalfx", "opentelemetry", "jaeger", "zipkin",
     }
 
     DATABASE_NAMES = {
@@ -461,17 +462,24 @@ class PainInferenceEngine:
         if not product_subdomains:
             return None
 
-        # Check all tech names for APM tools
+        # Check all tech names for APM tools (Wappalyzer detection)
         all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
         has_apm = any(apm in all_names_lower for apm in self.APM_NAMES)
 
-        # Also check job_signals tech_mentions in devops category for monitoring keywords
+        # Check job posting tech mentions across ALL categories — observability
+        # tools surface in devops, security (Splunk), and other categories
         if not has_apm and bundle.job_signals:
             monitoring_keywords = {"monitoring", "observability", "apm", "alerting", "tracing"}
             for tm in bundle.job_signals.tech_mentions:
-                if tm.category == "devops" and any(k in tm.name.lower() for k in monitoring_keywords | self.APM_NAMES):
+                if any(k in tm.name.lower() for k in monitoring_keywords | self.APM_NAMES):
                     has_apm = True
                     break
+
+        # Also check for SRE/DevOps hiring — companies with these roles almost
+        # certainly have observability tooling even if we can't name the vendor
+        if not has_apm and bundle.job_signals:
+            if any(r in ("devops",) for r in bundle.job_signals.role_types):
+                has_apm = True
 
         if not has_apm:
             return PainInference(
@@ -480,7 +488,7 @@ class PainInferenceEngine:
                 description="Product subdomains detected but no APM/monitoring tools found, suggesting limited observability.",
                 severity="low",
                 evidence=[f"Product subdomains: {', '.join(product_subdomains)}", "No APM/monitoring tools detected"],
-                confidence=40,
+                confidence=25,
                 category="operations",
             )
         return None

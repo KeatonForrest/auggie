@@ -364,7 +364,7 @@ class TestObservabilityGap:
         ids = [r.rule_id for r in results]
         assert "observability_gap" in ids
         r = next(r for r in results if r.rule_id == "observability_gap")
-        assert r.confidence == 40
+        assert r.confidence == 25
         assert r.severity == "low"
         assert r.category == "operations"
 
@@ -566,7 +566,8 @@ class TestCompoundRules:
 
 
 class TestDampeners:
-    def test_observability_gap_dampened_by_devops_hiring(self, engine):
+    def test_observability_gap_suppressed_by_devops_hiring(self, engine):
+        """DevOps/SRE hiring implies observability tooling — rule should not fire."""
         bundle = SignalBundle(
             tech_by_domain={
                 "app.example.com": _make_stack(("React", "javascript framework"),),
@@ -575,8 +576,7 @@ class TestDampeners:
         )
         results = engine.evaluate(bundle)
         r = next((r for r in results if r.rule_id == "observability_gap"), None)
-        assert r is not None
-        assert r.confidence == 30  # 40 - 10
+        assert r is None
 
     def test_database_scaling_dampened_by_data_platform(self, engine):
         bundle = SignalBundle(
