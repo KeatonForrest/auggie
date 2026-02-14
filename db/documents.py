@@ -69,28 +69,39 @@ async def get_document(doc_id: int, user_id: int) -> Optional[ResearchDocument]:
         return _row_to_document(row) if row else None
 
 
-async def get_document_by_id(doc_id: int) -> Optional[ResearchDocument]:
-    """Retrieve a research document by ID (no user scoping, for shared links)."""
+async def get_document_by_share_token(doc_id: int, share_token: str) -> Optional[ResearchDocument]:
+    """Retrieve a research document by ID + share token (for shared links)."""
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM research_documents WHERE id = $1",
-            doc_id,
+            "SELECT * FROM research_documents WHERE id = $1 AND share_token = $2",
+            doc_id, share_token,
         )
         return _row_to_document(row) if row else None
 
 
-async def get_document_og_meta(doc_id: int) -> Optional[dict]:
-    """Fetch minimal metadata for OG tags (no user scoping)."""
+async def get_document_og_meta(doc_id: int, share_token: Optional[str] = None) -> Optional[dict]:
+    """Fetch minimal metadata for OG tags (requires share token)."""
+    if not share_token:
+        return None
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, company_name, company_url, opportunity_score,
+            SELECT id, company_name, company_url, share_token, opportunity_score,
                    pain_score, fit_score, timing_score, score_summary
-            FROM research_documents WHERE id = $1
+            FROM research_documents WHERE id = $1 AND share_token = $2
             """,
-            doc_id,
+            doc_id, share_token,
         )
         return dict(row) if row else None
+
+
+async def get_share_token(doc_id: int, user_id: int) -> Optional[str]:
+    """Get the share token for a document owned by the user."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT share_token FROM research_documents WHERE id = $1 AND user_id = $2",
+            doc_id, user_id,
+        )
 
 
 async def get_all_documents(user_id: int, limit: int = 50) -> list[ResearchDocument]:
