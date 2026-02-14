@@ -33,6 +33,7 @@ TECH_KEYWORDS = {
         "Prometheus", "Grafana", "New Relic", "PagerDuty", "Chronosphere",
         "Honeycomb", "Lightstep", "Dynatrace", "AppDynamics", "Elastic APM",
         "SignalFx", "Splunk", "OpenTelemetry", "Jaeger", "Zipkin",
+        "ELK", "Kibana", "Logstash", "Fluentd", "Loki", "Tempo",
     ],
     "security": [
         "OAuth", "SAML", "SSO", "Vault", "Okta", "Auth0", "CrowdStrike",

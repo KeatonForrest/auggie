@@ -20,6 +20,7 @@ class PainInferenceEngine:
         "datadog", "new relic", "sentry", "pagerduty", "grafana", "prometheus",
         "splunk", "dynatrace", "appdynamics", "honeycomb", "lightstep", "elastic apm",
         "chronosphere", "signalfx", "opentelemetry", "jaeger", "zipkin",
+        "elk", "kibana", "logstash", "fluentd", "loki", "tempo",
     }
 
     DATABASE_NAMES = {
