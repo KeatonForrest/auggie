@@ -380,7 +380,7 @@ class TestObservabilityGap:
         assert "observability_gap" not in ids
 
     def test_no_trigger_with_apm(self, engine):
-        """APM tool detected = no fire."""
+        """APM tool detected = gap doesn't fire, stack detected does."""
         bundle = SignalBundle(
             tech_by_domain={
                 "app.example.com": _make_stack(
@@ -391,9 +391,12 @@ class TestObservabilityGap:
         results = engine.evaluate(bundle)
         ids = [r.rule_id for r in results]
         assert "observability_gap" not in ids
+        assert "observability_stack_detected" in ids
+        r = next(r for r in results if r.rule_id == "observability_stack_detected")
+        assert "sentry" in r.evidence[0].lower()
 
     def test_no_trigger_with_devops_monitoring_mention(self, engine):
-        """Monitoring mentioned in job signals devops category = no fire."""
+        """Monitoring mentioned in job postings = gap doesn't fire, stack surfaces tools."""
         bundle = SignalBundle(
             tech_by_domain={
                 "dashboard.example.com": _make_stack(("Vue", "javascript framework"),),
@@ -406,6 +409,28 @@ class TestObservabilityGap:
         results = engine.evaluate(bundle)
         ids = [r.rule_id for r in results]
         assert "observability_gap" not in ids
+        assert "observability_stack_detected" in ids
+        r = next(r for r in results if r.rule_id == "observability_stack_detected")
+        assert "Datadog" in r.evidence[0]
+
+    def test_stack_detected_from_job_postings_chronosphere(self, engine):
+        """Chronosphere in job postings should surface for displacement sellers."""
+        bundle = SignalBundle(
+            tech_by_domain={
+                "app.example.com": _make_stack(("React", "javascript framework"),),
+            },
+            job_signals=JobSignals(
+                role_types=["backend"],
+                tech_mentions=[TechMention(name="Chronosphere", category="devops", count=1)],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "observability_stack_detected" in ids
+        assert "observability_gap" not in ids
+        r = next(r for r in results if r.rule_id == "observability_stack_detected")
+        assert "Chronosphere" in r.evidence[0]
+        assert r.confidence == 70
 
 
 class TestDatabaseScalingPressure:
