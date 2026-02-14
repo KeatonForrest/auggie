@@ -462,36 +462,49 @@ class PainInferenceEngine:
         if not product_subdomains:
             return None
 
-        # Check all tech names for APM tools (Wappalyzer detection)
+        # Collect specific APM/observability tools from Wappalyzer detection
+        found_tools: set[str] = set()
         all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
-        has_apm = any(apm in all_names_lower for apm in self.APM_NAMES)
+        for apm in self.APM_NAMES:
+            if apm in all_names_lower:
+                found_tools.add(apm)
 
-        # Check job posting tech mentions across ALL categories — observability
-        # tools surface in devops, security (Splunk), and other categories
-        if not has_apm and bundle.job_signals:
-            monitoring_keywords = {"monitoring", "observability", "apm", "alerting", "tracing"}
+        # Collect from job posting tech mentions across ALL categories —
+        # observability tools surface in devops, security (Splunk), etc.
+        if bundle.job_signals:
             for tm in bundle.job_signals.tech_mentions:
-                if any(k in tm.name.lower() for k in monitoring_keywords | self.APM_NAMES):
-                    has_apm = True
-                    break
+                name_lower = tm.name.lower()
+                for apm in self.APM_NAMES:
+                    if apm in name_lower:
+                        found_tools.add(tm.name)  # preserve original casing
+                        break
 
-        # Also check for SRE/DevOps hiring — companies with these roles almost
-        # certainly have observability tooling even if we can't name the vendor
-        if not has_apm and bundle.job_signals:
-            if any(r in ("devops",) for r in bundle.job_signals.role_types):
-                has_apm = True
-
-        if not has_apm:
+        if found_tools:
+            # Surface the specific tools so sellers can build displacement strategies
             return PainInference(
-                rule_id="observability_gap",
-                title="Observability Gap",
-                description="Product subdomains detected but no APM/monitoring tools found, suggesting limited observability.",
-                severity="low",
-                evidence=[f"Product subdomains: {', '.join(product_subdomains)}", "No APM/monitoring tools detected"],
-                confidence=25,
+                rule_id="observability_stack_detected",
+                title="Observability Stack Detected",
+                description="Specific observability/APM tools identified via tech detection or job postings.",
+                severity="info",
+                evidence=[f"Tools found: {', '.join(sorted(found_tools))}"],
+                confidence=70,
                 category="operations",
             )
-        return None
+
+        # SRE/DevOps hiring implies observability tooling even if we can't name it
+        if bundle.job_signals:
+            if any(r in ("devops",) for r in bundle.job_signals.role_types):
+                return None
+
+        return PainInference(
+            rule_id="observability_gap",
+            title="Observability Gap",
+            description="Product subdomains detected but no APM/monitoring tools found, suggesting limited observability.",
+            severity="low",
+            evidence=[f"Product subdomains: {', '.join(product_subdomains)}", "No APM/monitoring tools detected"],
+            confidence=25,
+            category="operations",
+        )
 
     def _database_scaling_pressure(self, bundle: SignalBundle) -> Optional[PainInference]:
         all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
