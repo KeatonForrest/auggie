@@ -78,7 +78,8 @@ class TestBuildReport:
         sample_document.confirmed_tech_stack = "React, Node.js"
         report = writing_service._build_report(sample_document, "Product")
         assert "Scaling issues." in report
-        assert "React, Node.js" in report
+        # Tech stack intentionally excluded from outreach context
+        assert "React, Node.js" not in report
 
     def test_omits_optional_sections_when_empty(self, writing_service, sample_document):
         report = writing_service._build_report(sample_document, "Product")
@@ -154,7 +155,7 @@ class TestBuildReport:
         )
         assert "## Existential Data Points" in report
         assert "## Current Projects & Initiatives" in report
-        assert "## Technology Stack" in report
+        assert "## Technology Stack" not in report  # intentionally excluded from outreach
         assert "## Recommended Talking Points" in report
         assert "## Key Contacts" in report
         assert "**Company:** MongoDB Inc" in report

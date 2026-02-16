@@ -342,7 +342,7 @@ class TestRunBatchWriteSequences:
         fake_user = {"id": 1, "product_context": "test context"}
         fake_emails = [{"email_number": 1, "subject": "Hi", "body": "Hello"}]
 
-        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=fake_accounts), \
+        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=(fake_accounts, False)), \
              patch("api.jobs.get_user_by_id", new_callable=AsyncMock, return_value=fake_user), \
              patch("database.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
              patch("database.update_list_account_outreach", new_callable=AsyncMock) as mock_outreach, \
@@ -364,7 +364,7 @@ class TestRunBatchWriteSequences:
     @pytest.mark.asyncio
     async def test_handles_missing_user(self):
         from api.jobs import run_batch_write_sequences
-        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=[]), \
+        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=([], False)), \
              patch("api.jobs.get_user_by_id", new_callable=AsyncMock, return_value=None):
             # Should return early, not raise
             await run_batch_write_sequences(list_id=1, user_id=999)
@@ -377,7 +377,7 @@ class TestRunBatchWriteSequences:
         ]
         fake_user = {"id": 1, "product_context": "test"}
 
-        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=fake_accounts), \
+        with patch("database.get_list_accounts", new_callable=AsyncMock, return_value=(fake_accounts, False)), \
              patch("api.jobs.get_user_by_id", new_callable=AsyncMock, return_value=fake_user), \
              patch("database.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
              patch("database.update_list_account_outreach", new_callable=AsyncMock) as mock_outreach, \

@@ -137,7 +137,9 @@ class TestWebhookRetries:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
+        fake_event = {"id": 1, "created_at": "2024-01-01T00:00:00"}
         with patch("api.jobs.get_user_webhook", new_callable=AsyncMock, return_value={"id": 1, "url": "https://example.com/hook", "secret": "s3cret"}), \
+             patch("db.webhooks.create_webhook_event", new_callable=AsyncMock, return_value=fake_event), \
              patch("api.jobs.create_webhook_delivery", new_callable=AsyncMock, return_value={"id": 10}), \
              patch("api.jobs.sign_payload", return_value="abc123"), \
              patch("api.jobs.update_delivery_status", new_callable=AsyncMock) as mock_update, \
@@ -149,7 +151,7 @@ class TestWebhookRetries:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await _deliver_webhook(1, 100, "completed", 50, None)
+            await _deliver_webhook(1, "research.completed", {"job_id": 100, "document_id": 50})
 
             mock_update.assert_called_once_with(10, status="success", http_status=200, attempts=1)
 
@@ -163,7 +165,9 @@ class TestWebhookRetries:
         mock_resp_200 = MagicMock()
         mock_resp_200.status_code = 200
 
+        fake_event = {"id": 1, "created_at": "2024-01-01T00:00:00"}
         with patch("api.jobs.get_user_webhook", new_callable=AsyncMock, return_value={"id": 1, "url": "https://example.com/hook", "secret": "s3cret"}), \
+             patch("db.webhooks.create_webhook_event", new_callable=AsyncMock, return_value=fake_event), \
              patch("api.jobs.create_webhook_delivery", new_callable=AsyncMock, return_value={"id": 10}), \
              patch("api.jobs.sign_payload", return_value="abc123"), \
              patch("api.jobs.update_delivery_status", new_callable=AsyncMock) as mock_update, \
@@ -176,7 +180,7 @@ class TestWebhookRetries:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await _deliver_webhook(1, 100, "completed", 50, None)
+            await _deliver_webhook(1, "research.completed", {"job_id": 100, "document_id": 50})
 
             # Should have retried once
             mock_sleep.assert_called_once()
@@ -191,7 +195,9 @@ class TestWebhookRetries:
         mock_resp = MagicMock()
         mock_resp.status_code = 404
 
+        fake_event = {"id": 1, "created_at": "2024-01-01T00:00:00"}
         with patch("api.jobs.get_user_webhook", new_callable=AsyncMock, return_value={"id": 1, "url": "https://example.com/hook", "secret": "s3cret"}), \
+             patch("db.webhooks.create_webhook_event", new_callable=AsyncMock, return_value=fake_event), \
              patch("api.jobs.create_webhook_delivery", new_callable=AsyncMock, return_value={"id": 10}), \
              patch("api.jobs.sign_payload", return_value="abc123"), \
              patch("api.jobs.update_delivery_status", new_callable=AsyncMock) as mock_update, \
@@ -204,7 +210,7 @@ class TestWebhookRetries:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await _deliver_webhook(1, 100, "completed", 50, None)
+            await _deliver_webhook(1, "research.completed", {"job_id": 100, "document_id": 50})
 
             # No retry sleep
             mock_sleep.assert_not_called()
@@ -219,7 +225,7 @@ class TestWebhookRetries:
         with patch("api.jobs.get_user_webhook", new_callable=AsyncMock, return_value=None) as mock_get, \
              patch("api.jobs.create_webhook_delivery", new_callable=AsyncMock) as mock_create:
 
-            await _deliver_webhook(1, 100, "completed", 50, None)
+            await _deliver_webhook(1, "research.completed", {"job_id": 100, "document_id": 50})
 
             mock_create.assert_not_called()
 
@@ -233,7 +239,9 @@ class TestWebhookRetries:
         mock_resp_200 = MagicMock()
         mock_resp_200.status_code = 200
 
+        fake_event = {"id": 1, "created_at": "2024-01-01T00:00:00"}
         with patch("api.jobs.get_user_webhook", new_callable=AsyncMock, return_value={"id": 1, "url": "https://example.com/hook", "secret": "s3cret"}), \
+             patch("db.webhooks.create_webhook_event", new_callable=AsyncMock, return_value=fake_event), \
              patch("api.jobs.create_webhook_delivery", new_callable=AsyncMock, return_value={"id": 10}), \
              patch("api.jobs.sign_payload", return_value="abc123"), \
              patch("api.jobs.update_delivery_status", new_callable=AsyncMock) as mock_update, \
@@ -246,7 +254,7 @@ class TestWebhookRetries:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await _deliver_webhook(1, 100, "completed", 50, None)
+            await _deliver_webhook(1, "research.completed", {"job_id": 100, "document_id": 50})
 
             mock_update.assert_called_with(10, status="success", http_status=200, attempts=2)
 
