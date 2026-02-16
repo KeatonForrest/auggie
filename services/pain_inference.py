@@ -288,17 +288,15 @@ class PainInferenceEngine:
             return None
         data_roles = [r for r in js.role_types if r == "data"]
         if len(data_roles) >= 1:
-            data_count = sum(js.seniority_distribution.values())
-            if data_count >= 2 or len(data_roles) >= 1:
-                return PainInference(
-                    rule_id="data_infra_pain",
-                    title="Data Infrastructure Growth Pain",
-                    description="Multiple data-related roles signal growing data infrastructure needs.",
-                    severity="medium",
-                    evidence=[f"Data role types: {', '.join(js.role_types)}", f"Total roles parsed: {js.total_roles_parsed}"],
-                    confidence=50,
-                    category="data",
-                )
+            return PainInference(
+                rule_id="data_infra_pain",
+                title="Data Infrastructure Growth Pain",
+                description="Multiple data-related roles signal growing data infrastructure needs.",
+                severity="medium",
+                evidence=[f"Data role types: {', '.join(js.role_types)}", f"Total roles parsed: {js.total_roles_parsed}"],
+                confidence=50,
+                category="data",
+            )
         return None
 
     def _tag_bloat(self, bundle: SignalBundle) -> Optional[PainInference]:
@@ -678,15 +676,16 @@ class PainInferenceEngine:
         """Boost/dampen confidence based on seller's product relevance to each category."""
         relevance = self._compute_category_relevance(seller)
         max_hits = max(relevance.values()) if relevance else 0
-        if max_hits == 0:
-            return
 
-        # Hard-suppress security signals for non-security sellers
+        # Hard-suppress security signals for non-security sellers (before early return)
         sells_security = relevance.get("security", 0) >= 1 or seller.product_type == "msp"
         if not sells_security:
             for r in results:
                 if r.category == "security":
                     r.confidence = 0
+
+        if max_hits == 0:
+            return
 
         for r in results:
             if not r.category or r.confidence == 0:
@@ -715,6 +714,12 @@ class PainInferenceEngine:
             if isinstance(stack, TechStack):
                 for t in stack.technologies:
                     all_confidences[t.name.lower()] = t.confidence or 100
+            elif isinstance(stack, dict):
+                for t in stack.get("technologies", []):
+                    name = t.get("name")
+                    if not name:
+                        continue
+                    all_confidences[name.lower()] = t.get("confidence", 100) or 100
 
         for r in results:
             # Match evidence tech names against detection confidences

@@ -772,15 +772,35 @@ class TestSellerWeighting:
 
         assert conf_msp == conf_saas + 5
 
-    def test_seller_weighting_empty_problems_solved(self, engine):
-        """Empty problems_solved string = no-op (same as no seller)."""
+    def test_seller_weighting_empty_problems_solved_suppresses_security(self, engine):
+        """Empty problems_solved + non-MSP seller → security signals suppressed."""
         bundle = SignalBundle(
             dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
         )
-        results_no_seller = engine.evaluate(bundle)
         seller = SellerContext(problems_solved="")
-        results_empty = engine.evaluate(bundle, seller=seller)
-        assert [r.confidence for r in results_no_seller] == [r.confidence for r in results_empty]
+        results = engine.evaluate(bundle, seller=seller)
+        security_ids = [r.rule_id for r in results if r.category == "security"]
+        assert "email_risk" not in security_ids
+
+    def test_seller_weighting_irrelevant_problems_solved_suppresses_security(self, engine):
+        """Irrelevant problems_solved (no category match) + non-MSP → security signals suppressed."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        seller = SellerContext(problems_solved="we sell office furniture and supplies")
+        results = engine.evaluate(bundle, seller=seller)
+        security_ids = [r.rule_id for r in results if r.category == "security"]
+        assert "email_risk" not in security_ids
+
+    def test_seller_weighting_msp_with_empty_problems_solved_keeps_security(self, engine):
+        """MSP seller with empty problems_solved → security signals NOT suppressed."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        seller = SellerContext(product_type="msp", problems_solved="")
+        results = engine.evaluate(bundle, seller=seller)
+        ids = [r.rule_id for r in results]
+        assert "email_risk" in ids
 
 
 def _make_stack_with_confidence(*techs):
@@ -824,3 +844,103 @@ class TestDetectionConfidence:
         results_base = engine.evaluate(bundle)
         email_conf = next(r.confidence for r in results_base if r.rule_id == "email_risk")
         assert email_conf == 70
+
+    def test_detection_confidence_dict_input_matches_techstack(self, engine):
+        """Dict-shaped tech_by_domain should dampen identically to TechStack."""
+        # TechStack version
+        bundle_obj = SignalBundle(
+            tech_by_domain={"x.com": _make_stack_with_confidence(
+                ("GA4", "analytics", 30), ("Hotjar", "analytics", 30),
+                ("Mixpanel", "analytics", 30), ("GTM", "tag manager", 30),
+            )},
+        )
+        results_obj = engine.evaluate(bundle_obj)
+        conf_obj = next(r.confidence for r in results_obj if r.rule_id == "identity_fragmentation")
+
+        # Dict version with same confidence values
+        bundle_dict = SignalBundle(
+            tech_by_domain={"x.com": {
+                "technologies": [
+                    {"name": "GA4", "category": "analytics", "confidence": 30},
+                    {"name": "Hotjar", "category": "analytics", "confidence": 30},
+                    {"name": "Mixpanel", "category": "analytics", "confidence": 30},
+                    {"name": "GTM", "category": "tag manager", "confidence": 30},
+                ]
+            }},
+        )
+        results_dict = engine.evaluate(bundle_dict)
+        conf_dict = next(r.confidence for r in results_dict if r.rule_id == "identity_fragmentation")
+
+        assert conf_obj == conf_dict
+        assert conf_obj == 55  # 75 base - 20 (avg 30 < 40)
+
+    def test_detection_confidence_dict_missing_confidence_defaults_100(self, engine):
+        """Dict entries without 'confidence' key should default to 100 (no dampening)."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": {
+                "technologies": [
+                    {"name": "GA4", "category": "analytics"},
+                    {"name": "Hotjar", "category": "analytics"},
+                    {"name": "Mixpanel", "category": "analytics"},
+                    {"name": "GTM", "category": "tag manager"},
+                ]
+            }},
+        )
+        results = engine.evaluate(bundle)
+        r = next(r for r in results if r.rule_id == "identity_fragmentation")
+        assert r.confidence == 75  # No dampening
+
+    def test_detection_confidence_dict_ignores_malformed_entries(self, engine):
+        """Dict entries without 'name' should be silently skipped."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": {
+                "technologies": [
+                    {"name": "GA4", "category": "analytics", "confidence": 30},
+                    {"category": "analytics", "confidence": 30},  # No name
+                    {"name": "Hotjar", "category": "analytics", "confidence": 30},
+                    {"name": "Mixpanel", "category": "analytics", "confidence": 30},
+                    {"name": "GTM", "category": "tag manager", "confidence": 30},
+                ]
+            }},
+        )
+        results = engine.evaluate(bundle)
+        r = next(r for r in results if r.rule_id == "identity_fragmentation")
+        assert r.confidence == 55  # Still dampened based on named entries
+
+
+class TestDataInfraPainBehaviorLock:
+    def test_single_data_role_triggers(self, engine):
+        """A single 'data' role type is sufficient to fire data_infra_pain."""
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["data"],
+                seniority_distribution={"mid": 1},
+                tech_mentions=[],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "data_infra_pain" in ids
+        r = next(r for r in results if r.rule_id == "data_infra_pain")
+        assert r.confidence == 50
+        assert r.category == "data"
+
+    def test_no_data_role_does_not_trigger(self, engine):
+        """Without a 'data' role type, data_infra_pain does not fire."""
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["backend", "frontend"],
+                seniority_distribution={"senior": 3},
+                tech_mentions=[],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "data_infra_pain" not in ids
+
+    def test_no_job_signals_does_not_trigger(self, engine):
+        """No job_signals at all → no fire."""
+        bundle = SignalBundle()
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "data_infra_pain" not in ids
