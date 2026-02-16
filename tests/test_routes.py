@@ -24,7 +24,8 @@ async def test_home_page_loads(async_client):
 @pytest.mark.asyncio
 async def test_research_creates_document(authed_client, mock_services, sample_research_document):
     """POST /research/start should create a job and redirect to progress page."""
-    with patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
+    with patch("routes.research.validate_company_url", side_effect=lambda url: url), \
+         patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
          patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
          patch("routes.research.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
          patch("routes.research.create_job_with_credit", new_callable=AsyncMock) as mock_create_job, \
@@ -124,7 +125,8 @@ async def test_view_document_non_owner_with_valid_token(authed_client, fake_user
 @pytest.mark.asyncio
 async def test_api_research(authed_client, mock_services, sample_research_document):
     """POST /api/research should return JSON response."""
-    with patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
+    with patch("routes.research.validate_company_url", side_effect=lambda url: url), \
+         patch("routes.research.save_document", new_callable=AsyncMock) as mock_save, \
          patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
          patch("routes.research.check_duplicate_research", new_callable=AsyncMock) as mock_dup, \
          patch("routes.research.use_credit", new_callable=AsyncMock), \
@@ -145,6 +147,37 @@ async def test_api_research(authed_client, mock_services, sample_research_docume
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_research_rejects_unresolvable_url(authed_client):
+    """POST /research/start with unresolvable hostname returns 400."""
+    with patch("routes.research.validate_company_url", side_effect=ValueError("Cannot resolve hostname: no-such-host.invalid")):
+        response = await authed_client.post(
+            "/research/start",
+            data={"company_url": "https://no-such-host.invalid"},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert data["success"] is False
+    assert "resolve" in data["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_api_research_rejects_unresolvable_url(authed_client):
+    """POST /api/research with unresolvable hostname returns validation error."""
+    with patch("routes.research.validate_company_url", side_effect=ValueError("Cannot resolve hostname: no-such-host.invalid")):
+        response = await authed_client.post(
+            "/api/research",
+            json={"company_url": "https://no-such-host.invalid"},
+        )
+
+    assert response.status_code == 200  # API returns 200 with success=false
+    data = response.json()
+    assert data["success"] is False
+    assert "resolve" in data["error"].lower()
 
 
 @pytest.mark.asyncio

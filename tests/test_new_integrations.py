@@ -684,7 +684,8 @@ class TestSalesforceDisconnectRoute:
 class TestSalesforceImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
              patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
              patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 55}), \
              patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
@@ -722,7 +723,8 @@ class TestSalesforceImportRoute:
 
     @pytest.mark.asyncio
     async def test_import_rejects_insufficient_credits(self, authed_client):
-        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
             response = await authed_client.post(
                 "/integrations/salesforce/import",
                 json={"accounts": [{"id": "001xx1", "website": "acme.com"}], "name": "Test"},
@@ -781,7 +783,8 @@ class TestApolloDisconnectRoute:
 class TestApolloImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("services.apollo.fetch_list_companies", new_callable=AsyncMock, return_value={
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("services.apollo.fetch_list_companies", new_callable=AsyncMock, return_value={
                  "organizations": [
                      {"id": "org1", "primary_domain": "acme.com"},
                      {"id": "org2", "primary_domain": "beta.com"},
@@ -861,7 +864,8 @@ class TestPDLDisconnectRoute:
 class TestPDLImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("services.pdl.search_companies", new_callable=AsyncMock, return_value={
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("services.pdl.search_companies", new_callable=AsyncMock, return_value={
                  "data": [
                      {"id": "c1", "website": "acme.com"},
                      {"id": "c2", "website": "beta.com"},

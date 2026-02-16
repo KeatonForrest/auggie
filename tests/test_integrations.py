@@ -476,7 +476,8 @@ class TestInstantlyConnectRoute:
 class TestHubSpotImportRoute:
     @pytest.mark.asyncio
     async def test_import_creates_list(self, authed_client):
-        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
              patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
              patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 42}), \
              patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
@@ -514,7 +515,8 @@ class TestHubSpotImportRoute:
 
     @pytest.mark.asyncio
     async def test_import_rejects_insufficient_credits(self, authed_client):
-        with patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
+        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
+             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
             response = await authed_client.post(
                 "/integrations/hubspot/import",
                 json={
@@ -523,6 +525,24 @@ class TestHubSpotImportRoute:
                 },
             )
         assert response.status_code == 402
+
+
+class TestHubSpotImportValidation:
+    @pytest.mark.asyncio
+    async def test_import_rejects_all_unresolvable_domains(self, authed_client):
+        """CRM import with only unresolvable domains returns 400."""
+        with patch("routes._helpers.validate_company_url", side_effect=ValueError("Cannot resolve hostname")):
+            response = await authed_client.post(
+                "/integrations/hubspot/import",
+                json={
+                    "companies": [
+                        {"id": "hs-1", "domain": "no-such-host.invalid"},
+                    ],
+                    "name": "Bad Domains",
+                },
+            )
+
+        assert response.status_code == 400
 
 
 class TestPushToInstantlyRoute:
