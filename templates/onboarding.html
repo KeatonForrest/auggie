@@ -89,6 +89,37 @@
                     <p class="text-sm text-gray-500 mb-4">This is the most important section. Auggie uses this to find pain signals relevant to <em>your</em> product and ignore everything else.</p>
                     <div class="space-y-4">
                         <div>
+                            <label for="seller_product_category" class="block text-sm font-medium text-gray-700 mb-1">
+                                Your Product Category
+                            </label>
+                            <select
+                                id="seller_product_category"
+                                name="seller_product_category"
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="" disabled selected>Select a category...</option>
+                                <option value="Fintech">Fintech</option>
+                                <option value="HealthTech">HealthTech</option>
+                                <option value="MarTech">MarTech</option>
+                                <option value="ConstructionTech">ConstructionTech</option>
+                                <option value="EdTech">EdTech</option>
+                                <option value="PropTech">PropTech</option>
+                                <option value="InsurTech">InsurTech</option>
+                                <option value="LegalTech">LegalTech</option>
+                                <option value="HRTech">HRTech</option>
+                                <option value="Cybersecurity">Cybersecurity</option>
+                                <option value="DevTools / Infra">DevTools / Infra</option>
+                                <option value="E-commerce Tech">E-commerce Tech</option>
+                                <option value="Supply Chain / Logistics Tech">Supply Chain / Logistics Tech</option>
+                                <option value="GovTech">GovTech</option>
+                                <option value="TravelTech">TravelTech</option>
+                                <option value="MediaTech">MediaTech</option>
+                                <option value="Other / Cross-industry">Other / Cross-industry</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">What category best describes your product? This helps calibrate persona framing.</p>
+                        </div>
+                        <div>
                             <label for="product_description" class="block text-sm font-medium text-gray-700 mb-1">
                                 Describe your product in a sentence or two
                             </label>
@@ -163,10 +194,10 @@
                             </div>
                         </div>
 
-                        <!-- Buyer Product Categories -->
+                        <!-- Buyer Company Verticals -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Research focuses on category-specific pain signals">
-                                Buyer Product Categories <span class="text-gray-400 font-normal">(select all that apply)</span>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Research focuses on industry-specific pain signals">
+                                Buyer Company Verticals <span class="text-gray-400 font-normal">(select all that apply)</span>
                             </label>
                             <div class="mb-3">
                                 <label class="inline-flex items-center cursor-pointer">
@@ -176,72 +207,72 @@
                             </div>
                             <div class="grid grid-cols-2 gap-2" id="industries-grid">
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="Fintech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">Fintech</span>
+                                    <input type="checkbox" name="target_industries" value="Financial Services" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Financial Services</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="HealthTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">HealthTech</span>
+                                    <input type="checkbox" name="target_industries" value="Healthcare" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Healthcare</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="MarTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">MarTech</span>
+                                    <input type="checkbox" name="target_industries" value="Construction" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Construction</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="ConstructionTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">ConstructionTech</span>
+                                    <input type="checkbox" name="target_industries" value="Education" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Education</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="EdTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">EdTech</span>
+                                    <input type="checkbox" name="target_industries" value="Real Estate" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Real Estate</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="PropTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">PropTech</span>
+                                    <input type="checkbox" name="target_industries" value="Insurance" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Insurance</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="InsurTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">InsurTech</span>
+                                    <input type="checkbox" name="target_industries" value="Legal" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Legal</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="LegalTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">LegalTech</span>
+                                    <input type="checkbox" name="target_industries" value="Technology" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Technology</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="HRTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">HRTech</span>
+                                    <input type="checkbox" name="target_industries" value="Retail / E-commerce" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Retail / E-commerce</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="Cybersecurity" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">Cybersecurity</span>
+                                    <input type="checkbox" name="target_industries" value="Manufacturing" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Manufacturing</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="DevTools / Infra" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">DevTools / Infra</span>
+                                    <input type="checkbox" name="target_industries" value="Professional Services" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Professional Services</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="E-commerce Tech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">E-commerce Tech</span>
+                                    <input type="checkbox" name="target_industries" value="Media / Entertainment" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Media / Entertainment</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="Supply Chain / Logistics Tech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">Supply Chain / Logistics Tech</span>
+                                    <input type="checkbox" name="target_industries" value="Logistics / Supply Chain" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Logistics / Supply Chain</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="GovTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">GovTech</span>
+                                    <input type="checkbox" name="target_industries" value="Energy / Utilities" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Energy / Utilities</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="TravelTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">TravelTech</span>
+                                    <input type="checkbox" name="target_industries" value="Telecommunications" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Telecommunications</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="MediaTech" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">MediaTech</span>
+                                    <input type="checkbox" name="target_industries" value="Government / Public Sector" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Government / Public Sector</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="Horizontal / Cross-industry" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">Horizontal / Cross-industry</span>
+                                    <input type="checkbox" name="target_industries" value="Travel / Hospitality" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-gray-700">Travel / Hospitality</span>
                                 </label>
                             </div>
                         </div>
@@ -341,7 +372,7 @@
         document.querySelector('form').addEventListener('submit', function(e) {
             const groups = [
                 { name: 'target_company_size', label: 'Target Company Size' },
-                { name: 'target_industries', label: 'Buyer Product Categories' },
+                { name: 'target_industries', label: 'Buyer Company Verticals' },
                 { name: 'target_level', label: 'Target Level in Org' },
                 { name: 'target_function', label: 'Target Function' },
             ];

@@ -533,6 +533,7 @@ async def api_create_research(
             product_type=user.get("product_type", "saas"),
             custom_signals=user.get("custom_signals", ""),
             solution_motion=user.get("solution_motion", "horizontal"),
+            seller_product_category=user.get("seller_product_category", ""),
         )
         doc_id = await save_document(document, user_id=user["id"])
         document.id = doc_id

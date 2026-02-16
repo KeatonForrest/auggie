@@ -153,6 +153,7 @@ async def update_user_profile(
     product_type: str = "saas",
     custom_signals: str = "",
     solution_motion: str = "horizontal",
+    seller_product_category: str = "",
 ) -> dict:
     """Update user's onboarding profile with enhanced fields."""
     # Build a rich product_context string for Claude
@@ -168,6 +169,7 @@ async def update_user_profile(
         product_type=product_type,
         custom_signals=custom_signals,
         solution_motion=solution_motion,
+        seller_product_category=seller_product_category,
     )
 
     async with _db._pool.acquire() as conn:
@@ -186,14 +188,15 @@ async def update_user_profile(
                 competitors = $11,
                 product_type = $12,
                 custom_signals = $13,
-                solution_motion = $14
+                solution_motion = $14,
+                seller_product_category = $15
             WHERE id = $1
             RETURNING *
             """,
             user_id, company_name, product_context,
             product_name, product_description, problems_solved, differentiators,
             target_company_size, target_industries, target_personas, competitors,
-            product_type, custom_signals, solution_motion
+            product_type, custom_signals, solution_motion, seller_product_category
         )
         # Invalidate auth cache so the next request sees updated profile
         from auth_cache import invalidate_user_cache
@@ -213,6 +216,7 @@ def build_product_context(
     product_type: str = "saas",
     custom_signals: str = "",
     solution_motion: str = "horizontal",
+    seller_product_category: str = "",
 ) -> str:
     """Build a rich product context string for Claude from onboarding data.
 
@@ -223,6 +227,9 @@ def build_product_context(
 
     if product_name:
         parts.append(f"**Product:** {product_name}")
+
+    if seller_product_category:
+        parts.append(f"**Seller product category:** {seller_product_category}")
 
     if product_description:
         parts.append(f"**What it does:** {product_description}")
@@ -237,7 +244,7 @@ def build_product_context(
         parts.append(f"**Target company size:** {target_company_size}")
 
     if target_industries:
-        parts.append(f"**Buyer product categories:** {target_industries}")
+        parts.append(f"**Buyer company verticals:** {target_industries}")
 
     if target_personas:
         parts.append(f"**Target personas:** {target_personas}")

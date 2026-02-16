@@ -78,7 +78,7 @@ class TestBuildSystemPrompt:
         )
 
         assert "IDEAL CUSTOMER PROFILE:" in result
-        assert "Buyer product categories" in result
+        assert "Buyer company verticals" in result
         assert "Fintech, Healthcare" in result
 
     def test_with_target_personas(self, claude_service):
@@ -117,7 +117,7 @@ class TestBuildSystemPrompt:
         )
 
         assert "IDEAL CUSTOMER PROFILE:" in result
-        assert "Buyer product categories" in result
+        assert "Buyer company verticals" in result
         assert "Persona emphasis" in result
         assert "Problem alignment" in result
         assert "Fintech" in result
@@ -125,10 +125,10 @@ class TestBuildSystemPrompt:
         assert "Database scaling" in result
 
     def test_horizontal_motion_light_boost(self, claude_service):
-        """Horizontal motion gives light Fit boost, no hard penalty for non-matching categories."""
+        """Horizontal motion gives light Fit boost, no hard penalty for non-matching verticals."""
         result = claude_service._build_system_prompt(
             product_context="Database software",
-            target_industries="Fintech, HealthTech",
+            target_industries="Financial Services, Healthcare",
             solution_motion="horizontal"
         )
 
@@ -137,10 +137,10 @@ class TestBuildSystemPrompt:
         assert "do not hard-penalize" in result
 
     def test_vertical_motion_strong_weighting(self, claude_service):
-        """Vertical motion weights categories heavily and penalizes non-matches."""
+        """Vertical motion weights verticals heavily and penalizes non-matches."""
         result = claude_service._build_system_prompt(
             product_context="IT support services",
-            target_industries="HealthTech, InsurTech",
+            target_industries="Healthcare, Insurance",
             solution_motion="vertical"
         )
 
@@ -148,11 +148,23 @@ class TestBuildSystemPrompt:
         assert "weighted heavily" in result
         assert "meaningful Fit penalty" in result
 
+    def test_seller_product_category_in_prompt(self, claude_service):
+        """Seller product category appears in ICP section separately from buyer verticals."""
+        result = claude_service._build_system_prompt(
+            product_context="Compliance platform",
+            target_industries="Healthcare",
+            seller_product_category="HealthTech",
+        )
+
+        assert "Seller product category" in result
+        assert "HealthTech" in result
+        assert "do NOT use it to filter or score buyer accounts" in result
+
     def test_saas_vertical_no_msp_modifier(self, claude_service):
         """product_type='saas' + solution_motion='vertical' does NOT trigger MSP modifier."""
         result = claude_service._build_system_prompt(
             product_context="Healthcare compliance SaaS",
-            target_industries="HealthTech",
+            target_industries="Healthcare",
             product_type="saas",
             solution_motion="vertical"
         )
@@ -164,7 +176,7 @@ class TestBuildSystemPrompt:
         """product_type='msp' + solution_motion='horizontal' still gets MSP modifier."""
         result = claude_service._build_system_prompt(
             product_context="Managed IT services",
-            target_industries="HealthTech, Fintech",
+            target_industries="Healthcare, Financial Services",
             product_type="msp",
             solution_motion="horizontal"
         )

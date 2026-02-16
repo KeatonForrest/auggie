@@ -108,6 +108,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         product_type=user.get("product_type", "saas"),
         custom_signals=user.get("custom_signals", ""),
         solution_motion=user.get("solution_motion", "horizontal"),
+        seller_product_category=user.get("seller_product_category", ""),
         dns_profile=dns_profile,
         ssl_profile=ssl_profile,
         security_posture=security_posture,
