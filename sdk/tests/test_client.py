@@ -898,12 +898,50 @@ class TestPaginationHelpers:
                     "object": "list",
                     "data": [{"id": 1, "company_url": "https://a.com"}],
                     "has_more": False,
+                    "next_cursor": None,
                 },
             })
 
         client = make_client(handler)
         items = list(client.iter_list_accounts(list_id=1))
         assert len(items) == 1
+
+    def test_iter_list_accounts_multi_page(self):
+        """Should paginate using next_cursor from the server response."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            starting_after = request.url.params.get("starting_after")
+            if starting_after is None:
+                return json_response({
+                    "list_id": 1, "name": "test", "status": "completed",
+                    "total_accounts": 2, "analyzed_accounts": 2, "failed_accounts": 0,
+                    "accounts": {
+                        "object": "list",
+                        "data": [{"id": 1, "company_url": "https://a.com"}],
+                        "has_more": True,
+                        "next_cursor": "dGVzdF9jdXJzb3I=",
+                    },
+                })
+            else:
+                assert starting_after == "dGVzdF9jdXJzb3I="
+                return json_response({
+                    "list_id": 1, "name": "test", "status": "completed",
+                    "total_accounts": 2, "analyzed_accounts": 2, "failed_accounts": 0,
+                    "accounts": {
+                        "object": "list",
+                        "data": [{"id": 2, "company_url": "https://b.com"}],
+                        "has_more": False,
+                        "next_cursor": None,
+                    },
+                })
+
+        client = make_client(handler)
+        items = list(client.iter_list_accounts(list_id=1))
+        assert len(items) == 2
+        assert call_count == 2
 
     def test_iter_watchlist(self):
         def handler(request):

@@ -676,7 +676,7 @@ async def _deliver_webhook(user_id: int, event_type: str, data: dict):
         "data": data,
     }
 
-    delivery = await create_webhook_delivery(webhook["id"], 0)
+    delivery = await create_webhook_delivery(webhook["id"], data.get("job_id"))
     signature = sign_payload(payload, webhook["secret"])
 
     last_error = None

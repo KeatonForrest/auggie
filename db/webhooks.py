@@ -68,7 +68,7 @@ async def create_webhook_event(webhook_id: int, event_type: str, payload: dict) 
         return result
 
 
-async def create_webhook_delivery(webhook_id: int, job_id: int) -> dict:
+async def create_webhook_delivery(webhook_id: int, job_id: int | None = None) -> dict:
     """Create a delivery record. Returns the record."""
     async with _db._pool.acquire() as conn:
         row = await conn.fetchrow(

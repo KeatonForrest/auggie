@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
     id BIGSERIAL PRIMARY KEY,
     webhook_id BIGINT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
-    job_id BIGINT NOT NULL REFERENCES research_jobs(id) ON DELETE CASCADE,
+    job_id BIGINT REFERENCES research_jobs(id) ON DELETE CASCADE,
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'success', 'failed')),
     http_status INTEGER,

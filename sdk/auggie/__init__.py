@@ -619,14 +619,19 @@ class AuggieClient:
         """Iterate over all accounts in a list, handling pagination automatically."""
         cursor = None
         while True:
-            page = self.get_list(list_id, limit=limit, starting_after=cursor, **filter_params)
+            kwargs = {"limit": limit, **filter_params}
+            if cursor is not None:
+                kwargs["starting_after"] = cursor
+            page = self.get_list(list_id, **kwargs)
             accounts = page.get("accounts", {})
             items = accounts.get("data", [])
             for item in items:
                 yield item
             if not accounts.get("has_more", False) or not items:
                 break
-            cursor = str(items[-1]["id"])
+            cursor = accounts.get("next_cursor")
+            if cursor is None:
+                break
 
     def iter_watchlist(self, limit: int = 100) -> Iterator[dict]:
         """Iterate over all watchlist items, handling pagination automatically."""
@@ -988,14 +993,19 @@ class AsyncAuggieClient:
         """Iterate over all accounts in a list, handling pagination automatically."""
         cursor = None
         while True:
-            page = await self.get_list(list_id, limit=limit, starting_after=cursor, **filter_params)
+            kwargs = {"limit": limit, **filter_params}
+            if cursor is not None:
+                kwargs["starting_after"] = cursor
+            page = await self.get_list(list_id, **kwargs)
             accounts = page.get("accounts", {})
             items = accounts.get("data", [])
             for item in items:
                 yield item
             if not accounts.get("has_more", False) or not items:
                 break
-            cursor = str(items[-1]["id"])
+            cursor = accounts.get("next_cursor")
+            if cursor is None:
+                break
 
     async def iter_watchlist(self, limit: int = 100) -> AsyncIterator[dict]:
         """Iterate over all watchlist items, handling pagination automatically."""

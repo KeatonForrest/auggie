@@ -959,6 +959,13 @@ async def get_list_endpoint(
     if not lst:
         raise APIError("not_found", "List not found", 404)
 
+    if starting_after is not None:
+        from api.pagination import decode_composite_cursor
+        try:
+            decode_composite_cursor(starting_after)
+        except Exception:
+            raise APIError("validation_error", "Invalid cursor", 422)
+
     accounts, has_more = await get_list_accounts(
         list_id,
         min_pain=min_pain_score,
@@ -970,6 +977,11 @@ async def get_list_endpoint(
     )
 
     from api.pagination import encode_composite_cursor
+
+    next_cursor = None
+    if has_more and accounts:
+        last = accounts[-1]
+        next_cursor = encode_composite_cursor(last.get(sort_by.value), last["id"])
 
     return {
         "object": "account_list",
@@ -997,6 +1009,7 @@ async def get_list_endpoint(
                 for a in accounts
             ],
             "has_more": has_more,
+            "next_cursor": next_cursor,
         },
     }
 

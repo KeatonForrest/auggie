@@ -63,7 +63,7 @@ async def register_webhook(body: WebhookRegisterRequest, api_user: dict = Depend
 
     secret = secrets.token_hex(32)
     wh = await upsert_webhook(
-        api_user["user_id"], str(body.url), secret,
+        api_user["id"], str(body.url), secret,
         org_id=api_user.get("org_id"), event_types=body.event_types,
     )
     return WebhookResponse(url=wh["url"], secret=wh["secret"], active=wh["active"], event_types=wh.get("event_types"))
@@ -72,7 +72,7 @@ async def register_webhook(body: WebhookRegisterRequest, api_user: dict = Depend
 @router.get("", response_model=WebhookInfo | None, responses={**_error_responses(401)})
 async def get_webhook(api_user: dict = Depends(require_api_key)):
     """Get the current webhook configuration."""
-    wh = await get_user_webhook(api_user["user_id"])
+    wh = await get_user_webhook(api_user["id"])
     if not wh:
         return None
     return WebhookInfo(url=wh["url"], active=wh["active"], event_types=wh.get("event_types"))
@@ -81,6 +81,6 @@ async def get_webhook(api_user: dict = Depends(require_api_key)):
 @router.delete("", status_code=204, responses={**_error_responses(401)})
 async def remove_webhook(api_user: dict = Depends(require_api_key)):
     """Remove (deactivate) the webhook."""
-    deleted = await delete_user_webhook(api_user["user_id"])
+    deleted = await delete_user_webhook(api_user["id"])
     if not deleted:
         raise APIError("not_found", "No active webhook found", 404)
