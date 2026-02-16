@@ -25,7 +25,7 @@ weasyprint==62.0
 # Asyncpg - async PostgreSQL driver
 asyncpg==0.30.0
 
-# Technology detection (custom engine, replaces python-Wappalyzer)
+# Technology detection (custom engine)
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 

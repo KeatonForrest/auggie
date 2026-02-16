@@ -1,4 +1,4 @@
-"""wappalyzer.py - Technology detection service using python-Wappalyzer."""
+"""tech_detection.py - Technology detection service using custom TechDetector engine."""
 
 import asyncio
 import httpx
@@ -14,14 +14,14 @@ logger = logging.getLogger(__name__)
 
 try:
     from services.techdetect import TechDetector, WebPage
-    WAPPALYZER_AVAILABLE = True
+    DETECTOR_AVAILABLE = True
     logger.debug("TechDetector module imported successfully")
 except ImportError as e:
-    WAPPALYZER_AVAILABLE = False
+    DETECTOR_AVAILABLE = False
     logger.error("TechDetector import failed: %s", e)
 
 
-class WappalyzerService:
+class TechDetectionService:
     """Service for detecting technologies on websites."""
 
     # High-signal subdomains that reveal tech stack (trimmed from 30+ to top 10)
@@ -37,25 +37,25 @@ class WappalyzerService:
     ]
 
     def __init__(self):
-        if not WAPPALYZER_AVAILABLE:
-            logger.warning("python-Wappalyzer not installed. Tech detection disabled.")
-            self.wappalyzer = None
+        if not DETECTOR_AVAILABLE:
+            logger.warning("TechDetector not available. Tech detection disabled.")
+            self.detector = None
         else:
             try:
-                self.wappalyzer = TechDetector()
+                self.detector = TechDetector()
                 logger.debug("TechDetector initialized successfully")
             except Exception as e:
                 import traceback
-                logger.error("Failed to initialize Wappalyzer: %s", e)
+                logger.error("Failed to initialize TechDetector: %s", e)
                 logger.error("Traceback: %s", traceback.format_exc())
-                self.wappalyzer = None
+                self.detector = None
         self._semaphore = asyncio.Semaphore(3)
         self._robots_cache: dict[str, Optional[RobotFileParser]] = {}
         self._robots_text_cache: dict[str, str] = {}
         self._last_main_headers: dict = {}
 
     def _parse_technologies(self, results: dict, url: str) -> TechStack:
-        """Parse wappalyzer results into TechStack model."""
+        """Parse detection results into TechStack model."""
         technologies = []
 
         for tech_name, tech_info in results.items():
@@ -78,7 +78,7 @@ class WappalyzerService:
 
     async def analyze_url(self, url: str) -> TechStack:
         """Analyze a URL to detect technologies."""
-        if not self.wappalyzer:
+        if not self.detector:
             return TechStack(technologies=[], scan_url=url)
 
         try:
@@ -91,15 +91,15 @@ class WappalyzerService:
     def _sync_analyze_url(self, url: str) -> TechStack:
         """Synchronous URL analysis (runs in thread pool)."""
         try:
-            logger.debug("Wappalyzer: Fetching %s...", url)
+            logger.debug("TechDetect: Fetching %s...", url)
             webpage = WebPage.new_from_url(url)
-            logger.debug("Wappalyzer: Analyzing %s...", url)
-            results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
+            logger.debug("TechDetect: Analyzing %s...", url)
+            results = self.detector.analyze_with_versions_and_categories(webpage)
             tech_count = len(results) if results else 0
-            logger.debug("Wappalyzer: Found %s technologies on %s", tech_count, url)
+            logger.debug("TechDetect: Found %s technologies on %s", tech_count, url)
             return self._parse_technologies(results, url)
         except Exception as e:
-            logger.error("Wappalyzer error for %s: %s", url, e)
+            logger.error("TechDetect error for %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     async def analyze_html(
@@ -109,7 +109,7 @@ class WappalyzerService:
         headers: Optional[dict] = None
     ) -> TechStack:
         """Analyze HTML content to detect technologies (efficient when HTML already available)."""
-        if not self.wappalyzer:
+        if not self.detector:
             return TechStack(technologies=[], scan_url=url)
 
         try:
@@ -138,10 +138,10 @@ class WappalyzerService:
         """Synchronous HTML analysis (runs in thread pool)."""
         try:
             webpage = WebPage(url, html, headers)
-            results = self.wappalyzer.analyze_with_versions_and_categories(webpage)
+            results = self.detector.analyze_with_versions_and_categories(webpage)
             return self._parse_technologies(results, url)
         except Exception as e:
-            logger.error("Wappalyzer HTML error for %s: %s", url, e)
+            logger.error("TechDetect HTML error for %s: %s", url, e)
             return TechStack(technologies=[], scan_url=url)
 
     async def _rate_limited_check(self, client: httpx.AsyncClient, url: str) -> Optional[tuple[str, dict]]:
@@ -354,22 +354,22 @@ class WappalyzerService:
         """Analyze main domain plus discovered app subdomains and paths."""
         results = {}
 
-        if not self.wappalyzer:
-            logger.debug("Wappalyzer: SKIPPING - wappalyzer not initialized")
+        if not self.detector:
+            logger.debug("TechDetect: SKIPPING - detector not initialized")
             return results
 
         parsed = urlparse(main_url if main_url.startswith("http") else f"https://{main_url}")
         base_domain = parsed.netloc.replace("www.", "")
         full_main_url = f"https://{base_domain}"
 
-        logger.debug("Wappalyzer: Analyzing main domain: %s", full_main_url)
+        logger.debug("TechDetect: Analyzing main domain: %s", full_main_url)
         if main_html:
             main_headers = await self._fetch_headers(full_main_url)
             self._last_main_headers = main_headers
             main_tech = await self.analyze_html(main_html, full_main_url, main_headers)
         else:
             main_tech = await self.analyze_url(full_main_url)
-        logger.debug("Wappalyzer: Main domain result - %s technologies", len(main_tech.technologies))
+        logger.debug("TechDetect: Main domain result - %s technologies", len(main_tech.technologies))
 
         # Always include main domain in results (even if empty)
         results[base_domain] = main_tech

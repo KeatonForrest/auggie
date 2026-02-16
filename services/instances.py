@@ -2,7 +2,7 @@
 
 from services.firecrawl import FirecrawlService
 from services.claude import ClaudeService
-from services.wappalyzer import WappalyzerService
+from services.tech_detection import TechDetectionService
 from services.writing import WritingService
 from services.dns_analyzer import DNSAnalyzer
 from services.ssl_analyzer import SSLAnalyzer
@@ -12,7 +12,7 @@ from services.vision import VisionService
 
 firecrawl_service = FirecrawlService()
 claude_service = ClaudeService()
-wappalyzer_service = WappalyzerService()
+tech_detection_service = TechDetectionService()
 writing_service = WritingService()
 dns_analyzer = DNSAnalyzer()
 ssl_analyzer = SSLAnalyzer()

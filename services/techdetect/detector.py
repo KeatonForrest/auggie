@@ -15,7 +15,7 @@ class DetectionResult:
 
 
 class TechDetector:
-    """Drop-in replacement for python-Wappalyzer's Wappalyzer class."""
+    """Technology detection engine using Wappalyzer-format pattern definitions."""
 
     def __init__(self, path: str | None = None):
         self.technologies, self.categories = load_fingerprints(path)
@@ -165,7 +165,7 @@ class TechDetector:
                     queue.append(implied_name)
 
     def analyze_with_versions_and_categories(self, webpage) -> dict:
-        """Compatibility shim returning the dict format WappalyzerService expects."""
+        """Return results as a dict keyed by technology name."""
         detected = self.analyze(webpage)
         result = {}
         for name, det in detected.items():

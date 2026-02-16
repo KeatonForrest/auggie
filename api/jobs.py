@@ -18,7 +18,7 @@ from database import (
 from urllib.parse import urlparse as _urlparse
 from services.collect import collect_enrichment_data
 from services.instances import (
-    firecrawl_service, claude_service, wappalyzer_service,
+    firecrawl_service, claude_service, tech_detection_service,
     dns_analyzer, ssl_analyzer, job_parser, pain_engine,
 )
 from models import SignalBundle, SellerContext
@@ -54,18 +54,18 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
 
     t0 = time.monotonic()
     tech_by_domain, dns_profile, ssl_profile = await asyncio.gather(
-        wappalyzer_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
+        tech_detection_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
         dns_analyzer.analyze(domain),
         ssl_analyzer.analyze(domain),
     )
     logger.info("[pipeline %s] tech+dns+ssl: %.1fs", domain, time.monotonic() - t0)
 
     # Phase 3: security headers, robots, job signals
-    security_posture = wappalyzer_service.score_security_headers(
-        wappalyzer_service.get_last_main_headers()
+    security_posture = tech_detection_service.score_security_headers(
+        tech_detection_service.get_last_main_headers()
     )
-    robots_text = wappalyzer_service.get_robots_text(full_main_url)
-    robots_signals = wappalyzer_service.extract_robots_signals(robots_text) if robots_text else None
+    robots_text = tech_detection_service.get_robots_text(full_main_url)
+    robots_signals = tech_detection_service.extract_robots_signals(robots_text) if robots_text else None
     job_signals = job_parser.parse(scraped_content.job_postings) if scraped_content.job_postings else None
 
     # Phase 4: pain inference

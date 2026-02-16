@@ -32,7 +32,7 @@ def sample_scraped_content():
 
 @pytest.fixture
 def sample_tech_stack():
-    """Fake tech stack that would come from Wappalyzer."""
+    """Fake tech stack that would come from tech detection."""
     return {
         "acme.com": TechStack(
             technologies=[
@@ -77,17 +77,17 @@ def sample_research_document():
 def mock_services(sample_scraped_content, sample_tech_stack, sample_research_document):
     """Mock all three services at once."""
     with patch("routes.research.firecrawl_service") as mock_firecrawl, \
-         patch("routes.research.wappalyzer_service") as mock_wappalyzer, \
+         patch("routes.research.tech_detection_service") as mock_tech_detection, \
          patch("routes.research.claude_service") as mock_claude:
 
         # Configure mock return values
         mock_firecrawl.scrape_company = AsyncMock(return_value=sample_scraped_content)
-        mock_wappalyzer.analyze_multiple_domains = AsyncMock(return_value=sample_tech_stack)
+        mock_tech_detection.analyze_multiple_domains = AsyncMock(return_value=sample_tech_stack)
         mock_claude.generate_research_document = AsyncMock(return_value=sample_research_document)
 
         yield {
             "firecrawl": mock_firecrawl,
-            "wappalyzer": mock_wappalyzer,
+            "tech_detection": mock_tech_detection,
             "claude": mock_claude,
         }
 

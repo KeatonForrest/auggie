@@ -26,7 +26,7 @@ def mock_get_connection(mock_conn):
 
 class TestSaveTechSignals:
     @pytest.mark.asyncio
-    async def test_saves_wappalyzer_signals(self, mock_get_connection, mock_conn):
+    async def test_saves_tech_detection_signals(self, mock_get_connection, mock_conn):
         with patch("db.tech_signals.get_connection", mock_get_connection):
             from db.tech_signals import save_tech_signals
             tech = TechStack(technologies=[

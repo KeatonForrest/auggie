@@ -231,7 +231,7 @@ class FirecrawlService:
             "blog": urljoin(base_url, "/blog"),
         }
 
-        # Homepage needs HTML for Wappalyzer tech detection
+        # Homepage needs HTML for tech detection
         homepage_task = self._scrape_url(client, base_url, include_html=True)
         other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
         job_task = self._scrape_job_board(client, company_name, domain)

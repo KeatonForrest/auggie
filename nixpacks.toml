@@ -1,5 +1,5 @@
 # Nixpacks configuration for Railway
-# Adds system dependencies needed for python-Wappalyzer (lxml)
+# Adds system dependencies needed for lxml (used by tech detection engine)
 
 [phases.setup]
 aptPkgs = ["libxml2-dev", "libxslt1-dev", "zlib1g-dev"]

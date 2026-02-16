@@ -29,7 +29,7 @@ class ScrapedContent(BaseModel):
 
 
 class DetectedTechnology(BaseModel):
-    """A single technology detected by Wappalyzer."""
+    """A single technology detected on a website."""
     name: str
     version: Optional[str] = None
     category: Optional[str] = None
@@ -37,7 +37,7 @@ class DetectedTechnology(BaseModel):
 
 
 class TechStack(BaseModel):
-    """Technologies detected on a website via Wappalyzer."""
+    """Technologies detected on a website."""
     technologies: list[DetectedTechnology] = []
     scan_url: Optional[str] = None
 

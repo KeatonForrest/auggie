@@ -463,7 +463,7 @@ class PainInferenceEngine:
         if not product_subdomains:
             return None
 
-        # Collect specific APM/observability tools from Wappalyzer detection
+        # Collect specific APM/observability tools from tech detection
         found_tools: set[str] = set()
         all_names_lower = {n.lower() for n, _ in self._get_all_tech_names_and_cats(bundle)}
         for apm in self.APM_NAMES:

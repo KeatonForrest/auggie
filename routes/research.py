@@ -22,7 +22,7 @@ from db.documents import (
     get_document_by_slug, get_document_meta_by_slug, get_document_slug_path,
 )
 from db.jobs import create_job_with_credit, create_research_job
-from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service, vision_service
+from services.instances import firecrawl_service, claude_service, tech_detection_service, writing_service, vision_service
 from services.collect import collect_enrichment_data
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
@@ -509,7 +509,7 @@ async def api_create_research(
 
     try:
         scraped_content = await firecrawl_service.scrape_company(company_url)
-        tech_by_domain = await wappalyzer_service.analyze_multiple_domains(
+        tech_by_domain = await tech_detection_service.analyze_multiple_domains(
             main_url=company_url,
             main_html=scraped_content.homepage_html
         )
