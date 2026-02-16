@@ -5,3 +5,10 @@ __pycache__/
 venv/
 research.db
 services/.edgar_tickers_cache.json
+data/app.db
+scripts/
+wireframe.html
+OAUTH_SETUP_CHECKLIST.md
+PricingRoadmap2026.md
+WorkflowImagePrompts.json
+WorkflowImagePrompts.md
