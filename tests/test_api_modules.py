@@ -893,3 +893,75 @@ class TestIdempotency:
         with patch("api.idempotency.db_check", new_callable=AsyncMock, return_value=(202, {"job_id": 1, "status": "processing"})):
             key, cached = await check_idempotency(mock_request, api_key_id=1)
             assert cached.status_code == 202
+
+
+# ============================================================================
+# Rate limit ContextVar tests
+# ============================================================================
+
+
+class TestRateLimitHeaders:
+    """Tests for RateLimitInfo ContextVar populated by check()."""
+
+    def test_contextvar_populated_after_check(self):
+        """ContextVar is populated after a successful check()."""
+        from api.ratelimit import _rate_limit_info, RateLimitInfo
+        limiter = InMemoryRateLimiter(requests=10, window_seconds=60)
+        limiter.check("rl_test_user")
+        info = _rate_limit_info.get(None)
+        assert info is not None
+        assert info.limit == 10
+        assert info.remaining == 9
+        assert isinstance(info.reset, int)
+
+    def test_remaining_decrements(self):
+        """Remaining decrements with each call."""
+        from api.ratelimit import _rate_limit_info
+        limiter = InMemoryRateLimiter(requests=5, window_seconds=60)
+        for expected_remaining in [4, 3, 2, 1, 0]:
+            try:
+                limiter.check("rl_decrement_user")
+            except HTTPException:
+                pass
+            info = _rate_limit_info.get(None)
+            assert info.remaining == expected_remaining
+
+    def test_contextvar_populated_on_429(self):
+        """ContextVar is populated even when rate limit is exceeded."""
+        from api.ratelimit import _rate_limit_info
+        limiter = InMemoryRateLimiter(requests=1, window_seconds=60)
+        limiter.check("rl_429_user")
+        with pytest.raises(HTTPException):
+            limiter.check("rl_429_user")
+        info = _rate_limit_info.get(None)
+        assert info is not None
+        assert info.remaining == 0
+
+
+# ============================================================================
+# Error response request_id tests
+# ============================================================================
+
+
+class TestErrorRequestId:
+    """Tests for request_id injection in error responses."""
+
+    def test_api_error_structure(self):
+        """APIError produces structured error with code and message."""
+        from api.errors import APIError
+        err = APIError("not_found", "Job not found", 404)
+        assert err.status_code == 404
+        assert err.detail == {"code": "not_found", "message": "Job not found"}
+
+    def test_status_to_code_mapping(self):
+        """_STATUS_TO_CODE covers expected status codes."""
+        from main import _STATUS_TO_CODE
+        assert _STATUS_TO_CODE[400] == "validation_error"
+        assert _STATUS_TO_CODE[401] == "unauthorized"
+        assert _STATUS_TO_CODE[402] == "insufficient_credits"
+        assert _STATUS_TO_CODE[403] == "forbidden"
+        assert _STATUS_TO_CODE[404] == "not_found"
+        assert _STATUS_TO_CODE[409] == "conflict"
+        assert _STATUS_TO_CODE[422] == "validation_error"
+        assert _STATUS_TO_CODE[429] == "rate_limit_exceeded"
+        assert _STATUS_TO_CODE[500] == "internal_error"

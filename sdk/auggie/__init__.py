@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import random
 import time
 import uuid
@@ -10,9 +13,24 @@ from typing import Any, AsyncIterator, Iterator
 
 import httpx
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
-__all__ = ["AuggieClient", "AsyncAuggieClient", "AuggieError", "__version__"]
+__all__ = [
+    "AuggieClient",
+    "AsyncAuggieClient",
+    "AuggieError",
+    "AuthenticationError",
+    "InsufficientCreditsError",
+    "NotFoundError",
+    "ConflictError",
+    "ValidationError",
+    "RateLimitError",
+    "InternalServerError",
+    "APITimeoutError",
+    "Webhook",
+    "WebhookSignatureError",
+    "__version__",
+]
 
 DEFAULT_BASE_URL = "https://auggie.tools"
 
@@ -44,8 +62,62 @@ class AuggieError(Exception):
         super().__init__(": ".join(parts))
 
 
+class AuthenticationError(AuggieError):
+    """Raised on 401 responses."""
+
+
+class InsufficientCreditsError(AuggieError):
+    """Raised on 402 responses."""
+
+
+class NotFoundError(AuggieError):
+    """Raised on 404 responses."""
+
+
+class ConflictError(AuggieError):
+    """Raised on 409 responses."""
+
+
+class ValidationError(AuggieError):
+    """Raised on 422 or 400 validation_error responses."""
+
+
+class RateLimitError(AuggieError):
+    """Raised on 429 responses.
+
+    Attributes:
+        retry_after: Seconds to wait before retrying (from Retry-After header), or None.
+    """
+
+    def __init__(self, status_code: int, message: Any = None, code: str | None = None, retry_after: float | None = None) -> None:
+        super().__init__(status_code, message, code)
+        self.retry_after = retry_after
+
+
+class InternalServerError(AuggieError):
+    """Raised on 500/502/503 responses."""
+
+
+class APITimeoutError(AuggieError):
+    """Raised on 504 responses or polling timeouts."""
+
+
+_STATUS_TO_ERROR: dict[int, type[AuggieError]] = {
+    401: AuthenticationError,
+    402: InsufficientCreditsError,
+    404: NotFoundError,
+    409: ConflictError,
+    422: ValidationError,
+    429: RateLimitError,
+    500: InternalServerError,
+    502: InternalServerError,
+    503: InternalServerError,
+    504: APITimeoutError,
+}
+
+
 def _parse_error(resp: httpx.Response) -> AuggieError:
-    """Parse an error response into an AuggieError."""
+    """Parse an error response into an AuggieError (or appropriate subclass)."""
     code = None
     message = resp.text
     try:
@@ -63,7 +135,26 @@ def _parse_error(resp: httpx.Response) -> AuggieError:
             message = body["detail"]
     except Exception:
         pass
-    return AuggieError(resp.status_code, message, code)
+
+    status = resp.status_code
+
+    # 400 with validation_error code -> ValidationError
+    if status == 400 and code == "validation_error":
+        cls = ValidationError
+    else:
+        cls = _STATUS_TO_ERROR.get(status, AuggieError)
+
+    if cls is RateLimitError:
+        retry_after: float | None = None
+        raw = resp.headers.get("retry-after")
+        if raw:
+            try:
+                retry_after = float(raw)
+            except (ValueError, TypeError):
+                pass
+        return RateLimitError(status, message, code, retry_after=retry_after)
+
+    return cls(status, message, code)
 
 
 def _retry_delay(resp: httpx.Response, attempt: int) -> float:
@@ -158,7 +249,7 @@ class AuggieClient:
         Args:
             company_url: The company URL to research.
             interval: Seconds between poll requests.
-            timeout: Max seconds to wait before raising ``AuggieError``.
+            timeout: Max seconds to wait before raising ``APITimeoutError``.
 
         Returns:
             The completed research job dict.
@@ -172,7 +263,7 @@ class AuggieClient:
             if result.get("status") != "processing":
                 return result
             if time.monotonic() > deadline:
-                raise AuggieError(408, "Polling timed out", "timeout")
+                raise APITimeoutError(408, "Polling timed out", "timeout")
             time.sleep(interval)
 
     def list_research(self, limit: int = 100, offset: int = 0) -> dict:
@@ -223,6 +314,36 @@ class AuggieClient:
     def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> dict:
         """List recent bulk jobs."""
         return self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset})
+
+    def bulk_research_and_poll(
+        self,
+        company_urls: list[str],
+        name: str | None = None,
+        interval: float = 5,
+        timeout: float = 600,
+    ) -> dict:
+        """Submit a bulk research job and poll until completion or timeout.
+
+        Args:
+            company_urls: List of company URLs to research.
+            name: Optional name for the bulk job.
+            interval: Seconds between poll requests.
+            timeout: Max seconds to wait before raising ``APITimeoutError``.
+
+        Returns:
+            The completed bulk job dict with items.
+        """
+        job = self.bulk_research(company_urls, name=name)
+        bulk_job_id = job["bulk_job_id"]
+        deadline = time.monotonic() + timeout
+
+        while True:
+            result = self.get_bulk_job(bulk_job_id)
+            if result.get("status") != "processing":
+                return result
+            if time.monotonic() > deadline:
+                raise APITimeoutError(408, "Bulk polling timed out", "timeout")
+            time.sleep(interval)
 
     # ------------------------------------------------------------------
     # Lists
@@ -492,7 +613,7 @@ class AsyncAuggieClient:
             if result.get("status") != "processing":
                 return result
             if time.monotonic() > deadline:
-                raise AuggieError(408, "Polling timed out", "timeout")
+                raise APITimeoutError(408, "Polling timed out", "timeout")
             await asyncio.sleep(interval)
 
     async def list_research(self, limit: int = 100, offset: int = 0) -> dict:
@@ -540,6 +661,36 @@ class AsyncAuggieClient:
     async def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> dict:
         """List recent bulk jobs."""
         return await self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset})
+
+    async def bulk_research_and_poll(
+        self,
+        company_urls: list[str],
+        name: str | None = None,
+        interval: float = 5,
+        timeout: float = 600,
+    ) -> dict:
+        """Submit a bulk research job and poll until completion or timeout.
+
+        Args:
+            company_urls: List of company URLs to research.
+            name: Optional name for the bulk job.
+            interval: Seconds between poll requests.
+            timeout: Max seconds to wait before raising ``APITimeoutError``.
+
+        Returns:
+            The completed bulk job dict with items.
+        """
+        job = await self.bulk_research(company_urls, name=name)
+        bulk_job_id = job["bulk_job_id"]
+        deadline = time.monotonic() + timeout
+
+        while True:
+            result = await self.get_bulk_job(bulk_job_id)
+            if result.get("status") != "processing":
+                return result
+            if time.monotonic() > deadline:
+                raise APITimeoutError(408, "Bulk polling timed out", "timeout")
+            await asyncio.sleep(interval)
 
     # ------------------------------------------------------------------
     # Lists
@@ -717,3 +868,89 @@ class AsyncAuggieClient:
 
     async def __aexit__(self, *args: Any) -> None:
         await self.close()
+
+
+# ======================================================================
+# Webhook signature verification
+# ======================================================================
+
+class WebhookSignatureError(AuggieError):
+    """Raised when webhook signature verification fails."""
+
+    def __init__(self, message: str = "Webhook signature verification failed") -> None:
+        super().__init__(400, message, "webhook_signature_error")
+
+
+class Webhook:
+    """Webhook signature verification helper.
+
+    Usage::
+
+        # Verify + parse in one step (Stripe pattern)
+        event = Webhook.construct_event(payload, signature_header, secret)
+
+        # Simple boolean check
+        is_valid = Webhook.verify(payload, signature_header, secret)
+    """
+
+    @staticmethod
+    def _normalize_payload(payload: dict | bytes | str) -> bytes:
+        """Normalize payload to the canonical JSON bytes used for signing."""
+        if isinstance(payload, dict):
+            return json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+        if isinstance(payload, str):
+            payload = payload.encode()
+        # For bytes, try to round-trip through JSON for canonical form
+        try:
+            parsed = json.loads(payload)
+            return json.dumps(parsed, separators=(",", ":"), sort_keys=True).encode()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return payload
+
+    @staticmethod
+    def _extract_signature(header: str) -> str:
+        """Extract hex signature from header, handling both 'sha256=<hex>' and bare '<hex>' formats."""
+        header = header.strip()
+        if header.startswith("sha256="):
+            return header[7:]
+        return header
+
+    @staticmethod
+    def verify(payload: dict | bytes | str, signature_header: str, secret: str) -> bool:
+        """Verify a webhook signature.
+
+        Args:
+            payload: The webhook request body (dict, bytes, or str).
+            signature_header: The ``X-Webhook-Signature`` header value.
+            secret: Your webhook secret.
+
+        Returns:
+            True if the signature is valid.
+        """
+        body = Webhook._normalize_payload(payload)
+        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        actual = Webhook._extract_signature(signature_header)
+        return hmac.compare_digest(expected, actual)
+
+    @staticmethod
+    def construct_event(payload: dict | bytes | str, signature_header: str, secret: str) -> dict:
+        """Verify signature and return the parsed event payload.
+
+        Args:
+            payload: The webhook request body (dict, bytes, or str).
+            signature_header: The ``X-Webhook-Signature`` header value.
+            secret: Your webhook secret.
+
+        Returns:
+            The parsed event dict.
+
+        Raises:
+            WebhookSignatureError: If the signature is invalid.
+        """
+        if not Webhook.verify(payload, signature_header, secret):
+            raise WebhookSignatureError()
+        if isinstance(payload, dict):
+            return payload
+        if isinstance(payload, str):
+            return json.loads(payload)
+        return json.loads(payload.decode())

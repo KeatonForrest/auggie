@@ -8,7 +8,12 @@ import time
 import httpx
 import pytest
 
-from auggie import AuggieClient, AsyncAuggieClient, AuggieError, _parse_error, __version__
+from auggie import (
+    AuggieClient, AsyncAuggieClient, AuggieError, _parse_error, __version__,
+    AuthenticationError, InsufficientCreditsError, NotFoundError, ConflictError,
+    ValidationError, RateLimitError, InternalServerError, APITimeoutError,
+    Webhook, WebhookSignatureError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -645,8 +650,8 @@ class TestVersion:
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
 
-    def test_version_is_0_3_0(self):
-        assert __version__ == "0.3.0"
+    def test_version_is_0_4_0(self):
+        assert __version__ == "0.4.0"
 
 
 # ---------------------------------------------------------------------------
@@ -1002,3 +1007,261 @@ class TestIdempotencyKeys:
 
         async with make_async_client(handler) as client:
             await client.ping()
+
+
+# ---------------------------------------------------------------------------
+# Error subclasses
+# ---------------------------------------------------------------------------
+
+class TestErrorSubclasses:
+    def test_401_returns_authentication_error(self):
+        resp = httpx.Response(401, json={"error": {"code": "unauthorized", "message": "Bad key"}})
+        err = _parse_error(resp)
+        assert isinstance(err, AuthenticationError)
+        assert isinstance(err, AuggieError)
+        assert err.status_code == 401
+
+    def test_402_returns_insufficient_credits_error(self):
+        resp = httpx.Response(402, json={"error": {"code": "insufficient_credits", "message": "No credits"}})
+        err = _parse_error(resp)
+        assert isinstance(err, InsufficientCreditsError)
+        assert err.code == "insufficient_credits"
+
+    def test_404_returns_not_found_error(self):
+        resp = httpx.Response(404, json={"error": {"code": "not_found", "message": "Gone"}})
+        err = _parse_error(resp)
+        assert isinstance(err, NotFoundError)
+
+    def test_409_returns_conflict_error(self):
+        resp = httpx.Response(409, json={"error": {"code": "conflict", "message": "Duplicate"}})
+        err = _parse_error(resp)
+        assert isinstance(err, ConflictError)
+
+    def test_422_returns_validation_error(self):
+        resp = httpx.Response(422, json={"error": {"code": "validation_error", "message": "Bad field"}})
+        err = _parse_error(resp)
+        assert isinstance(err, ValidationError)
+
+    def test_400_validation_code_returns_validation_error(self):
+        resp = httpx.Response(400, json={"error": {"code": "validation_error", "message": "Invalid URL"}})
+        err = _parse_error(resp)
+        assert isinstance(err, ValidationError)
+
+    def test_400_non_validation_returns_base(self):
+        resp = httpx.Response(400, json={"error": {"code": "bad_request", "message": "Nope"}})
+        err = _parse_error(resp)
+        assert type(err) is AuggieError
+
+    def test_429_returns_rate_limit_error(self):
+        resp = httpx.Response(
+            429,
+            json={"error": {"code": "rate_limit_exceeded", "message": "Slow down"}},
+            headers={"retry-after": "5"},
+        )
+        err = _parse_error(resp)
+        assert isinstance(err, RateLimitError)
+        assert err.retry_after == 5.0
+
+    def test_429_no_retry_after_header(self):
+        resp = httpx.Response(429, json={"error": {"code": "rate_limit_exceeded", "message": "Slow"}})
+        err = _parse_error(resp)
+        assert isinstance(err, RateLimitError)
+        assert err.retry_after is None
+
+    def test_500_returns_internal_server_error(self):
+        resp = httpx.Response(500, json={"error": {"code": "internal_error", "message": "Oops"}})
+        err = _parse_error(resp)
+        assert isinstance(err, InternalServerError)
+
+    def test_502_returns_internal_server_error(self):
+        resp = httpx.Response(502, text="Bad Gateway")
+        err = _parse_error(resp)
+        assert isinstance(err, InternalServerError)
+
+    def test_503_returns_internal_server_error(self):
+        resp = httpx.Response(503, text="Service Unavailable")
+        err = _parse_error(resp)
+        assert isinstance(err, InternalServerError)
+
+    def test_504_returns_api_timeout_error(self):
+        resp = httpx.Response(504, text="Gateway Timeout")
+        err = _parse_error(resp)
+        assert isinstance(err, APITimeoutError)
+
+    def test_except_auggie_error_catches_all_subclasses(self):
+        """All subclasses are caught by `except AuggieError`."""
+        for cls in [AuthenticationError, InsufficientCreditsError, NotFoundError,
+                    ConflictError, ValidationError, RateLimitError,
+                    InternalServerError, APITimeoutError]:
+            with pytest.raises(AuggieError):
+                if cls is RateLimitError:
+                    raise cls(429, "test", "test", retry_after=1.0)
+                else:
+                    raise cls(400, "test", "test")
+
+    def test_subclass_raised_through_request_path(self):
+        """Error subclasses are raised through the _request() path."""
+        def handler(request):
+            return httpx.Response(
+                402,
+                json={"error": {"code": "insufficient_credits", "message": "No credits"}},
+            )
+
+        client = make_client(handler)
+        with pytest.raises(InsufficientCreditsError) as exc_info:
+            client.ping()
+        assert exc_info.value.status_code == 402
+
+    def test_polling_timeout_raises_api_timeout_error(self):
+        """research_and_poll timeout raises APITimeoutError, not base AuggieError."""
+        def handler(request):
+            if request.method == "POST":
+                return json_response({"job_id": 1, "status": "processing"}, 202)
+            return json_response({"job_id": 1, "status": "processing"})
+
+        client = make_client(handler)
+        with pytest.raises(APITimeoutError) as exc_info:
+            client.research_and_poll("https://example.com", interval=0.01, timeout=0.05)
+        assert exc_info.value.code == "timeout"
+
+
+# ---------------------------------------------------------------------------
+# Webhook verification
+# ---------------------------------------------------------------------------
+
+class TestWebhookVerification:
+    def _sign(self, payload: dict, secret: str) -> str:
+        """Helper: compute the same HMAC-SHA256 the server uses."""
+        import hashlib, hmac as _hmac
+        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+        return _hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+    def test_valid_dict_payload(self):
+        payload = {"event": "research.completed", "data": {"id": 1}}
+        secret = "whsec_test123"
+        sig = self._sign(payload, secret)
+        event = Webhook.construct_event(payload, sig, secret)
+        assert event == payload
+
+    def test_valid_str_payload(self):
+        payload = {"event": "test"}
+        secret = "whsec_abc"
+        body_str = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        sig = self._sign(payload, secret)
+        event = Webhook.construct_event(body_str, sig, secret)
+        assert event == payload
+
+    def test_valid_bytes_payload(self):
+        payload = {"event": "test"}
+        secret = "whsec_abc"
+        body_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+        sig = self._sign(payload, secret)
+        event = Webhook.construct_event(body_bytes, sig, secret)
+        assert event == payload
+
+    def test_sha256_prefix_format(self):
+        payload = {"event": "test"}
+        secret = "whsec_abc"
+        sig = "sha256=" + self._sign(payload, secret)
+        assert Webhook.verify(payload, sig, secret) is True
+
+    def test_bare_hex_format(self):
+        payload = {"event": "test"}
+        secret = "whsec_abc"
+        sig = self._sign(payload, secret)
+        assert Webhook.verify(payload, sig, secret) is True
+
+    def test_invalid_signature_returns_false(self):
+        payload = {"event": "test"}
+        assert Webhook.verify(payload, "bad_signature", "secret") is False
+
+    def test_tampered_payload_fails(self):
+        payload = {"event": "test"}
+        secret = "whsec_abc"
+        sig = self._sign(payload, secret)
+        tampered = {"event": "tampered"}
+        assert Webhook.verify(tampered, sig, secret) is False
+
+    def test_construct_event_raises_on_invalid(self):
+        with pytest.raises(WebhookSignatureError) as exc_info:
+            Webhook.construct_event({"event": "test"}, "bad_sig", "secret")
+        assert isinstance(exc_info.value, AuggieError)
+
+    def test_webhook_signature_error_is_auggie_error(self):
+        err = WebhookSignatureError()
+        assert isinstance(err, AuggieError)
+        assert err.code == "webhook_signature_error"
+
+
+# ---------------------------------------------------------------------------
+# Bulk poll convenience
+# ---------------------------------------------------------------------------
+
+class TestBulkPollConvenience:
+    def test_bulk_research_and_poll_completes(self):
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            if request.method == "POST":
+                return json_response({"bulk_job_id": 1, "status": "processing", "total_items": 2}, 202)
+            call_count += 1
+            if call_count >= 2:
+                return json_response({"bulk_job_id": 1, "status": "completed", "items": [{"id": 1}, {"id": 2}]})
+            return json_response({"bulk_job_id": 1, "status": "processing"})
+
+        client = make_client(handler)
+        result = client.bulk_research_and_poll(["https://a.com", "https://b.com"], interval=0.01)
+        assert result["status"] == "completed"
+        assert len(result["items"]) == 2
+
+    def test_bulk_research_and_poll_timeout(self):
+        def handler(request):
+            if request.method == "POST":
+                return json_response({"bulk_job_id": 1, "status": "processing", "total_items": 1}, 202)
+            return json_response({"bulk_job_id": 1, "status": "processing"})
+
+        client = make_client(handler)
+        with pytest.raises(APITimeoutError) as exc_info:
+            client.bulk_research_and_poll(["https://a.com"], interval=0.01, timeout=0.05)
+        assert exc_info.value.code == "timeout"
+
+    def test_bulk_research_and_poll_with_name(self):
+        def handler(request):
+            if request.method == "POST":
+                body = json.loads(request.content)
+                assert body["name"] == "my batch"
+                return json_response({"bulk_job_id": 1, "status": "completed", "items": []})
+            return json_response({"bulk_job_id": 1, "status": "completed", "items": []})
+
+        client = make_client(handler)
+        result = client.bulk_research_and_poll(["https://a.com"], name="my batch", interval=0.01)
+        assert result["status"] == "completed"
+
+    @pytest.mark.anyio
+    async def test_async_bulk_research_and_poll_completes(self):
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            if request.method == "POST":
+                return json_response({"bulk_job_id": 1, "status": "processing", "total_items": 1}, 202)
+            call_count += 1
+            if call_count >= 2:
+                return json_response({"bulk_job_id": 1, "status": "completed", "items": [{"id": 1}]})
+            return json_response({"bulk_job_id": 1, "status": "processing"})
+
+        async with make_async_client(handler) as client:
+            result = await client.bulk_research_and_poll(["https://a.com"], interval=0.01)
+            assert result["status"] == "completed"
+
+    @pytest.mark.anyio
+    async def test_async_bulk_research_and_poll_timeout(self):
+        def handler(request):
+            if request.method == "POST":
+                return json_response({"bulk_job_id": 1, "status": "processing", "total_items": 1}, 202)
+            return json_response({"bulk_job_id": 1, "status": "processing"})
+
+        async with make_async_client(handler) as client:
+            with pytest.raises(APITimeoutError):
+                await client.bulk_research_and_poll(["https://a.com"], interval=0.01, timeout=0.05)

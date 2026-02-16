@@ -71,6 +71,8 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
+from api.ratelimit import _rate_limit_info
+
 from services.collect import close_shared_http_client
 from auth import router as auth_router, get_current_user
 from billing import router as billing_router
@@ -89,6 +91,31 @@ from routes._helpers import templates
 settings = get_settings()
 
 _is_https = settings.app_url.startswith("https")
+
+
+class RateLimitHeaderMiddleware:
+    """Pure ASGI middleware that sets X-RateLimit-* headers from ContextVar."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                info = _rate_limit_info.get(None)
+                if info is not None:
+                    headers = list(message.get("headers", []))
+                    headers.append((b"x-ratelimit-limit", str(info.limit).encode()))
+                    headers.append((b"x-ratelimit-remaining", str(info.remaining).encode()))
+                    headers.append((b"x-ratelimit-reset", str(info.reset).encode()))
+                    message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 class LatencyLoggingMiddleware(BaseHTTPMiddleware):
@@ -221,6 +248,9 @@ app.add_middleware(
     same_site="lax",
 )
 
+# Rate limit headers (pure ASGI — reads ContextVar set by endpoint rate limiters)
+app.add_middleware(RateLimitHeaderMiddleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(billing_router)
@@ -279,8 +309,12 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             status_code=exc.status_code,
         )
     # Structured error format: {"error": {"code": ..., "message": ...}}
+    request_id = getattr(request.state, "request_id", None)
     if isinstance(exc.detail, dict) and "code" in exc.detail:
-        resp = JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        error_body = {**exc.detail}
+        if request_id:
+            error_body["request_id"] = request_id
+        resp = JSONResponse({"error": error_body}, status_code=exc.status_code)
         if exc.headers:
             for k, v in exc.headers.items():
                 resp.headers[k] = v
@@ -288,15 +322,19 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     # Legacy HTTPException with string detail
     code = _STATUS_TO_CODE.get(exc.status_code, "internal_error")
     message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
-    return JSONResponse({"error": {"code": code, "message": message}}, status_code=exc.status_code)
+    error_body = {"code": code, "message": message}
+    if request_id:
+        error_body["request_id"] = request_id
+    return JSONResponse({"error": error_body}, status_code=exc.status_code)
 
 
 @app.exception_handler(pydantic.ValidationError)
 async def pydantic_validation_handler(request: Request, exc: pydantic.ValidationError):
-    return JSONResponse(
-        {"error": {"code": "validation_error", "message": str(exc)}},
-        status_code=400,
-    )
+    request_id = getattr(request.state, "request_id", None)
+    error_body = {"code": "validation_error", "message": str(exc)}
+    if request_id:
+        error_body["request_id"] = request_id
+    return JSONResponse({"error": error_body}, status_code=400)
 
 
 @app.exception_handler(Exception)
@@ -309,10 +347,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             {"request": request, "status_code": 500, "title": "Something Went Wrong", "detail": "Internal server error"},
             status_code=500,
         )
-    return JSONResponse(
-        {"error": {"code": "internal_error", "message": "Internal server error"}},
-        status_code=500,
-    )
+    request_id = getattr(request.state, "request_id", None)
+    error_body = {"code": "internal_error", "message": "Internal server error"}
+    if request_id:
+        error_body["request_id"] = request_id
+    return JSONResponse({"error": error_body}, status_code=500)
 
 
 # =============================================================================

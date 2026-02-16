@@ -9,9 +9,23 @@ import logging
 import threading
 import time
 from collections import defaultdict
+from contextvars import ContextVar
+from dataclasses import dataclass
+
 from api.errors import APIError
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RateLimitInfo:
+    """Snapshot of rate limit state after a check() call."""
+    limit: int
+    remaining: int
+    reset: int  # Unix timestamp when the oldest hit expires
+
+
+_rate_limit_info: ContextVar[RateLimitInfo | None] = ContextVar("rate_limit_info", default=None)
 
 MAX_KEYS = 10_000
 CLEANUP_INTERVAL = 60  # seconds
@@ -66,12 +80,20 @@ class InMemoryRateLimiter(BaseRateLimiter):
     def check(self, key) -> None:
         """Raise 429 if rate limit exceeded."""
         now = time.monotonic()
+        wall_now = int(time.time())
         cutoff = now - self.window
 
         with self._lock:
             hits = [t for t in self._hits[key] if t > cutoff]
 
             if len(hits) >= self.requests:
+                reset_mono = hits[0] + self.window
+                reset_wall = wall_now + int(reset_mono - now) + 1
+                _rate_limit_info.set(RateLimitInfo(
+                    limit=self.requests,
+                    remaining=0,
+                    reset=reset_wall,
+                ))
                 if not self.enforce:
                     logger.warning(
                         "Rate limit exceeded (warn-only): key=%s, limit=%d/%ds",
@@ -88,6 +110,15 @@ class InMemoryRateLimiter(BaseRateLimiter):
 
             hits.append(now)
             self._hits[key] = hits
+
+            remaining = self.requests - len(hits)
+            oldest_hit = hits[0]
+            reset_wall = wall_now + int((oldest_hit + self.window) - now) + 1
+            _rate_limit_info.set(RateLimitInfo(
+                limit=self.requests,
+                remaining=remaining,
+                reset=reset_wall,
+            ))
 
             # Evict oldest keys if we exceed MAX_KEYS
             if len(self._hits) > MAX_KEYS:
