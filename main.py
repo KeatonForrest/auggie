@@ -83,6 +83,7 @@ from routes.team import router as team_router
 from routes.settings import router as settings_router
 from routes.admin import router as admin_router
 from routes.watchlist import router as watchlist_router
+from routes.platforms import router as platforms_router
 from routes._helpers import templates
 
 settings = get_settings()
@@ -232,6 +233,7 @@ app.include_router(team_router)
 app.include_router(settings_router)
 app.include_router(admin_router)
 app.include_router(watchlist_router)
+app.include_router(platforms_router)
 
 
 @app.get("/health")
@@ -375,67 +377,10 @@ async def docs_page(request: Request):
     )
 
 
-@app.get("/guides/clay-pain-based-outbound", response_class=HTMLResponse)
-async def guide_clay_pain_outbound_redirect():
-    """Redirect old URL to new one."""
-    return RedirectResponse(url="/guides/clay-problem-signal-prospecting", status_code=301)
-
-
-@app.get("/guides/clay-problem-signal-prospecting", response_class=HTMLResponse)
-async def guide_clay_problem_signal(request: Request):
-    """Clay problem-signal prospecting guide page."""
-    user = await get_current_user(request)
-    clay_template = {
-        "columns": [
-            {"name": "Company Website", "type": "text", "description": "The company domain to research"},
-            {
-                "name": "Auggie Research",
-                "type": "http_request",
-                "config": {
-                    "method": "POST",
-                    "url": "https://auggie.app/v1/clay/enrich",
-                    "headers": {
-                        "Authorization": "Bearer aug_your_key",
-                        "Content-Type": "application/json"
-                    },
-                    "body": "{\"company_url\": \"{{/Company Website}}\"}"
-                }
-            },
-            {"name": "Pain Score", "type": "extract", "path": "pain_score"},
-            {"name": "Composite Score", "type": "extract", "path": "composite_score"},
-            {"name": "Score Summary", "type": "extract", "path": "score_summary"},
-            {"name": "Pain Reasons", "type": "extract", "path": "pain_reasons"},
-            {"name": "Business Problems", "type": "extract", "path": "business_problems"},
-            {"name": "Talking Points", "type": "extract", "path": "talking_points"},
-            {"name": "Product Fit", "type": "extract", "path": "product_fit"},
-            {"name": "Document ID", "type": "extract", "path": "document_id"}
-        ],
-        "filters": [
-            {"column": "Pain Score", "operator": ">=", "value": 70}
-        ]
-    }
-    return templates.TemplateResponse(
-        "guide_clay_pain_outbound.html",
-        {"request": request, "user": user, "clay_template_json": clay_template}
-    )
-
-
-@app.get("/guides/n8n", response_class=HTMLResponse)
-async def guide_n8n(request: Request):
-    user = await get_current_user(request)
-    return templates.TemplateResponse("guide_n8n.html", {"request": request, "user": user})
-
-
-@app.get("/guides/make", response_class=HTMLResponse)
-async def guide_make(request: Request):
-    user = await get_current_user(request)
-    return templates.TemplateResponse("guide_make.html", {"request": request, "user": user})
-
-
-@app.get("/guides/zapier", response_class=HTMLResponse)
-async def guide_zapier(request: Request):
-    user = await get_current_user(request)
-    return templates.TemplateResponse("guide_zapier.html", {"request": request, "user": user})
+@app.get("/automations", response_class=HTMLResponse)
+async def automations_redirect():
+    """Redirect legacy automations URL to platforms hub."""
+    return RedirectResponse(url="/platforms", status_code=301)
 
 
 if __name__ == "__main__":

@@ -14,108 +14,25 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # =============================================================================
-# Automation Rules CRUD Routes
+# Platforms Hub
 # =============================================================================
 
 @pytest.mark.asyncio
-async def test_automations_page_loads(authed_client):
-    """GET /automations should render the page."""
-    with patch("routes.settings.get_automation_rules", new_callable=AsyncMock, return_value=[]), \
-         patch("routes.settings.get_automation_runs", new_callable=AsyncMock, return_value=[]), \
-         patch("routes.settings.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
-         patch("routes.settings.get_integration", new_callable=AsyncMock, return_value=None):
-        response = await authed_client.get("/automations")
+async def test_platforms_page_loads(authed_client):
+    """GET /platforms should render the hub page."""
+    with patch("routes.platforms.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):
+        response = await authed_client.get("/platforms")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert "Automations" in response.text
+        assert "Platforms" in response.text
 
 
 @pytest.mark.asyncio
-async def test_create_automation_rule(authed_client):
-    """POST /automations should create a rule."""
-    fake_rule = {"id": 1, "name": "Test", "trigger_event": "list_complete",
-                 "conditions": {}, "action": "write_sequences", "action_config": {},
-                 "enabled": True}
-    with patch("routes.settings.create_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
-        response = await authed_client.post("/automations", json={
-            "name": "Test Rule",
-            "trigger_event": "list_complete",
-            "conditions": {"composite_score_gte": 70},
-            "action": "write_sequences",
-            "action_config": {},
-        })
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["rule_id"] == 1
-
-
-@pytest.mark.asyncio
-async def test_create_automation_rule_missing_name(authed_client):
-    """POST /automations with missing name should return 400."""
-    response = await authed_client.post("/automations", json={
-        "name": "",
-        "trigger_event": "list_complete",
-        "action": "write_sequences",
-    })
-    assert response.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_create_automation_rule_invalid_trigger(authed_client):
-    """POST /automations with invalid trigger should return 400."""
-    response = await authed_client.post("/automations", json={
-        "name": "Bad Trigger",
-        "trigger_event": "invalid_event",
-        "action": "write_sequences",
-    })
-    assert response.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_create_automation_rule_invalid_action(authed_client):
-    """POST /automations with invalid action should return 400."""
-    response = await authed_client.post("/automations", json={
-        "name": "Bad Action",
-        "trigger_event": "list_complete",
-        "action": "delete_everything",
-    })
-    assert response.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_toggle_automation_rule(authed_client):
-    """POST /automations/{id}/toggle should toggle enabled state."""
-    fake_rule = {"id": 1, "enabled": False}
-    with patch("routes.settings.update_automation_rule", new_callable=AsyncMock, return_value=fake_rule):
-        response = await authed_client.post("/automations/1/toggle", json={"enabled": False})
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-
-
-@pytest.mark.asyncio
-async def test_toggle_nonexistent_rule(authed_client):
-    """POST /automations/{id}/toggle for missing rule should return 404."""
-    with patch("routes.settings.update_automation_rule", new_callable=AsyncMock, return_value=None):
-        response = await authed_client.post("/automations/999/toggle", json={"enabled": True})
-        assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_delete_automation_rule(authed_client):
-    """POST /automations/{id}/delete should delete the rule."""
-    with patch("routes.settings.delete_automation_rule", new_callable=AsyncMock, return_value=True):
-        response = await authed_client.post("/automations/1/delete")
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-
-
-@pytest.mark.asyncio
-async def test_delete_nonexistent_rule(authed_client):
-    """POST /automations/{id}/delete for missing rule should return 404."""
-    with patch("routes.settings.delete_automation_rule", new_callable=AsyncMock, return_value=False):
-        response = await authed_client.post("/automations/999/delete")
-        assert response.status_code == 404
+async def test_automations_redirects_to_platforms(authed_client):
+    """GET /automations should 301 redirect to /platforms."""
+    response = await authed_client.get("/automations", follow_redirects=False)
+    assert response.status_code == 301
+    assert response.headers["location"] == "/platforms"
 
 
 # =============================================================================
@@ -283,32 +200,8 @@ class TestExecuteActionAudit:
             assert "Unknown action" in mock_complete.call_args[0][2]
 
 
-class TestAutomationsPageWithRuns:
-    """Tests that the automations page shows run history."""
-
-    @pytest.mark.asyncio
-    async def test_page_shows_run_history(self, authed_client):
-        from datetime import datetime
-        fake_rules = [{
-            "id": 1, "name": "Test Rule", "trigger_event": "list_complete",
-            "conditions": {"composite_score_gte": 70}, "action": "write_sequences",
-            "action_config": {}, "enabled": True, "created_at": datetime.now(),
-        }]
-        fake_runs = [{
-            "id": 10, "rule_id": 1, "user_id": 1, "list_id": 5,
-            "matched_accounts": 3, "status": "completed", "error_message": None,
-            "created_at": datetime.now(), "completed_at": datetime.now(),
-            "rule_name": "Test Rule",
-        }]
-
-        with patch("routes.settings.get_automation_rules", new_callable=AsyncMock, return_value=fake_rules), \
-             patch("routes.settings.get_automation_runs", new_callable=AsyncMock, return_value=fake_runs), \
-             patch("routes.settings.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}), \
-             patch("routes.settings.get_integration", new_callable=AsyncMock, return_value=None):
-            response = await authed_client.get("/automations")
-            assert response.status_code == 200
-            assert "Recent runs" in response.text
-            assert "3 accounts matched" in response.text
+class TestAutomationEvaluateRulesExceptionHandling:
+    """Tests that evaluate_rules handles exceptions gracefully."""
 
     @pytest.mark.asyncio
     async def test_exception_does_not_propagate(self):

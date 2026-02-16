@@ -1,4 +1,4 @@
-"""Settings routes: onboarding, settings, API keys, webhook, materials, automations."""
+"""Settings routes: onboarding, settings, API keys, webhook, materials."""
 
 import logging
 import secrets as _secrets
@@ -12,13 +12,10 @@ from database import (
     update_user_profile, get_user_usage, get_user_materials,
     create_api_key_record, list_api_keys, revoke_api_key, get_api_key_usage_stats,
     get_user_webhook, upsert_webhook, delete_user_webhook,
-    get_automation_rules, get_automation_runs, get_integration,
-    create_automation_rule, update_automation_rule, delete_automation_rule,
     get_material_preview, get_material,
 )
 from api.keys import generate_api_key
 from routes._helpers import templates, logger, parse_personas_string, get_materials_service
-from routes.schemas import AutomationCreateRequest, AutomationToggleRequest
 
 settings = get_settings()
 router = APIRouter()
@@ -335,91 +332,3 @@ async def api_list_materials(user: dict = Depends(require_auth)):
 
     materials = await get_user_materials(user["id"])
     return {"materials": materials, "enabled": True}
-
-
-# =============================================================================
-# Automation Rules
-# =============================================================================
-
-@router.get("/automations", response_class=HTMLResponse)
-async def automations_page(request: Request, user: dict = Depends(require_onboarding)):
-    """Automation rules management page."""
-    rules = await get_automation_rules(user["id"])
-    runs = await get_automation_runs(user["id"], limit=50)
-    usage = await get_user_usage(user["id"])
-
-    # Check which integrations are connected for action config
-    instantly_connected = await get_integration(user["id"], "instantly") is not None
-    smartlead_connected = await get_integration(user["id"], "smartlead") is not None
-    outreach_connected = await get_integration(user["id"], "outreach") is not None
-    salesloft_connected = await get_integration(user["id"], "salesloft") is not None
-    slack_connected = await get_integration(user["id"], "slack") is not None
-
-    # Group runs by rule_id for easy lookup in template
-    runs_by_rule = {}
-    for run in runs:
-        runs_by_rule.setdefault(run["rule_id"], []).append(run)
-
-    return templates.TemplateResponse(
-        "automations.html",
-        {
-            "request": request,
-            "user": user,
-            "rules": rules,
-            "runs_by_rule": runs_by_rule,
-            "credits": usage.get("bonus_credits", 0) / 100,
-            "is_admin": usage.get("is_admin", False),
-            "instantly_connected": instantly_connected,
-            "smartlead_connected": smartlead_connected,
-            "outreach_connected": outreach_connected,
-            "salesloft_connected": salesloft_connected,
-            "slack_connected": slack_connected,
-        }
-    )
-
-
-@router.post("/automations")
-async def create_automation(request: Request, user: dict = Depends(require_onboarding)):
-    """Create a new automation rule."""
-    body = AutomationCreateRequest(**(await request.json()))
-
-    name = body.name.strip()
-    trigger_event = body.trigger_event
-    conditions = body.conditions
-    action = body.action
-    action_config = body.action_config
-
-    if not name or not trigger_event or not action:
-        raise HTTPException(status_code=400, detail="Name, trigger, and action are required")
-
-    valid_triggers = {"list_complete", "account_scored"}
-    valid_actions = {"push_instantly", "write_sequences", "notify_slack"}
-    if trigger_event not in valid_triggers:
-        raise HTTPException(status_code=400, detail=f"Invalid trigger: {trigger_event}")
-    if action not in valid_actions:
-        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
-
-    rule = await create_automation_rule(
-        user["id"], name, trigger_event, conditions, action, action_config,
-    )
-    return JSONResponse({"success": True, "rule_id": rule["id"]})
-
-
-@router.post("/automations/{rule_id}/toggle")
-async def toggle_automation(rule_id: int, request: Request, user: dict = Depends(require_onboarding)):
-    """Enable or disable an automation rule."""
-    body = AutomationToggleRequest(**(await request.json()))
-    enabled = body.enabled
-    result = await update_automation_rule(rule_id, user["id"], enabled=enabled)
-    if not result:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    return JSONResponse({"success": True})
-
-
-@router.post("/automations/{rule_id}/delete")
-async def delete_automation(rule_id: int, user: dict = Depends(require_onboarding)):
-    """Delete an automation rule."""
-    deleted = await delete_automation_rule(rule_id, user["id"])
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    return JSONResponse({"success": True})
