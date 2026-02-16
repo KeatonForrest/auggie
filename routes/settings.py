@@ -15,7 +15,7 @@ from database import (
     get_material_preview, get_material,
 )
 from api.keys import generate_api_key
-from routes._helpers import templates, logger, parse_personas_string, get_materials_service
+from routes._helpers import templates, logger, parse_personas_string, normalize_industries, BUYER_CATEGORIES, get_materials_service
 
 settings = get_settings()
 router = APIRouter()
@@ -49,6 +49,7 @@ async def complete_onboarding(
     target_function: list[str] = Form([]),
     custom_signals: str = Form(""),
     product_type: str = Form("saas"),
+    solution_motion: str = Form("horizontal"),
     user: dict = Depends(require_auth),
 ):
     """Save onboarding data and redirect to dashboard."""
@@ -78,6 +79,7 @@ async def complete_onboarding(
         competitors="",  # No longer collected in onboarding
         product_type=product_type,
         custom_signals=custom_signals,
+        solution_motion=solution_motion,
     )
     return RedirectResponse(url="/", status_code=302)
 
@@ -95,7 +97,8 @@ async def settings_page(
     """Settings page to edit profile."""
     # Parse stored values back into lists for checkbox state
     selected_sizes = [s.strip() for s in (user.get("target_company_size") or "").split(", ") if s.strip()]
-    selected_industries = [i.strip() for i in (user.get("target_industries") or "").split(", ") if i.strip()]
+    raw_industries = [i.strip() for i in (user.get("target_industries") or "").split(", ") if i.strip()]
+    selected_industries = normalize_industries(raw_industries)  # map legacy labels → new taxonomy
     selected_levels, selected_functions = parse_personas_string(user.get("target_personas") or "")
 
     return templates.TemplateResponse(
@@ -124,6 +127,7 @@ async def save_settings(
     target_function: list[str] = Form([]),
     custom_signals: str = Form(""),
     product_type: str = Form("saas"),
+    solution_motion: str = Form("horizontal"),
     user: dict = Depends(require_onboarding),
 ):
     """Save updated profile settings."""
@@ -152,6 +156,7 @@ async def save_settings(
         competitors="",
         product_type=product_type,
         custom_signals=custom_signals,
+        solution_motion=solution_motion,
     )
     return RedirectResponse(url="/settings?saved=true", status_code=302)
 

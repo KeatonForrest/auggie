@@ -46,6 +46,55 @@ def normalize_url(url: str) -> str:
     return url
 
 
+# New buyer product categories (v2 taxonomy)
+BUYER_CATEGORIES = [
+    "Fintech", "HealthTech", "MarTech", "ConstructionTech", "EdTech",
+    "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity",
+    "DevTools / Infra", "E-commerce Tech", "Supply Chain / Logistics Tech",
+    "GovTech", "TravelTech", "MediaTech", "Horizontal / Cross-industry",
+]
+
+# Map legacy "Target Industries" labels → new "Buyer Product Categories" labels.
+# Used to keep existing users' selections visible after the UI relabel.
+_LEGACY_INDUSTRY_MAP = {
+    "SaaS / Software": "Horizontal / Cross-industry",
+    "Fintech / Financial Services": "Fintech",
+    "Healthcare / Life Sciences": "HealthTech",
+    "E-commerce / Retail": "E-commerce Tech",
+    "Manufacturing": "Horizontal / Cross-industry",
+    "Professional Services": "Horizontal / Cross-industry",
+    "Media / Entertainment": "MediaTech",
+    "Education / EdTech": "EdTech",
+    "Real Estate / PropTech": "PropTech",
+    "Logistics / Supply Chain": "Supply Chain / Logistics Tech",
+    "Energy / Utilities": "Horizontal / Cross-industry",
+    "Telecommunications": "Horizontal / Cross-industry",
+    "Cybersecurity": "Cybersecurity",
+    "Insurance": "InsurTech",
+    "Construction": "ConstructionTech",
+    "Travel / Hospitality": "TravelTech",
+    "Government / Public Sector": "GovTech",
+}
+
+
+def normalize_industries(stored: list[str]) -> list[str]:
+    """Normalize legacy industry labels to the new buyer-category taxonomy.
+
+    Values already in the new taxonomy pass through unchanged; legacy values
+    are mapped via _LEGACY_INDUSTRY_MAP. Unknown values are preserved as-is.
+    Duplicates are removed while preserving order.
+    """
+    new_set = set(BUYER_CATEGORIES)
+    seen: set[str] = set()
+    out: list[str] = []
+    for label in stored:
+        mapped = label if label in new_set else _LEGACY_INDUSTRY_MAP.get(label, label)
+        if mapped not in seen:
+            seen.add(mapped)
+            out.append(mapped)
+    return out
+
+
 def parse_personas_string(personas_str: str) -> tuple[list[str], list[str]]:
     """Parse stored personas string back into levels and functions lists."""
     levels = []

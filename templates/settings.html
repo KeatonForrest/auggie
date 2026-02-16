@@ -41,10 +41,10 @@
 
             <form method="POST" action="/settings" class="space-y-8">
 
-                <!-- Section 0: Product Type -->
+                <!-- Section 0a: Product Type -->
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Product Type</h2>
-                    <p class="text-sm text-gray-600 mb-3">This shapes how we interpret research signals and score accounts.</p>
+                    <p class="text-sm text-gray-600 mb-3">What kind of product or service do you sell?</p>
                     <div class="flex gap-6">
                         <label class="inline-flex items-center">
                             <input type="radio" name="product_type" value="saas" {{ 'checked' if (user.product_type or 'saas') == 'saas' else '' }} class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
@@ -55,6 +55,23 @@
                             <span class="ml-2 text-sm text-gray-700">IT Services / MSP</span>
                         </label>
                     </div>
+                </div>
+
+                <!-- Section 0b: Solution Motion -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Solution Motion</h2>
+                    <p class="text-sm text-gray-600 mb-3">How broadly does your product apply across industries?</p>
+                    <div class="flex gap-6">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="solution_motion" value="horizontal" {{ 'checked' if (user.solution_motion or 'horizontal') == 'horizontal' else '' }} class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Horizontal</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="solution_motion" value="vertical" {{ 'checked' if user.solution_motion == 'vertical' else '' }} class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Vertical</span>
+                        </label>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500"><strong>Horizontal</strong> = your product serves many industries. <strong>Vertical</strong> = you focus on specific verticals (e.g., healthcare-only SaaS, construction tech).</p>
                 </div>
 
                 <!-- Section 1: Your Company -->
@@ -160,45 +177,45 @@
                             </div>
                         </div>
 
-                        <!-- Industries -->
+                        <!-- Buyer Product Categories -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Research focuses on industry-specific pain signals">
-                                Target Industries <span class="text-gray-400 font-normal">(select all that apply)</span>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" title="Research focuses on category-specific pain signals">
+                                Buyer Product Categories <span class="text-gray-400 font-normal">(select all that apply)</span>
                             </label>
                             <div class="mb-3">
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="select-all-industries"
                                         {% if selected_industries|length == 17 %}checked{% endif %}
                                         class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm font-medium text-blue-600">Select All (Horizontal Solution)</span>
+                                    <span class="ml-2 text-sm font-medium text-blue-600">Select All</span>
                                 </label>
                             </div>
                             <div class="grid grid-cols-2 gap-2" id="industries-grid">
-                                {% set industries = [
-                                    'SaaS / Software',
-                                    'Fintech / Financial Services',
-                                    'Healthcare / Life Sciences',
-                                    'E-commerce / Retail',
-                                    'Manufacturing',
-                                    'Professional Services',
-                                    'Media / Entertainment',
-                                    'Education / EdTech',
-                                    'Real Estate / PropTech',
-                                    'Logistics / Supply Chain',
-                                    'Energy / Utilities',
-                                    'Telecommunications',
+                                {% set categories = [
+                                    'Fintech',
+                                    'HealthTech',
+                                    'MarTech',
+                                    'ConstructionTech',
+                                    'EdTech',
+                                    'PropTech',
+                                    'InsurTech',
+                                    'LegalTech',
+                                    'HRTech',
                                     'Cybersecurity',
-                                    'Insurance',
-                                    'Construction',
-                                    'Travel / Hospitality',
-                                    'Government / Public Sector'
+                                    'DevTools / Infra',
+                                    'E-commerce Tech',
+                                    'Supply Chain / Logistics Tech',
+                                    'GovTech',
+                                    'TravelTech',
+                                    'MediaTech',
+                                    'Horizontal / Cross-industry'
                                 ] %}
-                                {% for industry in industries %}
+                                {% for category in categories %}
                                 <label class="inline-flex items-center">
-                                    <input type="checkbox" name="target_industries" value="{{ industry }}"
-                                        {% if industry in selected_industries %}checked{% endif %}
+                                    <input type="checkbox" name="target_industries" value="{{ category }}"
+                                        {% if category in selected_industries %}checked{% endif %}
                                         class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-gray-700">{{ industry }}</span>
+                                    <span class="ml-2 text-sm text-gray-700">{{ category }}</span>
                                 </label>
                                 {% endfor %}
                             </div>
@@ -268,7 +285,7 @@
         document.querySelector('form').addEventListener('submit', function(e) {
             const groups = [
                 { name: 'target_company_size', label: 'Target Company Size' },
-                { name: 'target_industries', label: 'Target Industries' },
+                { name: 'target_industries', label: 'Buyer Product Categories' },
                 { name: 'target_level', label: 'Target Level in Org' },
                 { name: 'target_function', label: 'Target Function' },
             ];

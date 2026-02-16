@@ -92,7 +92,8 @@ class ClaudeService:
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
-                               product_type: str = "saas", custom_signals: str = "") -> str:
+                               product_type: str = "saas", custom_signals: str = "",
+                               solution_motion: str = "horizontal") -> str:
         """Build the system prompt defining Claude's research analyst role."""
         base_prompt = f"""Follow every section in OUTPUT FORMAT exactly. Do not skip or merge sections. Output all SCORE_ fields at the end in the exact format specified.
 
@@ -227,7 +228,11 @@ for more personalized recommendations in future research.
         # Add ICP section if any ICP fields are populated
         icp_parts = []
         if target_industries:
-            icp_parts.append(f"""- **Industry emphasis**: The seller targets these industries: {target_industries}. Emphasize industry-specific signals such as regulatory pressure, compliance deadlines, and industry-specific technology patterns. Score Fit higher when the prospect matches a target industry.""")
+            motion = "Vertical" if solution_motion == "vertical" else "Horizontal"
+            if motion == "Vertical":
+                icp_parts.append(f"""- **Buyer product categories (Vertical motion)**: The seller focuses on these buyer categories: {target_industries}. Category match should be weighted heavily in Fit scoring and talking points. Prospects outside the selected categories should receive a meaningful Fit penalty. Emphasize category-specific pain signals such as regulatory pressure, compliance deadlines, and industry-specific technology patterns.""")
+            else:
+                icp_parts.append(f"""- **Buyer product categories (Horizontal motion)**: The seller targets these buyer categories: {target_industries}. A category match is a light Fit boost only — do not hard-penalize prospects outside the selected categories because the product can serve many verticals. Avoid making strong vertical assumptions; focus on functional pain signals over industry membership.""")
         if target_personas:
             icp_parts.append(f"""- **Persona emphasis**: The seller targets these personas: {target_personas}. Focus existential data points and champion identification on those specific roles. Look for hiring and org signals relevant to those functions.""")
         if problems_solved:
@@ -883,13 +888,14 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
         custom_signals: str = "",
+        solution_motion: str = "horizontal",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
         system_prompt = self._build_system_prompt(
             product_context, retrieved_materials, seller_company,
             target_personas=target_personas, target_industries=target_industries,
             problems_solved=problems_solved, product_type=product_type,
-            custom_signals=custom_signals,
+            custom_signals=custom_signals, solution_motion=solution_motion,
         )
         user_prompt = self._build_user_prompt(
             company_url, scraped, tech_by_domain,

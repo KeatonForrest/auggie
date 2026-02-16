@@ -78,7 +78,7 @@ class TestBuildSystemPrompt:
         )
 
         assert "IDEAL CUSTOMER PROFILE:" in result
-        assert "Industry emphasis" in result
+        assert "Buyer product categories" in result
         assert "Fintech, Healthcare" in result
 
     def test_with_target_personas(self, claude_service):
@@ -117,12 +117,60 @@ class TestBuildSystemPrompt:
         )
 
         assert "IDEAL CUSTOMER PROFILE:" in result
-        assert "Industry emphasis" in result
+        assert "Buyer product categories" in result
         assert "Persona emphasis" in result
         assert "Problem alignment" in result
         assert "Fintech" in result
         assert "CTO" in result
         assert "Database scaling" in result
+
+    def test_horizontal_motion_light_boost(self, claude_service):
+        """Horizontal motion gives light Fit boost, no hard penalty for non-matching categories."""
+        result = claude_service._build_system_prompt(
+            product_context="Database software",
+            target_industries="Fintech, HealthTech",
+            solution_motion="horizontal"
+        )
+
+        assert "Horizontal motion" in result
+        assert "light Fit boost" in result
+        assert "do not hard-penalize" in result
+
+    def test_vertical_motion_strong_weighting(self, claude_service):
+        """Vertical motion weights categories heavily and penalizes non-matches."""
+        result = claude_service._build_system_prompt(
+            product_context="IT support services",
+            target_industries="HealthTech, InsurTech",
+            solution_motion="vertical"
+        )
+
+        assert "Vertical motion" in result
+        assert "weighted heavily" in result
+        assert "meaningful Fit penalty" in result
+
+    def test_saas_vertical_no_msp_modifier(self, claude_service):
+        """product_type='saas' + solution_motion='vertical' does NOT trigger MSP modifier."""
+        result = claude_service._build_system_prompt(
+            product_context="Healthcare compliance SaaS",
+            target_industries="HealthTech",
+            product_type="saas",
+            solution_motion="vertical"
+        )
+
+        assert "Vertical motion" in result
+        assert "MSP / IT SERVICES MODIFIER" not in result
+
+    def test_msp_horizontal_gets_msp_modifier(self, claude_service):
+        """product_type='msp' + solution_motion='horizontal' still gets MSP modifier."""
+        result = claude_service._build_system_prompt(
+            product_context="Managed IT services",
+            target_industries="HealthTech, Fintech",
+            product_type="msp",
+            solution_motion="horizontal"
+        )
+
+        assert "Horizontal motion" in result
+        assert "MSP / IT SERVICES MODIFIER" in result
 
     def test_product_type_msp(self, claude_service):
         """Test prompt with product_type='msp' adds MSP modifier section."""

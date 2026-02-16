@@ -152,6 +152,7 @@ async def update_user_profile(
     competitors: str,
     product_type: str = "saas",
     custom_signals: str = "",
+    solution_motion: str = "horizontal",
 ) -> dict:
     """Update user's onboarding profile with enhanced fields."""
     # Build a rich product_context string for Claude
@@ -166,6 +167,7 @@ async def update_user_profile(
         competitors=competitors,
         product_type=product_type,
         custom_signals=custom_signals,
+        solution_motion=solution_motion,
     )
 
     async with _db._pool.acquire() as conn:
@@ -183,14 +185,15 @@ async def update_user_profile(
                 target_personas = $10,
                 competitors = $11,
                 product_type = $12,
-                custom_signals = $13
+                custom_signals = $13,
+                solution_motion = $14
             WHERE id = $1
             RETURNING *
             """,
             user_id, company_name, product_context,
             product_name, product_description, problems_solved, differentiators,
             target_company_size, target_industries, target_personas, competitors,
-            product_type, custom_signals
+            product_type, custom_signals, solution_motion
         )
         # Invalidate auth cache so the next request sees updated profile
         from auth_cache import invalidate_user_cache
@@ -209,6 +212,7 @@ def build_product_context(
     competitors: str,
     product_type: str = "saas",
     custom_signals: str = "",
+    solution_motion: str = "horizontal",
 ) -> str:
     """Build a rich product context string for Claude from onboarding data.
 
@@ -233,7 +237,7 @@ def build_product_context(
         parts.append(f"**Target company size:** {target_company_size}")
 
     if target_industries:
-        parts.append(f"**Target industries:** {target_industries}")
+        parts.append(f"**Buyer product categories:** {target_industries}")
 
     if target_personas:
         parts.append(f"**Target personas:** {target_personas}")
@@ -241,8 +245,8 @@ def build_product_context(
     if competitors:
         parts.append(f"**Competitors:** {competitors}")
 
-    if product_type and product_type != "saas":
-        parts.append(f"**Product type:** {product_type}")
+    motion_label = "Vertical" if solution_motion == "vertical" else "Horizontal"
+    parts.append(f"**Solution motion:** {motion_label}")
 
     if custom_signals:
         parts.append(f"**Custom signals:** {custom_signals}")
