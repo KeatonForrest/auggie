@@ -13,6 +13,10 @@ from auggie import (
     AuthenticationError, InsufficientCreditsError, NotFoundError, ConflictError,
     ValidationError, RateLimitError, InternalServerError, APITimeoutError,
     Webhook, WebhookSignatureError,
+    APIResource, PingResponse, Account, ResearchJob, ResearchJobList,
+    EnrichResult, ClayEnrichResult, Sequence, BulkJob, BulkJobList,
+    AccountList, AccountListSummary, PushResult, WebhookConfig, TeamList,
+    Invite, WatchlistItem, WatchlistPage, WatchlistHistory,
 )
 
 
@@ -650,8 +654,8 @@ class TestVersion:
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
 
-    def test_version_is_0_4_0(self):
-        assert __version__ == "0.4.0"
+    def test_version_is_0_5_0(self):
+        assert __version__ == "0.5.0"
 
 
 # ---------------------------------------------------------------------------
@@ -1265,3 +1269,154 @@ class TestBulkPollConvenience:
         async with make_async_client(handler) as client:
             with pytest.raises(APITimeoutError):
                 await client.bulk_research_and_poll(["https://a.com"], interval=0.01, timeout=0.05)
+
+
+# ---------------------------------------------------------------------------
+# Resource objects
+# ---------------------------------------------------------------------------
+
+class TestResourceObjects:
+    def test_dict_access(self):
+        """Resource objects support dict-style access."""
+        r = ResearchJob({"job_id": 42, "status": "completed"})
+        assert r["job_id"] == 42
+        assert r["status"] == "completed"
+
+    def test_dot_access(self):
+        """Resource objects support attribute-style access."""
+        r = ResearchJob({"job_id": 42, "status": "completed"})
+        assert r.job_id == 42
+        assert r.status == "completed"
+
+    def test_missing_key_raises_attribute_error(self):
+        """Accessing missing attribute raises AttributeError."""
+        r = APIResource({"a": 1})
+        with pytest.raises(AttributeError, match="no attribute 'missing'"):
+            _ = r.missing
+
+    def test_isinstance_dict(self):
+        """Resource objects are instances of dict."""
+        r = PingResponse({"status": "ok"})
+        assert isinstance(r, dict)
+
+    def test_json_serializable(self):
+        """Resource objects are JSON-serializable."""
+        r = Account({"user_id": 1, "credits": {"balance": 10}})
+        serialized = json.dumps(r)
+        assert '"user_id": 1' in serialized
+
+    def test_repr(self):
+        """Resource objects have descriptive repr."""
+        r = PingResponse({"status": "ok"})
+        assert repr(r).startswith("PingResponse(")
+
+    def test_setattr(self):
+        """Attribute assignment works."""
+        r = APIResource({})
+        r.new_key = "value"
+        assert r["new_key"] == "value"
+
+    def test_delattr(self):
+        """Attribute deletion works."""
+        r = APIResource({"key": "value"})
+        del r.key
+        assert "key" not in r
+
+    def test_delattr_missing_raises(self):
+        """Deleting missing attribute raises AttributeError."""
+        r = APIResource({})
+        with pytest.raises(AttributeError):
+            del r.missing
+
+    def test_get_method(self):
+        """dict .get() works on resource objects."""
+        r = ResearchJob({"job_id": 42})
+        assert r.get("job_id") == 42
+        assert r.get("missing", "default") == "default"
+
+    def test_in_operator(self):
+        """'in' operator works on resource objects."""
+        r = ResearchJob({"job_id": 42})
+        assert "job_id" in r
+        assert "missing" not in r
+
+    def test_ping_returns_ping_response(self):
+        """ping() returns PingResponse."""
+        def handler(request):
+            return json_response({"status": "ok", "user_id": 1})
+
+        client = make_client(handler)
+        result = client.ping()
+        assert isinstance(result, PingResponse)
+        assert result.status == "ok"
+
+    def test_research_returns_research_job(self):
+        """research() returns ResearchJob."""
+        def handler(request):
+            return json_response({"job_id": 42, "status": "processing"}, 202)
+
+        client = make_client(handler)
+        result = client.research("https://example.com")
+        assert isinstance(result, ResearchJob)
+        assert result.job_id == 42
+
+    def test_get_webhook_returns_none_when_empty(self):
+        """get_webhook() returns None when no webhook configured."""
+        def handler(request):
+            return httpx.Response(204)
+
+        client = make_client(handler)
+        result = client.get_webhook()
+        assert result is None
+
+    def test_get_webhook_returns_webhook_config(self):
+        """get_webhook() returns WebhookConfig when configured."""
+        def handler(request):
+            return json_response({"url": "https://hook.example.com", "active": True})
+
+        client = make_client(handler)
+        result = client.get_webhook()
+        assert isinstance(result, WebhookConfig)
+        assert result.url == "https://hook.example.com"
+
+    def test_backward_compat(self):
+        """Existing dict-style code still works with resource objects."""
+        def handler(request):
+            return json_response({"status": "ok", "user_id": 1})
+
+        client = make_client(handler)
+        result = client.ping()
+        # All dict operations still work
+        assert result == {"status": "ok", "user_id": 1}
+        assert dict(result) == {"status": "ok", "user_id": 1}
+        assert list(result.keys()) == ["status", "user_id"]
+
+    @pytest.mark.anyio
+    async def test_async_ping_returns_ping_response(self):
+        """Async ping() returns PingResponse."""
+        def handler(request):
+            return json_response({"status": "ok", "user_id": 1})
+
+        async with make_async_client(handler) as client:
+            result = await client.ping()
+            assert isinstance(result, PingResponse)
+            assert result.status == "ok"
+
+    @pytest.mark.anyio
+    async def test_async_research_and_poll_returns_research_job(self):
+        """Async research_and_poll() returns ResearchJob."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            if request.method == "POST":
+                return json_response({"job_id": 1, "status": "processing"}, 202)
+            call_count += 1
+            if call_count >= 2:
+                return json_response({"job_id": 1, "status": "completed"})
+            return json_response({"job_id": 1, "status": "processing"})
+
+        async with make_async_client(handler) as client:
+            result = await client.research_and_poll("https://example.com", interval=0.01)
+            assert isinstance(result, ResearchJob)
+            assert result.status == "completed"

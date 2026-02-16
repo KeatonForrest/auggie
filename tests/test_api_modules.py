@@ -943,6 +943,46 @@ class TestRateLimitHeaders:
 # ============================================================================
 
 
+class TestErrorResponseModels:
+    """Tests for OpenAPI error response models and helper."""
+
+    def test_error_response_schema(self):
+        """ErrorResponse has correct structure."""
+        from api.errors import ErrorResponse, ErrorDetail
+        schema = ErrorResponse.model_json_schema()
+        assert "error" in schema["properties"]
+        # ErrorDetail has code, message, request_id
+        detail_schema = ErrorDetail.model_json_schema()
+        assert "code" in detail_schema["properties"]
+        assert "message" in detail_schema["properties"]
+        assert "request_id" in detail_schema["properties"]
+
+    def test_error_responses_helper_returns_subset(self):
+        """_error_responses returns correct subset of error codes."""
+        from api.errors import _error_responses
+        result = _error_responses(401, 404)
+        assert 401 in result
+        assert 404 in result
+        assert 402 not in result
+
+    def test_error_responses_all_codes(self):
+        """_error_responses covers all documented error codes."""
+        from api.errors import _error_responses
+        all_codes = _error_responses(401, 402, 403, 404, 409, 422, 429)
+        assert len(all_codes) == 7
+        for code in [401, 402, 403, 404, 409, 422, 429]:
+            assert code in all_codes
+            assert "model" in all_codes[code]
+            assert "description" in all_codes[code]
+
+    def test_error_responses_ignores_unknown_codes(self):
+        """_error_responses silently skips unknown status codes."""
+        from api.errors import _error_responses
+        result = _error_responses(401, 999)
+        assert 401 in result
+        assert 999 not in result
+
+
 class TestErrorRequestId:
     """Tests for request_id injection in error responses."""
 

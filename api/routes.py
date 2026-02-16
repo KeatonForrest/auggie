@@ -7,10 +7,10 @@ from enum import Enum
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.auth import require_api_key
-from api.errors import APIError
+from api.errors import APIError, ErrorResponse, _error_responses
 from api.idempotency import check_idempotency, save_idempotency
 from database import (
     get_user_usage, get_document,
@@ -53,19 +53,20 @@ CLAY_TIMEOUT = 120.0
 router = APIRouter(prefix="/v1")
 
 
+
 class ResearchRequest(BaseModel):
-    company_url: str
+    company_url: str = Field(..., description="Company website URL to research", examples=["https://example.com"])
 
 
 class ScoreResponse(BaseModel):
-    composite: int | None = None
-    pain: int | None = None
-    fit: int | None = None
-    timing: int | None = None
-    summary: str | None = None
-    pain_evidence: list[str] | None = None
-    pain_categories: dict[str, int] | None = None
-    pain_signals: list[dict] | None = None
+    composite: int | None = Field(None, description="Overall opportunity score (0-100)", examples=[78])
+    pain: int | None = Field(None, description="Pain score (0-100)", examples=[85])
+    fit: int | None = Field(None, description="Product fit score (0-100)", examples=[72])
+    timing: int | None = Field(None, description="Timing score (0-100)", examples=[68])
+    summary: str | None = Field(None, description="Brief summary of scoring rationale")
+    pain_evidence: list[str] | None = Field(None, description="List of pain evidence bullet points")
+    pain_categories: dict[str, int] | None = Field(None, description="Pain confidence by category")
+    pain_signals: list[dict] | None = Field(None, description="Detected pain signals with severity")
 
 
 class ResearchResponse(BaseModel):
@@ -119,14 +120,27 @@ def synthesize_pain(inferences: list[dict], pain_evidence: str | None) -> dict:
     }
 
 
-@router.get("/ping", tags=["Account"])
+@router.get("/ping", tags=["Account"], responses={
+    200: {"content": {"application/json": {"example": {"status": "ok", "user_id": 1}}}},
+    **_error_responses(401, 429),
+})
 async def ping(api_user: dict = Depends(require_api_key)):
     """Health check endpoint. Returns 200 if API key is valid."""
     default_limiter.check(api_user["api_key_id"])
     return {"status": "ok", "user_id": api_user["id"]}
 
 
-@router.get("/account", tags=["Account"])
+@router.get("/account", tags=["Account"], responses={
+    200: {"content": {"application/json": {"example": {
+        "user_id": 1,
+        "email": "user@example.com",
+        "organization": {"name": "Acme Corp", "slug": "acme"},
+        "credits": {"balance": 50, "unit": "credits"},
+        "subscription": {"status": "active", "billing_period_start": "2025-01-01T00:00:00"},
+        "api_keys": [{"id": 1, "prefix": "sk_live_abc12345", "name": "Default", "created_at": "2025-01-01T00:00:00", "last_used_at": None, "usage": {"requests": 100, "credits": 25}}],
+    }}}},
+    **_error_responses(401, 429),
+})
 async def get_account(api_user: dict = Depends(require_api_key)):
     """Get account info: credits, subscription, org, and API key usage."""
     from database import get_user_by_id
@@ -175,7 +189,10 @@ async def get_account(api_user: dict = Depends(require_api_key)):
     }
 
 
-@router.post("/research", status_code=202, tags=["Research"])
+@router.post("/research", status_code=202, tags=["Research"], responses={
+    202: {"content": {"application/json": {"example": {"job_id": 42, "status": "processing"}}}},
+    **_error_responses(401, 402, 422, 429),
+})
 async def create_research(request: Request, body: ResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start an async research job. Returns immediately with a job_id."""
     research_limiter.check(api_user["api_key_id"])
@@ -220,7 +237,16 @@ async def create_research(request: Request, body: ResearchRequest, api_user: dic
     return response_body
 
 
-@router.get("/research/{job_id}", tags=["Research"])
+@router.get("/research/{job_id}", tags=["Research"], responses={
+    200: {"content": {"application/json": {"example": {
+        "job_id": 42, "status": "completed", "progress": None,
+        "company_url": "https://example.com", "created_at": "2025-01-15T10:30:00",
+        "completed_at": "2025-01-15T10:31:00", "document_id": 100,
+        "company_name": "Example Inc.",
+        "scores": {"composite": 78, "pain": 85, "fit": 72, "timing": 68, "summary": "Strong opportunity"},
+    }}}},
+    **_error_responses(401, 404, 429),
+})
 async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key)):
     """Poll for job status. Returns full result when completed."""
     default_limiter.check(api_user["api_key_id"])
@@ -294,7 +320,13 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
     return result
 
 
-@router.get("/research", tags=["Research"])
+@router.get("/research", tags=["Research"], responses={
+    200: {"content": {"application/json": {"example": {
+        "jobs": [{"job_id": 42, "company_url": "https://example.com", "status": "completed", "document_id": 100, "error": None, "created_at": "2025-01-15T10:30:00", "completed_at": "2025-01-15T10:31:00"}],
+        "total": 1, "has_more": False,
+    }}}},
+    **_error_responses(401, 429),
+})
 async def list_jobs(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
@@ -325,29 +357,31 @@ async def list_jobs(
 
 
 class EnrichRequest(BaseModel):
-    document_id: int
-    titles: list[str] | None = None  # Optional custom titles; defaults to user's ICP
+    document_id: int = Field(..., description="ID of a completed research document", examples=[42])
+    titles: list[str] | None = Field(None, description="Target job titles to find contacts for", examples=[["CTO", "VP Engineering"]])
 
 
 class EnrichContact(BaseModel):
-    name: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    title: str | None = None
-    email: str | None = None
-    email_status: str | None = None
-    profile_url: str | None = None
-    company_name: str | None = None
+    name: str | None = Field(None, description="Full name", examples=["Jane Doe"])
+    first_name: str | None = Field(None, description="First name", examples=["Jane"])
+    last_name: str | None = Field(None, description="Last name", examples=["Doe"])
+    title: str | None = Field(None, description="Job title", examples=["CTO"])
+    email: str | None = Field(None, description="Email address", examples=["jane@example.com"])
+    email_status: str | None = Field(None, description="Email verification status", examples=["valid"])
+    profile_url: str | None = Field(None, description="LinkedIn profile URL", examples=["https://linkedin.com/in/janedoe"])
+    company_name: str | None = Field(None, description="Company name", examples=["Example Inc."])
 
 
 class EnrichResponse(BaseModel):
-    success: bool
-    contacts: list[EnrichContact] = []
-    cached: bool = False
-    error: str | None = None
+    success: bool = Field(..., description="Whether enrichment succeeded", examples=[True])
+    contacts: list[EnrichContact] = Field([], description="Enriched contacts")
+    cached: bool = Field(False, description="Whether results were served from cache")
+    error: str | None = Field(None, description="Error message if failed")
 
 
-@router.post("/enrich", response_model=EnrichResponse, tags=["Research"])
+@router.post("/enrich", response_model=EnrichResponse, tags=["Research"], responses={
+    **_error_responses(401, 402, 404, 422, 429),
+})
 async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict = Depends(require_api_key)):
     """Enrich contacts for an existing research document using LeadMagic."""
     research_limiter.check(api_user["api_key_id"])
@@ -420,7 +454,7 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
 # =============================================================================
 
 class ClayEnrichRequest(BaseModel):
-    company_url: str
+    company_url: str = Field(..., description="Company website URL to research and enrich", examples=["https://example.com"])
 
 
 def _truncate(text: str | None, max_len: int = 500) -> str:
@@ -467,7 +501,15 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
     return resp
 
 
-@router.post("/clay/enrich", tags=["Research"])
+@router.post("/clay/enrich", tags=["Research"], responses={
+    200: {"content": {"application/json": {"example": {
+        "success": True, "company_name": "Example Inc.", "company_url": "https://example.com",
+        "pain_score": 85, "fit_score": 72, "timing_score": 68, "composite_score": 78,
+        "score_summary": "Strong opportunity", "document_id": 100, "cached": False,
+        "research_duration_seconds": 45.2, "error": None,
+    }}}},
+    **_error_responses(401, 402, 422, 429),
+})
 async def clay_enrich(request: Request, body: ClayEnrichRequest, api_user: dict = Depends(require_api_key)):
     """Synchronous enrichment endpoint optimized for Clay HTTP columns.
 
@@ -560,19 +602,21 @@ def _build_default_titles(user: dict) -> list[str]:
 # =============================================================================
 
 class SequenceEmail(BaseModel):
-    email_number: int
-    subject: str
-    body: str
+    email_number: int = Field(..., description="Email position in the sequence (1-3)", examples=[1])
+    subject: str = Field(..., description="Email subject line")
+    body: str = Field(..., description="Email body text")
 
 
 class SequenceResponse(BaseModel):
-    success: bool
-    document_id: int
-    emails: list[SequenceEmail] = []
-    error: str | None = None
+    success: bool = Field(..., description="Whether generation succeeded", examples=[True])
+    document_id: int = Field(..., description="Source research document ID", examples=[42])
+    emails: list[SequenceEmail] = Field([], description="Generated email sequence (3 emails)")
+    error: str | None = Field(None, description="Error message if failed")
 
 
-@router.post("/research/{doc_id}/sequence", response_model=SequenceResponse, tags=["Sequences"])
+@router.post("/research/{doc_id}/sequence", response_model=SequenceResponse, tags=["Sequences"], responses={
+    **_error_responses(401, 404, 429),
+})
 async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_key)):
     """Generate a 3-email outreach sequence from a completed research document."""
     sequence_limiter.check(api_user["api_key_id"])
@@ -624,11 +668,14 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
 # =============================================================================
 
 class BulkResearchRequest(BaseModel):
-    company_urls: list[str]
-    name: str | None = None
+    company_urls: list[str] = Field(..., description="List of company URLs to research (max 100)", examples=[["https://example.com", "https://acme.com"]])
+    name: str | None = Field(None, description="Optional name for the bulk job", examples=["Q1 Target List"])
 
 
-@router.post("/research/bulk", status_code=202, tags=["Bulk"])
+@router.post("/research/bulk", status_code=202, tags=["Bulk"], responses={
+    202: {"content": {"application/json": {"example": {"bulk_job_id": 1, "status": "processing", "total_items": 5}}}},
+    **_error_responses(401, 402, 422, 429),
+})
 async def create_bulk_research(request: Request, body: BulkResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start a bulk research job. Accepts up to 100 URLs."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -675,7 +722,15 @@ async def create_bulk_research(request: Request, body: BulkResearchRequest, api_
     return response_body
 
 
-@router.get("/research/bulk/{bulk_job_id}", tags=["Bulk"])
+@router.get("/research/bulk/{bulk_job_id}", tags=["Bulk"], responses={
+    200: {"content": {"application/json": {"example": {
+        "bulk_job_id": 1, "name": "Q1 Targets", "status": "completed",
+        "total_items": 5, "completed_items": 4, "failed_items": 1,
+        "credits_reserved": 500, "created_at": "2025-01-15T10:30:00", "completed_at": "2025-01-15T10:35:00",
+        "items": [{"id": 1, "company_url": "https://example.com", "status": "completed", "research_job_id": 42, "document_id": 100, "error": None, "created_at": "2025-01-15T10:30:00", "completed_at": "2025-01-15T10:31:00"}],
+    }}}},
+    **_error_responses(401, 404, 429),
+})
 async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require_api_key)):
     """Get bulk job progress and all items."""
     default_limiter.check(api_user["api_key_id"])
@@ -724,7 +779,13 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
     }
 
 
-@router.get("/research/bulk", tags=["Bulk"])
+@router.get("/research/bulk", tags=["Bulk"], responses={
+    200: {"content": {"application/json": {"example": {
+        "bulk_jobs": [{"bulk_job_id": 1, "name": "Q1 Targets", "status": "completed", "total_items": 5, "completed_items": 4, "failed_items": 1, "created_at": "2025-01-15T10:30:00", "completed_at": "2025-01-15T10:35:00"}],
+        "total": 1, "has_more": False,
+    }}}},
+    **_error_responses(401, 429),
+})
 async def list_bulk_jobs_endpoint(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
@@ -760,12 +821,15 @@ async def list_bulk_jobs_endpoint(
 # =============================================================================
 
 class CreateListRequest(BaseModel):
-    name: str
-    company_urls: list[str]
-    analyze: bool = False
+    name: str = Field(..., description="Display name for the list", examples=["Enterprise Targets"])
+    company_urls: list[str] = Field(..., description="Company URLs to add (max 100)", examples=[["https://example.com", "https://acme.com"]])
+    analyze: bool = Field(False, description="Trigger analysis immediately after creation")
 
 
-@router.post("/lists", status_code=201, tags=["Lists"])
+@router.post("/lists", status_code=201, tags=["Lists"], responses={
+    201: {"content": {"application/json": {"example": {"list_id": 1, "name": "Enterprise Targets", "status": "analyzing", "total_accounts": 5}}}},
+    **_error_responses(401, 402, 422, 429),
+})
 async def create_list_endpoint(request: Request, body: CreateListRequest, api_user: dict = Depends(require_api_key)):
     """Create a persistent list of companies. Optionally trigger analysis immediately."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -830,7 +894,10 @@ async def create_list_endpoint(request: Request, body: CreateListRequest, api_us
     return response_body
 
 
-@router.post("/lists/{list_id}/analyze", status_code=202, tags=["Lists"])
+@router.post("/lists/{list_id}/analyze", status_code=202, tags=["Lists"], responses={
+    202: {"content": {"application/json": {"example": {"list_id": 1, "status": "analyzing", "pending_accounts": 3}}}},
+    **_error_responses(401, 404, 409, 429),
+})
 async def analyze_list_endpoint(request: Request, list_id: int, api_user: dict = Depends(require_api_key)):
     """Trigger analysis on a list's pending accounts."""
     bulk_limiter.check(api_user["api_key_id"])
@@ -875,7 +942,15 @@ async def analyze_list_endpoint(request: Request, list_id: int, api_user: dict =
     return response_body
 
 
-@router.get("/lists/{list_id}", tags=["Lists"])
+@router.get("/lists/{list_id}", tags=["Lists"], responses={
+    200: {"content": {"application/json": {"example": {
+        "list_id": 1, "name": "Enterprise Targets", "status": "completed",
+        "total_accounts": 5, "analyzed_accounts": 4, "failed_accounts": 1,
+        "accounts": [{"id": 1, "company_url": "https://example.com", "company_name": "Example Inc.", "status": "completed", "document_id": 100, "pain_score": 85, "fit_score": 72, "timing_score": 68, "composite_score": 78, "analyzed_at": "2025-01-15T10:31:00"}],
+        "total": 5, "has_more": False,
+    }}}},
+    **_error_responses(401, 404, 429),
+})
 async def get_list_endpoint(
     list_id: int,
     api_user: dict = Depends(require_api_key),
@@ -933,7 +1008,13 @@ async def get_list_endpoint(
     }
 
 
-@router.get("/lists", tags=["Lists"])
+@router.get("/lists", tags=["Lists"], responses={
+    200: {"content": {"application/json": {"example": {
+        "lists": [{"list_id": 1, "name": "Enterprise Targets", "status": "completed", "total_accounts": 5, "analyzed_accounts": 4, "failed_accounts": 1, "created_at": "2025-01-15T10:30:00", "updated_at": "2025-01-15T10:35:00"}],
+        "total": 1, "has_more": False,
+    }}}},
+    **_error_responses(401, 429),
+})
 async def list_lists_endpoint(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
@@ -964,7 +1045,9 @@ async def list_lists_endpoint(
     }
 
 
-@router.delete("/lists/{list_id}", status_code=204, tags=["Lists"])
+@router.delete("/lists/{list_id}", status_code=204, tags=["Lists"], responses={
+    **_error_responses(401, 404, 429),
+})
 async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
     """Delete a list and all its accounts."""
     default_limiter.check(api_user["api_key_id"])
@@ -975,11 +1058,14 @@ async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_ap
 
 
 class PushInstantlyRequest(BaseModel):
-    campaign_id: str
-    account_ids: list[int] | None = None
+    campaign_id: str = Field(..., description="Instantly campaign ID to push accounts to", examples=["camp_abc123"])
+    account_ids: list[int] | None = Field(None, description="Specific account IDs to push (omit for all completed)", examples=[[1, 2, 3]])
 
 
-@router.post("/lists/{list_id}/push", tags=["Lists"])
+@router.post("/lists/{list_id}/push", tags=["Lists"], responses={
+    200: {"content": {"application/json": {"example": {"pushed": 5, "campaign_id": "camp_abc123"}}}},
+    **_error_responses(401, 404, 422, 429),
+})
 async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_user: dict = Depends(require_api_key)):
     """Push accounts from a list to an Instantly campaign via API."""
     from database import get_integration, get_enriched_contacts as get_contacts
@@ -1022,15 +1108,18 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
 # =================================================================
 
 class InviteRequest(BaseModel):
-    email: str
-    role: str = "member"
+    email: str = Field(..., description="Email address of the person to invite", examples=["new.member@example.com"])
+    role: str = Field("member", description="Role to assign: admin, member, or viewer", examples=["member"])
 
 
 class RoleUpdate(BaseModel):
-    role: str
+    role: str = Field(..., description="New role: admin, member, or viewer", examples=["admin"])
 
 
-@router.get("/team", tags=["Team"])
+@router.get("/team", tags=["Team"], responses={
+    200: {"content": {"application/json": {"example": {"members": [{"id": 1, "email": "admin@example.com", "role": "admin", "name": "Admin User"}]}}}},
+    **_error_responses(401),
+})
 async def api_list_team(api_user: dict = Depends(require_api_key)):
     """List team members."""
     from database import get_org_members, get_user_by_id
@@ -1041,7 +1130,10 @@ async def api_list_team(api_user: dict = Depends(require_api_key)):
     return {"members": members}
 
 
-@router.post("/team/invite", tags=["Team"])
+@router.post("/team/invite", tags=["Team"], responses={
+    200: {"content": {"application/json": {"example": {"invite": {"id": 1, "email": "new@example.com", "role": "member", "token": "inv_abc123", "expires_at": "2025-02-15T10:30:00"}}}}},
+    **_error_responses(401, 403, 422),
+})
 async def api_invite_member(body: InviteRequest, api_user: dict = Depends(require_api_key)):
     """Invite a team member (admin only)."""
     from database import get_user_by_id, create_org_invite
@@ -1054,7 +1146,10 @@ async def api_invite_member(body: InviteRequest, api_user: dict = Depends(requir
     return {"invite": {"id": invite["id"], "email": invite["email"], "role": invite["role"], "token": invite["token"], "expires_at": str(invite["expires_at"])}}
 
 
-@router.delete("/team/members/{member_id}", tags=["Team"])
+@router.delete("/team/members/{member_id}", tags=["Team"], responses={
+    200: {"content": {"application/json": {"example": {"removed": True}}}},
+    **_error_responses(401, 403, 404),
+})
 async def api_remove_member(member_id: int, api_user: dict = Depends(require_api_key)):
     """Remove a team member (admin only)."""
     from database import get_user_by_id, remove_org_member
@@ -1069,7 +1164,10 @@ async def api_remove_member(member_id: int, api_user: dict = Depends(require_api
     return {"removed": True}
 
 
-@router.patch("/team/members/{member_id}", tags=["Team"])
+@router.patch("/team/members/{member_id}", tags=["Team"], responses={
+    200: {"content": {"application/json": {"example": {"updated": True}}}},
+    **_error_responses(401, 403, 404, 422),
+})
 async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Depends(require_api_key)):
     """Change a team member's role (admin only)."""
     from database import get_user_by_id, update_member_role
@@ -1091,17 +1189,20 @@ async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Dep
 # =================================================================
 
 class WatchlistAddRequest(BaseModel):
-    company_url: str
-    company_name: str | None = None
-    schedule: str = "biweekly"
+    company_url: str = Field(..., description="Company website URL to watch", examples=["https://example.com"])
+    company_name: str | None = Field(None, description="Optional display name", examples=["Example Inc."])
+    schedule: str = Field("biweekly", description="Monitoring frequency: weekly, biweekly, or monthly", examples=["biweekly"])
 
 
 class WatchlistUpdateRequest(BaseModel):
-    schedule: str | None = None
-    status: str | None = None
+    schedule: str | None = Field(None, description="New monitoring frequency: weekly, biweekly, or monthly", examples=["monthly"])
+    status: str | None = Field(None, description="New status: active or paused", examples=["paused"])
 
 
-@router.post("/watchlist", status_code=201, tags=["Watchlist"])
+@router.post("/watchlist", status_code=201, tags=["Watchlist"], responses={
+    201: {"content": {"application/json": {"example": {"id": 1, "company_url": "https://example.com", "company_name": "Example Inc.", "schedule": "biweekly", "status": "active", "next_run_at": "2025-02-01T00:00:00"}}}},
+    **_error_responses(401, 422, 429),
+})
 async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(require_api_key)):
     """Add a company URL to the watchlist with a recurring schedule."""
     default_limiter.check(api_user["api_key_id"])
@@ -1128,7 +1229,13 @@ async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(r
     }
 
 
-@router.get("/watchlist", tags=["Watchlist"])
+@router.get("/watchlist", tags=["Watchlist"], responses={
+    200: {"content": {"application/json": {"example": {
+        "items": [{"id": 1, "company_url": "https://example.com", "company_name": "Example Inc.", "schedule": "biweekly", "status": "active", "last_document_id": 100, "last_run_at": "2025-01-15T10:30:00", "next_run_at": "2025-02-01T00:00:00", "created_at": "2025-01-01T00:00:00"}],
+        "total": 1, "has_more": False,
+    }}}},
+    **_error_responses(401, 429),
+})
 async def list_watchlist(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500),
@@ -1161,7 +1268,10 @@ async def list_watchlist(
     }
 
 
-@router.patch("/watchlist/{item_id}", tags=["Watchlist"])
+@router.patch("/watchlist/{item_id}", tags=["Watchlist"], responses={
+    200: {"content": {"application/json": {"example": {"id": 1, "company_url": "https://example.com", "schedule": "monthly", "status": "active", "next_run_at": "2025-02-15T00:00:00"}}}},
+    **_error_responses(401, 404, 422, 429),
+})
 async def update_watchlist(item_id: int, body: WatchlistUpdateRequest, api_user: dict = Depends(require_api_key)):
     """Update schedule or pause/resume a watchlist item."""
     default_limiter.check(api_user["api_key_id"])
@@ -1184,7 +1294,9 @@ async def update_watchlist(item_id: int, body: WatchlistUpdateRequest, api_user:
     }
 
 
-@router.delete("/watchlist/{item_id}", status_code=204, tags=["Watchlist"])
+@router.delete("/watchlist/{item_id}", status_code=204, tags=["Watchlist"], responses={
+    **_error_responses(401, 404, 429),
+})
 async def remove_from_watchlist(item_id: int, api_user: dict = Depends(require_api_key)):
     """Remove a company from the watchlist."""
     default_limiter.check(api_user["api_key_id"])
@@ -1195,7 +1307,13 @@ async def remove_from_watchlist(item_id: int, api_user: dict = Depends(require_a
     return JSONResponse(status_code=204, content=None)
 
 
-@router.get("/watchlist/{item_id}/history", tags=["Watchlist"])
+@router.get("/watchlist/{item_id}/history", tags=["Watchlist"], responses={
+    200: {"content": {"application/json": {"example": {
+        "item_id": 1, "company_url": "https://example.com",
+        "changes": [{"old_document_id": 99, "new_document_id": 100, "old_scores": {"opportunity": 72, "pain": 80, "fit": 70, "timing": 60}, "new_scores": {"opportunity": 78, "pain": 85, "fit": 72, "timing": 68}, "is_significant": True, "created_at": "2025-01-15T10:30:00"}],
+    }}}},
+    **_error_responses(401, 404, 429),
+})
 async def watchlist_history(item_id: int, api_user: dict = Depends(require_api_key)):
     """Get score change history for a watched company."""
     default_limiter.check(api_user["api_key_id"])

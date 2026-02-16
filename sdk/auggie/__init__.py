@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator, Iterator
 
 import httpx
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "AuggieClient",
@@ -29,6 +29,25 @@ __all__ = [
     "APITimeoutError",
     "Webhook",
     "WebhookSignatureError",
+    "APIResource",
+    "PingResponse",
+    "Account",
+    "ResearchJob",
+    "ResearchJobList",
+    "EnrichResult",
+    "ClayEnrichResult",
+    "Sequence",
+    "BulkJob",
+    "BulkJobList",
+    "AccountList",
+    "AccountListSummary",
+    "PushResult",
+    "WebhookConfig",
+    "TeamList",
+    "Invite",
+    "WatchlistItem",
+    "WatchlistPage",
+    "WatchlistHistory",
     "__version__",
 ]
 
@@ -114,6 +133,92 @@ _STATUS_TO_ERROR: dict[int, type[AuggieError]] = {
     503: InternalServerError,
     504: APITimeoutError,
 }
+
+
+# ======================================================================
+# Resource objects
+# ======================================================================
+
+class APIResource(dict):
+    """Base class for API response objects.
+
+    Extends ``dict`` so all existing code (``result["key"]``, ``json.dumps``,
+    ``.get()``, ``in``, ``isinstance(result, dict)``) keeps working.
+    Adds attribute-style access for convenience (``result.key``).
+    """
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+    def __delattr__(self, name: str) -> None:
+        try:
+            del self[name]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({dict.__repr__(self)})"
+
+
+class PingResponse(APIResource):
+    """Response from ``ping()``."""
+
+class Account(APIResource):
+    """Response from ``get_account()``."""
+
+class ResearchJob(APIResource):
+    """Response from ``research()``, ``get_research()``, ``research_and_poll()``."""
+
+class ResearchJobList(APIResource):
+    """Response from ``list_research()``."""
+
+class EnrichResult(APIResource):
+    """Response from ``enrich()``."""
+
+class ClayEnrichResult(APIResource):
+    """Response from ``clay_enrich()``."""
+
+class Sequence(APIResource):
+    """Response from ``create_sequence()``."""
+
+class BulkJob(APIResource):
+    """Response from ``bulk_research()``, ``get_bulk_job()``, ``bulk_research_and_poll()``."""
+
+class BulkJobList(APIResource):
+    """Response from ``list_bulk_jobs()``."""
+
+class AccountList(APIResource):
+    """Response from ``create_list()``, ``get_list()``, ``analyze_list()``."""
+
+class AccountListSummary(APIResource):
+    """Response from ``list_lists()``."""
+
+class PushResult(APIResource):
+    """Response from ``push_list()``."""
+
+class WebhookConfig(APIResource):
+    """Response from ``register_webhook()``, ``get_webhook()``."""
+
+class TeamList(APIResource):
+    """Response from ``list_team()``."""
+
+class Invite(APIResource):
+    """Response from ``invite_member()``."""
+
+class WatchlistItem(APIResource):
+    """Response from ``add_to_watchlist()``, ``update_watchlist()``."""
+
+class WatchlistPage(APIResource):
+    """Response from ``list_watchlist()``."""
+
+class WatchlistHistory(APIResource):
+    """Response from ``get_watchlist_history()``."""
 
 
 def _parse_error(resp: httpx.Response) -> AuggieError:
@@ -218,32 +323,32 @@ class AuggieClient:
     # Account
     # ------------------------------------------------------------------
 
-    def ping(self) -> dict:
+    def ping(self) -> PingResponse:
         """Health check. Returns ``{"status": "ok", "user_id": ...}``."""
-        return self._request("GET", "/v1/ping")
+        return PingResponse(self._request("GET", "/v1/ping"))
 
-    def get_account(self) -> dict:
+    def get_account(self) -> Account:
         """Get account info: credits, subscription, org, and API key usage."""
-        return self._request("GET", "/v1/account")
+        return Account(self._request("GET", "/v1/account"))
 
     # ------------------------------------------------------------------
     # Research
     # ------------------------------------------------------------------
 
-    def research(self, company_url: str) -> dict:
+    def research(self, company_url: str) -> ResearchJob:
         """Submit a research job. Returns ``{"job_id": ..., "status": "processing"}``."""
-        return self._request("POST", "/v1/research", json={"company_url": company_url})
+        return ResearchJob(self._request("POST", "/v1/research", json={"company_url": company_url}))
 
-    def get_research(self, job_id: int) -> dict:
+    def get_research(self, job_id: int) -> ResearchJob:
         """Poll a research job by ID."""
-        return self._request("GET", f"/v1/research/{job_id}")
+        return ResearchJob(self._request("GET", f"/v1/research/{job_id}"))
 
     def research_and_poll(
         self,
         company_url: str,
         interval: float = 5,
         timeout: float = 300,
-    ) -> dict:
+    ) -> ResearchJob:
         """Submit a research job and poll until completion or timeout.
 
         Args:
@@ -252,7 +357,7 @@ class AuggieClient:
             timeout: Max seconds to wait before raising ``APITimeoutError``.
 
         Returns:
-            The completed research job dict.
+            The completed research job.
         """
         job = self.research(company_url)
         job_id = job["job_id"]
@@ -266,54 +371,54 @@ class AuggieClient:
                 raise APITimeoutError(408, "Polling timed out", "timeout")
             time.sleep(interval)
 
-    def list_research(self, limit: int = 100, offset: int = 0) -> dict:
+    def list_research(self, limit: int = 100, offset: int = 0) -> ResearchJobList:
         """List recent research jobs."""
-        return self._request("GET", "/v1/research", params={"limit": limit, "offset": offset})
+        return ResearchJobList(self._request("GET", "/v1/research", params={"limit": limit, "offset": offset}))
 
-    def enrich(self, document_id: int, titles: list[str] | None = None) -> dict:
+    def enrich(self, document_id: int, titles: list[str] | None = None) -> EnrichResult:
         """Enrich contacts for an existing research document."""
         payload: dict = {"document_id": document_id}
         if titles is not None:
             payload["titles"] = titles
-        return self._request("POST", "/v1/enrich", json=payload)
+        return EnrichResult(self._request("POST", "/v1/enrich", json=payload))
 
-    def clay_enrich(self, company_url: str) -> dict:
+    def clay_enrich(self, company_url: str) -> ClayEnrichResult:
         """Synchronous enrichment endpoint optimized for Clay HTTP columns.
 
         Uses an extended timeout (130s) since the API runs the full pipeline.
         """
-        return self._request(
+        return ClayEnrichResult(self._request(
             "POST", "/v1/clay/enrich",
             json={"company_url": company_url},
             timeout=130.0,
-        )
+        ))
 
     # ------------------------------------------------------------------
     # Sequences
     # ------------------------------------------------------------------
 
-    def create_sequence(self, doc_id: int) -> dict:
+    def create_sequence(self, doc_id: int) -> Sequence:
         """Generate an outreach sequence from a completed document."""
-        return self._request("POST", f"/v1/research/{doc_id}/sequence")
+        return Sequence(self._request("POST", f"/v1/research/{doc_id}/sequence"))
 
     # ------------------------------------------------------------------
     # Bulk Research
     # ------------------------------------------------------------------
 
-    def bulk_research(self, company_urls: list[str], name: str | None = None) -> dict:
+    def bulk_research(self, company_urls: list[str], name: str | None = None) -> BulkJob:
         """Submit a bulk research job. Returns ``{"bulk_job_id": ..., "status": "processing", "total_items": N}``."""
         payload: dict = {"company_urls": company_urls}
         if name is not None:
             payload["name"] = name
-        return self._request("POST", "/v1/research/bulk", json=payload)
+        return BulkJob(self._request("POST", "/v1/research/bulk", json=payload))
 
-    def get_bulk_job(self, bulk_job_id: int) -> dict:
+    def get_bulk_job(self, bulk_job_id: int) -> BulkJob:
         """Get bulk job progress and items."""
-        return self._request("GET", f"/v1/research/bulk/{bulk_job_id}")
+        return BulkJob(self._request("GET", f"/v1/research/bulk/{bulk_job_id}"))
 
-    def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> dict:
+    def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> BulkJobList:
         """List recent bulk jobs."""
-        return self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset})
+        return BulkJobList(self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset}))
 
     def bulk_research_and_poll(
         self,
@@ -321,7 +426,7 @@ class AuggieClient:
         name: str | None = None,
         interval: float = 5,
         timeout: float = 600,
-    ) -> dict:
+    ) -> BulkJob:
         """Submit a bulk research job and poll until completion or timeout.
 
         Args:
@@ -331,7 +436,7 @@ class AuggieClient:
             timeout: Max seconds to wait before raising ``APITimeoutError``.
 
         Returns:
-            The completed bulk job dict with items.
+            The completed bulk job with items.
         """
         job = self.bulk_research(company_urls, name=name)
         bulk_job_id = job["bulk_job_id"]
@@ -349,48 +454,49 @@ class AuggieClient:
     # Lists
     # ------------------------------------------------------------------
 
-    def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> dict:
+    def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> AccountList:
         """Create a persistent list. Returns ``{"list_id": ..., "name": ..., "status": ..., "total_accounts": N}``."""
-        return self._request("POST", "/v1/lists", json={
+        return AccountList(self._request("POST", "/v1/lists", json={
             "name": name,
             "company_urls": company_urls,
             "analyze": analyze,
-        })
+        }))
 
-    def get_list(self, list_id: int, **filter_params: Any) -> dict:
+    def get_list(self, list_id: int, **filter_params: Any) -> AccountList:
         """Get list details with accounts. Supports min_pain_score, min_composite_score, sort_by, order, limit, offset."""
-        return self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None)
+        return AccountList(self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None))
 
-    def list_lists(self, limit: int = 100, offset: int = 0) -> dict:
+    def list_lists(self, limit: int = 100, offset: int = 0) -> AccountListSummary:
         """List recent lists (summaries only)."""
-        return self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset})
+        return AccountListSummary(self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset}))
 
-    def analyze_list(self, list_id: int) -> dict:
+    def analyze_list(self, list_id: int) -> AccountList:
         """Trigger analysis on pending accounts in a list."""
-        return self._request("POST", f"/v1/lists/{list_id}/analyze")
+        return AccountList(self._request("POST", f"/v1/lists/{list_id}/analyze"))
 
     def delete_list(self, list_id: int) -> None:
         """Delete a list and all its accounts."""
         self._request("DELETE", f"/v1/lists/{list_id}")
 
-    def push_list(self, list_id: int, campaign_id: str, account_ids: list[int] | None = None) -> dict:
+    def push_list(self, list_id: int, campaign_id: str, account_ids: list[int] | None = None) -> PushResult:
         """Push accounts from a list to an Instantly campaign."""
         payload: dict = {"campaign_id": campaign_id}
         if account_ids is not None:
             payload["account_ids"] = account_ids
-        return self._request("POST", f"/v1/lists/{list_id}/push", json=payload)
+        return PushResult(self._request("POST", f"/v1/lists/{list_id}/push", json=payload))
 
     # ------------------------------------------------------------------
     # Webhooks
     # ------------------------------------------------------------------
 
-    def register_webhook(self, url: str) -> dict:
+    def register_webhook(self, url: str) -> WebhookConfig:
         """Register or update a webhook URL."""
-        return self._request("POST", "/v1/webhooks/register", json={"url": url})
+        return WebhookConfig(self._request("POST", "/v1/webhooks/register", json={"url": url}))
 
-    def get_webhook(self) -> dict:
+    def get_webhook(self) -> WebhookConfig | None:
         """Get current webhook configuration."""
-        return self._request("GET", "/v1/webhooks")
+        data = self._request("GET", "/v1/webhooks")
+        return WebhookConfig(data) if data is not None else None
 
     def delete_webhook(self) -> None:
         """Delete webhook."""
@@ -400,21 +506,21 @@ class AuggieClient:
     # Team
     # ------------------------------------------------------------------
 
-    def list_team(self) -> dict:
+    def list_team(self) -> TeamList:
         """List team members."""
-        return self._request("GET", "/v1/team")
+        return TeamList(self._request("GET", "/v1/team"))
 
-    def invite_member(self, email: str, role: str = "member") -> dict:
+    def invite_member(self, email: str, role: str = "member") -> Invite:
         """Invite a team member (admin only)."""
-        return self._request("POST", "/v1/team/invite", json={"email": email, "role": role})
+        return Invite(self._request("POST", "/v1/team/invite", json={"email": email, "role": role}))
 
-    def remove_member(self, member_id: int) -> dict:
+    def remove_member(self, member_id: int) -> APIResource:
         """Remove a team member (admin only)."""
-        return self._request("DELETE", f"/v1/team/members/{member_id}")
+        return APIResource(self._request("DELETE", f"/v1/team/members/{member_id}"))
 
-    def change_member_role(self, member_id: int, role: str) -> dict:
+    def change_member_role(self, member_id: int, role: str) -> APIResource:
         """Change a team member's role (admin only)."""
-        return self._request("PATCH", f"/v1/team/members/{member_id}", json={"role": role})
+        return APIResource(self._request("PATCH", f"/v1/team/members/{member_id}", json={"role": role}))
 
     # ------------------------------------------------------------------
     # Watchlist
@@ -422,33 +528,33 @@ class AuggieClient:
 
     def add_to_watchlist(
         self, company_url: str, company_name: str | None = None, schedule: str = "biweekly",
-    ) -> dict:
+    ) -> WatchlistItem:
         """Add a company to the watchlist with a recurring schedule."""
         payload: dict = {"company_url": company_url, "schedule": schedule}
         if company_name is not None:
             payload["company_name"] = company_name
-        return self._request("POST", "/v1/watchlist", json=payload)
+        return WatchlistItem(self._request("POST", "/v1/watchlist", json=payload))
 
-    def list_watchlist(self, limit: int = 100, offset: int = 0) -> dict:
+    def list_watchlist(self, limit: int = 100, offset: int = 0) -> WatchlistPage:
         """List all watched companies."""
-        return self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset})
+        return WatchlistPage(self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset}))
 
-    def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> dict:
+    def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> WatchlistItem:
         """Update schedule or pause/resume a watchlist item."""
         payload: dict = {}
         if schedule is not None:
             payload["schedule"] = schedule
         if status is not None:
             payload["status"] = status
-        return self._request("PATCH", f"/v1/watchlist/{item_id}", json=payload)
+        return WatchlistItem(self._request("PATCH", f"/v1/watchlist/{item_id}", json=payload))
 
     def remove_from_watchlist(self, item_id: int) -> None:
         """Remove a company from the watchlist."""
         self._request("DELETE", f"/v1/watchlist/{item_id}")
 
-    def get_watchlist_history(self, item_id: int) -> dict:
+    def get_watchlist_history(self, item_id: int) -> WatchlistHistory:
         """Get score change history for a watched company."""
-        return self._request("GET", f"/v1/watchlist/{item_id}/history")
+        return WatchlistHistory(self._request("GET", f"/v1/watchlist/{item_id}/history"))
 
     # ------------------------------------------------------------------
     # Pagination iterators
@@ -577,32 +683,32 @@ class AsyncAuggieClient:
     # Account
     # ------------------------------------------------------------------
 
-    async def ping(self) -> dict:
+    async def ping(self) -> PingResponse:
         """Health check. Returns ``{"status": "ok", "user_id": ...}``."""
-        return await self._request("GET", "/v1/ping")
+        return PingResponse(await self._request("GET", "/v1/ping"))
 
-    async def get_account(self) -> dict:
+    async def get_account(self) -> Account:
         """Get account info: credits, subscription, org, and API key usage."""
-        return await self._request("GET", "/v1/account")
+        return Account(await self._request("GET", "/v1/account"))
 
     # ------------------------------------------------------------------
     # Research
     # ------------------------------------------------------------------
 
-    async def research(self, company_url: str) -> dict:
+    async def research(self, company_url: str) -> ResearchJob:
         """Submit a research job. Returns ``{"job_id": ..., "status": "processing"}``."""
-        return await self._request("POST", "/v1/research", json={"company_url": company_url})
+        return ResearchJob(await self._request("POST", "/v1/research", json={"company_url": company_url}))
 
-    async def get_research(self, job_id: int) -> dict:
+    async def get_research(self, job_id: int) -> ResearchJob:
         """Poll a research job by ID."""
-        return await self._request("GET", f"/v1/research/{job_id}")
+        return ResearchJob(await self._request("GET", f"/v1/research/{job_id}"))
 
     async def research_and_poll(
         self,
         company_url: str,
         interval: float = 5,
         timeout: float = 300,
-    ) -> dict:
+    ) -> ResearchJob:
         """Submit a research job and poll until completion or timeout."""
         job = await self.research(company_url)
         job_id = job["job_id"]
@@ -616,51 +722,51 @@ class AsyncAuggieClient:
                 raise APITimeoutError(408, "Polling timed out", "timeout")
             await asyncio.sleep(interval)
 
-    async def list_research(self, limit: int = 100, offset: int = 0) -> dict:
+    async def list_research(self, limit: int = 100, offset: int = 0) -> ResearchJobList:
         """List recent research jobs."""
-        return await self._request("GET", "/v1/research", params={"limit": limit, "offset": offset})
+        return ResearchJobList(await self._request("GET", "/v1/research", params={"limit": limit, "offset": offset}))
 
-    async def enrich(self, document_id: int, titles: list[str] | None = None) -> dict:
+    async def enrich(self, document_id: int, titles: list[str] | None = None) -> EnrichResult:
         """Enrich contacts for an existing research document."""
         payload: dict = {"document_id": document_id}
         if titles is not None:
             payload["titles"] = titles
-        return await self._request("POST", "/v1/enrich", json=payload)
+        return EnrichResult(await self._request("POST", "/v1/enrich", json=payload))
 
-    async def clay_enrich(self, company_url: str) -> dict:
+    async def clay_enrich(self, company_url: str) -> ClayEnrichResult:
         """Synchronous enrichment endpoint optimized for Clay HTTP columns."""
-        return await self._request(
+        return ClayEnrichResult(await self._request(
             "POST", "/v1/clay/enrich",
             json={"company_url": company_url},
             timeout=130.0,
-        )
+        ))
 
     # ------------------------------------------------------------------
     # Sequences
     # ------------------------------------------------------------------
 
-    async def create_sequence(self, doc_id: int) -> dict:
+    async def create_sequence(self, doc_id: int) -> Sequence:
         """Generate an outreach sequence from a completed document."""
-        return await self._request("POST", f"/v1/research/{doc_id}/sequence")
+        return Sequence(await self._request("POST", f"/v1/research/{doc_id}/sequence"))
 
     # ------------------------------------------------------------------
     # Bulk Research
     # ------------------------------------------------------------------
 
-    async def bulk_research(self, company_urls: list[str], name: str | None = None) -> dict:
+    async def bulk_research(self, company_urls: list[str], name: str | None = None) -> BulkJob:
         """Submit a bulk research job."""
         payload: dict = {"company_urls": company_urls}
         if name is not None:
             payload["name"] = name
-        return await self._request("POST", "/v1/research/bulk", json=payload)
+        return BulkJob(await self._request("POST", "/v1/research/bulk", json=payload))
 
-    async def get_bulk_job(self, bulk_job_id: int) -> dict:
+    async def get_bulk_job(self, bulk_job_id: int) -> BulkJob:
         """Get bulk job progress and items."""
-        return await self._request("GET", f"/v1/research/bulk/{bulk_job_id}")
+        return BulkJob(await self._request("GET", f"/v1/research/bulk/{bulk_job_id}"))
 
-    async def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> dict:
+    async def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> BulkJobList:
         """List recent bulk jobs."""
-        return await self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset})
+        return BulkJobList(await self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset}))
 
     async def bulk_research_and_poll(
         self,
@@ -668,7 +774,7 @@ class AsyncAuggieClient:
         name: str | None = None,
         interval: float = 5,
         timeout: float = 600,
-    ) -> dict:
+    ) -> BulkJob:
         """Submit a bulk research job and poll until completion or timeout.
 
         Args:
@@ -678,7 +784,7 @@ class AsyncAuggieClient:
             timeout: Max seconds to wait before raising ``APITimeoutError``.
 
         Returns:
-            The completed bulk job dict with items.
+            The completed bulk job with items.
         """
         job = await self.bulk_research(company_urls, name=name)
         bulk_job_id = job["bulk_job_id"]
@@ -696,48 +802,49 @@ class AsyncAuggieClient:
     # Lists
     # ------------------------------------------------------------------
 
-    async def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> dict:
+    async def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> AccountList:
         """Create a persistent list."""
-        return await self._request("POST", "/v1/lists", json={
+        return AccountList(await self._request("POST", "/v1/lists", json={
             "name": name,
             "company_urls": company_urls,
             "analyze": analyze,
-        })
+        }))
 
-    async def get_list(self, list_id: int, **filter_params: Any) -> dict:
+    async def get_list(self, list_id: int, **filter_params: Any) -> AccountList:
         """Get list details with accounts."""
-        return await self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None)
+        return AccountList(await self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None))
 
-    async def list_lists(self, limit: int = 100, offset: int = 0) -> dict:
+    async def list_lists(self, limit: int = 100, offset: int = 0) -> AccountListSummary:
         """List recent lists (summaries only)."""
-        return await self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset})
+        return AccountListSummary(await self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset}))
 
-    async def analyze_list(self, list_id: int) -> dict:
+    async def analyze_list(self, list_id: int) -> AccountList:
         """Trigger analysis on pending accounts in a list."""
-        return await self._request("POST", f"/v1/lists/{list_id}/analyze")
+        return AccountList(await self._request("POST", f"/v1/lists/{list_id}/analyze"))
 
     async def delete_list(self, list_id: int) -> None:
         """Delete a list and all its accounts."""
         await self._request("DELETE", f"/v1/lists/{list_id}")
 
-    async def push_list(self, list_id: int, campaign_id: str, account_ids: list[int] | None = None) -> dict:
+    async def push_list(self, list_id: int, campaign_id: str, account_ids: list[int] | None = None) -> PushResult:
         """Push accounts from a list to an Instantly campaign."""
         payload: dict = {"campaign_id": campaign_id}
         if account_ids is not None:
             payload["account_ids"] = account_ids
-        return await self._request("POST", f"/v1/lists/{list_id}/push", json=payload)
+        return PushResult(await self._request("POST", f"/v1/lists/{list_id}/push", json=payload))
 
     # ------------------------------------------------------------------
     # Webhooks
     # ------------------------------------------------------------------
 
-    async def register_webhook(self, url: str) -> dict:
+    async def register_webhook(self, url: str) -> WebhookConfig:
         """Register or update a webhook URL."""
-        return await self._request("POST", "/v1/webhooks/register", json={"url": url})
+        return WebhookConfig(await self._request("POST", "/v1/webhooks/register", json={"url": url}))
 
-    async def get_webhook(self) -> dict:
+    async def get_webhook(self) -> WebhookConfig | None:
         """Get current webhook configuration."""
-        return await self._request("GET", "/v1/webhooks")
+        data = await self._request("GET", "/v1/webhooks")
+        return WebhookConfig(data) if data is not None else None
 
     async def delete_webhook(self) -> None:
         """Delete webhook."""
@@ -747,21 +854,21 @@ class AsyncAuggieClient:
     # Team
     # ------------------------------------------------------------------
 
-    async def list_team(self) -> dict:
+    async def list_team(self) -> TeamList:
         """List team members."""
-        return await self._request("GET", "/v1/team")
+        return TeamList(await self._request("GET", "/v1/team"))
 
-    async def invite_member(self, email: str, role: str = "member") -> dict:
+    async def invite_member(self, email: str, role: str = "member") -> Invite:
         """Invite a team member (admin only)."""
-        return await self._request("POST", "/v1/team/invite", json={"email": email, "role": role})
+        return Invite(await self._request("POST", "/v1/team/invite", json={"email": email, "role": role}))
 
-    async def remove_member(self, member_id: int) -> dict:
+    async def remove_member(self, member_id: int) -> APIResource:
         """Remove a team member (admin only)."""
-        return await self._request("DELETE", f"/v1/team/members/{member_id}")
+        return APIResource(await self._request("DELETE", f"/v1/team/members/{member_id}"))
 
-    async def change_member_role(self, member_id: int, role: str) -> dict:
+    async def change_member_role(self, member_id: int, role: str) -> APIResource:
         """Change a team member's role (admin only)."""
-        return await self._request("PATCH", f"/v1/team/members/{member_id}", json={"role": role})
+        return APIResource(await self._request("PATCH", f"/v1/team/members/{member_id}", json={"role": role}))
 
     # ------------------------------------------------------------------
     # Watchlist
@@ -769,33 +876,33 @@ class AsyncAuggieClient:
 
     async def add_to_watchlist(
         self, company_url: str, company_name: str | None = None, schedule: str = "biweekly",
-    ) -> dict:
+    ) -> WatchlistItem:
         """Add a company to the watchlist with a recurring schedule."""
         payload: dict = {"company_url": company_url, "schedule": schedule}
         if company_name is not None:
             payload["company_name"] = company_name
-        return await self._request("POST", "/v1/watchlist", json=payload)
+        return WatchlistItem(await self._request("POST", "/v1/watchlist", json=payload))
 
-    async def list_watchlist(self, limit: int = 100, offset: int = 0) -> dict:
+    async def list_watchlist(self, limit: int = 100, offset: int = 0) -> WatchlistPage:
         """List all watched companies."""
-        return await self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset})
+        return WatchlistPage(await self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset}))
 
-    async def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> dict:
+    async def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> WatchlistItem:
         """Update schedule or pause/resume a watchlist item."""
         payload: dict = {}
         if schedule is not None:
             payload["schedule"] = schedule
         if status is not None:
             payload["status"] = status
-        return await self._request("PATCH", f"/v1/watchlist/{item_id}", json=payload)
+        return WatchlistItem(await self._request("PATCH", f"/v1/watchlist/{item_id}", json=payload))
 
     async def remove_from_watchlist(self, item_id: int) -> None:
         """Remove a company from the watchlist."""
         await self._request("DELETE", f"/v1/watchlist/{item_id}")
 
-    async def get_watchlist_history(self, item_id: int) -> dict:
+    async def get_watchlist_history(self, item_id: int) -> WatchlistHistory:
         """Get score change history for a watched company."""
-        return await self._request("GET", f"/v1/watchlist/{item_id}/history")
+        return WatchlistHistory(await self._request("GET", f"/v1/watchlist/{item_id}/history"))
 
     # ------------------------------------------------------------------
     # Pagination iterators
