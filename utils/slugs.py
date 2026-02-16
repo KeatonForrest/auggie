@@ -19,6 +19,14 @@ def slugify(name: str, max_length: int = 80) -> str:
     text = unicodedata.normalize("NFKD", name)
     text = text.encode("ascii", "ignore").decode("ascii")
 
+    # Strip trailing TLD suffixes (.com, .io, etc.) common in company names
+    text = re.sub(
+        r"\.(com|io|co|org|net|ai|app|dev|xyz|tech|cloud|inc|ltd)$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+
     # Lowercase
     text = text.lower()
 

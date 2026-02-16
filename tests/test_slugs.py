@@ -64,3 +64,23 @@ def test_max_length_exact():
 
 def test_whitespace_only():
     assert slugify("   ") == "untitled"
+
+
+def test_strips_com_tld():
+    assert slugify("F5.com") == "f5"
+
+
+def test_strips_io_tld():
+    assert slugify("Linear.io") == "linear"
+
+
+def test_strips_ai_tld():
+    assert slugify("Anthropic.ai") == "anthropic"
+
+
+def test_preserves_tld_in_middle():
+    assert slugify("Comm.unity Platform") == "comm-unity-platform"
+
+
+def test_strips_tld_case_insensitive():
+    assert slugify("Vercel.COM") == "vercel"
