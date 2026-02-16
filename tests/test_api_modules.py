@@ -427,7 +427,8 @@ class TestInMemoryRateLimiter:
             limiter.check("user1")
 
         assert exc_info.value.status_code == 429
-        assert "Rate limit exceeded" in exc_info.value.detail
+        assert exc_info.value.detail["code"] == "rate_limit_exceeded"
+        assert "Rate limit exceeded" in exc_info.value.detail["message"]
         assert "Retry-After" in exc_info.value.headers
 
     def test_rate_limiter_separate_keys(self):
@@ -813,3 +814,82 @@ class TestEdgeCases:
 
         # None is stored and returned
         assert result is None
+
+
+# ============================================================================
+# api/idempotency.py tests
+# ============================================================================
+
+
+class TestIdempotency:
+    """Tests for idempotency key checking and saving."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_key_returns_cached_response(self):
+        """Second call with the same idempotency key returns cached response."""
+        from api.idempotency import check_idempotency, save_idempotency
+
+        mock_request = MagicMock()
+        mock_request.headers.get.return_value = "test-key-123"
+
+        # First call: no cache
+        with patch("api.idempotency.db_check", new_callable=AsyncMock, return_value=None):
+            key, cached = await check_idempotency(mock_request, api_key_id=1)
+            assert key == "test-key-123"
+            assert cached is None
+
+        # Save the result
+        with patch("api.idempotency.db_save", new_callable=AsyncMock) as mock_save:
+            await save_idempotency(1, "test-key-123", 200, {"job_id": 42})
+            mock_save.assert_called_once_with(1, "test-key-123", 200, {"job_id": 42})
+
+        # Second call: returns cached
+        with patch("api.idempotency.db_check", new_callable=AsyncMock, return_value=(200, {"job_id": 42})):
+            key, cached = await check_idempotency(mock_request, api_key_id=1)
+            assert key == "test-key-123"
+            assert cached is not None
+            assert cached.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_different_keys_execute_independently(self):
+        """Different idempotency keys do not interfere with each other."""
+        from api.idempotency import check_idempotency
+
+        mock_request_a = MagicMock()
+        mock_request_a.headers.get.return_value = "key-aaa"
+
+        mock_request_b = MagicMock()
+        mock_request_b.headers.get.return_value = "key-bbb"
+
+        with patch("api.idempotency.db_check", new_callable=AsyncMock, return_value=None):
+            key_a, cached_a = await check_idempotency(mock_request_a, api_key_id=1)
+            key_b, cached_b = await check_idempotency(mock_request_b, api_key_id=1)
+
+            assert key_a == "key-aaa"
+            assert cached_a is None
+            assert key_b == "key-bbb"
+            assert cached_b is None
+
+    @pytest.mark.asyncio
+    async def test_missing_header_executes_normally(self):
+        """Request without Idempotency-Key header proceeds normally."""
+        from api.idempotency import check_idempotency
+
+        mock_request = MagicMock()
+        mock_request.headers.get.return_value = None
+
+        key, cached = await check_idempotency(mock_request, api_key_id=1)
+        assert key is None
+        assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_cached_response_preserves_status_code(self):
+        """Cached response preserves the original status code."""
+        from api.idempotency import check_idempotency
+
+        mock_request = MagicMock()
+        mock_request.headers.get.return_value = "key-202"
+
+        with patch("api.idempotency.db_check", new_callable=AsyncMock, return_value=(202, {"job_id": 1, "status": "processing"})):
+            key, cached = await check_idempotency(mock_request, api_key_id=1)
+            assert cached.status_code == 202

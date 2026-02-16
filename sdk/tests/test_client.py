@@ -8,7 +8,7 @@ import time
 import httpx
 import pytest
 
-from auggie import AuggieClient, AsyncAuggieClient, AuggieError, _parse_error
+from auggie import AuggieClient, AsyncAuggieClient, AuggieError, _parse_error, __version__
 
 
 # ---------------------------------------------------------------------------
@@ -629,3 +629,376 @@ class TestAuthHeader:
 
         client = make_client(handler)
         client.ping()
+
+
+# ---------------------------------------------------------------------------
+# Version
+# ---------------------------------------------------------------------------
+
+class TestVersion:
+    def test_version_exists(self):
+        assert __version__ is not None
+        assert isinstance(__version__, str)
+
+    def test_version_matches_semver(self):
+        parts = __version__.split(".")
+        assert len(parts) == 3
+        assert all(p.isdigit() for p in parts)
+
+    def test_version_is_0_3_0(self):
+        assert __version__ == "0.3.0"
+
+
+# ---------------------------------------------------------------------------
+# Retry logic
+# ---------------------------------------------------------------------------
+
+class TestRetryLogic:
+    def test_retries_on_429(self):
+        """Should retry on 429 and succeed on subsequent attempt."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                return httpx.Response(
+                    429,
+                    json={"error": {"code": "rate_limit_exceeded", "message": "Too fast"}},
+                    headers={"retry-after": "0"},
+                )
+            return json_response({"status": "ok"})
+
+        client = make_client(handler, max_retries=3)
+        result = client.ping()
+        assert result["status"] == "ok"
+        assert call_count == 2
+
+    def test_retries_on_500(self):
+        """Should retry on 500 and succeed."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                return httpx.Response(500, json={"error": {"code": "internal_error", "message": "Oops"}})
+            return json_response({"status": "ok"})
+
+        client = make_client(handler, max_retries=3)
+        result = client.ping()
+        assert result["status"] == "ok"
+        assert call_count == 2
+
+    def test_no_retry_on_400(self):
+        """Should NOT retry on client errors like 400."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(
+                400,
+                json={"error": {"code": "validation_error", "message": "Bad request"}},
+            )
+
+        client = make_client(handler, max_retries=3)
+        with pytest.raises(AuggieError) as exc_info:
+            client.ping()
+        assert exc_info.value.status_code == 400
+        assert call_count == 1
+
+    def test_max_retries_exhausted(self):
+        """Should raise after exhausting retries."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(
+                500,
+                json={"error": {"code": "internal_error", "message": "Server down"}},
+            )
+
+        client = make_client(handler, max_retries=2)
+        with pytest.raises(AuggieError) as exc_info:
+            client.ping()
+        assert exc_info.value.status_code == 500
+        assert call_count == 3  # 1 initial + 2 retries
+
+    def test_retry_after_header_respected(self):
+        """Retry-After header should be used for delay computation."""
+        from auggie import _retry_delay
+        resp = httpx.Response(429, headers={"retry-after": "5"})
+        delay = _retry_delay(resp, 0)
+        assert delay == 5.0
+
+    def test_no_retries_when_disabled(self):
+        """max_retries=0 should disable retries."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(500, json={"error": {"code": "internal_error", "message": "fail"}})
+
+        client = make_client(handler, max_retries=0)
+        with pytest.raises(AuggieError):
+            client.ping()
+        assert call_count == 1
+
+
+class TestAsyncRetryLogic:
+    @pytest.mark.anyio
+    async def test_retries_on_429(self):
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                return httpx.Response(
+                    429,
+                    json={"error": {"code": "rate_limit_exceeded", "message": "Too fast"}},
+                    headers={"retry-after": "0"},
+                )
+            return json_response({"status": "ok"})
+
+        async with make_async_client(handler, max_retries=3) as client:
+            result = await client.ping()
+            assert result["status"] == "ok"
+            assert call_count == 2
+
+    @pytest.mark.anyio
+    async def test_max_retries_exhausted(self):
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(502, json={"error": {"code": "bad_gateway", "message": "fail"}})
+
+        async with make_async_client(handler, max_retries=2) as client:
+            with pytest.raises(AuggieError) as exc_info:
+                await client.ping()
+            assert exc_info.value.status_code == 502
+            assert call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# Pagination helpers
+# ---------------------------------------------------------------------------
+
+class TestPaginationHelpers:
+    def test_single_page(self):
+        """Should yield all items from a single page."""
+        def handler(request):
+            return json_response({
+                "jobs": [{"job_id": 1}, {"job_id": 2}],
+                "total": 2,
+                "has_more": False,
+            })
+
+        client = make_client(handler)
+        items = list(client.iter_research(limit=100))
+        assert len(items) == 2
+        assert items[0]["job_id"] == 1
+
+    def test_multi_page(self):
+        """Should iterate across multiple pages."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            offset = int(request.url.params.get("offset", 0))
+            if offset == 0:
+                return json_response({
+                    "jobs": [{"job_id": 1}, {"job_id": 2}],
+                    "total": 3,
+                    "has_more": True,
+                })
+            else:
+                return json_response({
+                    "jobs": [{"job_id": 3}],
+                    "total": 3,
+                    "has_more": False,
+                })
+
+        client = make_client(handler)
+        items = list(client.iter_research(limit=2))
+        assert len(items) == 3
+        assert call_count == 2
+
+    def test_empty_results(self):
+        """Should handle empty results gracefully."""
+        def handler(request):
+            return json_response({"jobs": [], "total": 0, "has_more": False})
+
+        client = make_client(handler)
+        items = list(client.iter_research())
+        assert items == []
+
+    def test_iter_bulk_jobs(self):
+        def handler(request):
+            return json_response({"bulk_jobs": [{"id": 1}], "total": 1, "has_more": False})
+
+        client = make_client(handler)
+        items = list(client.iter_bulk_jobs())
+        assert len(items) == 1
+
+    def test_iter_lists(self):
+        def handler(request):
+            return json_response({"lists": [{"list_id": 1}], "total": 1, "has_more": False})
+
+        client = make_client(handler)
+        items = list(client.iter_lists())
+        assert len(items) == 1
+
+    def test_iter_list_accounts(self):
+        def handler(request):
+            return json_response({
+                "list_id": 1, "name": "test", "status": "completed",
+                "total_accounts": 1, "analyzed_accounts": 1, "failed_accounts": 0,
+                "accounts": [{"id": 1, "company_url": "https://a.com"}],
+                "total": 1, "has_more": False,
+            })
+
+        client = make_client(handler)
+        items = list(client.iter_list_accounts(list_id=1))
+        assert len(items) == 1
+
+    def test_iter_watchlist(self):
+        def handler(request):
+            return json_response({"items": [{"id": 1}], "total": 1, "has_more": False})
+
+        client = make_client(handler)
+        items = list(client.iter_watchlist())
+        assert len(items) == 1
+
+    def test_no_has_more_key_stops(self):
+        """If has_more is missing from response, should stop (safe fallback)."""
+        def handler(request):
+            return json_response({"jobs": [{"job_id": 1}], "total": 1})
+
+        client = make_client(handler)
+        items = list(client.iter_research())
+        assert len(items) == 1
+
+
+class TestAsyncPaginationHelpers:
+    @pytest.mark.anyio
+    async def test_single_page(self):
+        def handler(request):
+            return json_response({
+                "jobs": [{"job_id": 1}, {"job_id": 2}],
+                "total": 2,
+                "has_more": False,
+            })
+
+        async with make_async_client(handler) as client:
+            items = [item async for item in client.iter_research()]
+            assert len(items) == 2
+
+    @pytest.mark.anyio
+    async def test_multi_page(self):
+        def handler(request):
+            offset = int(request.url.params.get("offset", 0))
+            if offset == 0:
+                return json_response({
+                    "jobs": [{"job_id": 1}],
+                    "total": 2,
+                    "has_more": True,
+                })
+            return json_response({
+                "jobs": [{"job_id": 2}],
+                "total": 2,
+                "has_more": False,
+            })
+
+        async with make_async_client(handler) as client:
+            items = [item async for item in client.iter_research(limit=1)]
+            assert len(items) == 2
+
+    @pytest.mark.anyio
+    async def test_empty(self):
+        def handler(request):
+            return json_response({"items": [], "total": 0, "has_more": False})
+
+        async with make_async_client(handler) as client:
+            items = [item async for item in client.iter_watchlist()]
+            assert items == []
+
+
+# ---------------------------------------------------------------------------
+# Idempotency keys
+# ---------------------------------------------------------------------------
+
+class TestIdempotencyKeys:
+    def test_post_includes_idempotency_key(self):
+        """POST requests should include an Idempotency-Key header."""
+        def handler(request):
+            assert "idempotency-key" in request.headers
+            key = request.headers["idempotency-key"]
+            assert len(key) == 36  # UUID format
+            return json_response({"job_id": 1, "status": "processing"}, 202)
+
+        client = make_client(handler)
+        client.research("https://example.com")
+
+    def test_get_does_not_include_idempotency_key(self):
+        """GET requests should NOT include an Idempotency-Key header."""
+        def handler(request):
+            assert "idempotency-key" not in request.headers
+            return json_response({"status": "ok", "user_id": 1})
+
+        client = make_client(handler)
+        client.ping()
+
+    def test_same_key_reused_across_retries(self):
+        """Same Idempotency-Key should be sent on retries."""
+        keys_seen = []
+
+        def handler(request):
+            if "idempotency-key" in request.headers:
+                keys_seen.append(request.headers["idempotency-key"])
+            if len(keys_seen) < 2:
+                return httpx.Response(
+                    500,
+                    json={"error": {"code": "internal_error", "message": "fail"}},
+                )
+            return json_response({"job_id": 1, "status": "processing"}, 202)
+
+        client = make_client(handler, max_retries=3)
+        client.research("https://example.com")
+        assert len(keys_seen) == 2
+        assert keys_seen[0] == keys_seen[1]
+
+    def test_delete_does_not_include_idempotency_key(self):
+        """DELETE requests should NOT include an Idempotency-Key header."""
+        def handler(request):
+            assert "idempotency-key" not in request.headers
+            return httpx.Response(204)
+
+        client = make_client(handler)
+        client.delete_list(1)
+
+    @pytest.mark.anyio
+    async def test_async_post_includes_idempotency_key(self):
+        """Async POST requests should include an Idempotency-Key header."""
+        def handler(request):
+            assert "idempotency-key" in request.headers
+            return json_response({"job_id": 1, "status": "processing"}, 202)
+
+        async with make_async_client(handler) as client:
+            await client.research("https://example.com")
+
+    @pytest.mark.anyio
+    async def test_async_get_does_not_include_idempotency_key(self):
+        """Async GET requests should NOT include an Idempotency-Key header."""
+        def handler(request):
+            assert "idempotency-key" not in request.headers
+            return json_response({"status": "ok", "user_id": 1})
+
+        async with make_async_client(handler) as client:
+            await client.ping()

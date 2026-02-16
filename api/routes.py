@@ -5,12 +5,13 @@ import time
 from datetime import datetime, timezone
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from api.auth import require_api_key
 from api.errors import APIError
+from api.idempotency import check_idempotency, save_idempotency
 from database import (
     get_user_usage, get_document,
     save_enriched_contacts, get_enriched_contacts,
@@ -27,7 +28,10 @@ from database import (
 from api.validation import validate_company_url
 from api.jobs import _run_research_pipeline
 from api.tasks import create_tracked_task
-from db.jobs import create_job_with_credit, create_research_job
+from db.jobs import create_job_with_credit, create_research_job, count_user_jobs
+from db.bulk import count_bulk_jobs
+from db.lists import count_lists, count_list_accounts
+from db.watchlist import count_watchlist_items
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
 
@@ -172,19 +176,26 @@ async def get_account(api_user: dict = Depends(require_api_key)):
 
 
 @router.post("/research", status_code=202, tags=["Research"])
-async def create_research(body: ResearchRequest, api_user: dict = Depends(require_api_key)):
+async def create_research(request: Request, body: ResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start an async research job. Returns immediately with a job_id."""
     research_limiter.check(api_user["api_key_id"])
+
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
 
     try:
         company_url = validate_company_url(body.company_url)
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise APIError("validation_error", str(e), 422)
 
     # 24h cache: return existing document instead of re-running pipeline
     cached_doc_id = await get_recent_document_by_url(api_user["id"], company_url)
     if cached_doc_id:
-        return {"job_id": None, "status": "completed", "document_id": cached_doc_id, "cached": True}
+        response_body = {"job_id": None, "status": "completed", "document_id": cached_doc_id, "cached": True}
+        if idem_key:
+            await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
+        return response_body
 
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
@@ -193,7 +204,7 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
         try:
             job = await create_job_with_credit(api_user["id"], api_user["api_key_id"], company_url)
         except ValueError:
-            raise HTTPException(status_code=402, detail="No credits remaining")
+            raise APIError("insufficient_credits", "No credits remaining", 402)
     else:
         job = await create_research_job(api_user["id"], api_user["api_key_id"], company_url)
 
@@ -203,7 +214,10 @@ async def create_research(body: ResearchRequest, api_user: dict = Depends(requir
         name=f"research-{job['id']}",
     )
 
-    return {"job_id": job["id"], "status": "processing"}
+    response_body = {"job_id": job["id"], "status": "processing"}
+    if idem_key:
+        await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
+    return response_body
 
 
 @router.get("/research/{job_id}", tags=["Research"])
@@ -212,7 +226,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
     default_limiter.check(api_user["api_key_id"])
     job = await get_research_job(job_id, api_user["id"])
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise APIError("not_found", "Job not found", 404)
 
     # Read-path timeout: if processing for >10 minutes, mark as failed and refund
     if job["status"] == "processing" and job["created_at"]:
@@ -288,7 +302,10 @@ async def list_jobs(
 ):
     """List the user's recent research jobs."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_user_jobs(api_user["id"], limit=limit, offset=offset)
+    jobs, total = await asyncio.gather(
+        list_user_jobs(api_user["id"], limit=limit, offset=offset),
+        count_user_jobs(api_user["id"]),
+    )
     return {
         "jobs": [
             {
@@ -301,7 +318,9 @@ async def list_jobs(
                 "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
             }
             for j in jobs
-        ]
+        ],
+        "total": total,
+        "has_more": (offset + limit) < total,
     }
 
 
@@ -329,9 +348,14 @@ class EnrichResponse(BaseModel):
 
 
 @router.post("/enrich", response_model=EnrichResponse, tags=["Research"])
-async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_api_key)):
+async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict = Depends(require_api_key)):
     """Enrich contacts for an existing research document using LeadMagic."""
     research_limiter.check(api_user["api_key_id"])
+
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
+
     from services.leadmagic import LeadMagicService
     leadmagic = LeadMagicService()
 
@@ -378,11 +402,14 @@ async def enrich_contacts(body: EnrichRequest, api_user: dict = Depends(require_
 
         await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
 
-        return EnrichResponse(
+        response_body = EnrichResponse(
             success=True,
             contacts=[EnrichContact(**c) for c in contacts],
             cached=False,
         )
+        if idem_key:
+            await save_idempotency(api_user["api_key_id"], idem_key, 200, response_body.model_dump())
+        return response_body
     except Exception as e:
         raise APIError("internal_error", str(e)[:500], 500)
 
@@ -441,13 +468,17 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
 
 
 @router.post("/clay/enrich", tags=["Research"])
-async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_api_key)):
+async def clay_enrich(request: Request, body: ClayEnrichRequest, api_user: dict = Depends(require_api_key)):
     """Synchronous enrichment endpoint optimized for Clay HTTP columns.
 
     Runs the full research pipeline and returns a flat JSON response.
     Uses 24-hour caching to avoid duplicate costs.
     """
     clay_limiter.check(api_user["api_key_id"])
+
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
 
     # Validate URL
     try:
@@ -464,7 +495,10 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
             from db.tech_signals import get_pain_inferences
             inferences = await get_pain_inferences(cached_doc.id)
             pain = synthesize_pain(inferences, cached_doc.pain_evidence)
-            return _build_clay_response(cached_doc, cached=True, pain_synthesis=pain)
+            response_body = _build_clay_response(cached_doc, cached=True, pain_synthesis=pain)
+            if idem_key:
+                await save_idempotency(api_user["api_key_id"], idem_key, 200, response_body)
+            return response_body
 
     # Atomically reserve credit + create job
     usage = await get_user_usage(api_user["id"])
@@ -494,7 +528,10 @@ async def clay_enrich(body: ClayEnrichRequest, api_user: dict = Depends(require_
         from db.tech_signals import get_pain_inferences
         inferences = await get_pain_inferences(doc_id)
         pain = synthesize_pain(inferences, doc.pain_evidence)
-        return _build_clay_response(doc, cached=False, duration=duration, pain_synthesis=pain)
+        response_body = _build_clay_response(doc, cached=False, duration=duration, pain_synthesis=pain)
+        if idem_key:
+            await save_idempotency(api_user["api_key_id"], idem_key, 200, response_body)
+        return response_body
 
     except asyncio.TimeoutError:
         if not is_admin:
@@ -542,7 +579,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
 
     document = await get_document(doc_id, user_id=api_user["id"])
     if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise APIError("not_found", "Document not found", 404)
 
     from services.instances import writing_service
 
@@ -592,14 +629,18 @@ class BulkResearchRequest(BaseModel):
 
 
 @router.post("/research/bulk", status_code=202, tags=["Bulk"])
-async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depends(require_api_key)):
+async def create_bulk_research(request: Request, body: BulkResearchRequest, api_user: dict = Depends(require_api_key)):
     """Start a bulk research job. Accepts up to 100 URLs."""
     bulk_limiter.check(api_user["api_key_id"])
 
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
+
     if not body.company_urls:
-        raise HTTPException(status_code=422, detail="company_urls must not be empty")
+        raise APIError("validation_error", "company_urls must not be empty", 422)
     if len(body.company_urls) > 100:
-        raise HTTPException(status_code=422, detail="Maximum 100 URLs per bulk job")
+        raise APIError("validation_error", "Maximum 100 URLs per bulk job", 422)
 
     # Validate all URLs upfront
     validated_urls = []
@@ -607,7 +648,7 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
         try:
             validated_urls.append(validate_company_url(url))
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
+            raise APIError("validation_error", f"Invalid URL '{url}': {e}", 422)
 
     # Reserve credits upfront atomically
     n = len(validated_urls)
@@ -617,7 +658,7 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
         credits_needed = n * 100  # cents
         ok = await use_credit(api_user["id"], cents=credits_needed)
         if not ok:
-            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+            raise APIError("insufficient_credits", f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}", 402)
 
     bulk_job = await create_bulk_job(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
     await create_bulk_job_items(bulk_job["id"], validated_urls)
@@ -628,7 +669,10 @@ async def create_bulk_research(body: BulkResearchRequest, api_user: dict = Depen
         name=f"bulk-{bulk_job['id']}",
     )
 
-    return {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
+    response_body = {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
+    if idem_key:
+        await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
+    return response_body
 
 
 @router.get("/research/bulk/{bulk_job_id}", tags=["Bulk"])
@@ -637,7 +681,7 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
     default_limiter.check(api_user["api_key_id"])
     job = await get_bulk_job(bulk_job_id, api_user["id"])
     if not job:
-        raise HTTPException(status_code=404, detail="Bulk job not found")
+        raise APIError("not_found", "Bulk job not found", 404)
 
     items = await get_bulk_job_items(bulk_job_id)
 
@@ -688,7 +732,10 @@ async def list_bulk_jobs_endpoint(
 ):
     """List recent bulk jobs (summaries only)."""
     default_limiter.check(api_user["api_key_id"])
-    jobs = await list_bulk_jobs(api_user["id"], limit=limit, offset=offset)
+    jobs, total = await asyncio.gather(
+        list_bulk_jobs(api_user["id"], limit=limit, offset=offset),
+        count_bulk_jobs(api_user["id"]),
+    )
     return {
         "bulk_jobs": [
             {
@@ -702,7 +749,9 @@ async def list_bulk_jobs_endpoint(
                 "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
             }
             for j in jobs
-        ]
+        ],
+        "total": total,
+        "has_more": (offset + limit) < total,
     }
 
 
@@ -717,16 +766,20 @@ class CreateListRequest(BaseModel):
 
 
 @router.post("/lists", status_code=201, tags=["Lists"])
-async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends(require_api_key)):
+async def create_list_endpoint(request: Request, body: CreateListRequest, api_user: dict = Depends(require_api_key)):
     """Create a persistent list of companies. Optionally trigger analysis immediately."""
     bulk_limiter.check(api_user["api_key_id"])
 
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
+
     if not body.company_urls:
-        raise HTTPException(status_code=422, detail="company_urls must not be empty")
+        raise APIError("validation_error", "company_urls must not be empty", 422)
     if len(body.company_urls) > 100:
-        raise HTTPException(status_code=422, detail="Maximum 100 URLs per list")
+        raise APIError("validation_error", "Maximum 100 URLs per list", 422)
     if not body.name or not body.name.strip():
-        raise HTTPException(status_code=422, detail="name is required")
+        raise APIError("validation_error", "name is required", 422)
 
     # Validate and deduplicate URLs upfront
     validated_urls = []
@@ -735,7 +788,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
         try:
             v = validate_company_url(url)
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=f"Invalid URL '{url}': {e}")
+            raise APIError("validation_error", f"Invalid URL '{url}': {e}", 422)
         if v not in seen:
             seen.add(v)
             validated_urls.append(v)
@@ -749,7 +802,7 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
         credits_needed = n * 100
         ok = await use_credit(api_user["id"], cents=credits_needed)
         if not ok:
-            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+            raise APIError("insufficient_credits", f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}", 402)
 
     lst = await create_list(api_user["id"], api_user["api_key_id"], body.name.strip(), org_id=api_user.get("org_id"))
     await add_list_accounts(lst["id"], validated_urls)
@@ -766,31 +819,38 @@ async def create_list_endpoint(body: CreateListRequest, api_user: dict = Depends
     else:
         status = "created"
 
-    return {
+    response_body = {
         "list_id": lst["id"],
         "name": lst["name"],
         "status": status,
         "total_accounts": n,
     }
+    if idem_key:
+        await save_idempotency(api_user["api_key_id"], idem_key, 201, response_body)
+    return response_body
 
 
 @router.post("/lists/{list_id}/analyze", status_code=202, tags=["Lists"])
-async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_api_key)):
+async def analyze_list_endpoint(request: Request, list_id: int, api_user: dict = Depends(require_api_key)):
     """Trigger analysis on a list's pending accounts."""
     bulk_limiter.check(api_user["api_key_id"])
 
+    idem_key, cached = await check_idempotency(request, api_user["api_key_id"])
+    if cached:
+        return cached
+
     lst = await get_list(list_id, api_user["id"])
     if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
+        raise APIError("not_found", "List not found", 404)
 
     # Atomic status transition — prevents concurrent analysis starts
     started = await try_start_list_analysis(list_id)
     if not started:
-        raise HTTPException(status_code=409, detail="List is already being analyzed")
+        raise APIError("conflict", "List is already being analyzed", 409)
 
     pending = await get_pending_list_accounts(list_id)
     if not pending:
-        raise HTTPException(status_code=422, detail="No pending accounts to analyze")
+        raise APIError("validation_error", "No pending accounts to analyze", 422)
 
     n = len(pending)
     usage = await get_user_usage(api_user["id"])
@@ -800,7 +860,7 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
         credits_needed = n * 100
         ok = await use_credit(api_user["id"], cents=credits_needed)
         if not ok:
-            raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}")
+            raise APIError("insufficient_credits", f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}", 402)
 
     await update_list_credits(list_id, (lst["credits_reserved"] or 0) + n * 100)
     await create_tracked_task(
@@ -809,7 +869,10 @@ async def analyze_list_endpoint(list_id: int, api_user: dict = Depends(require_a
         name=f"list-analyze-{list_id}",
     )
 
-    return {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
+    response_body = {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
+    if idem_key:
+        await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
+    return response_body
 
 
 @router.get("/lists/{list_id}", tags=["Lists"])
@@ -828,16 +891,19 @@ async def get_list_endpoint(
 
     lst = await get_list(list_id, api_user["id"])
     if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
+        raise APIError("not_found", "List not found", 404)
 
-    accounts = await get_list_accounts(
-        list_id,
-        min_pain=min_pain_score,
-        min_composite=min_composite_score,
-        sort_by=sort_by.value,
-        order=order.value,
-        limit=limit,
-        offset=offset,
+    accounts, total = await asyncio.gather(
+        get_list_accounts(
+            list_id,
+            min_pain=min_pain_score,
+            min_composite=min_composite_score,
+            sort_by=sort_by.value,
+            order=order.value,
+            limit=limit,
+            offset=offset,
+        ),
+        count_list_accounts(list_id, min_pain=min_pain_score, min_composite=min_composite_score),
     )
 
     return {
@@ -862,6 +928,8 @@ async def get_list_endpoint(
             }
             for a in accounts
         ],
+        "total": total,
+        "has_more": (offset + limit) < total,
     }
 
 
@@ -873,7 +941,10 @@ async def list_lists_endpoint(
 ):
     """List user's recent lists (summaries, no accounts)."""
     default_limiter.check(api_user["api_key_id"])
-    lists = await db_list_lists(api_user["id"], limit=limit, offset=offset)
+    lists, total = await asyncio.gather(
+        db_list_lists(api_user["id"], limit=limit, offset=offset),
+        count_lists(api_user["id"]),
+    )
     return {
         "lists": [
             {
@@ -887,7 +958,9 @@ async def list_lists_endpoint(
                 "updated_at": l["updated_at"].isoformat() if l["updated_at"] else None,
             }
             for l in lists
-        ]
+        ],
+        "total": total,
+        "has_more": (offset + limit) < total,
     }
 
 
@@ -897,7 +970,7 @@ async def delete_list_endpoint(list_id: int, api_user: dict = Depends(require_ap
     default_limiter.check(api_user["api_key_id"])
     deleted = await delete_list(list_id, api_user["id"])
     if not deleted:
-        raise HTTPException(status_code=404, detail="List not found")
+        raise APIError("not_found", "List not found", 404)
     return JSONResponse(status_code=204, content=None)
 
 
@@ -916,11 +989,11 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
 
     lst = await get_list(list_id, api_user["id"])
     if not lst:
-        raise HTTPException(status_code=404, detail="List not found")
+        raise APIError("not_found", "List not found", 404)
 
     integration = await get_integration(api_user["id"], "instantly")
     if not integration:
-        raise HTTPException(status_code=400, detail="Instantly not connected")
+        raise APIError("validation_error", "Instantly not connected", 400)
 
     all_accounts = await get_list_accounts(list_id)
     if body.account_ids:
@@ -929,7 +1002,7 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
         accounts = [a for a in all_accounts if a.get("status") == "completed"]
 
     if not accounts:
-        raise HTTPException(status_code=400, detail="No accounts to push")
+        raise APIError("validation_error", "No accounts to push", 400)
 
     contacts_by_account = {}
     for account in accounts:
@@ -963,7 +1036,7 @@ async def api_list_team(api_user: dict = Depends(require_api_key)):
     from database import get_org_members, get_user_by_id
     user = await get_user_by_id(api_user["id"])
     if not user or not user.get("org_id"):
-        raise HTTPException(status_code=400, detail="No organization found")
+        raise APIError("validation_error", "No organization found", 400)
     members = await get_org_members(user["org_id"])
     return {"members": members}
 
@@ -974,9 +1047,9 @@ async def api_invite_member(body: InviteRequest, api_user: dict = Depends(requir
     from database import get_user_by_id, create_org_invite
     user = await get_user_by_id(api_user["id"])
     if not user or user.get("org_role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise APIError("forbidden", "Admin access required", 403)
     if body.role not in ("admin", "member", "viewer"):
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise APIError("validation_error", "Invalid role", 400)
     invite = await create_org_invite(user["org_id"], body.email, body.role, user["id"])
     return {"invite": {"id": invite["id"], "email": invite["email"], "role": invite["role"], "token": invite["token"], "expires_at": str(invite["expires_at"])}}
 
@@ -987,12 +1060,12 @@ async def api_remove_member(member_id: int, api_user: dict = Depends(require_api
     from database import get_user_by_id, remove_org_member
     user = await get_user_by_id(api_user["id"])
     if not user or user.get("org_role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise APIError("forbidden", "Admin access required", 403)
     if member_id == user["id"]:
-        raise HTTPException(status_code=400, detail="Cannot remove yourself")
+        raise APIError("validation_error", "Cannot remove yourself", 400)
     removed = await remove_org_member(user["org_id"], member_id)
     if not removed:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise APIError("not_found", "Member not found", 404)
     return {"removed": True}
 
 
@@ -1002,14 +1075,14 @@ async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Dep
     from database import get_user_by_id, update_member_role
     user = await get_user_by_id(api_user["id"])
     if not user or user.get("org_role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise APIError("forbidden", "Admin access required", 403)
     if member_id == user["id"]:
-        raise HTTPException(status_code=400, detail="Cannot change your own role")
+        raise APIError("validation_error", "Cannot change your own role", 400)
     if body.role not in ("admin", "member", "viewer"):
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise APIError("validation_error", "Invalid role", 400)
     updated = await update_member_role(user["org_id"], member_id, body.role)
     if not updated:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise APIError("not_found", "Member not found", 404)
     return {"updated": True}
 
 
@@ -1034,12 +1107,12 @@ async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(r
     default_limiter.check(api_user["api_key_id"])
 
     if body.schedule not in ("weekly", "biweekly", "monthly"):
-        raise HTTPException(status_code=422, detail="schedule must be weekly, biweekly, or monthly")
+        raise APIError("validation_error", "schedule must be weekly, biweekly, or monthly", 422)
 
     try:
         company_url = validate_company_url(body.company_url)
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise APIError("validation_error", str(e), 422)
 
     from database import create_watchlist_item
     item = await create_watchlist_item(
@@ -1064,7 +1137,10 @@ async def list_watchlist(
     """List all watched companies."""
     default_limiter.check(api_user["api_key_id"])
     from database import list_watchlist_items
-    items = await list_watchlist_items(api_user["id"], limit=limit, offset=offset)
+    items, total = await asyncio.gather(
+        list_watchlist_items(api_user["id"], limit=limit, offset=offset),
+        count_watchlist_items(api_user["id"]),
+    )
     return {
         "items": [
             {
@@ -1079,7 +1155,9 @@ async def list_watchlist(
                 "created_at": i["created_at"].isoformat(),
             }
             for i in items
-        ]
+        ],
+        "total": total,
+        "has_more": (offset + limit) < total,
     }
 
 
@@ -1089,14 +1167,14 @@ async def update_watchlist(item_id: int, body: WatchlistUpdateRequest, api_user:
     default_limiter.check(api_user["api_key_id"])
 
     if body.schedule and body.schedule not in ("weekly", "biweekly", "monthly"):
-        raise HTTPException(status_code=422, detail="schedule must be weekly, biweekly, or monthly")
+        raise APIError("validation_error", "schedule must be weekly, biweekly, or monthly", 422)
     if body.status and body.status not in ("active", "paused"):
-        raise HTTPException(status_code=422, detail="status must be active or paused")
+        raise APIError("validation_error", "status must be active or paused", 422)
 
     from database import update_watchlist_item
     item = await update_watchlist_item(item_id, api_user["id"], body.schedule, body.status)
     if not item:
-        raise HTTPException(status_code=404, detail="Watchlist item not found")
+        raise APIError("not_found", "Watchlist item not found", 404)
     return {
         "id": item["id"],
         "company_url": item["company_url"],
@@ -1113,7 +1191,7 @@ async def remove_from_watchlist(item_id: int, api_user: dict = Depends(require_a
     from database import delete_watchlist_item
     deleted = await delete_watchlist_item(item_id, api_user["id"])
     if not deleted:
-        raise HTTPException(status_code=404, detail="Watchlist item not found")
+        raise APIError("not_found", "Watchlist item not found", 404)
     return JSONResponse(status_code=204, content=None)
 
 
@@ -1124,7 +1202,7 @@ async def watchlist_history(item_id: int, api_user: dict = Depends(require_api_k
     from database import get_watchlist_item, get_score_history
     item = await get_watchlist_item(item_id, api_user["id"])
     if not item:
-        raise HTTPException(status_code=404, detail="Watchlist item not found")
+        raise APIError("not_found", "Watchlist item not found", 404)
     history = await get_score_history(item_id, api_user["id"])
     return {
         "item_id": item_id,

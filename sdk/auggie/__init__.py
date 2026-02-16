@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import time
-from typing import Any
+import uuid
+from typing import Any, AsyncIterator, Iterator
 
 import httpx
 
-__all__ = ["AuggieClient", "AsyncAuggieClient", "AuggieError"]
+__version__ = "0.3.0"
+
+__all__ = ["AuggieClient", "AsyncAuggieClient", "AuggieError", "__version__"]
 
 DEFAULT_BASE_URL = "https://auggie.tools"
+
+_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+_BASE_RETRY_DELAY = 1.0
+_MAX_RETRY_DELAY = 30.0
 
 
 class AuggieError(Exception):
@@ -58,6 +66,18 @@ def _parse_error(resp: httpx.Response) -> AuggieError:
     return AuggieError(resp.status_code, message, code)
 
 
+def _retry_delay(resp: httpx.Response, attempt: int) -> float:
+    """Compute retry delay: respect Retry-After header, else exponential backoff with jitter."""
+    retry_after = resp.headers.get("retry-after")
+    if retry_after:
+        try:
+            return min(float(retry_after), _MAX_RETRY_DELAY)
+        except (ValueError, TypeError):
+            pass
+    delay = min(_BASE_RETRY_DELAY * (2 ** attempt), _MAX_RETRY_DELAY)
+    return delay + random.uniform(0, delay * 0.25)
+
+
 class AuggieClient:
     """Synchronous client for the Auggie API.
 
@@ -65,6 +85,7 @@ class AuggieClient:
         api_key: Your Auggie API key (``sk_live_...``).
         base_url: Override the default API base URL.
         timeout: Request timeout in seconds.
+        max_retries: Max retries on transient errors (429/5xx). Set to 0 to disable.
     """
 
     def __init__(
@@ -72,24 +93,35 @@ class AuggieClient:
         api_key: str,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 60,
+        max_retries: int = 3,
     ) -> None:
         self._client = httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=timeout,
         )
+        self._max_retries = max_retries
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        resp = self._client.request(method, path, **kwargs)
-        if resp.status_code == 204:
-            return None
-        if not resp.is_success:
-            raise _parse_error(resp)
-        return resp.json()
+        if method.upper() == "POST":
+            kwargs.setdefault("headers", {})
+            kwargs["headers"].setdefault("Idempotency-Key", str(uuid.uuid4()))
+        last_resp = None
+        for attempt in range(self._max_retries + 1):
+            resp = self._client.request(method, path, **kwargs)
+            if resp.status_code == 204:
+                return None
+            if resp.is_success:
+                return resp.json()
+            if resp.status_code not in _RETRY_STATUS_CODES or attempt >= self._max_retries:
+                raise _parse_error(resp)
+            last_resp = resp
+            time.sleep(_retry_delay(resp, attempt))
+        raise _parse_error(last_resp)
 
     # ------------------------------------------------------------------
     # Account
@@ -298,6 +330,65 @@ class AuggieClient:
         return self._request("GET", f"/v1/watchlist/{item_id}/history")
 
     # ------------------------------------------------------------------
+    # Pagination iterators
+    # ------------------------------------------------------------------
+
+    def iter_research(self, limit: int = 100) -> Iterator[dict]:
+        """Iterate over all research jobs, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = self.list_research(limit=limit, offset=offset)
+            for item in page.get("jobs", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    def iter_bulk_jobs(self, limit: int = 100) -> Iterator[dict]:
+        """Iterate over all bulk jobs, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = self.list_bulk_jobs(limit=limit, offset=offset)
+            for item in page.get("bulk_jobs", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    def iter_lists(self, limit: int = 100) -> Iterator[dict]:
+        """Iterate over all lists, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = self.list_lists(limit=limit, offset=offset)
+            for item in page.get("lists", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    def iter_list_accounts(self, list_id: int, limit: int = 100, **filter_params: Any) -> Iterator[dict]:
+        """Iterate over all accounts in a list, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = self.get_list(list_id, limit=limit, offset=offset, **filter_params)
+            for item in page.get("accounts", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    def iter_watchlist(self, limit: int = 100) -> Iterator[dict]:
+        """Iterate over all watchlist items, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = self.list_watchlist(limit=limit, offset=offset)
+            for item in page.get("items", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
@@ -318,6 +409,7 @@ class AsyncAuggieClient:
         api_key: Your Auggie API key (``sk_live_...``).
         base_url: Override the default API base URL.
         timeout: Request timeout in seconds.
+        max_retries: Max retries on transient errors (429/5xx). Set to 0 to disable.
 
     Usage::
 
@@ -330,24 +422,35 @@ class AsyncAuggieClient:
         api_key: str,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 60,
+        max_retries: int = 3,
     ) -> None:
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=timeout,
         )
+        self._max_retries = max_retries
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        resp = await self._client.request(method, path, **kwargs)
-        if resp.status_code == 204:
-            return None
-        if not resp.is_success:
-            raise _parse_error(resp)
-        return resp.json()
+        if method.upper() == "POST":
+            kwargs.setdefault("headers", {})
+            kwargs["headers"].setdefault("Idempotency-Key", str(uuid.uuid4()))
+        last_resp = None
+        for attempt in range(self._max_retries + 1):
+            resp = await self._client.request(method, path, **kwargs)
+            if resp.status_code == 204:
+                return None
+            if resp.is_success:
+                return resp.json()
+            if resp.status_code not in _RETRY_STATUS_CODES or attempt >= self._max_retries:
+                raise _parse_error(resp)
+            last_resp = resp
+            await asyncio.sleep(_retry_delay(resp, attempt))
+        raise _parse_error(last_resp)
 
     # ------------------------------------------------------------------
     # Account
@@ -542,6 +645,65 @@ class AsyncAuggieClient:
     async def get_watchlist_history(self, item_id: int) -> dict:
         """Get score change history for a watched company."""
         return await self._request("GET", f"/v1/watchlist/{item_id}/history")
+
+    # ------------------------------------------------------------------
+    # Pagination iterators
+    # ------------------------------------------------------------------
+
+    async def iter_research(self, limit: int = 100) -> AsyncIterator[dict]:
+        """Iterate over all research jobs, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = await self.list_research(limit=limit, offset=offset)
+            for item in page.get("jobs", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    async def iter_bulk_jobs(self, limit: int = 100) -> AsyncIterator[dict]:
+        """Iterate over all bulk jobs, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = await self.list_bulk_jobs(limit=limit, offset=offset)
+            for item in page.get("bulk_jobs", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    async def iter_lists(self, limit: int = 100) -> AsyncIterator[dict]:
+        """Iterate over all lists, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = await self.list_lists(limit=limit, offset=offset)
+            for item in page.get("lists", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    async def iter_list_accounts(self, list_id: int, limit: int = 100, **filter_params: Any) -> AsyncIterator[dict]:
+        """Iterate over all accounts in a list, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = await self.get_list(list_id, limit=limit, offset=offset, **filter_params)
+            for item in page.get("accounts", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
+
+    async def iter_watchlist(self, limit: int = 100) -> AsyncIterator[dict]:
+        """Iterate over all watchlist items, handling pagination automatically."""
+        offset = 0
+        while True:
+            page = await self.list_watchlist(limit=limit, offset=offset)
+            for item in page.get("items", []):
+                yield item
+            if not page.get("has_more", False):
+                break
+            offset += limit
 
     # ------------------------------------------------------------------
     # Lifecycle
