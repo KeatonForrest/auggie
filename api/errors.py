@@ -12,9 +12,10 @@ class APIError(HTTPException):
 
     Usage:
         raise APIError("insufficient_credits", "No credits remaining. Need 5, have 2.", 402)
+        raise APIError("rate_limit_exceeded", "Too fast", 429, headers={"Retry-After": "5"})
     """
 
-    def __init__(self, code: str, message: str, status_code: int = 400):
+    def __init__(self, code: str, message: str, status_code: int = 400, headers: dict[str, str] | None = None):
         self.error_code = code
         self.error_message = message
-        super().__init__(status_code=status_code, detail={"code": code, "message": message})
+        super().__init__(status_code=status_code, detail={"code": code, "message": message}, headers=headers)

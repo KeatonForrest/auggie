@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from fastapi import HTTPException
+from api.errors import APIError
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +79,10 @@ class InMemoryRateLimiter(BaseRateLimiter):
                     )
                 else:
                     retry_after = int(hits[0] - cutoff) + 1
-                    raise HTTPException(
-                        status_code=429,
-                        detail=f"Rate limit exceeded. Max {self.requests} requests per {self.window}s.",
+                    raise APIError(
+                        "rate_limit_exceeded",
+                        f"Rate limit exceeded. Max {self.requests} requests per {self.window}s.",
+                        429,
                         headers={"Retry-After": str(retry_after)},
                     )
 

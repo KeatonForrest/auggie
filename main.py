@@ -280,7 +280,11 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
         )
     # Structured error format: {"error": {"code": ..., "message": ...}}
     if isinstance(exc.detail, dict) and "code" in exc.detail:
-        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        resp = JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        if exc.headers:
+            for k, v in exc.headers.items():
+                resp.headers[k] = v
+        return resp
     # Legacy HTTPException with string detail
     code = _STATUS_TO_CODE.get(exc.status_code, "internal_error")
     message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)

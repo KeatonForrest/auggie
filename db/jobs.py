@@ -107,6 +107,15 @@ async def update_job_progress(job_id: int, progress: str) -> None:
         )
 
 
+async def count_user_jobs(user_id: int) -> int:
+    """Count total research jobs for a user."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM research_jobs WHERE user_id = $1",
+            user_id,
+        )
+
+
 async def list_user_jobs(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
     """List recent research jobs for a user."""
     async with _db._pool.acquire() as conn:

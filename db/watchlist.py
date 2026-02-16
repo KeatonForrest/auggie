@@ -54,6 +54,15 @@ async def get_watchlist_item(item_id: int, user_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
+async def count_watchlist_items(user_id: int) -> int:
+    """Count total watchlist items for a user."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM watchlist_items WHERE user_id = $1",
+            user_id,
+        )
+
+
 async def list_watchlist_items(user_id: int, limit: int = 100, offset: int = 0) -> list[dict]:
     """List all watchlist items for a user, newest first."""
     async with _db._pool.acquire() as conn:

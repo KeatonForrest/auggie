@@ -5,10 +5,11 @@ import hmac
 import json
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, HttpUrl
 
 from api.auth import require_api_key
+from api.errors import APIError
 from database import upsert_webhook, get_user_webhook, delete_user_webhook
 
 router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
@@ -57,4 +58,4 @@ async def remove_webhook(api_user: dict = Depends(require_api_key)):
     """Remove (deactivate) the webhook."""
     deleted = await delete_user_webhook(api_user["user_id"])
     if not deleted:
-        raise HTTPException(status_code=404, detail="No active webhook found")
+        raise APIError("not_found", "No active webhook found", 404)

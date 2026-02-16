@@ -34,6 +34,15 @@ async def get_list(list_id: int, user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
+async def count_lists(user_id: int) -> int:
+    """Count total lists for a user's org."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM lists WHERE org_id = (SELECT org_id FROM users WHERE id = $1)",
+            user_id,
+        )
+
+
 async def list_lists(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
     """List recent lists for a user's org (shared)."""
     async with _db._pool.acquire() as conn:
@@ -117,6 +126,32 @@ async def count_ready_accounts(list_id: int, account_ids: list[int] | None = Non
         """
         async with _db._pool.acquire() as conn:
             return await conn.fetchval(query, list_id)
+
+
+async def count_list_accounts(
+    list_id: int,
+    min_pain: int | None = None,
+    min_composite: int | None = None,
+) -> int:
+    """Count accounts for a list with optional filtering (mirrors get_list_accounts filters)."""
+    conditions = ["list_id = $1"]
+    params: list = [list_id]
+    idx = 2
+
+    if min_pain is not None:
+        conditions.append(f"pain_score >= ${idx}")
+        params.append(min_pain)
+        idx += 1
+    if min_composite is not None:
+        conditions.append(f"composite_score >= ${idx}")
+        params.append(min_composite)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    query = f"SELECT COUNT(*) FROM list_accounts WHERE {where}"
+
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(query, *params)
 
 
 async def get_list_accounts(

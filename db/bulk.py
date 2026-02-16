@@ -27,6 +27,15 @@ async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
+async def count_bulk_jobs(user_id: int) -> int:
+    """Count total bulk jobs for a user."""
+    async with _db._pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM bulk_jobs WHERE user_id = $1",
+            user_id,
+        )
+
+
 async def list_bulk_jobs(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
     """List recent bulk jobs for a user."""
     async with _db._pool.acquire() as conn:
