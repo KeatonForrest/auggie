@@ -119,7 +119,7 @@ async def get_current_user(request: Request) -> Optional[dict]:
             set_cached_user(user_id, user)
         return user
     except Exception as e:
-        logger.error("Error getting current user (%s): %s", type(e).__name__, e)
+        logger.error("Error getting current user (%s): %s", type(e).__name__, e, extra={"event_type": "auth_session_error"})
         return None
 
 
@@ -127,6 +127,7 @@ async def require_auth(request: Request) -> dict:
     """Dependency that requires authentication."""
     user = await get_current_user(request)
     if not user:
+        logger.warning("Authentication required but no valid session found", extra={"event_type": "auth_failure", "status_code": 401})
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
@@ -187,7 +188,7 @@ async def callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        logger.error("OAuth error: %s", e)
+        logger.error("OAuth error: %s", e, extra={"event_type": "oauth_callback_failure", "provider": "google", "status_code": 400})
         raise HTTPException(status_code=400, detail="OAuth authentication failed")
     
     user_info = token.get("userinfo")
@@ -283,7 +284,7 @@ async def microsoft_callback(request: Request):
     # Verify state matches session (CSRF protection)
     session_state = request.session.get("_microsoft_authlib_state_")
     if state != session_state:
-        logger.error("Microsoft OAuth state mismatch")
+        logger.error("Microsoft OAuth state mismatch", extra={"event_type": "oauth_callback_failure", "provider": "microsoft", "status_code": 400})
         raise HTTPException(status_code=400, detail="Invalid state parameter")
 
     # Exchange code for tokens
@@ -305,7 +306,7 @@ async def microsoft_callback(request: Request):
         )
 
         if token_response.status_code != 200:
-            logger.error("Microsoft token exchange failed: %s", token_response.status_code)
+            logger.error("Microsoft token exchange failed: %s", token_response.status_code, extra={"event_type": "oauth_callback_failure", "provider": "microsoft", "status_code": 400})
             raise HTTPException(status_code=400, detail="Failed to exchange code for token")
 
         token_data = token_response.json()
@@ -321,7 +322,7 @@ async def microsoft_callback(request: Request):
         )
 
         if userinfo_response.status_code != 200:
-            logger.error("Microsoft userinfo fetch failed: %s", userinfo_response.status_code)
+            logger.error("Microsoft userinfo fetch failed: %s", userinfo_response.status_code, extra={"event_type": "oauth_callback_failure", "provider": "microsoft", "status_code": 502})
             raise HTTPException(status_code=502, detail="Failed to get user info from Microsoft")
         else:
             user_info = userinfo_response.json()

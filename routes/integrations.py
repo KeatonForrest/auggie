@@ -323,7 +323,7 @@ async def apollo_lists(request: Request, user: dict = Depends(require_onboarding
     try:
         lists = await list_saved_lists(user["id"])
     except Exception as e:
-        logger.error("Apollo API error: %s", e)
+        logger.error("Apollo API error: %s", e, extra={"event_type": "integration_provider_error", "provider": "apollo", "status_code": 502})
         raise HTTPException(status_code=502, detail=f"Apollo API error: {e}")
     return JSONResponse(lists)
 

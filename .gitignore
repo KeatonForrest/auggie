@@ -7,6 +7,7 @@ research.db
 services/.edgar_tickers_cache.json
 data/app.db
 scripts/
+!scripts/smoke_prod.sh
 wireframe.html
 OAUTH_SETUP_CHECKLIST.md
 PricingRoadmap2026.md

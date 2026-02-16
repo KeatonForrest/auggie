@@ -303,6 +303,10 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     if "text/html" in accept:
         title = _ERROR_TITLES.get(exc.status_code, "Error")
         detail = exc.detail if isinstance(exc.detail, str) else (exc.detail or {}).get("message", "An unexpected error occurred.")
+        if exc.status_code == 401:
+            logger.warning("HTTP 401 on %s %s", request.method, request.url.path, extra={"event_type": "auth_failure", "status_code": 401})
+        elif exc.status_code >= 500:
+            logger.error("HTTP %s on %s %s", exc.status_code, request.method, request.url.path, extra={"event_type": "unhandled_5xx", "status_code": exc.status_code})
         return templates.TemplateResponse(
             request,
             "error.html",
@@ -340,7 +344,7 @@ async def pydantic_validation_handler(request: Request, exc: pydantic.Validation
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path, extra={"event_type": "unhandled_5xx", "status_code": 500})
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         return templates.TemplateResponse(

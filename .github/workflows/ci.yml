@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          FIRECRAWL_API_KEY: "test-dummy"
+          ANTHROPIC_API_KEY: "test-dummy"
+          DATABASE_URL: "postgresql://localhost/test"
+          GOOGLE_CLIENT_ID: "test-dummy"
+          GOOGLE_CLIENT_SECRET: "test-dummy"
+          STRIPE_SECRET_KEY: "test-dummy"
+        run: python3 -m pytest -q
+
+  smoke-staging:
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke tests against staging
+        env:
+          APP_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::STAGING_URL secret is not set. Smoke tests cannot run pre-merge."
+            exit 1
+          fi
+          bash scripts/smoke_prod.sh "$APP_URL"
+
+  smoke-production:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deploy
+        run: sleep 60
+
+      - name: Run smoke tests against production
+        env:
+          APP_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::PRODUCTION_URL secret is not set. Smoke tests cannot run."
+            exit 1
+          fi
+          bash scripts/smoke_prod.sh "$APP_URL"
