@@ -27,30 +27,41 @@ async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def count_bulk_jobs(user_id: int) -> int:
-    """Count total bulk jobs for a user."""
-    async with _db._pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT COUNT(*) FROM bulk_jobs WHERE user_id = $1",
-            user_id,
-        )
+async def list_bulk_jobs(
+    user_id: int, limit: int = 20, starting_after: int | None = None,
+) -> tuple[list[dict], bool]:
+    """List recent bulk jobs for a user using cursor-based pagination.
 
-
-async def list_bulk_jobs(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
-    """List recent bulk jobs for a user."""
+    Returns (items, has_more).
+    """
     async with _db._pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, name, status, total_items, completed_items, failed_items,
-                   credits_reserved, created_at, completed_at
-            FROM bulk_jobs
-            WHERE user_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            """,
-            user_id, limit, offset
-        )
-        return [dict(row) for row in rows]
+        if starting_after is not None:
+            rows = await conn.fetch(
+                """
+                SELECT id, name, status, total_items, completed_items, failed_items,
+                       credits_reserved, created_at, completed_at
+                FROM bulk_jobs
+                WHERE user_id = $1 AND id < $2
+                ORDER BY id DESC
+                LIMIT $3
+                """,
+                user_id, starting_after, limit + 1,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id, name, status, total_items, completed_items, failed_items,
+                       credits_reserved, created_at, completed_at
+                FROM bulk_jobs
+                WHERE user_id = $1
+                ORDER BY id DESC
+                LIMIT $2
+                """,
+                user_id, limit + 1,
+            )
+        items = [dict(row) for row in rows]
+        has_more = len(items) > limit
+        return items[:limit], has_more
 
 
 async def create_bulk_job_items(bulk_job_id: int, urls: list[str]) -> list[dict]:

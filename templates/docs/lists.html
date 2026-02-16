@@ -1,0 +1,162 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Lists</h1>
+        <p class="mt-2 text-gray-600">Create persistent lists of companies, trigger bulk analysis, then query accounts with score filtering and sorting.</p>
+    </div>
+
+    <!-- POST /v1/lists -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists</code>
+        </div>
+        <p class="text-gray-700 mb-3">Create a named list. Set <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">analyze: true</code> to immediately start researching (1 credit each).</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "name": "Q1 Targets",
+  "company_urls": ["https://example.com", "https://acme.com"],
+  "analyze": true
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">201</span></h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "account_list",
+  "list_id": 5,
+  "name": "Q1 Targets",
+  "status": "analyzing",
+  "total_accounts": 2
+}</code></pre>
+    </div>
+
+    <!-- POST /v1/lists/{id}/analyze -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists/{list_id}/analyze</code>
+        </div>
+        <p class="text-gray-700 mb-3">Trigger analysis on pending accounts. Use this if you created a list without <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">analyze: true</code>.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "account_list",
+  "list_id": 5,
+  "status": "analyzing",
+  "pending_accounts": 2
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/lists/{id} -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists/{list_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Get list details and accounts with optional filtering and sorting.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">Query parameters</h4>
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr><th class="px-4 py-2 font-semibold text-gray-700">Parameter</th><th class="px-4 py-2 font-semibold text-gray-700">Description</th></tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">min_pain_score</td><td class="px-4 py-2">Filter: pain score &ge; value</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">min_composite_score</td><td class="px-4 py-2">Filter: composite score &ge; value</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">sort_by</td><td class="px-4 py-2"><code class="text-xs">pain_score</code>, <code class="text-xs">composite_score</code>, <code class="text-xs">fit_score</code>, <code class="text-xs">timing_score</code>, <code class="text-xs">company_name</code></td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">order</td><td class="px-4 py-2"><code class="text-xs">asc</code> or <code class="text-xs">desc</code> (default: desc)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">limit</td><td class="px-4 py-2">Max accounts (1-500, default 100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">starting_after</td><td class="px-4 py-2">Cursor: account ID from previous page</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "account_list",
+  "list_id": 5,
+  "name": "Q1 Targets",
+  "status": "completed",
+  "total_accounts": 50,
+  "analyzed_accounts": 48,
+  "failed_accounts": 2,
+  "accounts": {
+    "object": "list",
+    "data": [
+      {
+        "id": 1,
+        "company_url": "https://example.com",
+        "company_name": "Example Inc",
+        "status": "completed",
+        "document_id": 15,
+        "pain_score": 85,
+        "fit_score": 72,
+        "timing_score": 80,
+        "composite_score": 78,
+        "analyzed_at": "2026-01-28T12:01:30"
+      }
+    ],
+    "has_more": true
+  }
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/lists -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists</code>
+        </div>
+        <p class="text-gray-700 mb-3">List your recent lists (summaries only). Supports <a href="/docs/pagination" class="text-blue-600 hover:underline">cursor pagination</a>.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "list",
+  "data": [
+    {
+      "object": "account_list",
+      "list_id": 5,
+      "name": "Q1 Targets",
+      "status": "completed",
+      "total_accounts": 50,
+      "created_at": "2026-01-28T12:00:00"
+    }
+  ],
+  "has_more": false
+}</code></pre>
+    </div>
+
+    <!-- POST /v1/lists/{id}/push -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists/{list_id}/push</code>
+        </div>
+        <p class="text-gray-700 mb-3">Push accounts to an Instantly campaign. Optionally filter by account IDs.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "campaign_id": "camp_abc123",
+  "account_ids": [1, 2, 3]
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "push_result",
+  "pushed": 3,
+  "campaign_id": "camp_abc123"
+}</code></pre>
+    </div>
+
+    <!-- DELETE /v1/lists/{id} -->
+    <div class="border rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded">DELETE</span>
+            <code class="text-sm font-mono text-gray-800">/v1/lists/{list_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Delete a list and all its accounts. Returns 204 on success.</p>
+    </div>
+</div>
+{% endblock %}

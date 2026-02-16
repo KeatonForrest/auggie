@@ -1,0 +1,129 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Pagination</h1>
+        <p class="mt-2 text-gray-600">All list endpoints use cursor-based pagination for efficient, consistent paging through results.</p>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">How it works</h2>
+        <p class="text-gray-700 mb-3">Instead of offset-based pagination, the API uses a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">starting_after</code> cursor parameter. Pass the ID of the last item from the previous page to fetch the next page.</p>
+
+        <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Parameters</h3>
+        <div class="overflow-x-auto mb-6">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Parameter</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Type</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Description</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr>
+                        <td class="px-4 py-2 font-mono text-xs">limit</td>
+                        <td class="px-4 py-2 text-gray-700">integer</td>
+                        <td class="px-4 py-2 text-gray-700">Max items per page (1-500, default 100)</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2 font-mono text-xs">starting_after</td>
+                        <td class="px-4 py-2 text-gray-700">string</td>
+                        <td class="px-4 py-2 text-gray-700">ID of the last item from the previous page</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Response format</h2>
+        <p class="text-gray-700 mb-3">All paginated endpoints return the standard list envelope:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "list",
+  "data": [
+    {"job_id": 42, "status": "completed", ...},
+    {"job_id": 41, "status": "completed", ...}
+  ],
+  "has_more": true
+}</code></pre>
+        <p class="text-gray-500 text-sm mt-3">When <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_more</code> is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">true</code>, pass the last item's ID as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">starting_after</code> to get the next page.</p>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Example: paging through results</h2>
+
+        <!-- Tabs -->
+        <div class="border-b mb-4">
+            <button data-tab-btn="page" data-tab="python" onclick="switchTab('page','python')" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Python</button>
+            <button data-tab-btn="page" data-tab="curl" onclick="switchTab('page','curl')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">curl</button>
+            <button data-tab-btn="page" data-tab="js" onclick="switchTab('page','js')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">JavaScript</button>
+        </div>
+
+        <div data-tab-group="page" data-tab="python">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code># Manual pagination
+page = client.list_research(limit=10)
+for job in page["data"]:
+    print(job["job_id"])
+
+if page["has_more"]:
+    next_page = client.list_research(limit=10, starting_after=str(page["data"][-1]["job_id"]))
+
+# Or use the automatic iterator
+for job in client.iter_research(limit=10):
+    print(job["job_id"])</code></pre>
+        </div>
+
+        <div data-tab-group="page" data-tab="curl" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code># First page
+curl "https://auggie.tools/v1/research?limit=10" \
+  -H "Authorization: Bearer aug_your_key"
+
+# Next page (using last job_id from previous response)
+curl "https://auggie.tools/v1/research?limit=10&starting_after=42" \
+  -H "Authorization: Bearer aug_your_key"</code></pre>
+        </div>
+
+        <div data-tab-group="page" data-tab="js" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>let cursor = null;
+do {
+  const url = new URL("https://auggie.tools/v1/research");
+  url.searchParams.set("limit", "10");
+  if (cursor) url.searchParams.set("starting_after", cursor);
+
+  const resp = await fetch(url, {
+    headers: { "Authorization": "Bearer aug_your_key" }
+  });
+  const page = await resp.json();
+
+  for (const job of page.data) {
+    console.log(job.job_id);
+  }
+
+  cursor = page.has_more ? String(page.data.at(-1).job_id) : null;
+} while (cursor);</code></pre>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Paginated endpoints</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Endpoint</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Cursor ID field</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">GET /v1/research</td><td class="px-4 py-2 font-mono text-xs">job_id</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">GET /v1/research/bulk</td><td class="px-4 py-2 font-mono text-xs">bulk_job_id</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">GET /v1/lists</td><td class="px-4 py-2 font-mono text-xs">list_id</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">GET /v1/lists/{id}</td><td class="px-4 py-2 font-mono text-xs">id (account)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">GET /v1/watchlist</td><td class="px-4 py-2 font-mono text-xs">id</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

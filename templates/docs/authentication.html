@@ -1,0 +1,73 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Authentication</h1>
+        <p class="mt-2 text-gray-600">All API requests require a Bearer token in the Authorization header.</p>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">API keys</h2>
+        <p class="text-gray-700 mb-3">Create API keys at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>. Keys are shown once on creation and cannot be retrieved later.</p>
+        <p class="text-gray-700 mb-3">Include the key in the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code> header:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>Authorization: Bearer aug_your_api_key_here</code></pre>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Examples</h2>
+
+        <!-- Tabs -->
+        <div class="border-b mb-4">
+            <button data-tab-btn="auth" data-tab="python" onclick="switchTab('auth','python')" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Python</button>
+            <button data-tab-btn="auth" data-tab="curl" onclick="switchTab('auth','curl')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">curl</button>
+            <button data-tab-btn="auth" data-tab="js" onclick="switchTab('auth','js')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">JavaScript</button>
+        </div>
+
+        <div data-tab-group="auth" data-tab="python">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>from auggie import AuggieClient
+
+client = AuggieClient("aug_your_api_key_here")
+ping = client.ping()
+print(ping["status"])  # "ok"</code></pre>
+        </div>
+
+        <div data-tab-group="auth" data-tab="curl" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl https://auggie.tools/v1/ping \
+  -H "Authorization: Bearer aug_your_api_key_here"</code></pre>
+        </div>
+
+        <div data-tab-group="auth" data-tab="js" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>const resp = await fetch("https://auggie.tools/v1/ping", {
+  headers: { "Authorization": "Bearer aug_your_api_key_here" }
+});
+const data = await resp.json();
+console.log(data.status);  // "ok"</code></pre>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Verify your key</h2>
+        <p class="text-gray-700 mb-3">Use the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/ping</code> endpoint to verify your API key is valid:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>// Response
+{
+  "object": "ping",
+  "status": "ok",
+  "user_id": 42
+}</code></pre>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Account info</h2>
+        <p class="text-gray-700 mb-3">Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/account</code> to check credits, subscription, and usage:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>// Response
+{
+  "object": "account",
+  "user_id": 42,
+  "email": "user@example.com",
+  "credits": 150.0,
+  "subscription": "pro",
+  "org": "Acme Corp"
+}</code></pre>
+    </div>
+</div>
+{% endblock %}

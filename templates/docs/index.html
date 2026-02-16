@@ -1,0 +1,121 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-10">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">API Documentation</h1>
+        <p class="mt-2 text-gray-600">Programmatic access to Auggie's AI-powered account research.</p>
+    </div>
+
+    <!-- Quick-start hero -->
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-r-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">Quick Start</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>pip install auggie</code></pre>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mt-3"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>from auggie import AuggieClient
+
+client = AuggieClient("aug_your_key")
+result = client.research_and_poll("https://example.com")
+
+print(result["scores"]["composite"])       # Overall score
+print(result["scores"]["pain"])            # Pain score
+print(result["sections"]["talking_points"]) # Ready-to-use talking points</code></pre>
+    </div>
+
+    <!-- How it works -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">How it works</h2>
+        <ol class="list-decimal list-inside text-gray-700 space-y-2">
+            <li><strong>Create an API key</strong> at <a href="/api-keys" class="text-blue-600 hover:underline">/api-keys</a>.</li>
+            <li><strong>Submit a company URL</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/research</code>. Returns a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">job_id</code> immediately.</li>
+            <li><strong>Poll for results</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GET /v1/research/{job_id}</code>, or register a <a href="/docs/webhooks" class="text-blue-600 hover:underline">webhook</a>.</li>
+            <li><strong>Generate outreach</strong> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">POST /v1/research/{doc_id}/sequence</code>.</li>
+        </ol>
+    </div>
+
+    <!-- Base URL -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Base URL</h2>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>https://auggie.tools/v1</code></pre>
+    </div>
+
+    <!-- Response envelope -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Response format</h2>
+        <p class="text-gray-700 mb-3">Every response includes an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">object</code> field indicating the resource type. Collections use the standard list envelope:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "list",
+  "data": [...],
+  "has_more": true
+}</code></pre>
+        <p class="text-gray-500 text-sm mt-3">See <a href="/docs/pagination" class="text-blue-600 hover:underline">Pagination</a> for details on cursor-based navigation.</p>
+    </div>
+
+    <!-- SDK -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Python SDK</h2>
+        <p class="text-gray-700 mb-3">The official Python SDK wraps the REST API with polling helpers, automatic retries, and typed responses.</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>from auggie import AuggieClient, AuggieError
+
+client = AuggieClient("aug_your_key")
+
+try:
+    result = client.research_and_poll("https://example.com")
+except AuggieError as e:
+    print(f"Error {e.status_code}: {e.message}")</code></pre>
+        <p class="text-gray-500 text-sm mt-3">Async usage: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">AsyncAuggieClient</code> provides the same API with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">await</code>.</p>
+    </div>
+
+    <!-- Understanding Scores -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Understanding scores</h2>
+        <p class="text-gray-700 mb-4">Every research result includes four scores from 0-100, plus a composite score that combines them.</p>
+
+        <div class="overflow-x-auto mb-6">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Score</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Weight</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">What it measures</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">pain</td><td class="px-4 py-2">40%</td><td class="px-4 py-2">How much pain the company is likely experiencing</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">fit</td><td class="px-4 py-2">35%</td><td class="px-4 py-2">How well the company matches your ICP</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">timing</td><td class="px-4 py-2">25%</td><td class="px-4 py-2">Signals the company is ready to buy now</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">composite</td><td class="px-4 py-2">&mdash;</td><td class="px-4 py-2">Weighted combination of all scores</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Score calibration</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr><th class="px-4 py-2 font-semibold text-gray-700">Range</th><th class="px-4 py-2 font-semibold text-gray-700">Interpretation</th></tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">85-100</td><td class="px-4 py-2"><strong>Very high.</strong> Strong, clear signals detected. Prioritize these accounts.</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">70-84</td><td class="px-4 py-2"><strong>High.</strong> Good signals detected. Worth pursuing.</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">50-69</td><td class="px-4 py-2"><strong>Moderate.</strong> Some signals present. May need qualification.</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">0-49</td><td class="px-4 py-2"><strong>Low.</strong> Weak or absent signals.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Resources -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Resources</h2>
+        <div class="grid md:grid-cols-2 gap-4">
+            <a href="/guides/clay-problem-signal-prospecting" class="block border rounded-lg p-5 hover:border-blue-300 hover:shadow-md transition-all">
+                <h3 class="font-semibold text-gray-900 mb-1">Clay Integration Guide</h3>
+                <p class="text-sm text-gray-600">Step-by-step guide to problem-signal prospecting with Clay.</p>
+            </a>
+            <a href="/api-keys" class="block border rounded-lg p-5 hover:border-blue-300 hover:shadow-md transition-all">
+                <h3 class="font-semibold text-gray-900 mb-1">API Keys</h3>
+                <p class="text-sm text-gray-600">Create and manage your API keys.</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

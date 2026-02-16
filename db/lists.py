@@ -34,30 +34,42 @@ async def get_list(list_id: int, user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def count_lists(user_id: int) -> int:
-    """Count total lists for a user's org."""
-    async with _db._pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT COUNT(*) FROM lists WHERE org_id = (SELECT org_id FROM users WHERE id = $1)",
-            user_id,
-        )
+async def list_lists(
+    user_id: int, limit: int = 20, starting_after: int | None = None,
+) -> tuple[list[dict], bool]:
+    """List recent lists for a user's org using cursor-based pagination.
 
-
-async def list_lists(user_id: int, limit: int = 20, offset: int = 0) -> list[dict]:
-    """List recent lists for a user's org (shared)."""
+    Returns (items, has_more).
+    """
     async with _db._pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, name, status, total_accounts, analyzed_accounts,
-                   failed_accounts, credits_reserved, created_at, updated_at
-            FROM lists
-            WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            """,
-            user_id, limit, offset
-        )
-        return [dict(row) for row in rows]
+        if starting_after is not None:
+            rows = await conn.fetch(
+                """
+                SELECT id, name, status, total_accounts, analyzed_accounts,
+                       failed_accounts, credits_reserved, created_at, updated_at
+                FROM lists
+                WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
+                  AND id < $2
+                ORDER BY id DESC
+                LIMIT $3
+                """,
+                user_id, starting_after, limit + 1,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id, name, status, total_accounts, analyzed_accounts,
+                       failed_accounts, credits_reserved, created_at, updated_at
+                FROM lists
+                WHERE org_id = (SELECT org_id FROM users WHERE id = $1)
+                ORDER BY id DESC
+                LIMIT $2
+                """,
+                user_id, limit + 1,
+            )
+        items = [dict(row) for row in rows]
+        has_more = len(items) > limit
+        return items[:limit], has_more
 
 
 async def delete_list(list_id: int, user_id: int) -> bool:
@@ -128,32 +140,6 @@ async def count_ready_accounts(list_id: int, account_ids: list[int] | None = Non
             return await conn.fetchval(query, list_id)
 
 
-async def count_list_accounts(
-    list_id: int,
-    min_pain: int | None = None,
-    min_composite: int | None = None,
-) -> int:
-    """Count accounts for a list with optional filtering (mirrors get_list_accounts filters)."""
-    conditions = ["list_id = $1"]
-    params: list = [list_id]
-    idx = 2
-
-    if min_pain is not None:
-        conditions.append(f"pain_score >= ${idx}")
-        params.append(min_pain)
-        idx += 1
-    if min_composite is not None:
-        conditions.append(f"composite_score >= ${idx}")
-        params.append(min_composite)
-        idx += 1
-
-    where = " AND ".join(conditions)
-    query = f"SELECT COUNT(*) FROM list_accounts WHERE {where}"
-
-    async with _db._pool.acquire() as conn:
-        return await conn.fetchval(query, *params)
-
-
 async def get_list_accounts(
     list_id: int,
     min_pain: int | None = None,
@@ -161,11 +147,15 @@ async def get_list_accounts(
     sort_by: str = "composite_score",
     order: str = "desc",
     limit: int = 100,
-    offset: int = 0,
+    starting_after: str | None = None,
     status: str | None = None,
     account_ids: list[int] | None = None,
-) -> list[dict]:
-    """Get accounts for a list with optional filtering and sorting."""
+) -> tuple[list[dict], bool]:
+    """Get accounts for a list with optional filtering and sorting.
+
+    Uses cursor-based pagination. The cursor is a composite of (sort_value, id)
+    encoded as base64. Returns (items, has_more).
+    """
     allowed_sorts = {"pain_score", "composite_score", "fit_score", "timing_score", "company_name"}
     if sort_by not in allowed_sorts:
         sort_by = "composite_score"
@@ -193,8 +183,43 @@ async def get_list_accounts(
         params.append(account_ids)
         idx += 1
 
+    # Cursor-based keyset pagination
+    if starting_after is not None:
+        from api.pagination import decode_composite_cursor
+        sort_val_str, cursor_id = decode_composite_cursor(starting_after)
+
+        if sort_val_str is not None:
+            cursor_sort_val = int(sort_val_str) if sort_by != "company_name" else sort_val_str
+        else:
+            cursor_sort_val = None
+
+        # Use sentinel values for NULL handling in row comparison
+        if order == "desc":
+            sentinel = -1 if sort_by != "company_name" else ""
+            conditions.append(
+                f"(COALESCE({sort_by}, {f'${idx}' if sort_by == 'company_name' else str(sentinel)}), id) < "
+                f"(COALESCE(${idx}, {str(sentinel)}), ${idx + 1})"
+            )
+            if sort_by == "company_name":
+                params.extend([sentinel, cursor_sort_val, cursor_id])
+                idx += 3
+            else:
+                params.extend([cursor_sort_val, cursor_id])
+                idx += 2
+        else:
+            sentinel = 999 if sort_by != "company_name" else "zzzzz"
+            conditions.append(
+                f"(COALESCE({sort_by}, {f'${idx}' if sort_by == 'company_name' else str(sentinel)}), id) > "
+                f"(COALESCE(${idx}, {str(sentinel)}), ${idx + 1})"
+            )
+            if sort_by == "company_name":
+                params.extend([sentinel, cursor_sort_val, cursor_id])
+                idx += 3
+            else:
+                params.extend([cursor_sort_val, cursor_id])
+                idx += 2
+
     where = " AND ".join(conditions)
-    # Use NULLS LAST so un-analyzed accounts sort to the end
     query = f"""
         SELECT id, list_id, company_url, status, document_id, research_job_id,
                pain_score, fit_score, timing_score, composite_score,
@@ -202,14 +227,16 @@ async def get_list_accounts(
                enrichment_status, outreach_status, pushed_to, source_id
         FROM list_accounts
         WHERE {where}
-        ORDER BY {sort_by} {order} NULLS LAST
-        LIMIT ${idx} OFFSET ${idx + 1}
+        ORDER BY {sort_by} {order} NULLS LAST, id {order}
+        LIMIT ${idx}
     """
-    params.extend([limit, offset])
+    params.append(limit + 1)
 
     async with _db._pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
-        return [dict(row) for row in rows]
+        items = [dict(row) for row in rows]
+        has_more = len(items) > limit
+        return items[:limit], has_more
 
 
 async def update_list_account(

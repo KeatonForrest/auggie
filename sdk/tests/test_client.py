@@ -16,7 +16,7 @@ from auggie import (
     APIResource, PingResponse, Account, ResearchJob, ResearchJobList,
     EnrichResult, ClayEnrichResult, Sequence, BulkJob, BulkJobList,
     AccountList, AccountListSummary, PushResult, WebhookConfig, TeamList,
-    Invite, WatchlistItem, WatchlistPage, WatchlistHistory,
+    Invite, WatchlistItem, WatchlistPage, WatchlistHistory, WebhookEvent,
 )
 
 
@@ -146,11 +146,11 @@ class TestSyncEndpoints:
         def handler(request):
             assert request.url.path == "/v1/research"
             assert request.url.params["limit"] == "50"
-            assert request.url.params["offset"] == "10"
-            return json_response({"jobs": []})
+            assert request.url.params["starting_after"] == "10"
+            return json_response({"data": []})
 
         client = make_client(handler)
-        client.list_research(limit=50, offset=10)
+        client.list_research(limit=50, starting_after="10")
 
     def test_enrich(self):
         def handler(request):
@@ -216,11 +216,11 @@ class TestSyncEndpoints:
     def test_list_bulk_jobs_pagination(self):
         def handler(request):
             assert request.url.params["limit"] == "20"
-            assert request.url.params["offset"] == "5"
-            return json_response({"bulk_jobs": []})
+            assert request.url.params["starting_after"] == "5"
+            return json_response({"data": []})
 
         client = make_client(handler)
-        client.list_bulk_jobs(limit=20, offset=5)
+        client.list_bulk_jobs(limit=20, starting_after="5")
 
     def test_create_list(self):
         def handler(request):
@@ -246,10 +246,18 @@ class TestSyncEndpoints:
     def test_list_lists_pagination(self):
         def handler(request):
             assert request.url.params["limit"] == "10"
-            return json_response({"lists": []})
+            return json_response({"data": []})
 
         client = make_client(handler)
         client.list_lists(limit=10)
+
+    def test_list_lists_with_cursor(self):
+        def handler(request):
+            assert request.url.params["starting_after"] == "3"
+            return json_response({"data": []})
+
+        client = make_client(handler)
+        client.list_lists(starting_after="3")
 
     def test_analyze_list(self):
         def handler(request):
@@ -295,10 +303,21 @@ class TestSyncEndpoints:
             assert request.url.path == "/v1/webhooks/register"
             body = json.loads(request.content)
             assert body["url"] == "https://hook.example.com"
+            assert "event_types" not in body
             return json_response({"id": 1, "url": "https://hook.example.com"})
 
         client = make_client(handler)
         client.register_webhook("https://hook.example.com")
+
+    def test_register_webhook_with_event_types(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body["url"] == "https://hook.example.com"
+            assert body["event_types"] == ["research.completed", "bulk.completed"]
+            return json_response({"id": 1, "url": "https://hook.example.com", "event_types": ["research.completed", "bulk.completed"]})
+
+        client = make_client(handler)
+        client.register_webhook("https://hook.example.com", event_types=["research.completed", "bulk.completed"])
 
     def test_get_webhook(self):
         def handler(request):
@@ -386,10 +405,18 @@ class TestSyncEndpoints:
         def handler(request):
             assert request.url.path == "/v1/watchlist"
             assert request.url.params["limit"] == "50"
-            return json_response({"items": []})
+            return json_response({"data": []})
 
         client = make_client(handler)
         client.list_watchlist(limit=50)
+
+    def test_list_watchlist_with_cursor(self):
+        def handler(request):
+            assert request.url.params["starting_after"] == "7"
+            return json_response({"data": []})
+
+        client = make_client(handler)
+        client.list_watchlist(starting_after="7")
 
     def test_update_watchlist(self):
         def handler(request):
@@ -600,7 +627,7 @@ class TestAsyncEndpoints:
             if path == "/v1/watchlist" and request.method == "POST":
                 return json_response({"id": 1, "status": "active"}, 201)
             if path == "/v1/watchlist" and request.method == "GET":
-                return json_response({"items": []})
+                return json_response({"data": []})
             if path == "/v1/watchlist/1" and request.method == "PATCH":
                 return json_response({"id": 1, "schedule": "monthly"})
             if path == "/v1/watchlist/1" and request.method == "DELETE":
@@ -614,7 +641,7 @@ class TestAsyncEndpoints:
             assert item["id"] == 1
 
             items = await client.list_watchlist()
-            assert items["items"] == []
+            assert items["data"] == []
 
             updated = await client.update_watchlist(1, schedule="monthly")
             assert updated["schedule"] == "monthly"
@@ -654,8 +681,8 @@ class TestVersion:
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
 
-    def test_version_is_0_5_0(self):
-        assert __version__ == "0.5.0"
+    def test_version_is_0_6_0(self):
+        assert __version__ == "0.6.0"
 
 
 # ---------------------------------------------------------------------------
@@ -803,8 +830,7 @@ class TestPaginationHelpers:
         """Should yield all items from a single page."""
         def handler(request):
             return json_response({
-                "jobs": [{"job_id": 1}, {"job_id": 2}],
-                "total": 2,
+                "data": [{"job_id": 1}, {"job_id": 2}],
                 "has_more": False,
             })
 
@@ -814,23 +840,22 @@ class TestPaginationHelpers:
         assert items[0]["job_id"] == 1
 
     def test_multi_page(self):
-        """Should iterate across multiple pages."""
+        """Should iterate across multiple pages using cursor."""
         call_count = 0
 
         def handler(request):
             nonlocal call_count
             call_count += 1
-            offset = int(request.url.params.get("offset", 0))
-            if offset == 0:
+            starting_after = request.url.params.get("starting_after")
+            if starting_after is None:
                 return json_response({
-                    "jobs": [{"job_id": 1}, {"job_id": 2}],
-                    "total": 3,
+                    "data": [{"job_id": 1}, {"job_id": 2}],
                     "has_more": True,
                 })
             else:
+                assert starting_after == "2"
                 return json_response({
-                    "jobs": [{"job_id": 3}],
-                    "total": 3,
+                    "data": [{"job_id": 3}],
                     "has_more": False,
                 })
 
@@ -842,7 +867,7 @@ class TestPaginationHelpers:
     def test_empty_results(self):
         """Should handle empty results gracefully."""
         def handler(request):
-            return json_response({"jobs": [], "total": 0, "has_more": False})
+            return json_response({"data": [], "has_more": False})
 
         client = make_client(handler)
         items = list(client.iter_research())
@@ -850,7 +875,7 @@ class TestPaginationHelpers:
 
     def test_iter_bulk_jobs(self):
         def handler(request):
-            return json_response({"bulk_jobs": [{"id": 1}], "total": 1, "has_more": False})
+            return json_response({"data": [{"bulk_job_id": 1}], "has_more": False})
 
         client = make_client(handler)
         items = list(client.iter_bulk_jobs())
@@ -858,7 +883,7 @@ class TestPaginationHelpers:
 
     def test_iter_lists(self):
         def handler(request):
-            return json_response({"lists": [{"list_id": 1}], "total": 1, "has_more": False})
+            return json_response({"data": [{"list_id": 1}], "has_more": False})
 
         client = make_client(handler)
         items = list(client.iter_lists())
@@ -869,8 +894,11 @@ class TestPaginationHelpers:
             return json_response({
                 "list_id": 1, "name": "test", "status": "completed",
                 "total_accounts": 1, "analyzed_accounts": 1, "failed_accounts": 0,
-                "accounts": [{"id": 1, "company_url": "https://a.com"}],
-                "total": 1, "has_more": False,
+                "accounts": {
+                    "object": "list",
+                    "data": [{"id": 1, "company_url": "https://a.com"}],
+                    "has_more": False,
+                },
             })
 
         client = make_client(handler)
@@ -879,7 +907,7 @@ class TestPaginationHelpers:
 
     def test_iter_watchlist(self):
         def handler(request):
-            return json_response({"items": [{"id": 1}], "total": 1, "has_more": False})
+            return json_response({"data": [{"id": 1}], "has_more": False})
 
         client = make_client(handler)
         items = list(client.iter_watchlist())
@@ -888,7 +916,7 @@ class TestPaginationHelpers:
     def test_no_has_more_key_stops(self):
         """If has_more is missing from response, should stop (safe fallback)."""
         def handler(request):
-            return json_response({"jobs": [{"job_id": 1}], "total": 1})
+            return json_response({"data": [{"job_id": 1}]})
 
         client = make_client(handler)
         items = list(client.iter_research())
@@ -900,8 +928,7 @@ class TestAsyncPaginationHelpers:
     async def test_single_page(self):
         def handler(request):
             return json_response({
-                "jobs": [{"job_id": 1}, {"job_id": 2}],
-                "total": 2,
+                "data": [{"job_id": 1}, {"job_id": 2}],
                 "has_more": False,
             })
 
@@ -912,16 +939,14 @@ class TestAsyncPaginationHelpers:
     @pytest.mark.anyio
     async def test_multi_page(self):
         def handler(request):
-            offset = int(request.url.params.get("offset", 0))
-            if offset == 0:
+            starting_after = request.url.params.get("starting_after")
+            if starting_after is None:
                 return json_response({
-                    "jobs": [{"job_id": 1}],
-                    "total": 2,
+                    "data": [{"job_id": 1}],
                     "has_more": True,
                 })
             return json_response({
-                "jobs": [{"job_id": 2}],
-                "total": 2,
+                "data": [{"job_id": 2}],
                 "has_more": False,
             })
 
@@ -932,7 +957,7 @@ class TestAsyncPaginationHelpers:
     @pytest.mark.anyio
     async def test_empty(self):
         def handler(request):
-            return json_response({"items": [], "total": 0, "has_more": False})
+            return json_response({"data": [], "has_more": False})
 
         async with make_async_client(handler) as client:
             items = [item async for item in client.iter_watchlist()]
@@ -1420,3 +1445,17 @@ class TestResourceObjects:
             result = await client.research_and_poll("https://example.com", interval=0.01)
             assert isinstance(result, ResearchJob)
             assert result.status == "completed"
+
+    def test_webhook_event_resource(self):
+        """WebhookEvent is a valid resource object."""
+        evt = WebhookEvent({
+            "id": "evt_abc123",
+            "type": "research.completed",
+            "created_at": "2026-02-16T12:00:00Z",
+            "data": {"job_id": 123, "document_id": 456},
+        })
+        assert isinstance(evt, APIResource)
+        assert isinstance(evt, dict)
+        assert evt.id == "evt_abc123"
+        assert evt["type"] == "research.completed"
+        assert evt.data["job_id"] == 123

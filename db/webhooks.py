@@ -1,24 +1,29 @@
 """Webhook database operations."""
 
+import secrets as _secrets
 from typing import Optional
 
 import db._pool as _db
 
 
-async def upsert_webhook(user_id: int, url: str, secret: str, *, org_id: int | None = None) -> dict:
+async def upsert_webhook(
+    user_id: int, url: str, secret: str, *,
+    org_id: int | None = None, event_types: list[str] | None = None,
+) -> dict:
     """Create or update user's webhook (org-scoped). Returns the webhook record."""
     async with _db._pool.acquire() as conn:
         if org_id is None:
             org_id = await conn.fetchval("SELECT org_id FROM users WHERE id = $1", user_id)
         row = await conn.fetchrow(
             """
-            INSERT INTO webhooks (user_id, url, secret, org_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO webhooks (user_id, url, secret, org_id, event_types)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (user_id) DO UPDATE
-            SET url = EXCLUDED.url, secret = EXCLUDED.secret, active = TRUE, org_id = EXCLUDED.org_id
+            SET url = EXCLUDED.url, secret = EXCLUDED.secret, active = TRUE,
+                org_id = EXCLUDED.org_id, event_types = EXCLUDED.event_types
             RETURNING *
             """,
-            user_id, url, secret, org_id
+            user_id, url, secret, org_id, event_types
         )
         return dict(row)
 
@@ -41,6 +46,26 @@ async def delete_user_webhook(user_id: int) -> bool:
             user_id
         )
         return result == "UPDATE 1"
+
+
+async def create_webhook_event(webhook_id: int, event_type: str, payload: dict) -> dict:
+    """Create a webhook event record. Returns the event dict with evt_ ID."""
+    import json
+    event_id = f"evt_{_secrets.token_hex(12)}"
+    async with _db._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO webhook_events (id, webhook_id, event_type, payload)
+            VALUES ($1, $2, $3, $4::jsonb)
+            RETURNING *
+            """,
+            event_id, webhook_id, event_type, json.dumps(payload),
+        )
+        result = dict(row)
+        # Parse JSONB back to dict
+        if isinstance(result.get("payload"), str):
+            result["payload"] = json.loads(result["payload"])
+        return result
 
 
 async def create_webhook_delivery(webhook_id: int, job_id: int) -> dict:

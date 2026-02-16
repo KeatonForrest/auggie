@@ -1,0 +1,103 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Enrichment</h1>
+        <p class="mt-2 text-gray-600">Enrich contacts from research documents or use the synchronous Clay-optimized endpoint.</p>
+    </div>
+
+    <!-- POST /v1/enrich -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/enrich</code>
+        </div>
+        <p class="text-gray-700 mb-3">Enrich contacts for an existing research document. Optionally filter by job titles.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "document_id": 15,
+  "titles": ["VP Engineering", "CTO"]
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "enrichment",
+  "contacts": [
+    {
+      "name": "Jane Smith",
+      "title": "VP Engineering",
+      "email": "jane@example.com",
+      "linkedin_url": "https://linkedin.com/in/janesmith"
+    }
+  ],
+  "cached": false
+}</code></pre>
+    </div>
+
+    <!-- POST /v1/clay/enrich -->
+    <div class="border rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/clay/enrich</code>
+        </div>
+        <p class="text-gray-700 mb-3">Synchronous enrichment endpoint optimized for <a href="https://clay.com" class="text-blue-600 hover:underline" target="_blank">Clay</a> HTTP columns. Runs the full research pipeline and returns a flat response. Includes 24-hour caching. Rate limited to 5 requests per 60 seconds.</p>
+
+        <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+            <p class="text-sm text-amber-800"><strong>Important:</strong> Set your Clay HTTP column timeout to <strong>120 seconds</strong>. Research typically completes in 30-60 seconds.</p>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{% raw %}{ "company_url": "{{/Company Website}}" }{% endraw %}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "clay_enrichment",
+  "company_name": "Acme Corp",
+  "company_url": "https://acme.com",
+  "pain_score": 87,
+  "fit_score": 75,
+  "timing_score": 82,
+  "composite_score": 82,
+  "score_summary": "Strong pain signals...",
+  "pain_reasons": "PostgreSQL scaling + 4mo backend role...",
+  "business_problems": "...",
+  "product_fit": "...",
+  "talking_points": "...",
+  "pain_category_security": 72,
+  "pain_category_engineering": 87,
+  "pain_category_operations": 60,
+  "pain_category_marketing": null,
+  "pain_category_data": null,
+  "top_pain_signal": "Database Scaling Pressure",
+  "document_id": 1523,
+  "cached": false,
+  "research_duration_seconds": 47.32
+}</code></pre>
+
+        <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Field mapping for Clay</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr><th class="px-4 py-2 font-semibold text-gray-700">Field</th><th class="px-4 py-2 font-semibold text-gray-700">Description</th></tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">pain_score</td><td class="px-4 py-2">Pain score (0-100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">composite_score</td><td class="px-4 py-2">Overall opportunity score (0-100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">fit_score</td><td class="px-4 py-2">ICP fit score (0-100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">timing_score</td><td class="px-4 py-2">Buying timing score (0-100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">score_summary</td><td class="px-4 py-2">One-line score explanation</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">pain_reasons</td><td class="px-4 py-2">Key pain signals identified</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">talking_points</td><td class="px-4 py-2">Ready-to-use talking points</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">top_pain_signal</td><td class="px-4 py-2">Title of highest-confidence pain signal</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">document_id</td><td class="px-4 py-2">Document ID (for sequence endpoint)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-6">
+            <a href="/guides/clay-problem-signal-prospecting" class="text-blue-600 hover:underline font-medium">Full step-by-step Clay guide &rarr;</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

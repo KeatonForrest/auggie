@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator, Iterator
 
 import httpx
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "AuggieClient",
@@ -48,6 +48,7 @@ __all__ = [
     "WatchlistItem",
     "WatchlistPage",
     "WatchlistHistory",
+    "WebhookEvent",
     "__version__",
 ]
 
@@ -220,6 +221,9 @@ class WatchlistPage(APIResource):
 class WatchlistHistory(APIResource):
     """Response from ``get_watchlist_history()``."""
 
+class WebhookEvent(APIResource):
+    """Webhook event envelope delivered to your endpoint."""
+
 
 def _parse_error(resp: httpx.Response) -> AuggieError:
     """Parse an error response into an AuggieError (or appropriate subclass)."""
@@ -371,9 +375,12 @@ class AuggieClient:
                 raise APITimeoutError(408, "Polling timed out", "timeout")
             time.sleep(interval)
 
-    def list_research(self, limit: int = 100, offset: int = 0) -> ResearchJobList:
+    def list_research(self, limit: int = 100, starting_after: str | None = None) -> ResearchJobList:
         """List recent research jobs."""
-        return ResearchJobList(self._request("GET", "/v1/research", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return ResearchJobList(self._request("GET", "/v1/research", params=params))
 
     def enrich(self, document_id: int, titles: list[str] | None = None) -> EnrichResult:
         """Enrich contacts for an existing research document."""
@@ -416,9 +423,12 @@ class AuggieClient:
         """Get bulk job progress and items."""
         return BulkJob(self._request("GET", f"/v1/research/bulk/{bulk_job_id}"))
 
-    def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> BulkJobList:
+    def list_bulk_jobs(self, limit: int = 100, starting_after: str | None = None) -> BulkJobList:
         """List recent bulk jobs."""
-        return BulkJobList(self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return BulkJobList(self._request("GET", "/v1/research/bulk", params=params))
 
     def bulk_research_and_poll(
         self,
@@ -466,9 +476,12 @@ class AuggieClient:
         """Get list details with accounts. Supports min_pain_score, min_composite_score, sort_by, order, limit, offset."""
         return AccountList(self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None))
 
-    def list_lists(self, limit: int = 100, offset: int = 0) -> AccountListSummary:
+    def list_lists(self, limit: int = 100, starting_after: str | None = None) -> AccountListSummary:
         """List recent lists (summaries only)."""
-        return AccountListSummary(self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return AccountListSummary(self._request("GET", "/v1/lists", params=params))
 
     def analyze_list(self, list_id: int) -> AccountList:
         """Trigger analysis on pending accounts in a list."""
@@ -489,9 +502,12 @@ class AuggieClient:
     # Webhooks
     # ------------------------------------------------------------------
 
-    def register_webhook(self, url: str) -> WebhookConfig:
+    def register_webhook(self, url: str, event_types: list[str] | None = None) -> WebhookConfig:
         """Register or update a webhook URL."""
-        return WebhookConfig(self._request("POST", "/v1/webhooks/register", json={"url": url}))
+        payload: dict = {"url": url}
+        if event_types is not None:
+            payload["event_types"] = event_types
+        return WebhookConfig(self._request("POST", "/v1/webhooks/register", json=payload))
 
     def get_webhook(self) -> WebhookConfig | None:
         """Get current webhook configuration."""
@@ -535,9 +551,12 @@ class AuggieClient:
             payload["company_name"] = company_name
         return WatchlistItem(self._request("POST", "/v1/watchlist", json=payload))
 
-    def list_watchlist(self, limit: int = 100, offset: int = 0) -> WatchlistPage:
+    def list_watchlist(self, limit: int = 100, starting_after: str | None = None) -> WatchlistPage:
         """List all watched companies."""
-        return WatchlistPage(self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return WatchlistPage(self._request("GET", "/v1/watchlist", params=params))
 
     def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> WatchlistItem:
         """Update schedule or pause/resume a watchlist item."""
@@ -562,58 +581,64 @@ class AuggieClient:
 
     def iter_research(self, limit: int = 100) -> Iterator[dict]:
         """Iterate over all research jobs, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = self.list_research(limit=limit, offset=offset)
-            for item in page.get("jobs", []):
+            page = self.list_research(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["job_id"])
 
     def iter_bulk_jobs(self, limit: int = 100) -> Iterator[dict]:
         """Iterate over all bulk jobs, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = self.list_bulk_jobs(limit=limit, offset=offset)
-            for item in page.get("bulk_jobs", []):
+            page = self.list_bulk_jobs(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["bulk_job_id"])
 
     def iter_lists(self, limit: int = 100) -> Iterator[dict]:
         """Iterate over all lists, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = self.list_lists(limit=limit, offset=offset)
-            for item in page.get("lists", []):
+            page = self.list_lists(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["list_id"])
 
     def iter_list_accounts(self, list_id: int, limit: int = 100, **filter_params: Any) -> Iterator[dict]:
         """Iterate over all accounts in a list, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = self.get_list(list_id, limit=limit, offset=offset, **filter_params)
-            for item in page.get("accounts", []):
+            page = self.get_list(list_id, limit=limit, starting_after=cursor, **filter_params)
+            accounts = page.get("accounts", {})
+            items = accounts.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not accounts.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["id"])
 
     def iter_watchlist(self, limit: int = 100) -> Iterator[dict]:
         """Iterate over all watchlist items, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = self.list_watchlist(limit=limit, offset=offset)
-            for item in page.get("items", []):
+            page = self.list_watchlist(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["id"])
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -722,9 +747,12 @@ class AsyncAuggieClient:
                 raise APITimeoutError(408, "Polling timed out", "timeout")
             await asyncio.sleep(interval)
 
-    async def list_research(self, limit: int = 100, offset: int = 0) -> ResearchJobList:
+    async def list_research(self, limit: int = 100, starting_after: str | None = None) -> ResearchJobList:
         """List recent research jobs."""
-        return ResearchJobList(await self._request("GET", "/v1/research", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return ResearchJobList(await self._request("GET", "/v1/research", params=params))
 
     async def enrich(self, document_id: int, titles: list[str] | None = None) -> EnrichResult:
         """Enrich contacts for an existing research document."""
@@ -764,9 +792,12 @@ class AsyncAuggieClient:
         """Get bulk job progress and items."""
         return BulkJob(await self._request("GET", f"/v1/research/bulk/{bulk_job_id}"))
 
-    async def list_bulk_jobs(self, limit: int = 100, offset: int = 0) -> BulkJobList:
+    async def list_bulk_jobs(self, limit: int = 100, starting_after: str | None = None) -> BulkJobList:
         """List recent bulk jobs."""
-        return BulkJobList(await self._request("GET", "/v1/research/bulk", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return BulkJobList(await self._request("GET", "/v1/research/bulk", params=params))
 
     async def bulk_research_and_poll(
         self,
@@ -814,9 +845,12 @@ class AsyncAuggieClient:
         """Get list details with accounts."""
         return AccountList(await self._request("GET", f"/v1/lists/{list_id}", params=filter_params or None))
 
-    async def list_lists(self, limit: int = 100, offset: int = 0) -> AccountListSummary:
+    async def list_lists(self, limit: int = 100, starting_after: str | None = None) -> AccountListSummary:
         """List recent lists (summaries only)."""
-        return AccountListSummary(await self._request("GET", "/v1/lists", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return AccountListSummary(await self._request("GET", "/v1/lists", params=params))
 
     async def analyze_list(self, list_id: int) -> AccountList:
         """Trigger analysis on pending accounts in a list."""
@@ -837,9 +871,12 @@ class AsyncAuggieClient:
     # Webhooks
     # ------------------------------------------------------------------
 
-    async def register_webhook(self, url: str) -> WebhookConfig:
+    async def register_webhook(self, url: str, event_types: list[str] | None = None) -> WebhookConfig:
         """Register or update a webhook URL."""
-        return WebhookConfig(await self._request("POST", "/v1/webhooks/register", json={"url": url}))
+        payload: dict = {"url": url}
+        if event_types is not None:
+            payload["event_types"] = event_types
+        return WebhookConfig(await self._request("POST", "/v1/webhooks/register", json=payload))
 
     async def get_webhook(self) -> WebhookConfig | None:
         """Get current webhook configuration."""
@@ -883,9 +920,12 @@ class AsyncAuggieClient:
             payload["company_name"] = company_name
         return WatchlistItem(await self._request("POST", "/v1/watchlist", json=payload))
 
-    async def list_watchlist(self, limit: int = 100, offset: int = 0) -> WatchlistPage:
+    async def list_watchlist(self, limit: int = 100, starting_after: str | None = None) -> WatchlistPage:
         """List all watched companies."""
-        return WatchlistPage(await self._request("GET", "/v1/watchlist", params={"limit": limit, "offset": offset}))
+        params: dict = {"limit": limit}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        return WatchlistPage(await self._request("GET", "/v1/watchlist", params=params))
 
     async def update_watchlist(self, item_id: int, schedule: str | None = None, status: str | None = None) -> WatchlistItem:
         """Update schedule or pause/resume a watchlist item."""
@@ -910,58 +950,64 @@ class AsyncAuggieClient:
 
     async def iter_research(self, limit: int = 100) -> AsyncIterator[dict]:
         """Iterate over all research jobs, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = await self.list_research(limit=limit, offset=offset)
-            for item in page.get("jobs", []):
+            page = await self.list_research(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["job_id"])
 
     async def iter_bulk_jobs(self, limit: int = 100) -> AsyncIterator[dict]:
         """Iterate over all bulk jobs, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = await self.list_bulk_jobs(limit=limit, offset=offset)
-            for item in page.get("bulk_jobs", []):
+            page = await self.list_bulk_jobs(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["bulk_job_id"])
 
     async def iter_lists(self, limit: int = 100) -> AsyncIterator[dict]:
         """Iterate over all lists, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = await self.list_lists(limit=limit, offset=offset)
-            for item in page.get("lists", []):
+            page = await self.list_lists(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["list_id"])
 
     async def iter_list_accounts(self, list_id: int, limit: int = 100, **filter_params: Any) -> AsyncIterator[dict]:
         """Iterate over all accounts in a list, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = await self.get_list(list_id, limit=limit, offset=offset, **filter_params)
-            for item in page.get("accounts", []):
+            page = await self.get_list(list_id, limit=limit, starting_after=cursor, **filter_params)
+            accounts = page.get("accounts", {})
+            items = accounts.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not accounts.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["id"])
 
     async def iter_watchlist(self, limit: int = 100) -> AsyncIterator[dict]:
         """Iterate over all watchlist items, handling pagination automatically."""
-        offset = 0
+        cursor = None
         while True:
-            page = await self.list_watchlist(limit=limit, offset=offset)
-            for item in page.get("items", []):
+            page = await self.list_watchlist(limit=limit, starting_after=cursor)
+            items = page.get("data", [])
+            for item in items:
                 yield item
-            if not page.get("has_more", False):
+            if not page.get("has_more", False) or not items:
                 break
-            offset += limit
+            cursor = str(items[-1]["id"])
 
     # ------------------------------------------------------------------
     # Lifecycle

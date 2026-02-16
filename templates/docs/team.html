@@ -1,0 +1,74 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Team</h1>
+        <p class="mt-2 text-gray-600">Manage organization members and roles via the API.</p>
+    </div>
+
+    <!-- GET /v1/team -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/team</code>
+        </div>
+        <p class="text-gray-700 mb-3">List all team members in your organization.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "team",
+  "members": [
+    {"user_id": 1, "email": "admin@acme.com", "role": "admin"},
+    {"user_id": 2, "email": "rep@acme.com", "role": "member"}
+  ]
+}</code></pre>
+    </div>
+
+    <!-- POST /v1/team/invite -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/team/invite</code>
+        </div>
+        <p class="text-gray-700 mb-3">Invite a new team member. Admin only.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "email": "newrep@acme.com",
+  "role": "member"
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "invite",
+  "email": "newrep@acme.com",
+  "role": "member"
+}</code></pre>
+    </div>
+
+    <!-- PATCH /v1/team/members/{id} -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-2.5 py-1 rounded">PATCH</span>
+            <code class="text-sm font-mono text-gray-800">/v1/team/members/{user_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Change a team member's role. Admin only.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "team_member",
+  "user_id": 2,
+  "role": "admin"
+}</code></pre>
+    </div>
+
+    <!-- DELETE /v1/team/members/{id} -->
+    <div class="border rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded">DELETE</span>
+            <code class="text-sm font-mono text-gray-800">/v1/team/members/{user_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Remove a team member. Admin only. Returns 204 on success.</p>
+    </div>
+</div>
+{% endblock %}

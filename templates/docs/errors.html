@@ -1,0 +1,101 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Errors</h1>
+        <p class="mt-2 text-gray-600">All API errors return a consistent JSON structure with machine-readable error codes.</p>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Error format</h2>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "error": {
+    "code": "insufficient_credits",
+    "message": "Not enough credits to start this research job.",
+    "request_id": "req_abc123"
+  }
+}</code></pre>
+        <p class="text-gray-500 text-sm mt-3">The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">request_id</code> is included when available. Include it in support requests for faster debugging.</p>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">HTTP status codes</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Status</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Code</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Meaning</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr>
+                        <td class="px-4 py-3 font-mono">400</td>
+                        <td class="px-4 py-3 font-mono text-xs">validation_error</td>
+                        <td class="px-4 py-3 text-gray-700">Invalid request body or parameters.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">401</td>
+                        <td class="px-4 py-3 font-mono text-xs">unauthorized</td>
+                        <td class="px-4 py-3 text-gray-700">Missing or invalid API key.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">402</td>
+                        <td class="px-4 py-3 font-mono text-xs">insufficient_credits</td>
+                        <td class="px-4 py-3 text-gray-700">No credits remaining. Purchase more at <a href="/billing/buy-credits" class="text-blue-600 hover:underline">/billing/buy-credits</a>.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">404</td>
+                        <td class="px-4 py-3 font-mono text-xs">not_found</td>
+                        <td class="px-4 py-3 text-gray-700">Resource not found (job, document, list, or webhook).</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">409</td>
+                        <td class="px-4 py-3 font-mono text-xs">conflict</td>
+                        <td class="px-4 py-3 text-gray-700">Duplicate resource or operation conflict.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">422</td>
+                        <td class="px-4 py-3 font-mono text-xs">validation_error</td>
+                        <td class="px-4 py-3 text-gray-700">Invalid company URL (private IP, malformed) or invalid parameters.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">429</td>
+                        <td class="px-4 py-3 font-mono text-xs">rate_limit_exceeded</td>
+                        <td class="px-4 py-3 text-gray-700">Rate limit exceeded. Check the <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">Retry-After</code> header.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-mono">500</td>
+                        <td class="px-4 py-3 font-mono text-xs">internal_error</td>
+                        <td class="px-4 py-3 text-gray-700">Internal server error. Retry with exponential backoff.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">SDK error handling</h2>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>from auggie import (
+    AuggieClient, AuggieError,
+    AuthenticationError, InsufficientCreditsError,
+    NotFoundError, RateLimitError, ValidationError,
+)
+
+client = AuggieClient("aug_your_key")
+try:
+    result = client.research("https://example.com")
+except AuthenticationError:
+    print("Invalid API key")
+except InsufficientCreditsError:
+    print("Buy more credits")
+except RateLimitError as e:
+    print(f"Rate limited, retry after {e.retry_after}s")
+except ValidationError as e:
+    print(f"Bad request: {e.message}")
+except AuggieError as e:
+    print(f"Error {e.status_code} [{e.code}]: {e.message}")</code></pre>
+    </div>
+</div>
+{% endblock %}

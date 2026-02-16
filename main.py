@@ -410,13 +410,35 @@ async def home(request: Request):
     )
 
 
+DOCS_PAGES = {
+    "index": "API Documentation",
+    "authentication": "Authentication",
+    "research": "Research",
+    "enrichment": "Enrichment",
+    "sequences": "Sequences",
+    "bulk": "Bulk Research",
+    "lists": "Lists",
+    "webhooks": "Webhooks",
+    "watchlist": "Watchlist",
+    "team": "Team",
+    "pagination": "Pagination",
+    "errors": "Errors",
+    "rate-limits": "Rate Limits",
+    "changelog": "Changelog",
+}
+
+
 @app.get("/docs", response_class=HTMLResponse)
-async def docs_page(request: Request):
-    """Public API documentation page."""
+@app.get("/docs/{page}", response_class=HTMLResponse)
+async def docs_page(request: Request, page: str = "index"):
+    """Public API documentation pages."""
+    if page not in DOCS_PAGES:
+        from fastapi import HTTPException
+        raise HTTPException(404)
     user = await get_current_user(request)
     return templates.TemplateResponse(
-        "docs.html",
-        {"request": request, "user": user}
+        f"docs/{page}.html",
+        {"request": request, "user": user, "current_page": page, "page_title": DOCS_PAGES[page]},
     )
 
 

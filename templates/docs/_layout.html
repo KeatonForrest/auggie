@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — Auggie API Docs{% endblock %}
+
+{% block layout %}
+<div class="flex gap-8">
+    <!-- Sidebar Navigation -->
+    <aside class="w-56 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-6 space-y-1 text-sm">
+            {% set pages = [
+                ("index", "Overview"),
+                ("authentication", "Authentication"),
+                ("research", "Research"),
+                ("enrichment", "Enrichment"),
+                ("sequences", "Sequences"),
+                ("bulk", "Bulk Research"),
+                ("lists", "Lists"),
+                ("webhooks", "Webhooks"),
+                ("watchlist", "Watchlist"),
+                ("team", "Team"),
+                ("pagination", "Pagination"),
+                ("errors", "Errors"),
+                ("rate-limits", "Rate Limits"),
+                ("changelog", "Changelog"),
+            ] %}
+            {% for slug, label in pages %}
+            <a href="/docs{% if slug != 'index' %}/{{ slug }}{% endif %}"
+               class="block py-1.5 {% if current_page == slug %}text-blue-600 font-semibold border-l-2 border-blue-600 pl-3{% else %}text-gray-600 hover:text-gray-900 font-medium pl-3{% endif %}">
+                {{ label }}
+            </a>
+            {% endfor %}
+            <hr class="my-3 border-gray-200">
+            <a href="/docs/api" class="block py-1.5 text-gray-600 hover:text-gray-900 font-medium pl-3">OpenAPI Reference</a>
+        </nav>
+    </aside>
+
+    <!-- Page Content -->
+    <main class="flex-1 min-w-0">
+        <div class="bg-white rounded-lg shadow p-8">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+
+<script>
+function copyCode(button) {
+    const pre = button.closest('pre');
+    const code = pre.querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(function() {
+        button.textContent = 'Copied!';
+        setTimeout(function() { button.textContent = 'Copy'; }, 2000);
+    });
+}
+
+// Tab switcher for code examples
+function switchTab(group, lang) {
+    document.querySelectorAll(`[data-tab-group="${group}"]`).forEach(el => {
+        el.classList.add('hidden');
+    });
+    document.querySelectorAll(`[data-tab-btn="${group}"]`).forEach(el => {
+        el.classList.remove('border-blue-600', 'text-blue-600');
+        el.classList.add('border-transparent', 'text-gray-500');
+    });
+    document.querySelector(`[data-tab-group="${group}"][data-tab="${lang}"]`).classList.remove('hidden');
+    document.querySelector(`[data-tab-btn="${group}"][data-tab="${lang}"]`).classList.remove('border-transparent', 'text-gray-500');
+    document.querySelector(`[data-tab-btn="${group}"][data-tab="${lang}"]`).classList.add('border-blue-600', 'text-blue-600');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Research</h1>
+        <p class="mt-2 text-gray-600">Start async research jobs and poll for results. Each job costs 1 credit.</p>
+    </div>
+
+    <!-- POST /v1/research -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/research</code>
+        </div>
+        <p class="text-gray-700 mb-3">Start an async research job. Returns immediately with a job ID.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{ "company_url": "https://example.com" }</code></pre>
+
+        <!-- Tabs -->
+        <div class="border-b mb-4">
+            <button data-tab-btn="create" data-tab="python" onclick="switchTab('create','python')" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Python</button>
+            <button data-tab-btn="create" data-tab="curl" onclick="switchTab('create','curl')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">curl</button>
+            <button data-tab-btn="create" data-tab="js" onclick="switchTab('create','js')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">JavaScript</button>
+        </div>
+
+        <div data-tab-group="create" data-tab="python">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>job = client.research("https://example.com")
+print(job["job_id"])  # 42
+
+# Or poll until complete:
+result = client.research_and_poll("https://example.com")</code></pre>
+        </div>
+
+        <div data-tab-group="create" data-tab="curl" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.tools/v1/research \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"company_url": "https://example.com"}'</code></pre>
+        </div>
+
+        <div data-tab-group="create" data-tab="js" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>const resp = await fetch("https://auggie.tools/v1/research", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer aug_your_key",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({ company_url: "https://example.com" })
+});
+const job = await resp.json();</code></pre>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response <span class="text-gray-400 font-normal">202</span></h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "research_job",
+  "job_id": 42,
+  "status": "processing"
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/research/{job_id} -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/research/{job_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Poll for job status. Returns the full research document when completed.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — processing</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "research_job",
+  "job_id": 42,
+  "status": "processing",
+  "company_url": "https://example.com",
+  "created_at": "2026-01-28T12:00:00",
+  "completed_at": null
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response — completed</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "research_job",
+  "job_id": 42,
+  "status": "completed",
+  "company_url": "https://example.com",
+  "created_at": "2026-01-28T12:00:00",
+  "completed_at": "2026-01-28T12:01:30",
+  "document_id": 15,
+  "company_name": "Example Inc",
+  "scores": {
+    "composite": 78,
+    "pain": 85,
+    "fit": 72,
+    "timing": 80,
+    "pain_categories": { "engineering": 85, "security": 72 },
+    "pain_signals": [
+      { "title": "Database Scaling Pressure", "severity": "high", "confidence": 85, "category": "engineering" }
+    ]
+  },
+  "sections": {
+    "company_overview": "...",
+    "talking_points": "...",
+    "business_problems": "..."
+  }
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/research -->
+    <div class="border rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/research</code>
+        </div>
+        <p class="text-gray-700 mb-3">List your recent research jobs. Supports <a href="/docs/pagination" class="text-blue-600 hover:underline">cursor pagination</a>.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">Query parameters</h4>
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr><th class="px-4 py-2 font-semibold text-gray-700">Parameter</th><th class="px-4 py-2 font-semibold text-gray-700">Description</th></tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">limit</td><td class="px-4 py-2">Max results (1-500, default 100)</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">starting_after</td><td class="px-4 py-2">Cursor: job_id of last item from previous page</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "list",
+  "data": [
+    {
+      "object": "research_job",
+      "job_id": 42,
+      "company_url": "https://example.com",
+      "status": "completed",
+      "document_id": 15,
+      "created_at": "2026-01-28T12:00:00",
+      "completed_at": "2026-01-28T12:01:30"
+    }
+  ],
+  "has_more": false
+}</code></pre>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Webhooks</h1>
+        <p class="mt-2 text-gray-600">Register a webhook URL to receive real-time notifications instead of polling. Subscribe to specific event types for granular control.</p>
+    </div>
+
+    <!-- Event types -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Event types</h2>
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Event Type</th>
+                        <th class="px-4 py-2 font-semibold text-gray-700">Trigger</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr><td class="px-4 py-2 font-mono text-xs">research.completed</td><td class="px-4 py-2">Research job finished successfully</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">research.failed</td><td class="px-4 py-2">Research job failed</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">bulk.completed</td><td class="px-4 py-2">Bulk job finished</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">bulk.failed</td><td class="px-4 py-2">Bulk job failed</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">list.analyzed</td><td class="px-4 py-2">List analysis finished</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">list.failed</td><td class="px-4 py-2">List analysis failed</td></tr>
+                    <tr><td class="px-4 py-2 font-mono text-xs">watchlist.change_detected</td><td class="px-4 py-2">Significant score change on watched company</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Event envelope -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Event envelope</h2>
+        <p class="text-gray-700 mb-3">Every webhook delivery uses a structured event envelope:</p>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "id": "evt_a1b2c3d4e5f6",
+  "type": "research.completed",
+  "created_at": "2026-02-16T12:00:00Z",
+  "data": {
+    "job_id": 123,
+    "document_id": 456,
+    "company_url": "https://example.com"
+  }
+}</code></pre>
+    </div>
+
+    <!-- POST /v1/webhooks/register -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/webhooks/register</code>
+        </div>
+        <p class="text-gray-700 mb-3">Register or update your webhook URL. Optionally subscribe to specific event types (null = all events). Returns a secret for HMAC signature verification.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "url": "https://yourserver.com/webhook",
+  "event_types": ["research.completed", "bulk.completed"]
+}</code></pre>
+
+        <!-- Tabs -->
+        <div class="border-b mb-4">
+            <button data-tab-btn="wh-reg" data-tab="python" onclick="switchTab('wh-reg','python')" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Python</button>
+            <button data-tab-btn="wh-reg" data-tab="curl" onclick="switchTab('wh-reg','curl')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">curl</button>
+        </div>
+
+        <div data-tab-group="wh-reg" data-tab="python">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>wh = client.register_webhook(
+    url="https://yourserver.com/webhook",
+    event_types=["research.completed", "bulk.completed"]
+)
+print(wh["secret"])  # Store this securely!</code></pre>
+        </div>
+
+        <div data-tab-group="wh-reg" data-tab="curl" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>curl -X POST https://auggie.tools/v1/webhooks/register \
+  -H "Authorization: Bearer aug_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://yourserver.com/webhook", "event_types": ["research.completed"]}'</code></pre>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "webhook",
+  "url": "https://yourserver.com/webhook",
+  "secret": "a1b2c3...hex...",
+  "active": true,
+  "event_types": ["research.completed", "bulk.completed"]
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/webhooks -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/webhooks</code>
+        </div>
+        <p class="text-gray-700 mb-3">Get your current webhook configuration.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "webhook",
+  "url": "https://yourserver.com/webhook",
+  "active": true,
+  "event_types": ["research.completed", "bulk.completed"]
+}</code></pre>
+    </div>
+
+    <!-- DELETE /v1/webhooks -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded">DELETE</span>
+            <code class="text-sm font-mono text-gray-800">/v1/webhooks</code>
+        </div>
+        <p class="text-gray-700 mb-3">Remove your webhook. Returns 204 on success.</p>
+    </div>
+
+    <!-- Signature verification -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Verifying signatures</h2>
+        <p class="text-gray-700 mb-3">Each webhook delivery includes an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">X-Auggie-Signature</code> header. Verify it using the secret from registration:</p>
+
+        <!-- Tabs -->
+        <div class="border-b mb-4">
+            <button data-tab-btn="wh-verify" data-tab="python" onclick="switchTab('wh-verify','python')" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Python (SDK)</button>
+            <button data-tab-btn="wh-verify" data-tab="manual" onclick="switchTab('wh-verify','manual')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Python (manual)</button>
+        </div>
+
+        <div data-tab-group="wh-verify" data-tab="python">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>from auggie import Webhook, WebhookSignatureError
+
+try:
+    event = Webhook.construct_event(
+        payload=request.body,
+        signature_header=request.headers["X-Auggie-Signature"],
+        secret="your_webhook_secret"
+    )
+    print(f"Event {event['type']}: {event['data']}")
+except WebhookSignatureError:
+    return Response(status_code=400)</code></pre>
+        </div>
+
+        <div data-tab-group="wh-verify" data-tab="manual" class="hidden">
+            <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>import hashlib, hmac, json
+
+def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
+    body = json.dumps(
+        json.loads(payload),
+        separators=(",", ":"),
+        sort_keys=True
+    ).encode()
+    expected = hmac.new(
+        secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)</code></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}

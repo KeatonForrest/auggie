@@ -1,0 +1,81 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Changelog</h1>
+        <p class="mt-2 text-gray-600">API and SDK version history.</p>
+    </div>
+
+    <!-- v0.6.0 -->
+    <div class="border-l-4 border-blue-600 pl-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-1">v0.6.0 <span class="text-sm font-normal text-gray-500">— February 2026</span></h2>
+        <p class="text-gray-700 mb-3">Breaking changes to improve API consistency and pagination.</p>
+
+        <h3 class="text-base font-semibold text-gray-800 mt-4 mb-2">Response envelope</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li>All responses now include an <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">object</code> field indicating the resource type</li>
+            <li>Collections use <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">"data"</code> key instead of named keys (<code class="bg-gray-100 px-1 py-0.5 rounded text-xs">jobs</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">bulk_jobs</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">lists</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">items</code>)</li>
+            <li><code class="bg-gray-100 px-1 py-0.5 rounded text-xs">success</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">error</code> fields removed from enrichment and sequence responses</li>
+        </ul>
+
+        <h3 class="text-base font-semibold text-gray-800 mt-4 mb-2">Cursor-based pagination</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li><code class="bg-gray-100 px-1 py-0.5 rounded text-xs">offset</code> parameter replaced with <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">starting_after</code> (ID-based cursor)</li>
+            <li><code class="bg-gray-100 px-1 py-0.5 rounded text-xs">total</code> removed from list responses (use <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">has_more</code> to check for more results)</li>
+        </ul>
+
+        <h3 class="text-base font-semibold text-gray-800 mt-4 mb-2">Webhook event types</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li>New <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">event_types</code> field on webhook registration for selective subscriptions</li>
+            <li>Webhook payloads now use structured event envelope format with <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">id</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">type</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">created_at</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">data</code></li>
+            <li>7 event types: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">research.completed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">research.failed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">bulk.completed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">bulk.failed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">list.analyzed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">list.failed</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">watchlist.change_detected</code></li>
+        </ul>
+
+        <h3 class="text-base font-semibold text-gray-800 mt-4 mb-2">SDK changes</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li>Version bumped to 0.6.0</li>
+            <li>All <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">list_*</code> methods: <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">offset</code> parameter replaced with <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">starting_after</code></li>
+            <li>Iterators now use cursor-based advancement</li>
+            <li><code class="bg-gray-100 px-1 py-0.5 rounded text-xs">register_webhook()</code> accepts <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">event_types</code> parameter</li>
+            <li>New <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">WebhookEvent</code> resource class</li>
+        </ul>
+
+        <h3 class="text-base font-semibold text-gray-800 mt-4 mb-2">Migration guide</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mt-2"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code># Before (v0.5.0)
+page = client.list_research(limit=10, offset=0)
+for job in page["jobs"]:
+    print(job["job_id"])
+
+# After (v0.6.0)
+page = client.list_research(limit=10)
+for job in page["data"]:
+    print(job["job_id"])
+
+# Or use the iterator (handles pagination automatically)
+for job in client.iter_research(limit=10):
+    print(job["job_id"])</code></pre>
+    </div>
+
+    <!-- v0.5.0 -->
+    <div class="border-l-4 border-gray-300 pl-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-1">v0.5.0 <span class="text-sm font-normal text-gray-500">— January 2026</span></h2>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li>Rate limit headers (<code class="bg-gray-100 px-1 py-0.5 rounded text-xs">X-RateLimit-*</code>)</li>
+            <li>Request ID in error responses</li>
+            <li>SDK error subclasses (<code class="bg-gray-100 px-1 py-0.5 rounded text-xs">AuthenticationError</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">RateLimitError</code>, etc.)</li>
+            <li>Webhook signature verification helper</li>
+            <li>Bulk job polling helper</li>
+        </ul>
+    </div>
+
+    <!-- v0.4.0 -->
+    <div class="border-l-4 border-gray-300 pl-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-1">v0.4.0 <span class="text-sm font-normal text-gray-500">— January 2026</span></h2>
+        <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm">
+            <li>Watchlist endpoints for recurring research</li>
+            <li>Team management endpoints</li>
+            <li>Enrichment contact endpoint</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

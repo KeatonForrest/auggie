@@ -28,10 +28,7 @@ from database import (
 from api.validation import validate_company_url
 from api.jobs import _run_research_pipeline
 from api.tasks import create_tracked_task
-from db.jobs import create_job_with_credit, create_research_job, count_user_jobs
-from db.bulk import count_bulk_jobs
-from db.lists import count_lists, count_list_accounts
-from db.watchlist import count_watchlist_items
+from db.jobs import create_job_with_credit, create_research_job
 from api.ratelimit import research_limiter, sequence_limiter, default_limiter, bulk_limiter, clay_limiter
 
 
@@ -127,7 +124,7 @@ def synthesize_pain(inferences: list[dict], pain_evidence: str | None) -> dict:
 async def ping(api_user: dict = Depends(require_api_key)):
     """Health check endpoint. Returns 200 if API key is valid."""
     default_limiter.check(api_user["api_key_id"])
-    return {"status": "ok", "user_id": api_user["id"]}
+    return {"object": "ping", "status": "ok", "user_id": api_user["id"]}
 
 
 @router.get("/account", tags=["Account"], responses={
@@ -157,6 +154,7 @@ async def get_account(api_user: dict = Depends(require_api_key)):
     key_stats = await get_api_key_usage_stats(api_user["id"])
 
     return {
+        "object": "account",
         "user_id": user["id"],
         "email": user.get("email"),
         "organization": {
@@ -209,7 +207,7 @@ async def create_research(request: Request, body: ResearchRequest, api_user: dic
     # 24h cache: return existing document instead of re-running pipeline
     cached_doc_id = await get_recent_document_by_url(api_user["id"], company_url)
     if cached_doc_id:
-        response_body = {"job_id": None, "status": "completed", "document_id": cached_doc_id, "cached": True}
+        response_body = {"object": "research_job", "job_id": None, "status": "completed", "document_id": cached_doc_id, "cached": True}
         if idem_key:
             await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
         return response_body
@@ -231,7 +229,7 @@ async def create_research(request: Request, body: ResearchRequest, api_user: dic
         name=f"research-{job['id']}",
     )
 
-    response_body = {"job_id": job["id"], "status": "processing"}
+    response_body = {"object": "research_job", "job_id": job["id"], "status": "processing"}
     if idem_key:
         await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
     return response_body
@@ -269,6 +267,7 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
             job = await get_research_job(job_id, api_user["id"])
 
     result = {
+        "object": "research_job",
         "job_id": job["id"],
         "status": job["status"],
         "progress": job.get("progress"),
@@ -330,17 +329,16 @@ async def get_job_status(job_id: int, api_user: dict = Depends(require_api_key))
 async def list_jobs(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
-    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    starting_after: int | None = Query(None, description="Cursor: ID of the last item from previous page"),
 ):
     """List the user's recent research jobs."""
     default_limiter.check(api_user["api_key_id"])
-    jobs, total = await asyncio.gather(
-        list_user_jobs(api_user["id"], limit=limit, offset=offset),
-        count_user_jobs(api_user["id"]),
-    )
+    jobs, has_more = await list_user_jobs(api_user["id"], limit=limit, starting_after=starting_after)
     return {
-        "jobs": [
+        "object": "list",
+        "data": [
             {
+                "object": "research_job",
                 "job_id": j["id"],
                 "company_url": j["company_url"],
                 "status": j["status"],
@@ -351,8 +349,7 @@ async def list_jobs(
             }
             for j in jobs
         ],
-        "total": total,
-        "has_more": (offset + limit) < total,
+        "has_more": has_more,
     }
 
 
@@ -373,10 +370,9 @@ class EnrichContact(BaseModel):
 
 
 class EnrichResponse(BaseModel):
-    success: bool = Field(..., description="Whether enrichment succeeded", examples=[True])
+    object: str = Field("enrichment", description="Object type")
     contacts: list[EnrichContact] = Field([], description="Enriched contacts")
     cached: bool = Field(False, description="Whether results were served from cache")
-    error: str | None = Field(None, description="Error message if failed")
 
 
 @router.post("/enrich", response_model=EnrichResponse, tags=["Research"], responses={
@@ -404,7 +400,6 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
     existing = await get_enriched_contacts(body.document_id, api_user["id"])
     if existing:
         return EnrichResponse(
-            success=True,
             contacts=[EnrichContact(**{k: v for k, v in c.items() if k in EnrichContact.model_fields}) for c in existing],
             cached=True,
         )
@@ -437,7 +432,6 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
         await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
 
         response_body = EnrichResponse(
-            success=True,
             contacts=[EnrichContact(**c) for c in contacts],
             cached=False,
         )
@@ -464,7 +458,7 @@ def _truncate(text: str | None, max_len: int = 500) -> str:
     return text[:max_len] + ("..." if len(text) > max_len else "")
 
 
-def _build_clay_response(doc, *, cached: bool, duration: float | None = None, error: str | None = None, pain_synthesis: dict | None = None) -> dict:
+def _build_clay_response(doc, *, cached: bool, duration: float | None = None, pain_synthesis: dict | None = None) -> dict:
     """Build flat Clay-friendly response from a ResearchDocument."""
     cats = (pain_synthesis or {}).get("categories") or {}
     signals = (pain_synthesis or {}).get("signals") or []
@@ -472,7 +466,7 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
     pain_reasons = _truncate(doc.pain_evidence or doc.business_problems)
 
     resp = {
-        "success": True,
+        "object": "clay_enrichment",
         "company_name": doc.company_name,
         "company_url": doc.company_url,
         "pain_score": doc.pain_score,
@@ -496,7 +490,6 @@ def _build_clay_response(doc, *, cached: bool, duration: float | None = None, er
         "document_id": doc.id,
         "cached": cached,
         "research_duration_seconds": round(duration, 2) if duration is not None else None,
-        "error": error,
     }
     return resp
 
@@ -608,10 +601,9 @@ class SequenceEmail(BaseModel):
 
 
 class SequenceResponse(BaseModel):
-    success: bool = Field(..., description="Whether generation succeeded", examples=[True])
+    object: str = Field("sequence", description="Object type")
     document_id: int = Field(..., description="Source research document ID", examples=[42])
     emails: list[SequenceEmail] = Field([], description="Generated email sequence (3 emails)")
-    error: str | None = Field(None, description="Error message if failed")
 
 
 @router.post("/research/{doc_id}/sequence", response_model=SequenceResponse, tags=["Sequences"], responses={
@@ -655,7 +647,6 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
         await record_api_usage(api_user["api_key_id"], "/v1/research/sequence", 0)
 
         return SequenceResponse(
-            success=True,
             document_id=doc_id,
             emails=[SequenceEmail(**e) for e in emails],
         )
@@ -716,7 +707,7 @@ async def create_bulk_research(request: Request, body: BulkResearchRequest, api_
         name=f"bulk-{bulk_job['id']}",
     )
 
-    response_body = {"bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
+    response_body = {"object": "bulk_job", "bulk_job_id": bulk_job["id"], "status": "processing", "total_items": n}
     if idem_key:
         await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
     return response_body
@@ -754,6 +745,7 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
                 item["error_message"] = "Item timed out after 10 minutes"
 
     return {
+        "object": "bulk_job",
         "bulk_job_id": job["id"],
         "name": job["name"],
         "status": job["status"],
@@ -789,17 +781,16 @@ async def get_bulk_job_status(bulk_job_id: int, api_user: dict = Depends(require
 async def list_bulk_jobs_endpoint(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
-    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    starting_after: int | None = Query(None, description="Cursor: ID of the last item from previous page"),
 ):
     """List recent bulk jobs (summaries only)."""
     default_limiter.check(api_user["api_key_id"])
-    jobs, total = await asyncio.gather(
-        list_bulk_jobs(api_user["id"], limit=limit, offset=offset),
-        count_bulk_jobs(api_user["id"]),
-    )
+    jobs, has_more = await list_bulk_jobs(api_user["id"], limit=limit, starting_after=starting_after)
     return {
-        "bulk_jobs": [
+        "object": "list",
+        "data": [
             {
+                "object": "bulk_job",
                 "bulk_job_id": j["id"],
                 "name": j["name"],
                 "status": j["status"],
@@ -811,8 +802,7 @@ async def list_bulk_jobs_endpoint(
             }
             for j in jobs
         ],
-        "total": total,
-        "has_more": (offset + limit) < total,
+        "has_more": has_more,
     }
 
 
@@ -884,6 +874,7 @@ async def create_list_endpoint(request: Request, body: CreateListRequest, api_us
         status = "created"
 
     response_body = {
+        "object": "account_list",
         "list_id": lst["id"],
         "name": lst["name"],
         "status": status,
@@ -936,7 +927,7 @@ async def analyze_list_endpoint(request: Request, list_id: int, api_user: dict =
         name=f"list-analyze-{list_id}",
     )
 
-    response_body = {"list_id": list_id, "status": "analyzing", "pending_accounts": n}
+    response_body = {"object": "account_list", "list_id": list_id, "status": "analyzing", "pending_accounts": n}
     if idem_key:
         await save_idempotency(api_user["api_key_id"], idem_key, 202, response_body)
     return response_body
@@ -959,7 +950,7 @@ async def get_list_endpoint(
     sort_by: SortField = Query(SortField.composite_score, description="Field to sort results by"),
     order: SortOrder = Query(SortOrder.desc, description="Sort direction"),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
-    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    starting_after: str | None = Query(None, description="Cursor: base64-encoded composite cursor from previous page"),
 ):
     """Get list details with accounts, optional filtering/sorting."""
     default_limiter.check(api_user["api_key_id"])
@@ -968,43 +959,45 @@ async def get_list_endpoint(
     if not lst:
         raise APIError("not_found", "List not found", 404)
 
-    accounts, total = await asyncio.gather(
-        get_list_accounts(
-            list_id,
-            min_pain=min_pain_score,
-            min_composite=min_composite_score,
-            sort_by=sort_by.value,
-            order=order.value,
-            limit=limit,
-            offset=offset,
-        ),
-        count_list_accounts(list_id, min_pain=min_pain_score, min_composite=min_composite_score),
+    accounts, has_more = await get_list_accounts(
+        list_id,
+        min_pain=min_pain_score,
+        min_composite=min_composite_score,
+        sort_by=sort_by.value,
+        order=order.value,
+        limit=limit,
+        starting_after=starting_after,
     )
 
+    from api.pagination import encode_composite_cursor
+
     return {
+        "object": "account_list",
         "list_id": lst["id"],
         "name": lst["name"],
         "status": lst["status"],
         "total_accounts": lst["total_accounts"],
         "analyzed_accounts": lst["analyzed_accounts"],
         "failed_accounts": lst["failed_accounts"],
-        "accounts": [
-            {
-                "id": a["id"],
-                "company_url": a["company_url"],
-                "company_name": a["company_name"],
-                "status": a["status"],
-                "document_id": a["document_id"],
-                "pain_score": a["pain_score"],
-                "fit_score": a["fit_score"],
-                "timing_score": a["timing_score"],
-                "composite_score": a["composite_score"],
-                "analyzed_at": a["analyzed_at"].isoformat() if a["analyzed_at"] else None,
-            }
-            for a in accounts
-        ],
-        "total": total,
-        "has_more": (offset + limit) < total,
+        "accounts": {
+            "object": "list",
+            "data": [
+                {
+                    "id": a["id"],
+                    "company_url": a["company_url"],
+                    "company_name": a["company_name"],
+                    "status": a["status"],
+                    "document_id": a["document_id"],
+                    "pain_score": a["pain_score"],
+                    "fit_score": a["fit_score"],
+                    "timing_score": a["timing_score"],
+                    "composite_score": a["composite_score"],
+                    "analyzed_at": a["analyzed_at"].isoformat() if a["analyzed_at"] else None,
+                }
+                for a in accounts
+            ],
+            "has_more": has_more,
+        },
     }
 
 
@@ -1018,17 +1011,16 @@ async def get_list_endpoint(
 async def list_lists_endpoint(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500, description="Max results to return"),
-    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    starting_after: int | None = Query(None, description="Cursor: ID of the last item from previous page"),
 ):
     """List user's recent lists (summaries, no accounts)."""
     default_limiter.check(api_user["api_key_id"])
-    lists, total = await asyncio.gather(
-        db_list_lists(api_user["id"], limit=limit, offset=offset),
-        count_lists(api_user["id"]),
-    )
+    lists, has_more = await db_list_lists(api_user["id"], limit=limit, starting_after=starting_after)
     return {
-        "lists": [
+        "object": "list",
+        "data": [
             {
+                "object": "account_list",
                 "list_id": l["id"],
                 "name": l["name"],
                 "status": l["status"],
@@ -1040,8 +1032,7 @@ async def list_lists_endpoint(
             }
             for l in lists
         ],
-        "total": total,
-        "has_more": (offset + limit) < total,
+        "has_more": has_more,
     }
 
 
@@ -1081,7 +1072,7 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
     if not integration:
         raise APIError("validation_error", "Instantly not connected", 400)
 
-    all_accounts = await get_list_accounts(list_id)
+    all_accounts, _ = await get_list_accounts(list_id)
     if body.account_ids:
         accounts = [a for a in all_accounts if a["id"] in body.account_ids]
     else:
@@ -1100,7 +1091,7 @@ async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_u
     result = await push_accounts_to_instantly(
         api_user["id"], body.campaign_id, accounts, contacts_by_account,
     )
-    return result
+    return {"object": "push_result", **result}
 
 
 # =================================================================
@@ -1127,7 +1118,7 @@ async def api_list_team(api_user: dict = Depends(require_api_key)):
     if not user or not user.get("org_id"):
         raise APIError("validation_error", "No organization found", 400)
     members = await get_org_members(user["org_id"])
-    return {"members": members}
+    return {"object": "team", "members": members}
 
 
 @router.post("/team/invite", tags=["Team"], responses={
@@ -1143,7 +1134,7 @@ async def api_invite_member(body: InviteRequest, api_user: dict = Depends(requir
     if body.role not in ("admin", "member", "viewer"):
         raise APIError("validation_error", "Invalid role", 400)
     invite = await create_org_invite(user["org_id"], body.email, body.role, user["id"])
-    return {"invite": {"id": invite["id"], "email": invite["email"], "role": invite["role"], "token": invite["token"], "expires_at": str(invite["expires_at"])}}
+    return {"object": "invite", "email": invite["email"], "role": invite["role"]}
 
 
 @router.delete("/team/members/{member_id}", tags=["Team"], responses={
@@ -1181,7 +1172,7 @@ async def api_change_role(member_id: int, body: RoleUpdate, api_user: dict = Dep
     updated = await update_member_role(user["org_id"], member_id, body.role)
     if not updated:
         raise APIError("not_found", "Member not found", 404)
-    return {"updated": True}
+    return {"object": "team_member", "user_id": member_id, "role": body.role}
 
 
 # =================================================================
@@ -1220,6 +1211,7 @@ async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(r
         api_user["id"], company_url, body.company_name, body.schedule,
     )
     return {
+        "object": "watchlist_item",
         "id": item["id"],
         "company_url": item["company_url"],
         "company_name": item["company_name"],
@@ -1239,18 +1231,17 @@ async def add_to_watchlist(body: WatchlistAddRequest, api_user: dict = Depends(r
 async def list_watchlist(
     api_user: dict = Depends(require_api_key),
     limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    starting_after: int | None = Query(None, description="Cursor: ID of the last item from previous page"),
 ):
     """List all watched companies."""
     default_limiter.check(api_user["api_key_id"])
     from database import list_watchlist_items
-    items, total = await asyncio.gather(
-        list_watchlist_items(api_user["id"], limit=limit, offset=offset),
-        count_watchlist_items(api_user["id"]),
-    )
+    items, has_more = await list_watchlist_items(api_user["id"], limit=limit, starting_after=starting_after)
     return {
-        "items": [
+        "object": "list",
+        "data": [
             {
+                "object": "watchlist_item",
                 "id": i["id"],
                 "company_url": i["company_url"],
                 "company_name": i["company_name"],
@@ -1263,8 +1254,7 @@ async def list_watchlist(
             }
             for i in items
         ],
-        "total": total,
-        "has_more": (offset + limit) < total,
+        "has_more": has_more,
     }
 
 
@@ -1286,6 +1276,7 @@ async def update_watchlist(item_id: int, body: WatchlistUpdateRequest, api_user:
     if not item:
         raise APIError("not_found", "Watchlist item not found", 404)
     return {
+        "object": "watchlist_item",
         "id": item["id"],
         "company_url": item["company_url"],
         "schedule": item["schedule"],
@@ -1323,6 +1314,7 @@ async def watchlist_history(item_id: int, api_user: dict = Depends(require_api_k
         raise APIError("not_found", "Watchlist item not found", 404)
     history = await get_score_history(item_id, api_user["id"])
     return {
+        "object": "watchlist_history",
         "item_id": item_id,
         "company_url": item["company_url"],
         "changes": [

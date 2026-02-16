@@ -54,32 +54,45 @@ async def get_watchlist_item(item_id: int, user_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-async def count_watchlist_items(user_id: int) -> int:
-    """Count total watchlist items for a user."""
-    async with _db._pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT COUNT(*) FROM watchlist_items WHERE user_id = $1",
-            user_id,
-        )
+async def list_watchlist_items(
+    user_id: int, limit: int = 100, starting_after: int | None = None,
+) -> tuple[list[dict], bool]:
+    """List all watchlist items for a user using cursor-based pagination.
 
-
-async def list_watchlist_items(user_id: int, limit: int = 100, offset: int = 0) -> list[dict]:
-    """List all watchlist items for a user, newest first."""
+    Returns (items, has_more).
+    """
     async with _db._pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT wi.*,
-                   (SELECT MAX(sc.is_significant::int) FROM watchlist_score_changes sc
-                    WHERE sc.watchlist_item_id = wi.id
-                      AND sc.created_at > NOW() - INTERVAL '7 days') AS has_recent_significant
-            FROM watchlist_items wi
-            WHERE wi.user_id = $1
-            ORDER BY wi.created_at DESC
-            LIMIT $2 OFFSET $3
-            """,
-            user_id, limit, offset,
-        )
-        return [dict(row) for row in rows]
+        if starting_after is not None:
+            rows = await conn.fetch(
+                """
+                SELECT wi.*,
+                       (SELECT MAX(sc.is_significant::int) FROM watchlist_score_changes sc
+                        WHERE sc.watchlist_item_id = wi.id
+                          AND sc.created_at > NOW() - INTERVAL '7 days') AS has_recent_significant
+                FROM watchlist_items wi
+                WHERE wi.user_id = $1 AND wi.id < $2
+                ORDER BY wi.id DESC
+                LIMIT $3
+                """,
+                user_id, starting_after, limit + 1,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT wi.*,
+                       (SELECT MAX(sc.is_significant::int) FROM watchlist_score_changes sc
+                        WHERE sc.watchlist_item_id = wi.id
+                          AND sc.created_at > NOW() - INTERVAL '7 days') AS has_recent_significant
+                FROM watchlist_items wi
+                WHERE wi.user_id = $1
+                ORDER BY wi.id DESC
+                LIMIT $2
+                """,
+                user_id, limit + 1,
+            )
+        items = [dict(row) for row in rows]
+        has_more = len(items) > limit
+        return items[:limit], has_more
 
 
 async def update_watchlist_item(

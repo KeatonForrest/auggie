@@ -181,13 +181,17 @@ async def run_research_job(
             logger.exception("Notification failed for job %s", job_id)
 
         # Fire webhook
-        await _deliver_webhook(user_id, job_id, "completed", doc_id, None)
+        await _deliver_webhook(user_id, "research.completed", {
+            "job_id": job_id, "document_id": doc_id, "company_url": company_url,
+        })
 
     except Exception as e:
         logger.exception("Research job %s failed", job_id)
         error_msg = str(e)[:500]
         await update_job_status(job_id, "failed", error_message=error_msg)
-        await _deliver_webhook(user_id, job_id, "failed", None, error_msg)
+        await _deliver_webhook(user_id, "research.failed", {
+            "job_id": job_id, "error": error_msg, "company_url": company_url,
+        })
         raise
 
 
@@ -247,7 +251,11 @@ async def run_bulk_item(
         failed_count = final["failed_items"]
         if failed_count > 0 and not is_admin:
             await refund_credit(user_id, cents=failed_count * 100)
-        await _deliver_webhook(user_id, bulk_job_id, f"bulk_{final['status']}", None, None)
+        event_type = "bulk.completed" if final["status"] in ("completed", "partial_failure") else "bulk.failed"
+        await _deliver_webhook(user_id, event_type, {
+            "bulk_job_id": bulk_job_id, "status": final["status"],
+            "completed_items": final["completed_items"], "failed_items": final["failed_items"],
+        })
 
 
 async def run_list_analysis(list_id: int, user_id: int, api_key_id: int | None = None, is_admin: bool = False):
@@ -339,7 +347,7 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
         source = await get_list_source(list_id)
         if source and source.get("provider") == "hubspot":
             from services.hubspot import write_list_scores_to_hubspot
-            all_accounts = await get_list_accounts(list_id)
+            all_accounts, _ = await get_list_accounts(list_id)
             updated = await write_list_scores_to_hubspot(user_id, source, all_accounts)
             logger.info("HubSpot writeback: updated %d companies for list %d", updated, list_id)
     except Exception:
@@ -350,7 +358,7 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
         source = await get_list_source(list_id)
         if source and source.get("provider") == "salesforce":
             from services.salesforce import write_list_scores_to_salesforce
-            all_accounts = await get_list_accounts(list_id)
+            all_accounts, _ = await get_list_accounts(list_id)
             updated = await write_list_scores_to_salesforce(user_id, source, all_accounts)
             logger.info("Salesforce writeback: updated %d accounts for list %d", updated, list_id)
     except Exception:
@@ -381,7 +389,7 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
     # Automation rules
     try:
         from db.task_queue import enqueue
-        all_accounts_for_rules = await get_list_accounts(list_id)
+        all_accounts_for_rules, _ = await get_list_accounts(list_id)
         completed_for_rules = [
             a for a in all_accounts_for_rules if a.get("status") == "completed"
         ]
@@ -395,7 +403,13 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
         logger.exception("Automation rules failed for list %d", list_id)
 
     # Webhook
-    await _deliver_webhook(user_id, list_id, f"list_{final['status']}", None, None)
+    event_type = "list.analyzed" if final["status"] in ("completed", "partial_failure") else "list.failed"
+    await _deliver_webhook(user_id, event_type, {
+        "list_id": list_id, "status": final["status"],
+        "total_accounts": final.get("total_accounts", 0),
+        "analyzed_accounts": final.get("analyzed_accounts", 0),
+        "failed_accounts": final["failed_accounts"],
+    })
 
 
 async def run_retry_account(user_id: int, account_id: int, company_url: str, job_id: int, is_admin: bool = False):
@@ -433,7 +447,7 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
     )
     from services.instances import writing_service
 
-    all_accounts = await _get_accts(list_id, limit=10000)
+    all_accounts, _ = await _get_accts(list_id, limit=10000)
     if account_ids:
         accounts = [a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed" and a.get("document_id")]
     else:
@@ -500,7 +514,7 @@ async def run_batch_enrich(list_id: int, user_id: int, account_ids: list[int] | 
     user = await get_user_by_id(user_id)
     target_titles = _build_target_titles(user) if user else []
 
-    all_accounts = await _get_accts(list_id, limit=10000)
+    all_accounts, _ = await _get_accts(list_id, limit=10000)
     if account_ids:
         accounts = [a for a in all_accounts if a["id"] in account_ids and a.get("status") == "completed"]
     else:
@@ -636,27 +650,33 @@ WEBHOOK_MAX_RETRIES = 5
 WEBHOOK_BACKOFF_BASE = 5  # seconds
 
 
-async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: int | None, error: str | None):
-    """Send webhook notification with exponential backoff retries.
+async def _deliver_webhook(user_id: int, event_type: str, data: dict):
+    """Send webhook notification with event envelope and type filtering.
 
-    Retry strategy:
-    - Max 5 attempts
-    - Backoff: 5s, 25s, 125s (capped at 125s)
-    - Retries on: network errors, HTTP 5xx, HTTP 429
-    - No retry on: HTTP 4xx (client error)
+    Builds a structured event envelope, checks event_types subscription,
+    signs the full envelope, and delivers with exponential backoff retries.
     """
     webhook = await get_user_webhook(user_id)
     if not webhook:
         return
 
+    # Check event type filtering — if event_types is set and doesn't include this type, skip
+    subscribed = webhook.get("event_types")
+    if subscribed is not None and event_type not in subscribed:
+        return
+
+    from db.webhooks import create_webhook_event
+    event = await create_webhook_event(webhook["id"], event_type, data)
+
+    # Build event envelope
     payload = {
-        "job_id": job_id,
-        "status": status,
-        "document_id": document_id,
-        "error": error,
+        "id": event["id"],
+        "type": event_type,
+        "created_at": event["created_at"].isoformat() if hasattr(event["created_at"], "isoformat") else str(event["created_at"]),
+        "data": data,
     }
 
-    delivery = await create_webhook_delivery(webhook["id"], job_id)
+    delivery = await create_webhook_delivery(webhook["id"], 0)
     signature = sign_payload(payload, webhook["secret"])
 
     last_error = None
@@ -683,7 +703,6 @@ async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: 
                 return
 
             if 400 <= resp.status_code < 500 and resp.status_code != 429:
-                # Client error on their receiver — don't retry
                 logger.warning("Webhook delivery %s got %s (client error), not retrying", delivery["id"], resp.status_code)
                 await update_delivery_status(
                     delivery["id"], status="failed",
@@ -691,7 +710,6 @@ async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: 
                 )
                 return
 
-            # 5xx or 429 — retry
             last_error = f"HTTP {resp.status_code}"
             logger.warning("Webhook delivery %s attempt %d/%d got %s, retrying", delivery["id"], attempt, WEBHOOK_MAX_RETRIES, resp.status_code)
 
@@ -703,7 +721,6 @@ async def _deliver_webhook(user_id: int, job_id: int, status: str, document_id: 
             backoff = min(WEBHOOK_BACKOFF_BASE ** attempt, 125)
             await asyncio.sleep(backoff)
 
-    # All retries exhausted
     logger.error("Webhook delivery %s failed after %d attempts", delivery["id"], WEBHOOK_MAX_RETRIES)
     await update_delivery_status(
         delivery["id"], status="failed",

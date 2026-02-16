@@ -1,0 +1,124 @@
+{% extends "docs/_layout.html" %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Watchlist</h1>
+        <p class="mt-2 text-gray-600">Monitor companies with recurring research. Get notified when scores change significantly.</p>
+    </div>
+
+    <!-- POST /v1/watchlist -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-gray-800">/v1/watchlist</code>
+        </div>
+        <p class="text-gray-700 mb-3">Add a company to the watchlist with a recurring schedule.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "company_url": "https://example.com",
+  "company_name": "Example Inc",
+  "schedule": "biweekly"
+}</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "watchlist_item",
+  "id": 1,
+  "company_url": "https://example.com",
+  "company_name": "Example Inc",
+  "schedule": "biweekly",
+  "status": "active"
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/watchlist -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/watchlist</code>
+        </div>
+        <p class="text-gray-700 mb-3">List all watched companies. Supports <a href="/docs/pagination" class="text-blue-600 hover:underline">cursor pagination</a>.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "list",
+  "data": [
+    {
+      "object": "watchlist_item",
+      "id": 1,
+      "company_url": "https://example.com",
+      "company_name": "Example Inc",
+      "schedule": "biweekly",
+      "status": "active",
+      "latest_composite_score": 78,
+      "latest_pain_score": 85
+    }
+  ],
+  "has_more": false
+}</code></pre>
+    </div>
+
+    <!-- PATCH /v1/watchlist/{id} -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-2.5 py-1 rounded">PATCH</span>
+            <code class="text-sm font-mono text-gray-800">/v1/watchlist/{item_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Update schedule or pause/resume a watchlist item.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Request body</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative mb-4"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{ "schedule": "weekly" }
+// or
+{ "status": "paused" }</code></pre>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "watchlist_item",
+  "id": 1,
+  "company_url": "https://example.com",
+  "schedule": "weekly",
+  "status": "active"
+}</code></pre>
+    </div>
+
+    <!-- GET /v1/watchlist/{id}/history -->
+    <div class="border rounded-lg p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-gray-800">/v1/watchlist/{item_id}/history</code>
+        </div>
+        <p class="text-gray-700 mb-3">Get score change history for a watched company.</p>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-1">Response</h4>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto relative"><button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded">Copy</button><code>{
+  "object": "watchlist_history",
+  "history": [
+    {
+      "date": "2026-02-16",
+      "composite_score": 78,
+      "pain_score": 85,
+      "fit_score": 72,
+      "timing_score": 80
+    },
+    {
+      "date": "2026-02-01",
+      "composite_score": 65,
+      "pain_score": 70,
+      "fit_score": 68,
+      "timing_score": 55
+    }
+  ]
+}</code></pre>
+    </div>
+
+    <!-- DELETE /v1/watchlist/{id} -->
+    <div class="border rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="inline-block bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded">DELETE</span>
+            <code class="text-sm font-mono text-gray-800">/v1/watchlist/{item_id}</code>
+        </div>
+        <p class="text-gray-700 mb-3">Remove a company from the watchlist. Returns 204 on success.</p>
+    </div>
+</div>
+{% endblock %}
