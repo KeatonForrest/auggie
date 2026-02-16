@@ -48,13 +48,13 @@ async def execute_action(rule: dict, user_id: int, list_id: int, accounts: list[
 
     try:
         if action == "push_instantly":
-            await _action_push_instantly(rule, user_id, config, accounts)
+            raise RuntimeError("Instantly integration has been deprecated")
         elif action == "push_smartlead":
-            await _action_push_smartlead(rule, user_id, config, accounts)
+            raise RuntimeError("Smartlead integration has been deprecated")
         elif action == "push_outreach":
-            await _action_push_outreach(rule, user_id, accounts)
+            raise RuntimeError("Outreach integration has been deprecated")
         elif action == "push_salesloft":
-            await _action_push_salesloft(rule, user_id, accounts)
+            raise RuntimeError("SalesLoft integration has been deprecated")
         elif action == "enrich_contacts":
             await _action_enrich_contacts(rule, user_id, list_id, accounts)
         elif action == "write_sequences":

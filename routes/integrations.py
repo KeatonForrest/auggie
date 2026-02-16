@@ -12,30 +12,25 @@ from database import (
     delete_integration, upsert_integration,
 )
 from routes._helpers import (
-    normalize_url, templates, logger,
+    templates, logger,
     _oauth_connect, _oauth_callback, _apikey_connect, _run_crm_import,
 )
-from routes.schemas import (
-    ApiKeyConnectRequest, HubSpotImportRequest, SalesforceImportRequest,
-    ZoomInfoImportRequest, ApolloImportRequest, PDLImportRequest,
-    LushaImportRequest, CognismImportRequest, SlackConnectRequest,
-)
-from services.hubspot import get_authorize_url as hubspot_authorize_url, exchange_code as hubspot_exchange_code
-from services.salesforce import get_authorize_url as salesforce_authorize_url, exchange_code as salesforce_exchange_code
-from services.outreach import get_authorize_url as outreach_authorize_url, exchange_code as outreach_exchange_code
-from services.salesloft import get_authorize_url as salesloft_authorize_url, exchange_code as salesloft_exchange_code
-from services.gong_engage import get_authorize_url as gong_engage_authorize_url, exchange_code as gong_engage_exchange_code
+from routes.integrations_constants import DEPRECATION_MESSAGE
+from routes.schemas import ApiKeyConnectRequest, ApolloImportRequest, SlackConnectRequest
 from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
-from services.instantly import validate_api_key as instantly_validate
-from services.smartlead import validate_api_key as smartlead_validate
 from services.apollo import validate_integration_api_key as apollo_validate
-from services.pdl import validate_api_key as pdl_validate
-from services.lusha import validate_api_key as lusha_validate
-from services.cognism import validate_api_key as cognism_validate
 from services.notifications import validate_webhook_url, send_slack_notification, validate_teams_webhook_url, send_teams_notification
 
 settings = get_settings()
 router = APIRouter()
+
+
+def _deprecated_response(provider: str) -> JSONResponse:
+    """Return a 410 Gone response for deprecated integrations."""
+    return JSONResponse(
+        status_code=410,
+        content={"error": {"code": "provider_deprecated", "message": f"{provider}: {DEPRECATION_MESSAGE}"}},
+    )
 
 
 # ==========================================================================
@@ -67,17 +62,13 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
 @router.get("/integrations/hubspot/connect")
 async def hubspot_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to HubSpot OAuth."""
-    return await _oauth_connect(request, "hubspot", hubspot_authorize_url)
+    return _deprecated_response("hubspot")
 
 
 @router.get("/integrations/hubspot/callback")
 async def hubspot_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle HubSpot OAuth callback."""
-    return await _oauth_callback(
-        request, user, "hubspot", hubspot_exchange_code,
-        expires_in_default=21600,
-        metadata_fn=lambda td: {"hub_id": td.get("hub_id")},
-    )
+    return _deprecated_response("hubspot")
 
 
 @router.post("/integrations/hubspot/disconnect")
@@ -90,30 +81,13 @@ async def hubspot_disconnect(request: Request, user: dict = Depends(require_auth
 @router.get("/integrations/hubspot/companies")
 async def hubspot_companies(request: Request, user: dict = Depends(require_onboarding)):
     """Fetch companies from HubSpot for import selection."""
-    from services.hubspot import fetch_companies
-    after = request.query_params.get("after")
-    try:
-        data = await fetch_companies(user["id"], limit=100, after=after)
-    except Exception as e:
-        logger.error("HubSpot API error: %s", e)
-        raise HTTPException(status_code=502, detail="HubSpot API error")
-    return JSONResponse(data)
+    return _deprecated_response("hubspot")
 
 
 @router.post("/integrations/hubspot/import")
 async def hubspot_import(request: Request, user: dict = Depends(require_onboarding)):
     """Import selected HubSpot companies into an Auggie list."""
-    body = HubSpotImportRequest(**(await request.json()))
-
-    def extractor(c):
-        domain = c.get("domain", "").strip()
-        hid = str(c.get("id", ""))
-        return domain, hid
-
-    return await _run_crm_import(
-        user, body.companies, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "hubspot", "hubspot_company_map": m},
-    )
+    return _deprecated_response("hubspot")
 
 
 # ==========================================================================
@@ -123,8 +97,7 @@ async def hubspot_import(request: Request, user: dict = Depends(require_onboardi
 @router.post("/integrations/instantly/connect")
 async def instantly_connect(request: Request, user: dict = Depends(require_auth)):
     """Save Instantly API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "instantly", body.api_key, instantly_validate, "Instantly API key")
+    return _deprecated_response("instantly")
 
 
 @router.post("/integrations/instantly/disconnect")
@@ -137,13 +110,7 @@ async def instantly_disconnect(request: Request, user: dict = Depends(require_au
 @router.get("/integrations/instantly/campaigns")
 async def instantly_campaigns(request: Request, user: dict = Depends(require_onboarding)):
     """List Instantly campaigns."""
-    from services.instantly import list_campaigns
-    try:
-        campaigns = await list_campaigns(user["id"])
-    except Exception as e:
-        logger.error("Instantly API error: %s", e)
-        raise HTTPException(status_code=502, detail="Instantly API error")
-    return JSONResponse(campaigns)
+    return _deprecated_response("instantly")
 
 
 # ==========================================================================
@@ -153,8 +120,7 @@ async def instantly_campaigns(request: Request, user: dict = Depends(require_onb
 @router.post("/integrations/smartlead/connect")
 async def smartlead_connect(request: Request, user: dict = Depends(require_auth)):
     """Save Smartlead API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "smartlead", body.api_key, smartlead_validate, "Smartlead API key")
+    return _deprecated_response("smartlead")
 
 
 @router.post("/integrations/smartlead/disconnect")
@@ -167,13 +133,7 @@ async def smartlead_disconnect(request: Request, user: dict = Depends(require_au
 @router.get("/integrations/smartlead/campaigns")
 async def smartlead_campaigns(request: Request, user: dict = Depends(require_onboarding)):
     """List Smartlead campaigns."""
-    from services.smartlead import list_campaigns
-    try:
-        campaigns = await list_campaigns(user["id"])
-    except Exception as e:
-        logger.error("Smartlead API error: %s", e)
-        raise HTTPException(status_code=502, detail="Smartlead API error")
-    return JSONResponse(campaigns)
+    return _deprecated_response("smartlead")
 
 
 # ==========================================================================
@@ -183,20 +143,13 @@ async def smartlead_campaigns(request: Request, user: dict = Depends(require_onb
 @router.get("/integrations/salesforce/connect")
 async def salesforce_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to Salesforce OAuth."""
-    return await _oauth_connect(request, "salesforce", salesforce_authorize_url)
+    return _deprecated_response("salesforce")
 
 
 @router.get("/integrations/salesforce/callback")
 async def salesforce_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle Salesforce OAuth callback."""
-    return await _oauth_callback(
-        request, user, "salesforce", salesforce_exchange_code,
-        expires_in_default=7200,
-        metadata_fn=lambda td: {
-            "instance_url": td.get("instance_url", ""),
-            "id": td.get("id", ""),
-        },
-    )
+    return _deprecated_response("salesforce")
 
 
 @router.post("/integrations/salesforce/disconnect")
@@ -209,30 +162,13 @@ async def salesforce_disconnect(request: Request, user: dict = Depends(require_a
 @router.get("/integrations/salesforce/accounts")
 async def salesforce_accounts(request: Request, user: dict = Depends(require_onboarding)):
     """Fetch accounts from Salesforce for import selection."""
-    from services.salesforce import fetch_accounts
-    offset = int(request.query_params.get("offset", "0"))
-    try:
-        data = await fetch_accounts(user["id"], limit=100, offset=offset)
-    except Exception as e:
-        logger.error("Salesforce API error: %s", e)
-        raise HTTPException(status_code=502, detail="Salesforce API error")
-    return JSONResponse(data)
+    return _deprecated_response("salesforce")
 
 
 @router.post("/integrations/salesforce/import")
 async def salesforce_import(request: Request, user: dict = Depends(require_onboarding)):
     """Import selected Salesforce accounts into an Auggie list."""
-    body = SalesforceImportRequest(**(await request.json()))
-
-    def extractor(a):
-        website = a.get("website", "").strip()
-        sf_id = str(a.get("id", ""))
-        return website, sf_id
-
-    return await _run_crm_import(
-        user, body.accounts, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "salesforce", "salesforce_account_map": m},
-    )
+    return _deprecated_response("salesforce")
 
 
 # ==========================================================================
@@ -242,13 +178,13 @@ async def salesforce_import(request: Request, user: dict = Depends(require_onboa
 @router.get("/integrations/outreach/connect")
 async def outreach_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to Outreach OAuth."""
-    return await _oauth_connect(request, "outreach", outreach_authorize_url)
+    return _deprecated_response("outreach")
 
 
 @router.get("/integrations/outreach/callback")
 async def outreach_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle Outreach OAuth callback."""
-    return await _oauth_callback(request, user, "outreach", outreach_exchange_code)
+    return _deprecated_response("outreach")
 
 
 @router.post("/integrations/outreach/disconnect")
@@ -261,13 +197,7 @@ async def outreach_disconnect(request: Request, user: dict = Depends(require_aut
 @router.get("/integrations/outreach/sequences")
 async def outreach_sequences(request: Request, user: dict = Depends(require_onboarding)):
     """List Outreach sequences."""
-    from services.outreach import list_sequences
-    try:
-        sequences = await list_sequences(user["id"])
-    except Exception as e:
-        logger.error("Outreach API error: %s", e)
-        raise HTTPException(status_code=502, detail="Outreach API error")
-    return JSONResponse(sequences)
+    return _deprecated_response("outreach")
 
 
 # ==========================================================================
@@ -277,13 +207,13 @@ async def outreach_sequences(request: Request, user: dict = Depends(require_onbo
 @router.get("/integrations/salesloft/connect")
 async def salesloft_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to SalesLoft OAuth."""
-    return await _oauth_connect(request, "salesloft", salesloft_authorize_url)
+    return _deprecated_response("salesloft")
 
 
 @router.get("/integrations/salesloft/callback")
 async def salesloft_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle SalesLoft OAuth callback."""
-    return await _oauth_callback(request, user, "salesloft", salesloft_exchange_code)
+    return _deprecated_response("salesloft")
 
 
 @router.post("/integrations/salesloft/disconnect")
@@ -296,13 +226,7 @@ async def salesloft_disconnect(request: Request, user: dict = Depends(require_au
 @router.get("/integrations/salesloft/cadences")
 async def salesloft_cadences(request: Request, user: dict = Depends(require_onboarding)):
     """List SalesLoft cadences."""
-    from services.salesloft import list_cadences
-    try:
-        cadences = await list_cadences(user["id"])
-    except Exception as e:
-        logger.error("SalesLoft API error: %s", e)
-        raise HTTPException(status_code=502, detail="SalesLoft API error")
-    return JSONResponse(cadences)
+    return _deprecated_response("salesloft")
 
 
 # ==========================================================================
@@ -312,13 +236,13 @@ async def salesloft_cadences(request: Request, user: dict = Depends(require_onbo
 @router.get("/integrations/gong_engage/connect")
 async def gong_engage_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to Gong Engage OAuth."""
-    return await _oauth_connect(request, "gong_engage", gong_engage_authorize_url)
+    return _deprecated_response("gong_engage")
 
 
 @router.get("/integrations/gong_engage/callback")
 async def gong_engage_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle Gong Engage OAuth callback."""
-    return await _oauth_callback(request, user, "gong_engage", gong_engage_exchange_code)
+    return _deprecated_response("gong_engage")
 
 
 @router.post("/integrations/gong_engage/disconnect")
@@ -331,13 +255,7 @@ async def gong_engage_disconnect(request: Request, user: dict = Depends(require_
 @router.get("/integrations/gong_engage/flows")
 async def gong_engage_flows(request: Request, user: dict = Depends(require_onboarding)):
     """List Gong Engage flows."""
-    from services.gong_engage import list_flows
-    try:
-        flows = await list_flows(user["id"])
-    except Exception as e:
-        logger.error("Gong Engage API error: %s", e)
-        raise HTTPException(status_code=502, detail="Gong Engage API error")
-    return JSONResponse(flows)
+    return _deprecated_response("gong_engage")
 
 
 # ==========================================================================
@@ -347,43 +265,13 @@ async def gong_engage_flows(request: Request, user: dict = Depends(require_onboa
 @router.get("/integrations/zoominfo/connect")
 async def zoominfo_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to ZoomInfo OAuth with PKCE."""
-    import secrets as _secrets
-    from services.zoominfo import generate_pkce_pair, get_authorize_url
-    state = _secrets.token_urlsafe(24)
-    code_verifier, code_challenge = generate_pkce_pair()
-    request.session["_zoominfo_state_"] = state
-    request.session["_zoominfo_verifier_"] = code_verifier
-    url = get_authorize_url(state, code_challenge)
-    return RedirectResponse(url=url)
+    return _deprecated_response("zoominfo")
 
 
 @router.get("/integrations/zoominfo/callback")
 async def zoominfo_callback(request: Request, user: dict = Depends(require_auth)):
     """Handle ZoomInfo OAuth callback with PKCE verifier."""
-    from services.zoominfo import exchange_code as zi_exchange_code
-    code = request.query_params.get("code")
-    state = request.query_params.get("state")
-
-    if not code or state != request.session.get("_zoominfo_state_"):
-        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
-
-    code_verifier = request.session.pop("_zoominfo_verifier_", "")
-    request.session.pop("_zoominfo_state_", None)
-
-    token_data = await zi_exchange_code(code, code_verifier)
-    from datetime import datetime, timezone, timedelta
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        seconds=token_data.get("expires_in", 86400)
-    )
-
-    await upsert_integration(
-        user_id=user["id"],
-        provider="zoominfo",
-        access_token=token_data["access_token"],
-        refresh_token=token_data.get("refresh_token"),
-        token_expires_at=expires_at,
-    )
-    return RedirectResponse(url="/integrations", status_code=302)
+    return _deprecated_response("zoominfo")
 
 
 @router.post("/integrations/zoominfo/disconnect")
@@ -396,33 +284,13 @@ async def zoominfo_disconnect(request: Request, user: dict = Depends(require_aut
 @router.get("/integrations/zoominfo/companies")
 async def zoominfo_companies(request: Request, user: dict = Depends(require_onboarding)):
     """Search companies via ZoomInfo API."""
-    from services.zoominfo import search_companies
-    q = request.query_params.get("q", "").strip()
-    if not q:
-        return JSONResponse([])
-    page = int(request.query_params.get("page", "1"))
-    try:
-        results = await search_companies(user["id"], q, page=page)
-    except Exception as e:
-        logger.error("ZoomInfo API error: %s", e)
-        raise HTTPException(status_code=502, detail="ZoomInfo API error")
-    return JSONResponse(results)
+    return _deprecated_response("zoominfo")
 
 
 @router.post("/integrations/zoominfo/import")
 async def zoominfo_import(request: Request, user: dict = Depends(require_onboarding)):
     """Import selected ZoomInfo companies into an Auggie list."""
-    body = ZoomInfoImportRequest(**(await request.json()))
-
-    def extractor(c):
-        website = (c.get("website") or "").strip()
-        zi_id = str(c.get("id", ""))
-        return website, zi_id
-
-    return await _run_crm_import(
-        user, body.companies, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "zoominfo", "zoominfo_company_map": m},
-    )
+    return _deprecated_response("zoominfo")
 
 
 # ==========================================================================
@@ -485,8 +353,7 @@ async def apollo_import(request: Request, user: dict = Depends(require_onboardin
 @router.post("/integrations/pdl/connect")
 async def pdl_connect(request: Request, user: dict = Depends(require_auth)):
     """Save PDL API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "pdl", body.api_key, pdl_validate, "PDL API key")
+    return _deprecated_response("pdl")
 
 
 @router.post("/integrations/pdl/disconnect")
@@ -499,35 +366,13 @@ async def pdl_disconnect(request: Request, user: dict = Depends(require_auth)):
 @router.post("/integrations/pdl/search")
 async def pdl_search(request: Request, user: dict = Depends(require_onboarding)):
     """Search companies via PDL API and return results for UI preview."""
-    from services.pdl import search_companies
-    body = await request.json()
-    query = body.get("query", {})
-    size = body.get("size", 100)
-    try:
-        results = await search_companies(user["id"], query, size=size)
-    except Exception as e:
-        logger.error("PDL API error: %s", e)
-        raise HTTPException(status_code=502, detail="PDL API error")
-    return JSONResponse(results)
+    return _deprecated_response("pdl")
 
 
 @router.post("/integrations/pdl/import")
 async def pdl_import(request: Request, user: dict = Depends(require_onboarding)):
     """Search PDL and import matching companies into an Auggie list."""
-    from services.pdl import search_companies
-
-    body = PDLImportRequest(**(await request.json()))
-    data = await search_companies(user["id"], body.query, size=min(body.size, 50))
-    companies = data.get("data", [])
-
-    def extractor(company):
-        domain = (company.get("website") or "").strip()
-        return domain, company.get("id")
-
-    return await _run_crm_import(
-        user, companies, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "pdl", "pdl_company_map": m},
-    )
+    return _deprecated_response("pdl")
 
 
 # ==========================================================================
@@ -537,8 +382,7 @@ async def pdl_import(request: Request, user: dict = Depends(require_onboarding))
 @router.post("/integrations/lusha/connect")
 async def lusha_connect(request: Request, user: dict = Depends(require_auth)):
     """Save Lusha API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "lusha", body.api_key, lusha_validate, "Lusha API key")
+    return _deprecated_response("lusha")
 
 
 @router.post("/integrations/lusha/disconnect")
@@ -551,20 +395,7 @@ async def lusha_disconnect(request: Request, user: dict = Depends(require_auth))
 @router.post("/integrations/lusha/import")
 async def lusha_import(request: Request, user: dict = Depends(require_onboarding)):
     """Search Lusha with filters and import matching companies into an Auggie list."""
-    from services.lusha import search_companies
-
-    body = LushaImportRequest(**(await request.json()))
-    data = await search_companies(user["id"], body.filters, size=min(body.size, 50))
-    companies = data.get("data", [])
-
-    def extractor(c):
-        domain = (c.get("website") or "").strip()
-        return domain, c.get("id")
-
-    return await _run_crm_import(
-        user, companies, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "lusha", "lusha_company_map": m},
-    )
+    return _deprecated_response("lusha")
 
 
 # ==========================================================================
@@ -574,8 +405,7 @@ async def lusha_import(request: Request, user: dict = Depends(require_onboarding
 @router.post("/integrations/cognism/connect")
 async def cognism_connect(request: Request, user: dict = Depends(require_auth)):
     """Save Cognism API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "cognism", body.api_key, cognism_validate, "Cognism API key")
+    return _deprecated_response("cognism")
 
 
 @router.post("/integrations/cognism/disconnect")
@@ -588,20 +418,7 @@ async def cognism_disconnect(request: Request, user: dict = Depends(require_auth
 @router.post("/integrations/cognism/import")
 async def cognism_import(request: Request, user: dict = Depends(require_onboarding)):
     """Search Cognism with filters and import matching companies into an Auggie list."""
-    from services.cognism import search_companies
-
-    body = CognismImportRequest(**(await request.json()))
-    data = await search_companies(user["id"], body.filters, size=min(body.size, 50))
-    companies = data.get("data", [])
-
-    def extractor(c):
-        domain = (c.get("website") or "").strip()
-        return domain, c.get("id")
-
-    return await _run_crm_import(
-        user, companies, body.name, extractor,
-        source_metadata_fn=lambda m: {"provider": "cognism", "cognism_company_map": m},
-    )
+    return _deprecated_response("cognism")
 
 
 # ==========================================================================

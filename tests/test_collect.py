@@ -227,7 +227,7 @@ patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
              patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
              patch("services.collect.get_integration") as mock_get_integration, \
-             patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo:
+             patch("services.collect.apollo_get_firmographics") as mock_apollo:
 
             # Set up mock returns
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
@@ -238,10 +238,10 @@ patch("services.collect.edgar_service") as mock_edgar, \
             mock_retrieval.get_relevant_context = AsyncMock(return_value="Materials content")
             mock_get_retrieval.return_value = mock_retrieval
 
-            # Mock ZoomInfo integration
-            mock_zi_integration = MagicMock()
-            mock_get_integration.return_value = mock_zi_integration
-            mock_zoominfo.return_value = "ZoomInfo firmographics"
+            # Mock Apollo integration
+            mock_apollo_integration = MagicMock()
+            mock_get_integration.return_value = mock_apollo_integration
+            mock_apollo.return_value = "Apollo firmographics"
 
             result = await collect_enrichment_data(
                 scraped_content=scraped_content,
@@ -253,7 +253,7 @@ patch("services.collect.edgar_service") as mock_edgar, \
             # Verify all enrichments were set
             assert scraped_content.edgar_filings == "EDGAR content"
             assert scraped_content.federal_regulations == "Federal Register content"
-            assert scraped_content.firmographics == "ZoomInfo firmographics"
+            assert scraped_content.firmographics == "Apollo firmographics"
             assert result == "Materials content"
 
     @pytest.mark.asyncio
@@ -348,87 +348,6 @@ patch("services.collect.edgar_service") as mock_edgar, \
 
             assert result == "Retrieved materials"
             assert isinstance(result, str)
-
-    @pytest.mark.asyncio
-    async def test_firmographics_tries_zoominfo_first(self, mock_settings, scraped_content):
-        """Test that ZoomInfo is tried first for firmographics."""
-        mock_client = AsyncMock(spec=httpx.AsyncClient)
-        mock_client.is_closed = False
-
-        with patch("services.collect.get_settings", return_value=mock_settings), \
-             patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
-             patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration, \
-             patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo, \
-             patch("services.collect.apollo_get_firmographics") as mock_apollo:
-
-            mock_edgar.get_company_filings = AsyncMock(return_value=None)
-            mock_edgar._last_sic_code = None
-            mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
-            mock_get_retrieval.return_value = None
-
-            # ZoomInfo integration exists
-            mock_zi_integration = MagicMock()
-            mock_get_integration.return_value = mock_zi_integration
-            mock_zoominfo.return_value = "ZoomInfo data"
-
-            await collect_enrichment_data(
-                scraped_content=scraped_content,
-                company_url="https://www.example.com",
-                user_id=123,
-                verbose=False
-            )
-
-            # ZoomInfo should be called, Apollo should not
-            mock_zoominfo.assert_called_once_with(123, "example.com")
-            mock_apollo.assert_not_called()
-            assert scraped_content.firmographics == "ZoomInfo data"
-
-    @pytest.mark.asyncio
-    async def test_firmographics_falls_back_to_apollo(self, mock_settings, scraped_content):
-        """Test that Apollo is used when ZoomInfo returns None."""
-        mock_client = AsyncMock(spec=httpx.AsyncClient)
-        mock_client.is_closed = False
-
-        with patch("services.collect.get_settings", return_value=mock_settings), \
-             patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
-             patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration, \
-             patch("services.collect.zoominfo_get_firmographics") as mock_zoominfo, \
-             patch("services.collect.apollo_get_firmographics") as mock_apollo:
-
-            mock_edgar.get_company_filings = AsyncMock(return_value=None)
-            mock_edgar._last_sic_code = None
-            mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
-            mock_get_retrieval.return_value = None
-
-            # Mock get_integration to return ZoomInfo first, then Apollo
-            async def mock_integration_side_effect(user_id, integration_name):
-                if integration_name == "zoominfo":
-                    return MagicMock()  # ZoomInfo exists
-                elif integration_name == "apollo":
-                    return MagicMock()  # Apollo exists
-                return None
-
-            mock_get_integration.side_effect = mock_integration_side_effect
-            mock_zoominfo.return_value = None  # ZoomInfo returns None
-            mock_apollo.return_value = "Apollo data"
-
-            await collect_enrichment_data(
-                scraped_content=scraped_content,
-                company_url="https://www.example.com",
-                user_id=123,
-                verbose=False
-            )
-
-            # Both should be called
-            mock_zoominfo.assert_called_once_with(123, "example.com")
-            mock_apollo.assert_called_once_with(123, "example.com")
-            assert scraped_content.firmographics == "Apollo data"
 
     @pytest.mark.asyncio
     async def test_edgar_disabled_respects_setting(self, scraped_content):

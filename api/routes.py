@@ -1066,45 +1066,12 @@ class PushInstantlyRequest(BaseModel):
     account_ids: list[int] | None = Field(None, description="Specific account IDs to push (omit for all completed)", examples=[[1, 2, 3]])
 
 
-@router.post("/lists/{list_id}/push", tags=["Lists"], responses={
-    200: {"content": {"application/json": {"example": {"pushed": 5, "campaign_id": "camp_abc123"}}}},
-    **_error_responses(401, 404, 422, 429),
+@router.post("/lists/{list_id}/push", tags=["Lists"], deprecated=True, responses={
+    410: {"description": "Deprecated", "content": {"application/json": {"example": {"error": {"code": "provider_deprecated", "message": "Instantly push has been deprecated."}}}}},
 })
 async def push_list_to_instantly(list_id: int, body: PushInstantlyRequest, api_user: dict = Depends(require_api_key)):
-    """Push accounts from a list to an Instantly campaign via API."""
-    from database import get_integration, get_enriched_contacts as get_contacts
-    from services.instantly import push_accounts_to_instantly
-
-    default_limiter.check(api_user["api_key_id"])
-
-    lst = await get_list(list_id, api_user["id"])
-    if not lst:
-        raise APIError("not_found", "List not found", 404)
-
-    integration = await get_integration(api_user["id"], "instantly")
-    if not integration:
-        raise APIError("validation_error", "Instantly not connected", 400)
-
-    all_accounts, _ = await get_list_accounts(list_id)
-    if body.account_ids:
-        accounts = [a for a in all_accounts if a["id"] in body.account_ids]
-    else:
-        accounts = [a for a in all_accounts if a.get("status") == "completed"]
-
-    if not accounts:
-        raise APIError("validation_error", "No accounts to push", 400)
-
-    contacts_by_account = {}
-    for account in accounts:
-        if account.get("document_id"):
-            contacts = await get_contacts(account["document_id"])
-            if contacts:
-                contacts_by_account[account["id"]] = contacts
-
-    result = await push_accounts_to_instantly(
-        api_user["id"], body.campaign_id, accounts, contacts_by_account,
-    )
-    return {"object": "push_result", **result}
+    """**Deprecated.** Instantly push has been removed."""
+    raise APIError("provider_deprecated", "Instantly push has been deprecated.", 410)
 
 
 # =================================================================

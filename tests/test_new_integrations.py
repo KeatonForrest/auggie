@@ -658,81 +658,6 @@ class TestSendTeamsNotification:
 
 
 # =============================================================================
-# Route Tests: Salesforce
-# =============================================================================
-
-class TestSalesforceConnectRoute:
-    @pytest.mark.asyncio
-    async def test_redirects_to_salesforce(self, authed_client):
-        with patch("routes.integrations.salesforce_authorize_url", return_value="https://login.salesforce.com/services/oauth2/authorize?test=1"):
-            response = await authed_client.get("/integrations/salesforce/connect", follow_redirects=False)
-
-        assert response.status_code in (302, 307)
-        assert "salesforce.com" in response.headers.get("location", "")
-
-
-class TestSalesforceDisconnectRoute:
-    @pytest.mark.asyncio
-    async def test_disconnect_deletes_integration(self, authed_client):
-        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
-            response = await authed_client.post("/integrations/salesforce/disconnect", follow_redirects=False)
-
-        assert response.status_code == 303
-        mock_delete.assert_called_once_with(1, "salesforce")
-
-
-class TestSalesforceImportRoute:
-    @pytest.mark.asyncio
-    async def test_import_creates_list(self, authed_client):
-        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
-             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
-             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 55}), \
-             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
-             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
-             patch("database.set_list_source", new_callable=AsyncMock) as mock_source, \
-             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
-
-            response = await authed_client.post(
-                "/integrations/salesforce/import",
-                json={
-                    "accounts": [
-                        {"id": "001xx1", "website": "acme.com"},
-                        {"id": "001xx2", "website": "beta.com"},
-                    ],
-                    "name": "SF Import",
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["list_id"] == 55
-        mock_source.assert_called_once()
-        source_arg = mock_source.call_args[0][1]
-        assert source_arg["provider"] == "salesforce"
-        assert "https://acme.com" in source_arg["salesforce_account_map"]
-
-    @pytest.mark.asyncio
-    async def test_import_rejects_empty_accounts(self, authed_client):
-        response = await authed_client.post(
-            "/integrations/salesforce/import",
-            json={"accounts": [], "name": "Empty"},
-        )
-        assert response.status_code == 400
-
-    @pytest.mark.asyncio
-    async def test_import_rejects_insufficient_credits(self, authed_client):
-        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
-             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 0, "is_admin": False}):
-            response = await authed_client.post(
-                "/integrations/salesforce/import",
-                json={"accounts": [{"id": "001xx1", "website": "acme.com"}], "name": "Test"},
-            )
-        assert response.status_code == 402
-
-
-# =============================================================================
 # Route Tests: Apollo
 # =============================================================================
 
@@ -816,84 +741,6 @@ class TestApolloImportRoute:
     async def test_import_requires_list_id(self, authed_client):
         response = await authed_client.post(
             "/integrations/apollo/import",
-            json={"name": "Test"},
-        )
-        assert response.status_code == 400
-
-
-# =============================================================================
-# Route Tests: PDL (People Data Labs)
-# =============================================================================
-
-class TestPDLConnectRoute:
-    @pytest.mark.asyncio
-    async def test_valid_key_connects(self, authed_client):
-        with patch("routes.integrations.pdl_validate", new_callable=AsyncMock, return_value=True), \
-             patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
-
-            response = await authed_client.post(
-                "/integrations/pdl/connect",
-                json={"api_key": "pdl-key-123"},
-            )
-
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-        mock_upsert.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_invalid_key_rejected(self, authed_client):
-        with patch("routes.integrations.pdl_validate", new_callable=AsyncMock, return_value=False):
-            response = await authed_client.post(
-                "/integrations/pdl/connect",
-                json={"api_key": "bad-key"},
-            )
-
-        assert response.status_code == 400
-
-
-class TestPDLDisconnectRoute:
-    @pytest.mark.asyncio
-    async def test_disconnect(self, authed_client):
-        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
-            response = await authed_client.post("/integrations/pdl/disconnect", follow_redirects=False)
-
-        assert response.status_code == 303
-        mock_delete.assert_called_once_with(1, "pdl")
-
-
-class TestPDLImportRoute:
-    @pytest.mark.asyncio
-    async def test_import_creates_list(self, authed_client):
-        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
-             patch("services.pdl.search_companies", new_callable=AsyncMock, return_value={
-                 "data": [
-                     {"id": "c1", "website": "acme.com"},
-                     {"id": "c2", "website": "beta.com"},
-                 ],
-                 "total": 2,
-             }), \
-             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
-             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 70}), \
-             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
-             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
-             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock), \
-             patch("database.set_list_source", new_callable=AsyncMock):
-
-            response = await authed_client.post(
-                "/integrations/pdl/import",
-                json={"query": {"bool": {"must": [{"term": {"industry": "software"}}]}}, "name": "PDL Import"},
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["list_id"] == 70
-
-    @pytest.mark.asyncio
-    async def test_import_requires_query(self, authed_client):
-        response = await authed_client.post(
-            "/integrations/pdl/import",
             json={"name": "Test"},
         )
         assert response.status_code == 400
@@ -1046,16 +893,15 @@ class TestIntegrationsPageNewProviders:
             response = await authed_client.get("/integrations")
 
         assert response.status_code == 200
-        assert "Salesforce" in response.text
         assert "Apollo" in response.text
-        assert "People Data Labs" in response.text
         assert "Slack" in response.text
         assert "Microsoft Teams" in response.text
+        assert "Google Sheets" in response.text
 
     @pytest.mark.asyncio
     async def test_page_shows_connected_for_new_providers(self, authed_client):
         integrations = [
-            {"provider": "salesforce", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
+            {"provider": "apollo", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
             {"provider": "slack", "access_token": "url", "created_at": datetime.now(), "updated_at": datetime.now()},
         ]
         with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \

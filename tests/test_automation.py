@@ -126,75 +126,83 @@ def test_filter_by_conditions_multiple_scores():
 
 
 @pytest.mark.asyncio
-async def test_execute_action_push_instantly():
-    """Test execute_action dispatches to push_instantly correctly."""
+async def test_execute_action_push_instantly_deprecated():
+    """Test execute_action marks deprecated push_instantly as failed."""
     rule = {"id": 1, "action": "push_instantly", "action_config": {"campaign_id": "123"}}
     accounts = [{"id": 1}]
     run = {"id": 100}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
-         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_instantly", new_callable=AsyncMock) as mock_action:
+         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete:
 
         await execute_action(rule, user_id=1, list_id=10, accounts=accounts)
 
         mock_create.assert_called_once_with(1, 1, 10, 1)
-        mock_action.assert_called_once_with(rule, 1, {"campaign_id": "123"}, accounts)
-        mock_complete.assert_called_once_with(100, "completed")
+        mock_complete.assert_called_once()
+        call_args = mock_complete.call_args[0]
+        assert call_args[0] == 100
+        assert call_args[1] == "failed"
+        assert "deprecated" in call_args[2].lower()
 
 
 @pytest.mark.asyncio
-async def test_execute_action_push_smartlead():
-    """Test execute_action dispatches to push_smartlead correctly."""
+async def test_execute_action_push_smartlead_deprecated():
+    """Test execute_action marks deprecated push_smartlead as failed."""
     rule = {"id": 2, "action": "push_smartlead", "action_config": {"campaign_id": "456"}}
     accounts = [{"id": 2}]
     run = {"id": 101}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
-         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_smartlead", new_callable=AsyncMock) as mock_action:
+         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete:
 
         await execute_action(rule, user_id=2, list_id=20, accounts=accounts)
 
         mock_create.assert_called_once_with(2, 2, 20, 1)
-        mock_action.assert_called_once_with(rule, 2, {"campaign_id": "456"}, accounts)
-        mock_complete.assert_called_once_with(101, "completed")
+        mock_complete.assert_called_once()
+        call_args = mock_complete.call_args[0]
+        assert call_args[0] == 101
+        assert call_args[1] == "failed"
+        assert "deprecated" in call_args[2].lower()
 
 
 @pytest.mark.asyncio
-async def test_execute_action_push_outreach():
-    """Test execute_action dispatches to push_outreach correctly."""
+async def test_execute_action_push_outreach_deprecated():
+    """Test execute_action marks deprecated push_outreach as failed."""
     rule = {"id": 3, "action": "push_outreach"}
     accounts = [{"id": 3}]
     run = {"id": 102}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
-         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_outreach", new_callable=AsyncMock) as mock_action:
+         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete:
 
         await execute_action(rule, user_id=3, list_id=30, accounts=accounts)
 
         mock_create.assert_called_once_with(3, 3, 30, 1)
-        mock_action.assert_called_once_with(rule, 3, accounts)
-        mock_complete.assert_called_once_with(102, "completed")
+        mock_complete.assert_called_once()
+        call_args = mock_complete.call_args[0]
+        assert call_args[0] == 102
+        assert call_args[1] == "failed"
+        assert "deprecated" in call_args[2].lower()
 
 
 @pytest.mark.asyncio
-async def test_execute_action_push_salesloft():
-    """Test execute_action dispatches to push_salesloft correctly."""
+async def test_execute_action_push_salesloft_deprecated():
+    """Test execute_action marks deprecated push_salesloft as failed."""
     rule = {"id": 4, "action": "push_salesloft"}
     accounts = [{"id": 4}]
     run = {"id": 103}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
-         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_salesloft", new_callable=AsyncMock) as mock_action:
+         patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete:
 
         await execute_action(rule, user_id=4, list_id=40, accounts=accounts)
 
         mock_create.assert_called_once_with(4, 4, 40, 1)
-        mock_action.assert_called_once_with(rule, 4, accounts)
-        mock_complete.assert_called_once_with(103, "completed")
+        mock_complete.assert_called_once()
+        call_args = mock_complete.call_args[0]
+        assert call_args[0] == 103
+        assert call_args[1] == "failed"
+        assert "deprecated" in call_args[2].lower()
 
 
 @pytest.mark.asyncio
@@ -252,13 +260,13 @@ async def test_execute_action_unknown_action_marks_failed():
 @pytest.mark.asyncio
 async def test_execute_action_exception_marks_failed():
     """Test that exception in action marks run as failed."""
-    rule = {"id": 8, "action": "push_instantly", "action_config": {}}
+    rule = {"id": 8, "action": "notify_slack", "action_config": {}}
     accounts = [{"id": 8}]
     run = {"id": 107}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
          patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_instantly", new_callable=AsyncMock, side_effect=RuntimeError("Test error")) as mock_action:
+         patch("services.automation._action_notify_slack", new_callable=AsyncMock, side_effect=RuntimeError("Test error")) as mock_action:
 
         await execute_action(rule, user_id=8, list_id=80, accounts=accounts)
 
@@ -270,14 +278,14 @@ async def test_execute_action_exception_marks_failed():
 @pytest.mark.asyncio
 async def test_execute_action_long_error_truncated():
     """Test that long error messages are truncated to 500 chars."""
-    rule = {"id": 9, "action": "push_instantly", "action_config": {}}
+    rule = {"id": 9, "action": "notify_slack", "action_config": {}}
     accounts = [{"id": 9}]
     run = {"id": 108}
     long_error = "x" * 600
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
          patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_instantly", new_callable=AsyncMock, side_effect=RuntimeError(long_error)) as mock_action:
+         patch("services.automation._action_notify_slack", new_callable=AsyncMock, side_effect=RuntimeError(long_error)) as mock_action:
 
         await execute_action(rule, user_id=9, list_id=90, accounts=accounts)
 
@@ -291,19 +299,18 @@ async def test_execute_action_long_error_truncated():
 @pytest.mark.asyncio
 async def test_execute_action_no_action_config():
     """Test execute_action with missing action_config."""
-    rule = {"id": 10, "action": "push_instantly"}  # No action_config
+    rule = {"id": 10, "action": "write_sequences"}  # No action_config
     accounts = [{"id": 10}]
     run = {"id": 109}
 
     with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=run) as mock_create, \
          patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-         patch("services.automation._action_push_instantly", new_callable=AsyncMock) as mock_action:
+         patch("services.automation._action_write_sequences", new_callable=AsyncMock) as mock_action:
 
         await execute_action(rule, user_id=10, list_id=100, accounts=accounts)
 
         mock_create.assert_called_once_with(10, 10, 100, 1)
-        # Should pass empty dict as config
-        mock_action.assert_called_once_with(rule, 10, {}, accounts)
+        mock_action.assert_called_once_with(rule, 10, 100, accounts)
         mock_complete.assert_called_once_with(109, "completed")
 
 

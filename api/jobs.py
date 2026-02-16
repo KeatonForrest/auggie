@@ -344,28 +344,6 @@ async def _finalize_list_parent(list_id: int, user_id: int, is_admin: bool):
     if failed_count > 0 and not is_admin:
         await refund_credit(user_id, cents=failed_count * 100)
 
-    # HubSpot writeback
-    try:
-        source = await get_list_source(list_id)
-        if source and source.get("provider") == "hubspot":
-            from services.hubspot import write_list_scores_to_hubspot
-            all_accounts, _ = await get_list_accounts(list_id)
-            updated = await write_list_scores_to_hubspot(user_id, source, all_accounts)
-            logger.info("HubSpot writeback: updated %d companies for list %d", updated, list_id)
-    except Exception:
-        logger.exception("HubSpot writeback failed for list %d", list_id)
-
-    # Salesforce writeback
-    try:
-        source = await get_list_source(list_id)
-        if source and source.get("provider") == "salesforce":
-            from services.salesforce import write_list_scores_to_salesforce
-            all_accounts, _ = await get_list_accounts(list_id)
-            updated = await write_list_scores_to_salesforce(user_id, source, all_accounts)
-            logger.info("Salesforce writeback: updated %d accounts for list %d", updated, list_id)
-    except Exception:
-        logger.exception("Salesforce writeback failed for list %d", list_id)
-
     # Slack / Teams notification
     try:
         from services.notifications import send_slack_notification, send_teams_notification

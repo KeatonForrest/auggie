@@ -168,13 +168,13 @@ class TestExecuteActionAudit:
     @pytest.mark.asyncio
     async def test_failed_action_logs_failed_run(self):
         from services.automation import execute_action
-        rule = {"id": 2, "name": "Broken", "action": "push_instantly", "action_config": {}}
+        rule = {"id": 2, "name": "Broken", "action": "notify_slack", "action_config": {}}
         accounts = [{"id": 10, "status": "completed"}]
 
         fake_run = {"id": 50}
         with patch("services.automation.create_automation_run", new_callable=AsyncMock, return_value=fake_run) as mock_create, \
              patch("services.automation.complete_automation_run", new_callable=AsyncMock) as mock_complete, \
-             patch("services.automation._action_push_instantly", new_callable=AsyncMock, side_effect=RuntimeError("Instantly not connected")):
+             patch("services.automation._action_notify_slack", new_callable=AsyncMock, side_effect=RuntimeError("Test notification error")):
             await execute_action(rule, user_id=1, list_id=5, accounts=accounts)
 
             mock_create.assert_called_once_with(2, 1, 5, 1)
@@ -182,7 +182,7 @@ class TestExecuteActionAudit:
             call_args = mock_complete.call_args[0]
             assert call_args[0] == 50
             assert call_args[1] == "failed"
-            assert "Instantly not connected" in call_args[2]
+            assert "Test notification error" in call_args[2]
 
     @pytest.mark.asyncio
     async def test_unknown_action_logs_failed(self):

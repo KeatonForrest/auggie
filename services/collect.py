@@ -17,7 +17,6 @@ from services.edgar import EdgarService
 from services.federal_register import FederalRegisterService
 from services.retrieval import RetrievalService
 from database import get_integration
-from services.zoominfo import get_firmographics as zoominfo_get_firmographics
 from services.apollo import get_firmographics_for_user as apollo_get_firmographics
 
 logger = logging.getLogger(__name__)
@@ -120,13 +119,8 @@ async def collect_enrichment_data(
             return None
 
     async def _fetch_firmographics():
-        """Fetch firmographic data from connected providers (ZoomInfo preferred)."""
+        """Fetch firmographic data from Apollo if connected."""
         try:
-            zi = await get_integration(user_id, "zoominfo")
-            if zi:
-                result = await zoominfo_get_firmographics(user_id, company_name)
-                if result:
-                    return result
             ap = await get_integration(user_id, "apollo")
             if ap:
                 return await apollo_get_firmographics(user_id, company_name)
