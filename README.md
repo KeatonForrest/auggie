@@ -7,7 +7,7 @@ AI-powered account research for sales teams. Enter a company URL, get deep resea
 ## What It Does
 
 1. **Scrapes company websites** (Firecrawl) — homepage, about, careers, blog, job boards, investor relations
-2. **Detects technology stack** (Wappalyzer + custom fingerprinting) — frameworks, databases, infrastructure across domains
+2. **Detects technology stack** (custom fingerprinting engine) — frameworks, databases, infrastructure across domains
 3. **Analyzes security posture** — DNS records (SPF, DKIM, DMARC), SSL/TLS certificates
 4. **Enriches with contacts** (BYOK — Apollo, PDL, Lusha, Cognism, LeadMagic, ZoomInfo) — finds key decision makers
 5. **Analyzes regulatory filings** (SEC EDGAR, Federal Register) — compliance deadlines, risk factors
@@ -80,7 +80,7 @@ account_research/
 │   ├── writing.py       # Email sequence generation (Mistral via OpenRouter)
 │   ├── vision.py        # Screenshot extraction (Gemini via OpenRouter)
 │   ├── firecrawl.py     # Website scraping
-│   ├── wappalyzer.py    # Technology detection
+│   ├── tech_detection.py # Technology detection
 │   ├── edgar.py         # SEC EDGAR filings
 │   ├── federal_register.py  # Federal Register API
 │   ├── dns_analyzer.py  # DNS record analysis
@@ -139,7 +139,7 @@ account_research/
 - **Gemini 2.5 Flash** (via OpenRouter) — AI research generation
 - **Mistral Small Creative** (via OpenRouter) — Email sequence writing
 - **Firecrawl** — Web scraping API
-- **Wappalyzer** — Technology detection
+- **Custom tech detection** — Fingerprinting engine (`services/techdetect/`)
 - **SEC EDGAR / Federal Register** — Regulatory data (free APIs)
 - **OpenAI** — Embeddings for context/materials RAG
 - **Cloudflare R2** — File storage
