@@ -5,7 +5,7 @@ import re
 from services.techdetect.patterns import prepare_pattern, extract_version, PreparedPattern
 from services.techdetect.webpage import WebPage
 from services.techdetect.fingerprints import load_fingerprints, Technology
-from services.techdetect.detector import TechDetector, DetectionResult
+from services.techdetect.detector import TechDetector, DetectionResult, compute_signal_quality, PATTERN_TYPE_WEIGHTS
 
 
 # ============================================================
@@ -408,3 +408,180 @@ class TestAnalyzeWithVersionsAndCategories:
             assert "categories" in entry
             assert isinstance(entry["versions"], list)
             assert isinstance(entry["categories"], list)
+
+
+# ============================================================
+# Matched pattern tracking tests
+# ============================================================
+
+class TestMatchedPatterns:
+    @pytest.fixture
+    def detector(self):
+        return TechDetector()
+
+    def test_header_pattern_tracked(self, detector):
+        tech = Technology(
+            name="PHP",
+            header_patterns=(("x-powered-by", prepare_pattern("PHP")),),
+        )
+        wp = WebPage("https://example.com", "<html></html>", {"X-Powered-By": "PHP/8.1"})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "header" in result.matched_patterns
+
+    def test_script_pattern_tracked(self, detector):
+        tech = Technology(
+            name="jQuery",
+            script_patterns=(prepare_pattern("jquery"),),
+        )
+        html = '<html><head><script src="jquery.min.js"></script></head></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "script" in result.matched_patterns
+
+    def test_url_pattern_tracked(self, detector):
+        tech = Technology(
+            name="TestURL",
+            url_patterns=(prepare_pattern("\\.example\\.com"),),
+        )
+        wp = WebPage("https://shop.example.com", "<html></html>", {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "url" in result.matched_patterns
+
+    def test_cookie_pattern_tracked(self, detector):
+        tech = Technology(
+            name="TestCookie",
+            cookie_patterns=(("_ga", prepare_pattern("GA")),),
+        )
+        wp = WebPage("https://example.com", "<html></html>", {"Set-Cookie": "_ga=GA1.2.123; Path=/"})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "cookie" in result.matched_patterns
+
+    def test_meta_pattern_tracked(self, detector):
+        tech = Technology(
+            name="WordPress",
+            meta_patterns=(("generator", prepare_pattern("WordPress")),),
+        )
+        html = '<html><head><meta name="generator" content="WordPress 6.0"></head></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "meta" in result.matched_patterns
+
+    def test_html_pattern_tracked(self, detector):
+        tech = Technology(
+            name="Bootstrap",
+            html_patterns=(prepare_pattern("bootstrap\\.min\\.css"),),
+        )
+        html = '<html><head><link href="bootstrap.min.css"></head></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "html" in result.matched_patterns
+
+    def test_js_pattern_tracked(self, detector):
+        tech = Technology(
+            name="Next.js",
+            inline_script_patterns=(("__NEXT_DATA__", prepare_pattern("__NEXT_DATA__")),),
+        )
+        html = '<html><body><script>__NEXT_DATA__ = {}</script></body></html>'
+        wp = WebPage("https://example.com", html, {})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "js" in result.matched_patterns
+
+    def test_multiple_types_tracked(self, detector):
+        tech = Technology(
+            name="Multi",
+            html_patterns=(prepare_pattern("multi"),),
+            header_patterns=(("x-multi", prepare_pattern("yes")),),
+        )
+        wp = WebPage("https://example.com", "<html>multi</html>", {"X-Multi": "yes"})
+        result = detector._check_technology(tech, wp)
+        assert result is not None
+        assert "html" in result.matched_patterns
+        assert "header" in result.matched_patterns
+        assert len(result.matched_patterns) == 2
+
+    def test_implied_techs_tagged(self, tmp_path):
+        import json
+        data = {
+            "categories": {"1": {"name": "CMS"}, "2": {"name": "PL"}},
+            "technologies": {
+                "WordPress": {"cats": [1], "html": "wp-content", "implies": ["PHP"]},
+                "PHP": {"cats": [2]},
+            },
+        }
+        fp = tmp_path / "tech.json"
+        fp.write_text(json.dumps(data))
+        detector = TechDetector(str(fp))
+        wp = WebPage("https://example.com", "<html>wp-content</html>", {})
+        results = detector.analyze(wp)
+        assert "PHP" in results
+        assert "implied" in results["PHP"].matched_patterns
+
+    def test_no_match_no_patterns(self, detector):
+        tech = Technology(
+            name="Nothing",
+            html_patterns=(prepare_pattern("willnevermatch12345"),),
+        )
+        wp = WebPage("https://example.com", "<html></html>", {})
+        result = detector._check_technology(tech, wp)
+        assert result is None
+
+
+# ============================================================
+# Signal quality tests
+# ============================================================
+
+class TestSignalQuality:
+    def test_single_header(self):
+        quality = compute_signal_quality({"header": 100})
+        assert quality == 0.95
+
+    def test_single_html(self):
+        quality = compute_signal_quality({"html": 100})
+        assert quality == 0.60
+
+    def test_corroboration_bonus(self):
+        quality = compute_signal_quality({"header": 100, "script": 100})
+        # best=0.95, bonus=0.03*(2-1)=0.03, total=0.98
+        assert abs(quality - 0.98) < 0.001
+
+    def test_many_patterns_capped(self):
+        patterns = {k: 100 for k in PATTERN_TYPE_WEIGHTS}
+        quality = compute_signal_quality(patterns)
+        assert quality == 1.0
+
+    def test_empty_returns_zero(self):
+        assert compute_signal_quality({}) == 0.0
+
+    def test_implied_weight(self):
+        quality = compute_signal_quality({"implied": 80})
+        assert quality == 0.80
+
+    def test_three_patterns(self):
+        quality = compute_signal_quality({"header": 100, "script": 100, "meta": 100})
+        # best=0.95, bonus=0.03*2=0.06, total=1.01 -> capped at 1.0
+        assert quality == 1.0
+
+
+# ============================================================
+# analyze_with_versions_and_categories includes new fields
+# ============================================================
+
+class TestAnalyzeWithVersionsIncludesNewFields:
+    def test_output_has_matched_patterns_and_signal_quality(self):
+        detector = TechDetector()
+        html = '<html><head><meta name="generator" content="WordPress 6.0"></head><body class="wp-content"></body></html>'
+        wp = WebPage("https://example.com", html, {"X-Powered-By": "PHP/8.1"})
+        results = detector.analyze_with_versions_and_categories(wp)
+        for name, entry in results.items():
+            assert "matched_patterns" in entry
+            assert "signal_quality" in entry
+            assert isinstance(entry["matched_patterns"], dict)
+            assert isinstance(entry["signal_quality"], float)
+            assert 0.0 <= entry["signal_quality"] <= 1.0

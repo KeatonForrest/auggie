@@ -34,12 +34,23 @@ class DetectedTechnology(BaseModel):
     version: Optional[str] = None
     category: Optional[str] = None
     confidence: Optional[int] = None
+    signal_quality: Optional[float] = None       # 0.0-1.0 weighted quality score
+    matched_patterns: Optional[list[str]] = None  # e.g. ["header", "script"]
+
+
+class StackArchetype(BaseModel):
+    """A composite stack pattern detected from multiple technologies."""
+    name: str
+    confidence: float            # 0.0-1.0
+    matched_technologies: list[str]
+    description: Optional[str] = None
 
 
 class TechStack(BaseModel):
     """Technologies detected on a website."""
     technologies: list[DetectedTechnology] = []
     scan_url: Optional[str] = None
+    archetypes: Optional[list[StackArchetype]] = None
 
     # Categories that are noise or false positives — exclude from prompts
     _EXCLUDED_CATEGORIES = {"Cryptominers"}
@@ -61,6 +72,15 @@ class TechStack(BaseModel):
             if tech.category:
                 entry += f" ({tech.category})"
             lines.append(entry)
+
+        if self.archetypes:
+            high_conf = [a for a in self.archetypes if a.confidence >= 0.5]
+            if high_conf:
+                lines.append("")
+                lines.append("Stack Archetypes:")
+                for arch in high_conf:
+                    desc = f" - {arch.description}" if arch.description else ""
+                    lines.append(f"- {arch.name} (confidence: {arch.confidence:.0%}){desc}")
 
         return "\n".join(lines)
 

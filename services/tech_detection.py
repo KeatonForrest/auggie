@@ -6,7 +6,7 @@ from typing import Optional
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
-from models import TechStack, DetectedTechnology, SecurityPosture, RobotsSignals
+from models import TechStack, DetectedTechnology, StackArchetype, SecurityPosture, RobotsSignals
 from services.collect import get_shared_http_client
 
 import logging
@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 
 try:
     from services.techdetect import TechDetector, WebPage
+    from services.techdetect.archetypes import detect_archetypes
     DETECTOR_AVAILABLE = True
     logger.debug("TechDetector module imported successfully")
 except ImportError as e:
     DETECTOR_AVAILABLE = False
+    detect_archetypes = None
     logger.error("TechDetector import failed: %s", e)
 
 
@@ -65,16 +67,30 @@ class TechDetectionService:
             category = ", ".join(categories) if categories else None
 
             confidence = tech_info.get("confidence", 100)
+            matched_patterns_dict = tech_info.get("matched_patterns", {})
+            matched_patterns = sorted(matched_patterns_dict.keys()) if matched_patterns_dict else None
+            signal_quality = tech_info.get("signal_quality")
 
             technologies.append(DetectedTechnology(
                 name=tech_name,
                 version=version,
                 category=category,
                 confidence=confidence,
+                signal_quality=signal_quality,
+                matched_patterns=matched_patterns,
             ))
 
         technologies.sort(key=lambda t: (t.category or "zzz", t.name))
-        return TechStack(technologies=technologies, scan_url=url)
+
+        # Detect stack archetypes
+        archetypes = None
+        if detect_archetypes is not None:
+            tech_names = {t.name for t in technologies}
+            arch_results = detect_archetypes(tech_names)
+            if arch_results:
+                archetypes = [StackArchetype(**a) for a in arch_results]
+
+        return TechStack(technologies=technologies, scan_url=url, archetypes=archetypes)
 
     async def analyze_url(self, url: str) -> TechStack:
         """Analyze a URL to detect technologies."""

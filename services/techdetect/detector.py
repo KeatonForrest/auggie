@@ -12,6 +12,33 @@ class DetectionResult:
     versions: set = field(default_factory=set)
     confidence: int = 0
     categories: list = field(default_factory=list)
+    matched_patterns: dict = field(default_factory=dict)  # pattern_type -> max confidence
+
+
+PATTERN_TYPE_WEIGHTS = {
+    "header": 0.95,
+    "cookie": 0.90,
+    "url": 0.90,
+    "script": 0.85,
+    "meta": 0.80,
+    "js": 0.75,
+    "html": 0.60,
+    "implied": 0.80,
+}
+
+
+def compute_signal_quality(matched_patterns: dict) -> float:
+    """Compute weighted signal quality from matched pattern types.
+
+    Returns 0.0-1.0 score based on best pattern weight + corroboration bonus.
+    """
+    if not matched_patterns:
+        return 0.0
+
+    weights = [PATTERN_TYPE_WEIGHTS.get(pt, 0.5) for pt in matched_patterns]
+    best = max(weights)
+    bonus = 0.03 * (len(weights) - 1)
+    return min(best + bonus, 1.0)
 
 
 class TechDetector:
@@ -42,6 +69,7 @@ class TechDetector:
             if pattern.regex.search(webpage.url):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["url"] = max(result.matched_patterns.get("url", 0), pattern.confidence)
                 ver = extract_version(pattern, webpage.url)
                 if ver:
                     result.versions.add(ver)
@@ -52,6 +80,7 @@ class TechDetector:
             if header_val and pattern.regex.search(header_val):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["header"] = max(result.matched_patterns.get("header", 0), pattern.confidence)
                 ver = extract_version(pattern, header_val)
                 if ver:
                     result.versions.add(ver)
@@ -62,6 +91,7 @@ class TechDetector:
             if cookie_val and pattern.regex.search(cookie_val):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["cookie"] = max(result.matched_patterns.get("cookie", 0), pattern.confidence)
                 ver = extract_version(pattern, cookie_val)
                 if ver:
                     result.versions.add(ver)
@@ -72,6 +102,7 @@ class TechDetector:
                 if pattern.regex.search(script_src):
                     matched = True
                     result.confidence = max(result.confidence, pattern.confidence)
+                    result.matched_patterns["script"] = max(result.matched_patterns.get("script", 0), pattern.confidence)
                     ver = extract_version(pattern, script_src)
                     if ver:
                         result.versions.add(ver)
@@ -81,6 +112,7 @@ class TechDetector:
             if pattern.regex.search(webpage.inline_scripts):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["js"] = max(result.matched_patterns.get("js", 0), pattern.confidence)
                 ver = extract_version(pattern, webpage.inline_scripts)
                 if ver:
                     result.versions.add(ver)
@@ -91,6 +123,7 @@ class TechDetector:
             if meta_val and pattern.regex.search(meta_val):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["meta"] = max(result.matched_patterns.get("meta", 0), pattern.confidence)
                 ver = extract_version(pattern, meta_val)
                 if ver:
                     result.versions.add(ver)
@@ -100,6 +133,7 @@ class TechDetector:
             if pattern.regex.search(webpage.html):
                 matched = True
                 result.confidence = max(result.confidence, pattern.confidence)
+                result.matched_patterns["html"] = max(result.matched_patterns.get("html", 0), pattern.confidence)
                 ver = extract_version(pattern, webpage.html)
                 if ver:
                     result.versions.add(ver)
@@ -158,6 +192,7 @@ class TechDetector:
                             self.categories.get(str(c), f"Category {c}")
                             for c in implied_tech.cats
                         ],
+                        matched_patterns={"implied": effective_confidence},
                     )
 
                 if implied_name not in seen:
@@ -173,5 +208,7 @@ class TechDetector:
                 "versions": sorted(det.versions),
                 "categories": det.categories,
                 "confidence": det.confidence,
+                "matched_patterns": det.matched_patterns,
+                "signal_quality": compute_signal_quality(det.matched_patterns),
             }
         return result
