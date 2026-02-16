@@ -53,6 +53,20 @@ class TestCompositeCursor:
         assert sort_val == "Acme Corp"
         assert item_id == 3
 
+    def test_round_trip_sort_value_with_colon(self):
+        """Composite cursor with colons in sort value (e.g. company name)."""
+        encoded = encode_composite_cursor("ACME:North", 42)
+        sort_val, item_id = decode_composite_cursor(encoded)
+        assert sort_val == "ACME:North"
+        assert item_id == 42
+
+    def test_round_trip_sort_value_with_multiple_colons(self):
+        """Sort value with multiple colons should round-trip correctly."""
+        encoded = encode_composite_cursor("a:b:c:d", 99)
+        sort_val, item_id = decode_composite_cursor(encoded)
+        assert sort_val == "a:b:c:d"
+        assert item_id == 99
+
     def test_different_values_produce_different_cursors(self):
         c1 = encode_composite_cursor(80, 1)
         c2 = encode_composite_cursor(90, 1)

@@ -9,6 +9,7 @@ import json
 import random
 import time
 import uuid
+import warnings
 from typing import Any, AsyncIterator, Iterator
 
 import httpx
@@ -631,6 +632,11 @@ class AuggieClient:
                 break
             cursor = accounts.get("next_cursor")
             if cursor is None:
+                warnings.warn(
+                    "Server returned has_more=true but no next_cursor. "
+                    "Results may be truncated. Upgrade the server to get full pagination support.",
+                    stacklevel=2,
+                )
                 break
 
     def iter_watchlist(self, limit: int = 100) -> Iterator[dict]:
@@ -1005,6 +1011,11 @@ class AsyncAuggieClient:
                 break
             cursor = accounts.get("next_cursor")
             if cursor is None:
+                warnings.warn(
+                    "Server returned has_more=true but no next_cursor. "
+                    "Results may be truncated. Upgrade the server to get full pagination support.",
+                    stacklevel=2,
+                )
                 break
 
     async def iter_watchlist(self, limit: int = 100) -> AsyncIterator[dict]:

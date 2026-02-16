@@ -30,7 +30,7 @@ def decode_composite_cursor(cursor: str) -> tuple:
     Returns (sort_value_str_or_None, item_id_int).
     """
     raw = decode_cursor(cursor)
-    parts = raw.split(":", 1)
+    parts = raw.rsplit(":", 1)
     sort_val = None if parts[0] == "null" else parts[0]
     item_id = int(parts[1])
     return sort_val, item_id
