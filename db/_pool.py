@@ -26,7 +26,7 @@ async def init_database():
         settings.database_url,
         min_size=settings.db_pool_min,
         max_size=settings.db_pool_max,
-        statement_cache_size=100,
+        statement_cache_size=0,
         timeout=settings.db_pool_acquire_timeout,
         init=_init_connection,
         server_settings={'timezone': 'UTC'},

@@ -119,7 +119,7 @@ async def get_current_user(request: Request) -> Optional[dict]:
             set_cached_user(user_id, user)
         return user
     except Exception as e:
-        logger.error("Error getting current user: %s", e)
+        logger.error("Error getting current user (%s): %s", type(e).__name__, e)
         return None
 
 
