@@ -475,8 +475,11 @@ class TestClayTimeout:
         async def hang_forever(user_id, url):
             await asyncio.Event().wait()
 
+        fake_request = MagicMock()
+
         with patch("api.routes.clay_limiter"), \
              patch("api.routes.CLAY_TIMEOUT", 0.1), \
+             patch("api.routes.check_idempotency", new_callable=AsyncMock, return_value=(None, None)), \
              patch("api.routes.validate_company_url", return_value="https://example.com"), \
              patch("api.routes.get_recent_document_by_url", new_callable=AsyncMock, return_value=None), \
              patch("api.routes.get_user_usage", new_callable=AsyncMock, return_value=fake_usage), \
@@ -486,7 +489,7 @@ class TestClayTimeout:
              patch("database.update_job_status", new_callable=AsyncMock) as mock_update:
 
             with pytest.raises(APIError) as exc_info:
-                await clay_enrich(body, api_user=fake_api_user)
+                await clay_enrich(fake_request, body, api_user=fake_api_user)
 
             assert exc_info.value.status_code == 504
             assert exc_info.value.error_code == "timeout"
@@ -508,8 +511,11 @@ class TestClayTimeout:
         async def hang_forever(user_id, url):
             await asyncio.Event().wait()
 
+        fake_request = MagicMock()
+
         with patch("api.routes.clay_limiter"), \
              patch("api.routes.CLAY_TIMEOUT", 0.1), \
+             patch("api.routes.check_idempotency", new_callable=AsyncMock, return_value=(None, None)), \
              patch("api.routes.validate_company_url", return_value="https://example.com"), \
              patch("api.routes.get_recent_document_by_url", new_callable=AsyncMock, return_value=None), \
              patch("api.routes.get_user_usage", new_callable=AsyncMock, return_value=fake_usage), \
@@ -519,7 +525,7 @@ class TestClayTimeout:
              patch("database.update_job_status", new_callable=AsyncMock):
 
             with pytest.raises(APIError) as exc_info:
-                await clay_enrich(body, api_user=fake_api_user)
+                await clay_enrich(fake_request, body, api_user=fake_api_user)
 
             assert exc_info.value.status_code == 504
             mock_refund.assert_not_called()
