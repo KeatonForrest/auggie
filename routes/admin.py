@@ -31,8 +31,7 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_super_a
     orgs = await get_all_orgs_stats()
     revenue = await get_revenue_stats()
 
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin_dashboard.html", {
         "user": user,
         "users": users,
         "search": search,

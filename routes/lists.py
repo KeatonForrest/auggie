@@ -52,9 +52,9 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
     lusha_integration = await get_integration(user["id"], "lusha")
     cognism_integration = await get_integration(user["id"], "cognism")
     return templates.TemplateResponse(
+        request,
         "lists.html",
         {
-            "request": request,
             "user": user,
             "lists": recent,
             "credits": usage.get("bonus_credits", 0) / 100,
@@ -303,9 +303,9 @@ async def view_list(
     pushed_count = counts["pushed"]
 
     return templates.TemplateResponse(
+        request,
         "list_view.html",
         {
-            "request": request,
             "user": user,
             "list": lst,
             "accounts": accounts,

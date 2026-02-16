@@ -32,10 +32,7 @@ async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
         # Already onboarded, redirect to home
         return RedirectResponse(url="/", status_code=302)
 
-    return templates.TemplateResponse(
-        "onboarding.html",
-        {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "onboarding.html", {"user": user})
 
 
 @router.post("/onboarding")
@@ -102,9 +99,9 @@ async def settings_page(
     selected_levels, selected_functions = parse_personas_string(user.get("target_personas") or "")
 
     return templates.TemplateResponse(
+        request,
         "settings.html",
         {
-            "request": request,
             "user": user,
             "saved": saved,
             "selected_sizes": selected_sizes,
@@ -171,9 +168,9 @@ async def api_keys_page(request: Request, user: dict = Depends(require_auth)):
     usage_stats = await get_api_key_usage_stats(user["id"])
     webhook = await get_user_webhook(user["id"])
     return templates.TemplateResponse(
+        request,
         "api_keys.html",
         {
-            "request": request,
             "user": user,
             "api_keys": keys,
             "usage_stats": usage_stats,
@@ -230,9 +227,9 @@ async def materials_page(request: Request, user: dict = Depends(require_auth)):
     usage = await get_user_usage(user["id"])
 
     return templates.TemplateResponse(
+        request,
         "materials.html",
         {
-            "request": request,
             "user": user,
             "materials": materials,
             "credits": usage.get("bonus_credits", 0) / 100,

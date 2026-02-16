@@ -49,9 +49,9 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
     integration_map = {i["provider"]: i for i in integrations}
     usage = await get_user_usage(user["id"])
     return templates.TemplateResponse(
+        request,
         "integrations.html",
         {
-            "request": request,
             "user": user,
             "integrations": integration_map,
             "credits": usage.get("bonus_credits", 0) / 100,
@@ -741,10 +741,7 @@ async def integrations_clay(request: Request):
     """Clay integration landing page for marketplace listing."""
     from auth import get_current_user
     user = await get_current_user(request)
-    return templates.TemplateResponse(
-        "integrations_clay.html",
-        {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "integrations_clay.html", {"user": user})
 
 
 @router.get("/integrations/make", response_class=HTMLResponse)
@@ -752,10 +749,7 @@ async def integrations_make(request: Request):
     """Make integration setup guide."""
     from auth import get_current_user
     user = await get_current_user(request)
-    return templates.TemplateResponse(
-        "integrations_make.html",
-        {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "integrations_make.html", {"user": user})
 
 
 @router.get("/integrations/n8n", response_class=HTMLResponse)
@@ -763,10 +757,7 @@ async def integrations_n8n(request: Request):
     """n8n integration setup guide."""
     from auth import get_current_user
     user = await get_current_user(request)
-    return templates.TemplateResponse(
-        "integrations_n8n.html",
-        {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "integrations_n8n.html", {"user": user})
 
 
 @router.get("/integrations/zapier", response_class=HTMLResponse)
@@ -774,7 +765,4 @@ async def integrations_zapier(request: Request):
     """Zapier integration setup guide."""
     from auth import get_current_user
     user = await get_current_user(request)
-    return templates.TemplateResponse(
-        "integrations_zapier.html",
-        {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "integrations_zapier.html", {"user": user})

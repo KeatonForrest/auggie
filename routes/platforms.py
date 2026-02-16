@@ -15,9 +15,9 @@ async def platforms_page(request: Request, user: dict = Depends(require_onboardi
     """Platforms hub page with links to integration guides."""
     usage = await get_user_usage(user["id"])
     return templates.TemplateResponse(
+        request,
         "platforms.html",
         {
-            "request": request,
             "user": user,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
@@ -65,24 +65,25 @@ async def guide_clay_problem_signal(request: Request):
         ]
     }
     return templates.TemplateResponse(
+        request,
         "guide_clay_pain_outbound.html",
-        {"request": request, "user": user, "clay_template_json": clay_template}
+        {"user": user, "clay_template_json": clay_template}
     )
 
 
 @router.get("/guides/n8n", response_class=HTMLResponse)
 async def guide_n8n(request: Request):
     user = await get_current_user(request)
-    return templates.TemplateResponse("guide_n8n.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "guide_n8n.html", {"user": user})
 
 
 @router.get("/guides/make", response_class=HTMLResponse)
 async def guide_make(request: Request):
     user = await get_current_user(request)
-    return templates.TemplateResponse("guide_make.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "guide_make.html", {"user": user})
 
 
 @router.get("/guides/zapier", response_class=HTMLResponse)
 async def guide_zapier(request: Request):
     user = await get_current_user(request)
-    return templates.TemplateResponse("guide_zapier.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "guide_zapier.html", {"user": user})

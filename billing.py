@@ -85,8 +85,7 @@ async def buy_credits(request: Request, tier: str | None = None, user: dict = De
         from database import get_user_usage
         usage = await get_user_usage(user["id"])
         credits = usage.get("bonus_credits", 0) / 100
-        return templates.TemplateResponse("buy_credits.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "buy_credits.html", {
             "user": user,
             "credits": credits,
         })

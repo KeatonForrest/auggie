@@ -31,9 +31,9 @@ async def watchlist_page(request: Request, user: dict = Depends(require_onboardi
         items_with_history.append(item)
 
     return templates.TemplateResponse(
+        request,
         "watchlist.html",
         {
-            "request": request,
             "user": user,
             "items": items_with_history,
             "credits": usage.get("bonus_credits", 0) / 100,

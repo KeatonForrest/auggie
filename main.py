@@ -304,8 +304,9 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
         title = _ERROR_TITLES.get(exc.status_code, "Error")
         detail = exc.detail if isinstance(exc.detail, str) else (exc.detail or {}).get("message", "An unexpected error occurred.")
         return templates.TemplateResponse(
+            request,
             "error.html",
-            {"request": request, "status_code": exc.status_code, "title": title, "detail": detail},
+            {"status_code": exc.status_code, "title": title, "detail": detail},
             status_code=exc.status_code,
         )
     # Structured error format: {"error": {"code": ..., "message": ...}}
@@ -343,8 +344,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         return templates.TemplateResponse(
+            request,
             "error.html",
-            {"request": request, "status_code": 500, "title": "Something Went Wrong", "detail": "Internal server error"},
+            {"status_code": 500, "title": "Something Went Wrong", "detail": "Internal server error"},
             status_code=500,
         )
     request_id = getattr(request.state, "request_id", None)
@@ -361,13 +363,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_page(request: Request):
     """Privacy policy page."""
-    return templates.TemplateResponse("privacy.html", {"request": request})
+    return templates.TemplateResponse(request, "privacy.html")
 
 
 @app.get("/terms", response_class=HTMLResponse)
 async def terms_page(request: Request):
     """Terms of service page."""
-    return templates.TemplateResponse("terms.html", {"request": request})
+    return templates.TemplateResponse(request, "terms.html")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -377,10 +379,7 @@ async def home(request: Request):
 
     if not user:
         # Show landing/login page
-        return templates.TemplateResponse(
-            "landing.html",
-            {"request": request}
-        )
+        return templates.TemplateResponse(request, "landing.html")
 
     if not user.get("product_context"):
         # Redirect to onboarding
@@ -397,9 +396,9 @@ async def home(request: Request):
         show_materials_prompt = len(materials) == 0
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "user": user,
             "recent_docs": recent_docs,
             "credits": usage.get("bonus_credits", 0) / 100,
@@ -437,8 +436,9 @@ async def docs_page(request: Request, page: str = "index"):
         raise HTTPException(404)
     user = await get_current_user(request)
     return templates.TemplateResponse(
+        request,
         f"docs/{page}.html",
-        {"request": request, "user": user, "current_page": page, "page_title": DOCS_PAGES[page]},
+        {"user": user, "current_page": page, "page_title": DOCS_PAGES[page]},
     )
 
 

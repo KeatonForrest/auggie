@@ -103,9 +103,9 @@ async def research_progress_page(
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
     return templates.TemplateResponse(
+        request,
         "research_progress.html",
         {
-            "request": request,
             "user": user,
             "job": job,
             "recent_docs": recent_docs,
@@ -170,8 +170,9 @@ async def view_document(
         if not meta:
             raise HTTPException(status_code=404, detail="Document not found")
         return templates.TemplateResponse(
+            request,
             "document_preview.html",
-            {"request": request, "meta": meta, "doc_id": doc_id, "app_url": settings.app_url},
+            {"meta": meta, "doc_id": doc_id, "app_url": settings.app_url},
         )
 
     # Try owner-scoped first
@@ -201,9 +202,9 @@ async def view_document(
     feedback = await get_feedback(doc_id, user["id"]) if is_owner else None
 
     return templates.TemplateResponse(
+        request,
         "document.html",
         {
-            "request": request,
             "user": user,
             "document": document,
             "recent_docs": recent_docs,
@@ -233,9 +234,10 @@ async def view_document_by_slug(
         if not meta:
             raise HTTPException(status_code=404, detail="Document not found")
         return templates.TemplateResponse(
+            request,
             "document_preview.html",
             {
-                "request": request, "meta": meta,
+                "meta": meta,
                 "doc_id": meta["id"], "app_url": settings.app_url,
                 "org_slug": org_slug, "doc_slug": doc_slug,
             },
@@ -265,9 +267,9 @@ async def view_document_by_slug(
     feedback = await get_feedback(doc_id, user["id"]) if is_owner else None
 
     return templates.TemplateResponse(
+        request,
         "document.html",
         {
-            "request": request,
             "user": user,
             "document": document,
             "recent_docs": recent_docs,

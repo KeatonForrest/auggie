@@ -30,9 +30,9 @@ async def team_settings(
     usage = await get_user_usage(user["id"])
 
     return templates.TemplateResponse(
+        request,
         "team_settings.html",
         {
-            "request": request,
             "user": user,
             "org": org,
             "members": members,
@@ -115,9 +115,9 @@ async def invite_landing(request: Request, token: str):
 
     user = await get_current_user(request)
     return templates.TemplateResponse(
+        request,
         "invite_accept.html",
         {
-            "request": request,
             "user": user,
             "invite": invite,
             "token": token,
@@ -165,9 +165,9 @@ async def team_usage_dashboard(
     feedback_list = await get_all_feedback(limit=50)
 
     return templates.TemplateResponse(
+        request,
         "usage_dashboard.html",
         {
-            "request": request,
             "user": user,
             "org": org,
             "breakdown": breakdown,
