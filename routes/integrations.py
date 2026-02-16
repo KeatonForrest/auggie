@@ -15,7 +15,7 @@ from routes._helpers import (
     templates, logger,
     _oauth_connect, _oauth_callback, _apikey_connect, _run_crm_import,
 )
-from routes.integrations_constants import DEPRECATION_MESSAGE
+from routes.integrations_constants import DEPRECATION_MESSAGE, DEPRECATED_PROVIDERS, DEPRECATED_PROVIDER_NAMES
 from routes.schemas import ApiKeyConnectRequest, ApolloImportRequest, SlackConnectRequest
 from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
 from services.apollo import validate_integration_api_key as apollo_validate
@@ -43,6 +43,10 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
     integrations = await get_user_integrations(user["id"])
     integration_map = {i["provider"]: i for i in integrations}
     usage = await get_user_usage(user["id"])
+    deprecated_connected = [
+        {"provider": p, "name": DEPRECATED_PROVIDER_NAMES.get(p, p)}
+        for p in integration_map if p in DEPRECATED_PROVIDERS
+    ]
     return templates.TemplateResponse(
         request,
         "integrations.html",
@@ -51,6 +55,7 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
             "integrations": integration_map,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
+            "deprecated_integrations": deprecated_connected,
         }
     )
 

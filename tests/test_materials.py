@@ -96,6 +96,8 @@ class TestUploadMaterial:
         assert result['status'] == 'pending'
         mock_database.create_material.assert_called_once()
         mock_task.assert_called_once()
+        # Close the unawaited coroutine to prevent RuntimeWarning
+        mock_task.call_args[0][0].close()
 
     @pytest.mark.asyncio
     async def test_upload_material_unsupported_type(self, materials_service):
@@ -219,6 +221,8 @@ class TestReprocessMaterial:
         mock_database.get_material.assert_called_once_with('mat_123', 'user_456')
         mock_database.delete_chunks_for_material.assert_called_once_with('mat_123')
         mock_task.assert_called_once()
+        # Close the unawaited coroutine to prevent RuntimeWarning
+        mock_task.call_args[0][0].close()
 
     @pytest.mark.asyncio
     async def test_reprocess_not_found(self, materials_service, mock_database):

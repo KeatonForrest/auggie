@@ -7,6 +7,20 @@ DEPRECATED_PROVIDERS = frozenset({
     "zoominfo", "instantly", "smartlead", "pdl", "lusha", "cognism",
 })
 
+DEPRECATED_PROVIDER_NAMES = {
+    "hubspot": "HubSpot",
+    "salesforce": "Salesforce",
+    "outreach": "Outreach",
+    "salesloft": "SalesLoft",
+    "gong_engage": "Gong Engage",
+    "zoominfo": "ZoomInfo",
+    "instantly": "Instantly",
+    "smartlead": "Smartlead",
+    "pdl": "People Data Labs",
+    "lusha": "Lusha",
+    "cognism": "Cognism",
+}
+
 DEPRECATION_MESSAGE = (
     "This integration has been deprecated. "
     "Please use Apollo, Google Sheets, Slack, or Teams instead."

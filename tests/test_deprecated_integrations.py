@@ -198,6 +198,37 @@ class TestKeptRoutesDontReturn410:
 # Automation deprecation
 # =============================================================================
 
+class TestDeprecatedDisconnectUX:
+    """Verify the Deprecated Integrations section on /integrations page."""
+
+    @pytest.mark.asyncio
+    async def test_shows_section_when_deprecated_provider_connected(self, authed_client):
+        """When a deprecated provider is connected, the page should show the disconnect section."""
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[
+            {"provider": "hubspot", "access_token": "tok"},
+        ]), patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={
+            "bonus_credits": 0, "is_admin": False,
+        }):
+            response = await authed_client.get("/integrations")
+        assert response.status_code == 200
+        html = response.text
+        assert "Deprecated Integrations" in html
+        assert "HubSpot" in html
+        assert '/integrations/hubspot/disconnect' in html
+
+    @pytest.mark.asyncio
+    async def test_hides_section_when_no_deprecated_providers(self, authed_client):
+        """When only supported providers are connected, no deprecated section should appear."""
+        with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[
+            {"provider": "apollo", "access_token": "tok"},
+        ]), patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={
+            "bonus_credits": 0, "is_admin": False,
+        }):
+            response = await authed_client.get("/integrations")
+        assert response.status_code == 200
+        assert "Deprecated Integrations" not in response.text
+
+
 class TestDeprecatedAutomationActions:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("action,label", [
