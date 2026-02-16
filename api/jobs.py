@@ -154,17 +154,20 @@ async def run_research_job(
         try:
             from services.notifications import send_slack_notification, send_teams_notification
             from database import get_integration as _get_integ
+            from db.documents import get_document_slug_path
             slack = await _get_integ(user_id, "slack")
             teams = await _get_integ(user_id, "teams")
             if slack or teams:
                 doc = await get_document(doc_id, user_id)
                 settings = get_settings()
+                slug_path = await get_document_slug_path(doc_id, user_id)
+                doc_url = f"{settings.app_url}{slug_path}" if slug_path else f"{settings.app_url}/document/{doc_id}"
                 notify_data = {
                     "company_name": doc.company_name if doc else company_url,
                     "company_url": company_url,
                     "pain_score": doc.pain_score if doc else None,
                     "composite_score": doc.opportunity_score if doc else None,
-                    "doc_url": f"{settings.app_url}/document/{doc_id}",
+                    "doc_url": doc_url,
                 }
                 if slack:
                     await send_slack_notification(slack["access_token"], "research_complete", notify_data)
@@ -596,10 +599,13 @@ async def run_watchlist_item(
             try:
                 from services.notifications import send_slack_notification, send_teams_notification
                 from database import get_integration as _get_integ
+                from db.documents import get_document_slug_path as _get_slug_path
                 slack = await _get_integ(user_id, "slack")
                 teams = await _get_integ(user_id, "teams")
                 if slack or teams:
                     settings = get_settings()
+                    _slug_p = await _get_slug_path(doc_id, user_id)
+                    _doc_url = f"{settings.app_url}{_slug_p}" if _slug_p else f"{settings.app_url}/document/{doc_id}"
                     notify_data = {
                         "company_name": new_doc.company_name if new_doc else company_url,
                         "company_url": company_url,
@@ -607,7 +613,7 @@ async def run_watchlist_item(
                         "old_pain_score": old_scores.get("pain_score"),
                         "composite_score": new_scores.get("opportunity_score"),
                         "old_composite_score": old_scores.get("opportunity_score"),
-                        "doc_url": f"{settings.app_url}/document/{doc_id}",
+                        "doc_url": _doc_url,
                         "watchlist_url": f"{settings.app_url}/watchlist",
                     }
                     if slack:

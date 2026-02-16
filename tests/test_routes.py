@@ -50,25 +50,18 @@ async def test_research_creates_document(authed_client, mock_services, sample_re
 
 
 @pytest.mark.asyncio
-async def test_view_document(authed_client, fake_user, sample_research_document):
-    """GET /document/{id} should return the document for the owner."""
+async def test_view_document_owner_redirects_to_slug(authed_client, fake_user, sample_research_document):
+    """GET /document/{id} should 301 redirect owners to the slug URL."""
     with patch("routes.research.get_current_user", new_callable=AsyncMock, return_value=fake_user), \
          patch("routes.research.get_document", new_callable=AsyncMock) as mock_get_doc, \
-         patch("routes.research.get_share_token", new_callable=AsyncMock, return_value="abc-token"), \
-         patch("routes.research.get_all_documents", new_callable=AsyncMock, return_value=[]), \
-         patch("routes.research.get_user_usage", new_callable=AsyncMock) as mock_usage, \
-         patch("routes.research.get_enriched_contacts", new_callable=AsyncMock) as mock_contacts, \
-         patch("routes.research.get_feedback", new_callable=AsyncMock) as mock_feedback:
+         patch("routes.research.get_document_slug_path", new_callable=AsyncMock, return_value="/@user-1/acme-corp"):
 
         mock_get_doc.return_value = sample_research_document
-        mock_usage.return_value = {"bonus_credits": 1000, "is_admin": False}
-        mock_contacts.return_value = []
-        mock_feedback.return_value = None
 
-        response = await authed_client.get("/document/1")
+        response = await authed_client.get("/document/1", follow_redirects=False)
 
-        assert response.status_code == 200
-        mock_get_doc.assert_called_once_with(1, user_id=1)
+        assert response.status_code == 301
+        assert response.headers["location"] == "/@user-1/acme-corp"
 
 
 @pytest.mark.asyncio

@@ -170,6 +170,7 @@ class ResearchDocument(BaseModel):
     id: Optional[int] = None
     company_url: str
     company_name: str
+    slug: Optional[str] = None
     created_at: datetime
 
     # AI-generated sections

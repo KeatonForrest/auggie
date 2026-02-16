@@ -17,7 +17,10 @@ from database import (
     get_research_job, check_duplicate_research,
     save_feedback, get_feedback,
 )
-from db.documents import get_document_by_share_token, get_share_token
+from db.documents import (
+    get_document_by_share_token, get_share_token,
+    get_document_by_slug, get_document_meta_by_slug, get_document_slug_path,
+)
 from db.jobs import create_job_with_credit, create_research_job
 from services.instances import firecrawl_service, claude_service, wappalyzer_service, writing_service, vision_service
 from services.collect import collect_enrichment_data
@@ -52,7 +55,9 @@ async def start_research(
         if watch:
             from database import create_watchlist_item
             await create_watchlist_item(user["id"], company_url, schedule="biweekly")
-        return JSONResponse({"success": True, "job_id": None, "redirect": f"/document/{cached_doc_id}", "cached": True})
+        slug_path = await get_document_slug_path(cached_doc_id, user["id"])
+        redirect_url = slug_path or f"/document/{cached_doc_id}"
+        return JSONResponse({"success": True, "job_id": None, "redirect": redirect_url, "cached": True})
 
     usage = await get_user_usage(user["id"])
     is_admin = usage.get("is_admin", False)
@@ -89,9 +94,11 @@ async def research_progress_page(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # If already completed, redirect directly
+    # If already completed, redirect directly (prefer slug URL)
     if job["status"] == "completed" and job.get("document_id"):
-        return RedirectResponse(url=f"/document/{job['document_id']}", status_code=302)
+        slug_path = await get_document_slug_path(job["document_id"], user["id"])
+        redirect_url = slug_path or f"/document/{job['document_id']}"
+        return RedirectResponse(url=redirect_url, status_code=302)
 
     recent_docs = await get_all_documents(user_id=user["id"], limit=10)
     usage = await get_user_usage(user["id"])
@@ -171,6 +178,12 @@ async def view_document(
     document = await get_document(doc_id, user_id=user["id"])
     is_owner = document is not None
 
+    # If owner, 301 redirect to slug URL for canonical links
+    if is_owner:
+        slug_path = await get_document_slug_path(doc_id, user["id"])
+        if slug_path:
+            return RedirectResponse(url=slug_path, status_code=301)
+
     # If not owner, require a valid share token
     if not is_owner:
         if not token:
@@ -202,6 +215,96 @@ async def view_document(
             "share_token": share_token,
             "app_url": settings.app_url,
         }
+    )
+
+
+@router.get("/@{org_slug}/{doc_slug}", response_class=HTMLResponse)
+async def view_document_by_slug(
+    request: Request,
+    org_slug: str,
+    doc_slug: str,
+):
+    """View a research document via vanity slug URL."""
+    user = await get_current_user(request)
+
+    # Unauthenticated: serve minimal preview with OG meta
+    if not user:
+        meta = await get_document_meta_by_slug(org_slug, doc_slug)
+        if not meta:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return templates.TemplateResponse(
+            "document_preview.html",
+            {
+                "request": request, "meta": meta,
+                "doc_id": meta["id"], "app_url": settings.app_url,
+                "org_slug": org_slug, "doc_slug": doc_slug,
+            },
+        )
+
+    # Authenticated: check ownership
+    meta = await get_document_meta_by_slug(org_slug, doc_slug)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc_id = meta["id"]
+    is_owner = meta["user_id"] == user["id"]
+
+    if is_owner:
+        document = await get_document(doc_id, user_id=user["id"])
+    else:
+        # Non-owners can view slug URLs (slug URLs are the share mechanism)
+        document = await get_document_by_slug(org_slug, doc_slug)
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    share_token = await get_share_token(doc_id, user["id"]) if is_owner else None
+    recent_docs = await get_all_documents(user_id=user["id"], limit=10)
+    usage = await get_user_usage(user["id"])
+    enriched_contacts = await get_enriched_contacts(doc_id, user["id"]) if is_owner else []
+    feedback = await get_feedback(doc_id, user["id"]) if is_owner else None
+
+    return templates.TemplateResponse(
+        "document.html",
+        {
+            "request": request,
+            "user": user,
+            "document": document,
+            "recent_docs": recent_docs,
+            "credits": usage.get("bonus_credits", 0) / 100,
+            "is_admin": usage.get("is_admin", False),
+            "enriched_contacts": enriched_contacts,
+            "feedback": feedback,
+            "is_owner": is_owner,
+            "share_token": share_token,
+            "app_url": settings.app_url,
+            "org_slug": org_slug,
+            "doc_slug": doc_slug,
+        }
+    )
+
+
+@router.get("/@{org_slug}/{doc_slug}/og-image.png")
+async def document_og_image_by_slug(org_slug: str, doc_slug: str):
+    """Generate a dynamic OG image for a slug URL."""
+    from services.og_image import generate_og_image
+
+    meta = await get_document_meta_by_slug(org_slug, doc_slug)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    png_bytes = generate_og_image(
+        company_name=meta["company_name"],
+        opportunity_score=meta.get("opportunity_score"),
+        pain_score=meta.get("pain_score"),
+        fit_score=meta.get("fit_score"),
+        timing_score=meta.get("timing_score"),
+        score_summary=meta.get("score_summary"),
+    )
+    return StreamingResponse(
+        BytesIO(png_bytes),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 

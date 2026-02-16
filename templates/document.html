@@ -13,7 +13,7 @@ This template displays a generated research document with:
 {% block og_meta %}
 <meta property="og:title" content="{{ document.company_name }} - Research Report">
 <meta property="og:description" content="Opportunity {{ document.opportunity_score or '-' }} | Pain {{ document.pain_score or '-' }} | Fit {{ document.fit_score or '-' }} | Timing {{ document.timing_score or '-' }}{% if document.score_summary %} — {{ document.score_summary[:150] }}{% endif %}">
-<meta property="og:image" content="{{ app_url }}/document/{{ document.id }}/og-image.png{% if share_token %}?token={{ share_token }}{% endif %}">
+{% if org_slug and doc_slug %}<meta property="og:image" content="{{ app_url }}/@{{ org_slug }}/{{ doc_slug }}/og-image.png">{% else %}<meta property="og:image" content="{{ app_url }}/document/{{ document.id }}/og-image.png{% if share_token %}?token={{ share_token }}{% endif %}">{% endif %}
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:type" content="article">
@@ -60,7 +60,7 @@ This template displays a generated research document with:
                         </svg>
                         Copy
                     </button>
-                    {% if share_token %}
+                    {% if share_token or (org_slug and doc_slug) %}
                     <button onclick="copyShareLink()"
                             id="share-btn"
                             class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
@@ -567,9 +567,13 @@ This template displays a generated research document with:
         });
     }
 
-    {% if share_token %}
+    {% if share_token or (org_slug and doc_slug) %}
     function copyShareLink() {
+        {% if org_slug and doc_slug %}
+        var url = '{{ app_url }}/@{{ org_slug }}/{{ doc_slug }}';
+        {% else %}
         var url = '{{ app_url }}/document/{{ document.id }}?token={{ share_token }}';
+        {% endif %}
         navigator.clipboard.writeText(url).then(function() {
             var btn = document.getElementById('share-btn');
             var orig = btn.innerHTML;

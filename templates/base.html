@@ -159,7 +159,7 @@
                     <ul class="mt-2 space-y-1 max-h-48 overflow-y-auto">
                         {% for doc in recent_docs %}
                         <li>
-                            <a href="/document/{{ doc.id }}" class="block px-2 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded">
+                            <a href="{% if user.org_slug and doc.slug %}/@{{ user.org_slug }}/{{ doc.slug }}{% else %}/document/{{ doc.id }}{% endif %}" class="block px-2 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded">
                                 {{ doc.company_name }}
                             </a>
                         </li>
@@ -218,7 +218,7 @@
                     <ul id="doc-list" class="space-y-2">
                         {% for doc in recent_docs %}
                         <li data-name="{{ doc.company_name | lower }}">
-                            <a href="/document/{{ doc.id }}" class="block p-2 rounded hover:bg-gray-50">
+                            <a href="{% if user.org_slug and doc.slug %}/@{{ user.org_slug }}/{{ doc.slug }}{% else %}/document/{{ doc.id }}{% endif %}" class="block p-2 rounded hover:bg-gray-50">
                                 <span class="font-medium text-gray-900 text-sm">{{ doc.company_name }}</span>
                             </a>
                         </li>

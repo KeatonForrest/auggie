@@ -6,7 +6,7 @@
     <title>{{ meta.company_name }} - Auggie</title>
     <meta property="og:title" content="{{ meta.company_name }} - Research Report">
     <meta property="og:description" content="Opportunity {{ meta.opportunity_score or '-' }} | Pain {{ meta.pain_score or '-' }} | Fit {{ meta.fit_score or '-' }} | Timing {{ meta.timing_score or '-' }}{% if meta.score_summary %} — {{ meta.score_summary[:150] }}{% endif %}">
-    <meta property="og:image" content="{{ app_url }}/document/{{ doc_id }}/og-image.png">
+    {% if org_slug and doc_slug %}<meta property="og:image" content="{{ app_url }}/@{{ org_slug }}/{{ doc_slug }}/og-image.png">{% else %}<meta property="og:image" content="{{ app_url }}/document/{{ doc_id }}/og-image.png">{% endif %}
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:type" content="article">
@@ -43,7 +43,7 @@
             </div>
             {% endif %}
 
-            <a href="/auth/login?next=/document/{{ doc_id }}"
+            <a href="/auth/login?next={% if org_slug and doc_slug %}/@{{ org_slug }}/{{ doc_slug }}{% else %}/document/{{ doc_id }}{% endif %}"
                class="block w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition">
                 Sign in to view full report
             </a>
