@@ -756,24 +756,25 @@ class TestSellerWeighting:
         assert [r.confidence for r in results_no_seller] == [r.confidence for r in results_none]
 
     def test_seller_weighting_msp_bonus(self, engine):
-        """MSP product_type → +5 on operations/security on top of relevance boost."""
+        """MSP product_type → +5 on operations/data categories."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False,
+                                   cloud_provider_hints=["AWS", "Azure"]),
         )
-        # Security seller, saas
-        seller_saas = SellerContext(product_type="saas", problems_solved="security compliance threat")
+        # Operations seller, saas
+        seller_saas = SellerContext(product_type="saas", problems_solved="cloud operations monitoring")
         results_saas = engine.evaluate(bundle, seller=seller_saas)
-        conf_saas = next(r.confidence for r in results_saas if r.rule_id == "email_risk")
+        conf_saas = next(r.confidence for r in results_saas if r.rule_id == "multi_cloud")
 
-        # Security seller, msp
-        seller_msp = SellerContext(product_type="msp", problems_solved="security compliance threat")
+        # Operations seller, msp
+        seller_msp = SellerContext(product_type="msp", problems_solved="cloud operations monitoring")
         results_msp = engine.evaluate(bundle, seller=seller_msp)
-        conf_msp = next(r.confidence for r in results_msp if r.rule_id == "email_risk")
+        conf_msp = next(r.confidence for r in results_msp if r.rule_id == "multi_cloud")
 
         assert conf_msp == conf_saas + 5
 
     def test_seller_weighting_empty_problems_solved_suppresses_security(self, engine):
-        """Empty problems_solved + non-MSP seller → security signals suppressed."""
+        """Empty problems_solved → security signals suppressed."""
         bundle = SignalBundle(
             dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
         )
@@ -783,7 +784,7 @@ class TestSellerWeighting:
         assert "email_risk" not in security_ids
 
     def test_seller_weighting_irrelevant_problems_solved_suppresses_security(self, engine):
-        """Irrelevant problems_solved (no category match) + non-MSP → security signals suppressed."""
+        """Irrelevant problems_solved (no category match) → security signals suppressed."""
         bundle = SignalBundle(
             dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
         )
@@ -792,12 +793,22 @@ class TestSellerWeighting:
         security_ids = [r.rule_id for r in results if r.category == "security"]
         assert "email_risk" not in security_ids
 
-    def test_seller_weighting_msp_with_empty_problems_solved_keeps_security(self, engine):
-        """MSP seller with empty problems_solved → security signals NOT suppressed."""
+    def test_seller_weighting_msp_with_empty_problems_solved_suppresses_security(self, engine):
+        """MSP seller with empty problems_solved → security signals suppressed (no auto-keep)."""
         bundle = SignalBundle(
             dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
         )
         seller = SellerContext(product_type="msp", problems_solved="")
+        results = engine.evaluate(bundle, seller=seller)
+        security_ids = [r.rule_id for r in results if r.category == "security"]
+        assert "email_risk" not in security_ids
+
+    def test_seller_weighting_msp_with_security_problems_keeps_security(self, engine):
+        """MSP seller with security keywords in problems_solved → security signals kept."""
+        bundle = SignalBundle(
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+        )
+        seller = SellerContext(product_type="msp", problems_solved="security compliance threat")
         results = engine.evaluate(bundle, seller=seller)
         ids = [r.rule_id for r in results]
         assert "email_risk" in ids

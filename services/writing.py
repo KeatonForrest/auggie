@@ -685,13 +685,13 @@ Use the partial-signal examples as your primary models for this sequence.""")
 
         if product_type == "msp":
             parts.append(
-                "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**\n"
+                "**PROFESSIONAL SERVICES / CONSULTANCY FRAMING -- APPLY TO ALL EMAILS:**\n"
                 "\n"
-                "- Lead with operational complexity and the burden of managing IT alongside core business. The prospect runs a non-tech company and IT is a distraction from their actual work.\n"
-                "- Frame around reliability, compliance, and freeing up leadership attention -- not digital transformation or innovation.\n"
-                "- The prospect is not a tech buyer -- avoid technical jargon entirely. Frame everything in business terms: uptime, risk, cost predictability, compliance peace of mind.\n"
-                "- Reference pain they feel daily: systems going down, employees calling the owner about printer/email issues, compliance audit anxiety, not knowing if backups actually work.\n"
-                "- Position managed services as removing a burden, not adding a capability."
+                "- Lead with operational complexity and the burden of managing specialist functions alongside core business. The prospect runs a company where the seller's domain (IT, data, analytics, compliance) is a distraction from their actual work.\n"
+                "- Frame around reliability, compliance, data-driven decisions, and freeing up leadership attention -- not digital transformation or innovation.\n"
+                "- The prospect may not be a tech buyer -- avoid unnecessary jargon. Frame everything in business terms: uptime, risk, cost predictability, reporting clarity, compliance peace of mind.\n"
+                "- Reference pain they feel daily: systems going down, reports that take days to assemble, compliance audit anxiety, decisions made on gut feel instead of data, implementation backlogs growing.\n"
+                "- Position professional services as removing a burden, not adding a capability. Examples: managed IT handling infrastructure so the owner doesn't have to, data consultancies turning messy spreadsheets into dashboards, implementation partners clearing project backlogs."
             )
 
         if has_persona:

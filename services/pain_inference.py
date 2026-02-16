@@ -678,7 +678,7 @@ class PainInferenceEngine:
         max_hits = max(relevance.values()) if relevance else 0
 
         # Hard-suppress security signals for non-security sellers (before early return)
-        sells_security = relevance.get("security", 0) >= 1 or seller.product_type == "msp"
+        sells_security = relevance.get("security", 0) >= 1
         if not sells_security:
             for r in results:
                 if r.category == "security":
@@ -696,10 +696,10 @@ class PainInferenceEngine:
             elif max_hits >= 2:
                 r.confidence -= 10
 
-        # MSP bonus
+        # Professional services bonus: operations and data are universally relevant
         if seller.product_type == "msp":
             for r in results:
-                if r.category in ("operations", "security"):
+                if r.category in ("operations", "data"):
                     r.confidence += 5
 
         # Clamp all to [10, 95] (suppressed signals stay at 0)

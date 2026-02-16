@@ -97,8 +97,8 @@ class TestBuildProductContext:
         )
         assert "**Buyer company verticals:** Financial Services, Healthcare" in ctx
 
-    def test_solution_motion_horizontal(self):
-        """solution_motion='horizontal' produces Horizontal label."""
+    def test_solution_motion_not_in_context(self):
+        """Solution motion is no longer rendered in product context."""
         ctx = build_product_context(
             product_name="",
             product_description="",
@@ -110,10 +110,10 @@ class TestBuildProductContext:
             competitors="",
             solution_motion="horizontal",
         )
-        assert "**Solution motion:** Horizontal" in ctx
+        assert "**Solution motion:**" not in ctx
 
-    def test_solution_motion_vertical(self):
-        """solution_motion='vertical' produces Vertical label."""
+    def test_solution_motion_vertical_not_in_context(self):
+        """Vertical solution motion is also no longer rendered."""
         ctx = build_product_context(
             product_name="",
             product_description="",
@@ -125,23 +125,7 @@ class TestBuildProductContext:
             competitors="",
             solution_motion="vertical",
         )
-        assert "**Solution motion:** Vertical" in ctx
-
-    def test_motion_independent_of_product_type(self):
-        """product_type='saas' + solution_motion='vertical' = Vertical."""
-        ctx = build_product_context(
-            product_name="",
-            product_description="",
-            problems_solved="Pain",
-            differentiators="",
-            target_company_size="",
-            target_industries="",
-            target_personas="",
-            competitors="",
-            product_type="saas",
-            solution_motion="vertical",
-        )
-        assert "**Solution motion:** Vertical" in ctx
+        assert "**Solution motion:**" not in ctx
 
     def test_empty_seller_category_omitted(self):
         """Empty seller_product_category is not included in output."""
@@ -172,8 +156,8 @@ class TestBuildProductContext:
         )
         assert "**Buyer company verticals:**" not in ctx
 
-    def test_default_motion_is_horizontal(self):
-        """Omitting solution_motion defaults to Horizontal."""
+    def test_default_motion_omitted(self):
+        """Omitting solution_motion does not render it in output."""
         ctx = build_product_context(
             product_name="",
             product_description="",
@@ -184,4 +168,4 @@ class TestBuildProductContext:
             target_personas="",
             competitors="",
         )
-        assert "**Solution motion:** Horizontal" in ctx
+        assert "**Solution motion:**" not in ctx

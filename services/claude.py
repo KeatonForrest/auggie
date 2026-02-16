@@ -28,15 +28,11 @@ class ClaudeService:
 
     def _sells_security(self, problems_solved: str, product_type: str) -> bool:
         """Check if the seller's product addresses security."""
-        if product_type == "msp":
-            return True
         text = problems_solved.lower()
         return any(kw in text for kw in self._SECURITY_KEYWORDS)
 
     def _sells_web_infrastructure(self, problems_solved: str, product_type: str) -> bool:
         """Check if the seller's product addresses website quality/monitoring."""
-        if product_type == "msp":
-            return True
         text = problems_solved.lower()
         return any(kw in text for kw in self._WEB_INFRA_KEYWORDS)
 
@@ -254,29 +250,32 @@ When you find evidence of any of these in the scraped data, job postings, tech s
         if product_type == "msp":
             base_prompt += """
 
-MSP / IT SERVICES MODIFIER — READ BEFORE SCORING:
+PROFESSIONAL SERVICES / CONSULTANCY MODIFIER — READ BEFORE SCORING:
 
-You are researching on behalf of a Managed Service Provider (MSP) / IT Services company. This fundamentally changes how you interpret signals:
+You are researching on behalf of a professional services firm (managed IT, data/analytics consultancy, implementation partner, or similar). This fundamentally changes how you interpret signals:
 
 **Research Focus:**
-- Look for location count, multi-site operations, compliance needs (HIPAA, PCI, SOC2, CMMC), absence of internal IT roles, legacy infrastructure, physical operations complexity, and regulated industry indicators.
-- Employee count in the 20-500 range with NO dedicated IT staff is a strong signal.
+- Look for delivery bandwidth pressure, utilization gaps, project complexity and implementation backlog, data/reporting maturity gaps, cross-functional buying friction, and compliance pressure.
+- Multi-site operations, regulated industry indicators (HIPAA, PCI, SOC2, CMMC), and absence of internal specialist roles are strong signals.
+- Employee count in the 20-500 range with NO dedicated specialist staff in the seller's domain is a strong signal.
 
 **Pain Inversion:**
-- Absence of IT hiring is a POSITIVE pain signal — it means the company likely lacks internal IT capacity and needs managed services.
-- Do NOT penalize for lacking technical job postings. For MSP prospects, zero IT roles = maximum pain (they have no one managing their infrastructure).
-- Manual processes, compliance gaps, and operational complexity without IT support are critical pain indicators.
+- Absence of specialist hiring in the seller's domain is a POSITIVE pain signal — it means the company likely lacks internal capacity and needs external services.
+- Do NOT penalize for lacking technical job postings. For services prospects, zero specialist roles = maximum pain (they have no one managing the function).
+- Manual processes, compliance gaps, data/reporting gaps, and operational complexity without internal specialist support are critical pain indicators.
 
 **Fit Reframe:**
 - Traditional industries with physical operations (manufacturing, distribution, dealerships, healthcare, legal, construction, logistics) are HIGH fit. Do not penalize for lacking digital transformation signals — that IS the opportunity.
-- Multi-location businesses score higher — each location multiplies IT complexity.
-- Companies in regulated industries (healthcare, finance, legal) that lack IT staff face compliance risk — this is both pain and fit.
+- Multi-location businesses score higher — each location multiplies operational complexity.
+- Companies in regulated industries (healthcare, finance, legal) that lack specialist staff face compliance risk — this is both pain and fit.
+- Companies with growing data needs but no analytics team are strong fit for data/analytics consultancies.
 
-**Timing Signals for MSP:**
+**Timing Signals for Services:**
 - Compliance deadlines (HIPAA audits, PCI recertification, cyber insurance renewals) are strong timing signals.
 - Lease renewals, office moves, location expansion = infrastructure refresh moments.
-- Insurance audit cycles, new regulatory requirements, and security incidents create urgency.
-- Leadership changes at non-tech companies often trigger IT modernization.
+- Insurance audit cycles, new regulatory requirements, and incidents in the seller's domain create urgency.
+- Leadership changes at non-tech companies often trigger modernization in the seller's domain.
+- Board/investor pressure for better reporting or data-driven decisions creates urgency for analytics consultancies.
 
 """
 

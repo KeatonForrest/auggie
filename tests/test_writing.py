@@ -232,14 +232,14 @@ class TestMSPProductType:
     def test_msp_includes_msp_block(self, writing_service):
         """Test uncovered line 126: MSP product type includes msp_block."""
         prompt = writing_service._build_user_prompt("test report", product_type="msp")
-        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in prompt
+        assert "**PROFESSIONAL SERVICES / CONSULTANCY FRAMING -- APPLY TO ALL EMAILS:**" in prompt
         assert "operational complexity" in prompt
-        assert "managed services" in prompt
+        assert "professional services" in prompt
 
     def test_saas_excludes_msp_block(self, writing_service):
         """Test default product_type does not include msp_block."""
         prompt = writing_service._build_user_prompt("test report", product_type="saas")
-        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" not in prompt
+        assert "**PROFESSIONAL SERVICES / CONSULTANCY FRAMING -- APPLY TO ALL EMAILS:**" not in prompt
 
     def test_msp_with_low_score(self, writing_service):
         """Test MSP block with low confidence score."""
@@ -248,7 +248,7 @@ class TestMSPProductType:
             opportunity_score=30,
             product_type="msp"
         )
-        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in prompt
+        assert "**PROFESSIONAL SERVICES / CONSULTANCY FRAMING -- APPLY TO ALL EMAILS:**" in prompt
         assert "PARTIAL-SIGNAL MODE" in prompt
 
 
@@ -480,7 +480,7 @@ Last check-in - still interested in discussing database performance?
         # Verify MSP framing was included in the user prompt
         call_args = mock_client.chat.completions.create.call_args
         user_prompt = call_args.kwargs["messages"][1]["content"]
-        assert "**MSP / IT SERVICES FRAMING -- APPLY TO ALL EMAILS:**" in user_prompt
+        assert "**PROFESSIONAL SERVICES / CONSULTANCY FRAMING -- APPLY TO ALL EMAILS:**" in user_prompt
 
 
 # --- format_emails_markdown ---

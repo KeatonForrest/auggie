@@ -170,7 +170,7 @@ class TestBuildSystemPrompt:
         )
 
         assert "Vertical motion" in result
-        assert "MSP / IT SERVICES MODIFIER" not in result
+        assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" not in result
 
     def test_msp_horizontal_gets_msp_modifier(self, claude_service):
         """product_type='msp' + solution_motion='horizontal' still gets MSP modifier."""
@@ -182,18 +182,18 @@ class TestBuildSystemPrompt:
         )
 
         assert "Horizontal motion" in result
-        assert "MSP / IT SERVICES MODIFIER" in result
+        assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" in result
 
     def test_product_type_msp(self, claude_service):
-        """Test prompt with product_type='msp' adds MSP modifier section."""
+        """Test prompt with product_type='msp' adds professional services modifier section."""
         result = claude_service._build_system_prompt(
             product_context="IT support services",
             product_type="msp"
         )
 
-        assert "MSP / IT SERVICES MODIFIER" in result
-        assert "Managed Service Provider" in result
-        assert "Absence of IT hiring is a POSITIVE pain signal" in result
+        assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" in result
+        assert "professional services firm" in result
+        assert "Absence of specialist hiring" in result
 
     def test_product_type_saas(self, claude_service):
         """Test prompt with product_type='saas' does not add MSP section."""
@@ -202,7 +202,7 @@ class TestBuildSystemPrompt:
             product_type="saas"
         )
 
-        assert "MSP / IT SERVICES MODIFIER" not in result
+        assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" not in result
 
     def test_all_parameters_combined(self, claude_service):
         """Test prompt with all parameters combined."""
@@ -223,7 +223,7 @@ class TestBuildSystemPrompt:
         assert "CTO" in result
         assert "Fintech" in result
         assert "Scaling" in result
-        assert "MSP / IT SERVICES MODIFIER" in result
+        assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" in result
         assert "PERSONA-AWARE DIRECTIVES" in result
 
 
@@ -871,7 +871,7 @@ SCORE_SUMMARY: Medium opportunity
                 assert "CTO" in system_prompt
                 assert "Fintech" in system_prompt
                 assert "Scaling" in system_prompt
-                assert "MSP / IT SERVICES MODIFIER" in system_prompt
+                assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" in system_prompt
 
                 # Verify tech stack in user prompt
                 user_prompt = call_kwargs["messages"][1]["content"]

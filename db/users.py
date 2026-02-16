@@ -252,9 +252,6 @@ def build_product_context(
     if competitors:
         parts.append(f"**Competitors:** {competitors}")
 
-    motion_label = "Vertical" if solution_motion == "vertical" else "Horizontal"
-    parts.append(f"**Solution motion:** {motion_label}")
-
     if custom_signals:
         parts.append(f"**Custom signals:** {custom_signals}")
 
