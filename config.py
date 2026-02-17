@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     materials_enabled: bool = False
     cloudflare_rate_limiting: bool = False
     pea_selector_enabled: bool = False
+    research_tight_writing_enabled: bool = False
 
     # In-process worker
     worker_enabled: bool = True

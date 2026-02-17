@@ -11,6 +11,72 @@ from models import (
 )
 from config import get_settings
 
+STYLE_CONTRACT = """
+
+---
+
+STYLE CONTRACT (applies to every section below):
+
+**Structure rules:**
+- Lead every section with a single TL;DR sentence, then use bullets for supporting detail.
+- No paragraph may exceed 2 sentences. If you need more, break into bullets.
+
+**Word limits per section:**
+- PVP Seed: 60-90 words total
+- Each Existential Data Point: 80-120 words
+- Before Scenario: 120-180 words total across all three sub-sections
+- Talking Points: max 4 bullets per sub-section (Opening Hooks, Trap-Setting Questions, Conversation Starters, Discovery Paths)
+- Business Problems: one line per problem, no elaboration paragraphs
+
+**Banned hedge phrases — do NOT use any of these:**
+"it appears", "may indicate", "potentially", "it is possible that", "overall", "in summary", "in general", "it is worth noting", "it should be noted", "broadly speaking", "as mentioned above"
+
+**Confidence qualifiers:**
+- High confidence → state directly as fact
+- Medium confidence → "Signals suggest [X]"
+- Low confidence → "[X] is unconfirmed — inferred from [source]"
+
+**Deduplication rule:**
+State each fact exactly once in the most relevant section. Cross-reference elsewhere with "(see [Section Name])" rather than restating.
+
+---
+
+"""
+
+# Section-specific word-limit annotations inserted after each ## Header
+_TIGHT_WRITING_OVERRIDES = {
+    "pvp seed": "(60-90 words total.)",
+    "existential data points": "(80-120 words per data point.)",
+    "before scenario": "(120-180 words total across all three sub-sections.)",
+    "stated business problems": "(One line per problem.)",
+    "business problems": "(One line per problem.)",
+    "recommended talking points": "(Max 4 bullets per sub-section.)",
+    "talking points": "(Max 4 bullets per sub-section.)",
+}
+
+# Phrases to strip in post-generation formatting (case-insensitive)
+_HEDGE_PHRASES = [
+    "it appears",
+    "may indicate",
+    "potentially",
+    "it is possible that",
+    "overall",
+    "in summary",
+    "in general",
+    "it is worth noting",
+    "it should be noted",
+    "broadly speaking",
+    "as mentioned above",
+]
+
+# Section dedup priority (higher index = lower priority, gets deduped)
+_DEDUP_PRIORITY = [
+    "existential_data_points",
+    "before_scenario",
+    "business_problems",
+    "talking_points",
+]
+
 
 class ClaudeService:
     """Service for generating research documents using Claude."""
@@ -426,6 +492,9 @@ PERSONA-AWARE DIRECTIVES (target: {target_personas}):
 - **Conversation Starters**: Reference challenges specific to {target_personas}'s function, not just generic company observations. Connect observations to what these personas care about day-to-day.
 """
 
+        if self.settings.research_tight_writing_enabled:
+            base_prompt += STYLE_CONTRACT
+
         base_prompt += """
 
 ---
@@ -700,7 +769,23 @@ SCORE_COMPOSITE: [0-100]
 SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 """
 
+        if self.settings.research_tight_writing_enabled:
+            base_prompt = self._apply_tight_writing_overrides(base_prompt)
+
         return base_prompt
+
+    def _apply_tight_writing_overrides(self, prompt: str) -> str:
+        """Insert word-limit annotations after each ## Header in the prompt."""
+        lines = prompt.split("\n")
+        result = []
+        for line in lines:
+            result.append(line)
+            if line.startswith("## "):
+                header_text = line[3:].strip().lower()
+                override = _TIGHT_WRITING_OVERRIDES.get(header_text)
+                if override:
+                    result.append(override)
+        return "\n".join(result)
 
     def _build_user_prompt(
         self,
@@ -922,6 +1007,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         full_markdown = response.choices[0].message.content or ""
         thinking_content = ""
         sections = self._parse_sections(full_markdown)
+        if self.settings.research_tight_writing_enabled:
+            sections = self._format_sections(sections)
         scores = self._parse_scores(full_markdown)
 
         return ResearchDocument(
@@ -1050,6 +1137,82 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             )
 
         return scores
+
+    def _format_sections(self, sections: dict) -> dict:
+        """Post-generation formatter: strip hedges, normalize bullets, dedup.
+
+        Fail-open: returns original sections unchanged on any error.
+        """
+        try:
+            formatted = {}
+            for key, value in sections.items():
+                text = self._strip_hedge_phrases(value)
+                text = self._normalize_bullets(text)
+                formatted[key] = text
+            formatted = self._deduplicate_across_sections(formatted)
+            return formatted
+        except Exception:
+            return sections
+
+    def _strip_hedge_phrases(self, text: str) -> str:
+        """Remove banned hedge phrases only when they lead a sentence.
+
+        This avoids corrupting words that merely contain a banned token
+        (e.g., "Overallocation") and avoids deleting uncertainty cues in
+        the middle of a sentence.
+        """
+        for phrase in _HEDGE_PHRASES:
+            escaped = re.escape(phrase)
+
+            # Strip phrase only when it appears at sentence/line start.
+            # Examples removed:
+            # - "It appears the company..."
+            # - "Overall, the company..."
+            # - ". In summary, the key issue..."
+            sentence_start = re.compile(
+                rf"(?im)(^|[.!?]\s+)\s*(?<!\w){escaped}(?!\w)\s*,?\s*"
+            )
+            text = sentence_start.sub(r"\1", text)
+
+        # Normalize whitespace and remove empty bullet artifacts.
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        text = re.sub(r"^\s*-\s*$", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+    def _normalize_bullets(self, text: str) -> str:
+        """Convert *, bullet, and dash variants to consistent '- ' style."""
+        # Match lines starting with *, •, or – followed by space
+        text = re.sub(r"^(\s*)[*•–]\s+", r"\1- ", text, flags=re.MULTILINE)
+        return text
+
+    def _deduplicate_across_sections(self, sections: dict) -> dict:
+        """Remove exact-duplicate lines across sections, keeping highest-priority copy.
+
+        Priority order: existential_data_points > before_scenario > business_problems > talking_points.
+        Lines shorter than 20 chars are skipped (headers, labels, etc.).
+        """
+        seen: set[str] = set()
+        result = dict(sections)
+
+        for section_key in _DEDUP_PRIORITY:
+            content = result.get(section_key, "")
+            if not content:
+                continue
+            lines = content.split("\n")
+            kept = []
+            for line in lines:
+                normalized = line.strip().lower()
+                if len(normalized) < 20:
+                    kept.append(line)
+                    continue
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                kept.append(line)
+            result[section_key] = "\n".join(kept).strip()
+
+        return result
 
     def _extract_domain(self, url: str) -> str:
         """Extract domain name from URL."""

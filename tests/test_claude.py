@@ -12,7 +12,25 @@ from models import ScrapedContent, TechStack, DetectedTechnology, ResearchDocume
 def claude_service():
     """Create a ClaudeService instance with mocked settings and client."""
     with patch("services.claude.get_settings") as mock_settings:
-        mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            research_model="google/gemini-2.5-flash",
+            research_tight_writing_enabled=False,
+        )
+        with patch("services.claude.AsyncOpenAI"):
+            service = ClaudeService()
+            return service
+
+
+@pytest.fixture
+def tight_writing_service():
+    """ClaudeService with research_tight_writing_enabled=True."""
+    with patch("services.claude.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            research_model="google/gemini-2.5-flash",
+            research_tight_writing_enabled=True,
+        )
         with patch("services.claude.AsyncOpenAI"):
             service = ClaudeService()
             return service
@@ -877,3 +895,116 @@ SCORE_SUMMARY: Medium opportunity
                 user_prompt = call_kwargs["messages"][1]["content"]
                 assert "VERIFIED Technologies" in user_prompt
                 assert "React" in user_prompt
+
+
+class TestTightWritingStyleContract:
+    """Tests for style contract injection controlled by feature flag."""
+
+    def test_flag_off_no_style_contract(self, claude_service):
+        """When flag is off, STYLE CONTRACT is absent from prompt."""
+        result = claude_service._build_system_prompt(product_context="Database software")
+        assert "STYLE CONTRACT" not in result
+
+    def test_flag_off_no_banned_phrases_list(self, claude_service):
+        """When flag is off, banned phrases list is absent."""
+        result = claude_service._build_system_prompt(product_context="Database software")
+        assert "Banned hedge phrases" not in result
+
+    def test_flag_off_no_word_limits(self, claude_service):
+        """When flag is off, section word-limit annotations are absent."""
+        result = claude_service._build_system_prompt(product_context="Database software")
+        assert "(60-90 words total.)" not in result
+        assert "(80-120 words per data point.)" not in result
+
+    def test_flag_on_style_contract_present(self, tight_writing_service):
+        """When flag is on, STYLE CONTRACT block is injected."""
+        result = tight_writing_service._build_system_prompt(product_context="Database software")
+        assert "STYLE CONTRACT" in result
+        assert "Banned hedge phrases" in result
+        assert "it appears" in result
+        assert "60-90 words" in result
+
+    def test_flag_on_output_format_and_scoring_preserved(self, tight_writing_service):
+        """Enabling tight writing does not remove OUTPUT FORMAT or OPPORTUNITY SCORING."""
+        result = tight_writing_service._build_system_prompt(product_context="Database software")
+        assert "OUTPUT FORMAT:" in result
+        assert "OPPORTUNITY SCORING:" in result
+
+
+class TestFormatSections:
+    """Tests for post-generation formatter methods."""
+
+    def test_strips_banned_hedge_phrases(self, tight_writing_service):
+        """Banned hedge phrases are removed, real content preserved."""
+        sections = {
+            "company_overview": "It appears the company is growing. They have 500 employees.",
+            "business_problems": "It is worth noting that scaling is hard.",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert "It appears" not in result["company_overview"]
+        assert "500 employees" in result["company_overview"]
+        assert "It is worth noting" not in result["business_problems"]
+        assert "scaling is hard" in result["business_problems"]
+
+    def test_normalizes_bullet_styles(self, tight_writing_service):
+        """*, bullet, and en-dash bullets all become '- '."""
+        sections = {
+            "talking_points": "* First point\n• Second point\n– Third point\n- Already correct",
+        }
+        result = tight_writing_service._format_sections(sections)
+        lines = result["talking_points"].split("\n")
+        assert all(line.startswith("- ") for line in lines if line.strip())
+
+    def test_dedup_removes_from_lower_priority(self, tight_writing_service):
+        """Duplicate line in existential + business_problems → removed from business_problems only."""
+        duplicate_line = "PostgreSQL on app domain with 3x user growth signals performance risk."
+        sections = {
+            "existential_data_points": f"- {duplicate_line}",
+            "business_problems": f"- {duplicate_line}\n- Unique business problem here noted.",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert duplicate_line in result["existential_data_points"]
+        assert duplicate_line not in result["business_problems"]
+        assert "Unique business problem" in result["business_problems"]
+
+    def test_fail_open_returns_original_on_error(self, tight_writing_service):
+        """If a sub-method raises, _format_sections returns original sections unchanged."""
+        sections = {"company_overview": "Test content."}
+        with patch.object(tight_writing_service, "_strip_hedge_phrases", side_effect=RuntimeError("boom")):
+            result = tight_writing_service._format_sections(sections)
+        assert result == sections
+
+    def test_unmodified_sections_pass_through(self, tight_writing_service):
+        """Sections without hedges, odd bullets, or duplicates pass through unchanged."""
+        sections = {
+            "company_overview": "Acme Corp builds enterprise software for fintech.",
+            "confirmed_tech_stack": "- React\n- Node.js\n- PostgreSQL",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert result["company_overview"] == "Acme Corp builds enterprise software for fintech."
+        assert result["confirmed_tech_stack"] == "- React\n- Node.js\n- PostgreSQL"
+
+    def test_strip_hedges_does_not_corrupt_words_with_substring_match(self, tight_writing_service):
+        """'overall' should not mutate words like 'Overallocation'."""
+        sections = {
+            "business_problems": "Overallocation risk may indicate capacity strain in peak windows.",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert "Overallocation" in result["business_problems"]
+
+    def test_strip_hedges_keeps_mid_sentence_uncertainty_language(self, tight_writing_service):
+        """Mid-sentence 'may indicate' should not be stripped."""
+        sections = {
+            "business_problems": "Their job mix may indicate platform modernization pressure.",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert "may indicate" in result["business_problems"].lower()
+
+    def test_strip_hedges_removes_sentence_leading_phrase(self, tight_writing_service):
+        """Sentence-leading hedge phrase should be removed cleanly."""
+        sections = {
+            "company_overview": "In summary, the team is expanding in EMEA.",
+        }
+        result = tight_writing_service._format_sections(sections)
+        assert "In summary" not in result["company_overview"]
+        assert result["company_overview"].startswith("the team is expanding")

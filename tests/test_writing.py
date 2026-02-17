@@ -877,3 +877,46 @@ class TestGenerateValidationFlow:
 
                 assert len(emails) == 3
                 assert len(subject_options) >= 1
+
+
+# --- Tight writing regression ---
+
+
+class TestTightWritingRegression:
+    """Verify _build_report handles tightened (shorter) research content correctly."""
+
+    def test_tightened_content_includes_all_action_fields(self, writing_service, sample_document):
+        """_build_report with short, tight research content still includes all Action Tier fields."""
+        sample_document.business_problems = "- Scaling is hard."
+        sample_document.existential_data_points = "- DB at 90% capacity."
+        sample_document.before_scenario = "Problems: scaling. Consequences: outages."
+        sample_document.pvp_seed = "Key insight in 60 words."
+        sample_document.talking_points = "- Hook 1\n- Hook 2"
+        sample_document.product_fit = "High fit."
+
+        report = writing_service._build_report(sample_document, "Our product")
+
+        assert "## Business Problems" in report
+        assert "## Existential Data Points" in report
+        assert "## Before Scenario" in report
+        assert "## PVP Seed" in report
+        assert "## Recommended Talking Points" in report
+        assert "## Product Fit Analysis" in report
+
+    def test_empty_sections_gracefully_omitted(self, writing_service, sample_document):
+        """_build_report with empty sections after dedup gracefully omits them."""
+        sample_document.business_problems = ""
+        sample_document.existential_data_points = ""
+        sample_document.before_scenario = ""
+        sample_document.pvp_seed = ""
+        sample_document.talking_points = ""
+
+        report = writing_service._build_report(sample_document, "Our product")
+
+        assert "## Business Problems" not in report
+        assert "## Existential Data Points" not in report
+        assert "## Before Scenario" not in report
+        assert "## PVP Seed" not in report
+        assert "## Recommended Talking Points" not in report
+        # Company overview should still be present
+        assert "## Company Overview" in report
