@@ -20,7 +20,7 @@ router = APIRouter()
 async def watchlist_page(request: Request, user: dict = Depends(require_onboarding)):
     """Watchlist management page."""
     usage = await get_user_usage(user["id"])
-    items = await list_watchlist_items(user["id"])
+    items, _has_more = await list_watchlist_items(user["id"])
     await mark_changes_seen(user["id"])
 
     # Fetch recent score history per item

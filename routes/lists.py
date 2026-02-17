@@ -41,7 +41,7 @@ def _deprecated_response(provider: str):
 async def lists_page(request: Request, user: dict = Depends(require_onboarding)):
     """Upload page + table of user's recent lists."""
     usage = await get_user_usage(user["id"])
-    recent = await list_lists(user["id"])
+    recent, _has_more = await list_lists(user["id"])
     gsheets_integration = await get_integration(user["id"], "google_sheets")
     apollo_integration = await get_integration(user["id"], "apollo")
     return templates.TemplateResponse(
