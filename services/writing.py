@@ -1,5 +1,6 @@
 """writing.py - AI-powered outreach generation."""
 
+import asyncio
 import logging
 import re
 import time
@@ -1189,28 +1190,33 @@ Use the partial-signal examples as your primary models for this sequence.""")
                     message=error_msg or "Generated sequence failed validation after repair",
                 )
 
-        # Enforce word limits — retry over-limit emails once
+        # Enforce word limits — shorten over-limit emails in parallel
         over = self._over_limit_emails(emails)
         if over:
-            for ov in over:
-                # Try model-based shortening twice before deterministic hard trim.
-                for _attempt in range(2):
+            for _pass in range(2):
+                # Fire all shorten calls concurrently
+                async def _try_shorten(ov: dict) -> tuple[int, str | None]:
                     try:
-                        shortened = await self._shorten_email(ov)
-                        for email in emails:
-                            if email["email_number"] == ov["email_number"]:
-                                email["body"] = shortened
-                                break
-
-                        refreshed = self._over_limit_emails([email for email in emails if email["email_number"] == ov["email_number"]])
-                        if not refreshed:
-                            break
-                        ov = refreshed[0]
+                        return ov["email_number"], await self._shorten_email(ov)
                     except Exception:
                         logger.warning("Failed to shorten email %d (was %d words, limit %d)",
                                        ov["email_number"], ov["word_count"], ov["limit"])
+                        return ov["email_number"], None
 
-                # Last-resort hard cap to avoid user-facing dead-end.
+                results = await asyncio.gather(*[_try_shorten(ov) for ov in over])
+                for email_num, shortened in results:
+                    if shortened is not None:
+                        for email in emails:
+                            if email["email_number"] == email_num:
+                                email["body"] = shortened
+                                break
+
+                over = self._over_limit_emails(emails)
+                if not over:
+                    break
+
+            # Last-resort hard cap on anything still over limit
+            for ov in self._over_limit_emails(emails):
                 for email in emails:
                     if email["email_number"] == ov["email_number"]:
                         email["body"] = self._trim_to_word_limit(email["body"], ov["limit"])
