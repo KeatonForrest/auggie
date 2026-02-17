@@ -111,8 +111,10 @@ class TestLinkedInUserPrompt:
             linkedin_context={"content_type": "none", "low_confidence": True},
         )
         prompt = linkedin_dm_strategy.build_user_prompt(ctx)
-        assert "MUST mention the company" in prompt
+        assert "MUST mention their company" in prompt
         assert '"fortive"' in prompt
+        assert "prospect at **Fortive.com**" in prompt
+        assert "NOT from Fortive.com" in prompt
 
 
 # --- LinkedIn relevance filter ---

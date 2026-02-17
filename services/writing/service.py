@@ -572,6 +572,7 @@ class WritingService:
             mode=mode,
             linkedin_context=linkedin_context,
             persona_context=persona_context,
+            seller_company=seller_company,
             problems_solved=problems_solved,
             company_name=document.company_name,
             product_category=category,

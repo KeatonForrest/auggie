@@ -50,12 +50,17 @@ Message:
 def build_linkedin_user_prompt(ctx: GenerationContext) -> str:
     """Build the user prompt for LinkedIn message generation."""
     mode_label = "direct message" if ctx.mode == "dm" else "connection request note"
-    parts = [f"Write a LinkedIn {mode_label} to this prospect."]
 
-    # Company anchor instruction
+    # Explicit prospect label so the model never confuses prospect with seller
     if ctx.company_name:
         core = extract_company_core(ctx.company_name)
-        parts.append(f'The message MUST mention the company by name. Use this token: "{core}".')
+        parts = [
+            f"Write a LinkedIn {mode_label} to a prospect at **{ctx.company_name}**.",
+            f"You are NOT from {ctx.company_name}. You are a seller reaching out to someone who works there.",
+            f'The message MUST mention their company by name. Use this token: "{core}".',
+        ]
+    else:
+        parts = [f"Write a LinkedIn {mode_label} to this prospect."]
 
     # Screenshot context
     low_confidence = ctx.linkedin_context.get("low_confidence", True)
@@ -83,13 +88,13 @@ def build_linkedin_user_prompt(ctx: GenerationContext) -> str:
     parts.append(f"<report>\n{ctx.report}\n</report>")
 
     # Seller context (always included)
-    seller_block = (
-        "**SELLER CONTEXT -- USE THIS TO FILTER SIGNALS:**\n"
-        f"Product category: {ctx.product_context}\n"
-        f"Problems solved: {ctx.problems_solved}\n"
-        "Only reference pains that a buyer would connect to these capabilities."
-    )
-    parts.append(seller_block)
+    seller_lines = ["**SELLER CONTEXT (this is YOUR company, NOT the prospect):**"]
+    if ctx.seller_company:
+        seller_lines.append(f"Your company: {ctx.seller_company}")
+    seller_lines.append(f"Product category: {ctx.product_context}")
+    seller_lines.append(f"Problems solved: {ctx.problems_solved}")
+    seller_lines.append("Only reference pains that a buyer would connect to these capabilities.")
+    parts.append("\n".join(seller_lines))
 
     # Product-relevance constraint from denylists
     if ctx.product_category and ctx.product_category in _CATEGORY_DENYLISTS:
