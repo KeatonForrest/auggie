@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     cloudflare_rate_limiting: bool = False
     pea_selector_enabled: bool = False
     research_tight_writing_enabled: bool = False
+    writing_relevance_gate_enabled: bool = False
 
     # In-process worker
     worker_enabled: bool = True

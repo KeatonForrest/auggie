@@ -13,6 +13,39 @@ logger = logging.getLogger(__name__)
 
 WORD_LIMITS = {1: 75, 2: 100, 3: 60}
 
+_CATEGORY_KEYWORDS = {
+    "database": [
+        "database", "db ", "data warehouse", "data lake", "sql", "nosql",
+        "mongodb", "postgres", "postgresql", "mysql", "redis", "dynamodb",
+        "cassandra", "cockroachdb", "data platform", "data infrastructure",
+        "vector database", "graph database", "time-series", "olap", "oltp",
+    ],
+}
+
+_CATEGORY_DENYLISTS = {
+    "database": {
+        "blocked_patterns": [
+            "cdn", "content delivery", "cloudflare", "fastly", "akamai",
+            "frontend framework", "react", "vue", "angular", "svelte",
+            "next.js", "nuxt", "jquery", "bootstrap", "tailwind",
+            "css", "scss", "webpack", "vite", "bundler",
+            "seo", "page speed", "tag manager", "google tag",
+        ],
+        "linkage_overrides": [
+            "database bottleneck", "db bottleneck", "query performance",
+            "api latency", "data pipeline", "backend performance",
+            "read replica", "write throughput", "connection pool",
+            "slow queries", "index", "migration", "data-intensive",
+        ],
+        "prompt_constraint": (
+            "CDN, frontend framework, CSS tooling, and marketing automation "
+            "angles are INVALID for a database seller unless the talking point "
+            "explicitly ties them to a database bottleneck, query performance "
+            "issue, or data layer consequence."
+        ),
+    },
+}
+
 
 class SequenceValidationError(Exception):
     """Raised when a generated sequence fails validation after all repair attempts."""
@@ -697,7 +730,8 @@ Email 3:
         return prompt
 
     def _build_user_prompt(self, report: str, opportunity_score: Optional[int] = None,
-                            product_type: str = "saas", has_persona: bool = False) -> str:
+                            product_type: str = "saas", has_persona: bool = False,
+                            product_category: str = "") -> str:
         """Build the user message with prospect-specific context and task."""
 
         parts = ["Generate a 3-email PVP sequence for the following prospect."]
@@ -749,9 +783,105 @@ Use the partial-signal examples as your primary models for this sequence.""")
                 "- The personalization should feel like you understand their role, not like you stalked their profile"
             )
 
+        if product_category and product_category in _CATEGORY_DENYLISTS:
+            denylist = _CATEGORY_DENYLISTS[product_category]
+            parts.append(
+                f"**PRODUCT-RELEVANCE CONSTRAINT ({product_category.upper()} SELLER):**\n"
+                "\n"
+                "Use ONLY signals causally connected to the seller's product category. "
+                "Reject weak or indirect signal connections even if technically interesting.\n"
+                "\n"
+                f"{denylist['prompt_constraint']}\n"
+                "\n"
+                "Fallback when hooks feel tangential: "
+                "[Business/operational signal] -> [Consequence] -> [Why now]. "
+                "Use business pain, growth pressure, and operational bottlenecks "
+                "that the seller's product directly resolves."
+            )
+
         parts.append(f"<report>\n{report}\n</report>")
 
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _detect_product_category(product_context: str) -> str:
+        """Detect seller product category from product context using keyword hits.
+
+        Returns the category with >= 2 keyword hits, or "" if none match.
+        """
+        if not product_context:
+            return ""
+        text = product_context.lower()
+        for category, keywords in _CATEGORY_KEYWORDS.items():
+            hits = sum(1 for kw in keywords if kw in text)
+            if hits >= 2:
+                return category
+        return ""
+
+    @staticmethod
+    def _score_hook_relevance(text: str, category: str) -> int:
+        """Score a talking-point bullet for product relevance.
+
+        Returns 5 (pass), 4 (blocked but linked), or 2 (blocked, no linkage).
+        """
+        if category not in _CATEGORY_DENYLISTS:
+            return 5
+        denylist = _CATEGORY_DENYLISTS[category]
+        lower = text.lower()
+        has_blocked = any(pat in lower for pat in denylist["blocked_patterns"])
+        if not has_blocked:
+            return 5
+        has_linkage = any(ov in lower for ov in denylist["linkage_overrides"])
+        return 4 if has_linkage else 2
+
+    def _apply_relevance_gate(self, report: str, category: str) -> str:
+        """Filter irrelevant talking-point bullets from the report.
+
+        Keeps bullets scoring >= 4. If all bullets removed, appends a fallback
+        directive. All non-talking-points sections are returned byte-identical.
+        """
+        if category not in _CATEGORY_DENYLISTS:
+            return report
+
+        header = "## Recommended Talking Points"
+        header_idx = report.find(header)
+        if header_idx == -1:
+            return report
+
+        # Find the end of the talking-points section (next ## header or end)
+        section_start = header_idx + len(header)
+        next_section = report.find("\n## ", section_start)
+        if next_section == -1:
+            section_end = len(report)
+        else:
+            section_end = next_section
+
+        section_text = report[section_start:section_end]
+        lines = section_text.split("\n")
+        filtered_lines = []
+        kept_bullets = 0
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("- ") or stripped.startswith("* "):
+                score = self._score_hook_relevance(stripped, category)
+                if score >= 4:
+                    filtered_lines.append(line)
+                    kept_bullets += 1
+            else:
+                # Preserve sub-section headers, blank lines, non-bullet content
+                filtered_lines.append(line)
+
+        if kept_bullets == 0:
+            filtered_lines.append("")
+            filtered_lines.append(
+                "**Fallback:** All recommended hooks were filtered as irrelevant "
+                "to this product category. Use signals from Business Problems, "
+                "Existential Data Points, or Before Scenario sections instead."
+            )
+
+        filtered_section = "\n".join(filtered_lines)
+        return report[:header_idx] + header + filtered_section + report[section_end:]
 
     def _parse_emails(self, response: str) -> tuple[list[dict], list[str]]:
         """Parse the email series from freeform model output.
@@ -982,6 +1112,13 @@ Use the partial-signal examples as your primary models for this sequence.""")
                                      seller_company=seller_company, problems_solved=problems_solved,
                                      persona_context=persona_context, custom_signals=custom_signals)
 
+        # Apply product-relevance gate
+        category = ""
+        if getattr(self.settings, "writing_relevance_gate_enabled", False):
+            category = self._detect_product_category(product_context)
+            if category:
+                report = self._apply_relevance_gate(report, category)
+
         # Build system and user prompts
         system_prompt = self._build_system_prompt(
             document.opportunity_score,
@@ -989,7 +1126,8 @@ Use the partial-signal examples as your primary models for this sequence.""")
             seller_product_category=product_context,
         )
         user_prompt = self._build_user_prompt(report, document.opportunity_score, product_type=product_type,
-                                              has_persona=bool(persona_context))
+                                              has_persona=bool(persona_context),
+                                              product_category=category)
 
         # Call writing model
         message = await self.client.chat.completions.create(

@@ -16,6 +16,22 @@ def writing_service():
             openrouter_api_key="test-key",
             writing_model="mistralai/mistral-medium-3.1",
             pea_selector_enabled=False,
+            writing_relevance_gate_enabled=False,
+        )
+        with patch("services.writing.AsyncOpenAI"):
+            service = WritingService()
+    return service
+
+
+@pytest.fixture
+def relevance_gate_service():
+    """WritingService with relevance gate enabled."""
+    with patch("services.writing.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            writing_model="mistralai/mistral-medium-3.1",
+            pea_selector_enabled=False,
+            writing_relevance_gate_enabled=True,
         )
         with patch("services.writing.AsyncOpenAI"):
             service = WritingService()
@@ -920,3 +936,160 @@ class TestTightWritingRegression:
         assert "## Recommended Talking Points" not in report
         # Company overview should still be present
         assert "## Company Overview" in report
+
+
+# --- Product-relevance gate ---
+
+
+class TestCategoryDetection:
+    def test_detects_database_from_multi_keyword_context(self, writing_service):
+        ctx = "MongoDB Atlas - scalable database platform for modern applications"
+        assert writing_service._detect_product_category(ctx) == "database"
+
+    def test_returns_empty_for_unrelated_product(self, writing_service):
+        ctx = "Salesforce CRM for enterprise sales teams"
+        assert writing_service._detect_product_category(ctx) == ""
+
+    def test_returns_empty_for_empty_input(self, writing_service):
+        assert writing_service._detect_product_category("") == ""
+
+
+class TestHookRelevanceScoring:
+    def test_clean_hook_scores_5(self, writing_service):
+        text = "- Their data pipeline is growing 3x year-over-year"
+        assert writing_service._score_hook_relevance(text, "database") == 5
+
+    def test_blocked_with_linkage_scores_4(self, writing_service):
+        text = "- React frontend rebuild causing database bottleneck in API layer"
+        assert writing_service._score_hook_relevance(text, "database") == 4
+
+    def test_blocked_without_linkage_scores_2(self, writing_service):
+        text = "- They recently migrated their frontend to React and Vue"
+        assert writing_service._score_hook_relevance(text, "database") == 2
+
+    def test_unknown_category_scores_5(self, writing_service):
+        text = "- CDN migration underway with Cloudflare"
+        assert writing_service._score_hook_relevance(text, "unknown_cat") == 5
+
+
+class TestRelevanceGate:
+    def _make_report(self, talking_points: str) -> str:
+        return (
+            "## Company Overview\nAcme Corp builds software.\n\n"
+            "## Business Problems & Pain Points\nScaling issues.\n\n"
+            "## Recommended Talking Points\n" + talking_points + "\n\n"
+            "## Product Fit Analysis\nGood fit."
+        )
+
+    def test_cdn_hook_removed_db_hook_kept(self, writing_service):
+        tp = (
+            "- Their Cloudflare CDN setup is expanding rapidly\n"
+            "- Database query latency is growing with user count"
+        )
+        report = self._make_report(tp)
+        result = writing_service._apply_relevance_gate(report, "database")
+        assert "Database query latency" in result
+        assert "Cloudflare CDN" not in result
+
+    def test_cdn_with_db_linkage_kept(self, writing_service):
+        tp = "- Cloudflare CDN changes causing database bottleneck in API"
+        report = self._make_report(tp)
+        result = writing_service._apply_relevance_gate(report, "database")
+        assert "database bottleneck" in result
+
+    def test_all_hooks_filtered_appends_fallback(self, writing_service):
+        tp = (
+            "- React frontend rewrite underway\n"
+            "- Tailwind CSS adoption across all products"
+        )
+        report = self._make_report(tp)
+        result = writing_service._apply_relevance_gate(report, "database")
+        assert "React frontend" not in result
+        assert "Tailwind CSS" not in result
+        assert "Fallback:" in result
+        assert "Business Problems" in result
+
+    def test_non_talking_points_sections_untouched(self, writing_service):
+        tp = "- React frontend rewrite"
+        report = self._make_report(tp)
+        result = writing_service._apply_relevance_gate(report, "database")
+        assert "## Company Overview\nAcme Corp builds software." in result
+        assert "## Product Fit Analysis\nGood fit." in result
+
+    def test_unknown_category_returns_unchanged(self, writing_service):
+        tp = "- React frontend rewrite"
+        report = self._make_report(tp)
+        result = writing_service._apply_relevance_gate(report, "unknown_cat")
+        assert result == report
+
+
+class TestRelevancePromptContract:
+    def test_gate_on_with_category_adds_directive(self, writing_service):
+        prompt = writing_service._build_user_prompt(
+            "test report", product_category="database"
+        )
+        assert "PRODUCT-RELEVANCE CONSTRAINT (DATABASE SELLER)" in prompt
+
+    def test_empty_category_no_directive(self, writing_service):
+        prompt = writing_service._build_user_prompt(
+            "test report", product_category=""
+        )
+        assert "PRODUCT-RELEVANCE CONSTRAINT" not in prompt
+
+    def test_category_specific_constraint_text(self, writing_service):
+        prompt = writing_service._build_user_prompt(
+            "test report", product_category="database"
+        )
+        assert "CDN, frontend framework" in prompt
+        assert "database bottleneck" in prompt
+
+
+class TestRelevanceGateIntegration:
+    @pytest.mark.asyncio
+    async def test_full_generate_with_gate_filters_and_adds_directive(self, sample_document):
+        """Full generate_email_sequence with gate enabled + DB product context."""
+        sample_document.talking_points = (
+            "- React frontend rewrite underway\n"
+            "- Database query latency is spiking under load"
+        )
+
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=True,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = (
+                "Subject 1: query latency\n\n"
+                "Email 1:\nYour database queries are slowing down.\n\n"
+                "Email 2:\nA similar company fixed this in weeks.\n\n"
+                "Email 3:\nHappy to run a quick analysis."
+            )
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                emails, _ = await service.generate_email_sequence(
+                    sample_document,
+                    "MongoDB Atlas - scalable database platform",
+                )
+
+        assert len(emails) == 3
+
+        # Verify the user prompt sent to the model
+        call_args = mock_client.chat.completions.create.call_args
+        user_prompt = call_args.kwargs["messages"][1]["content"]
+
+        # React hook should be filtered out of the report
+        assert "React frontend rewrite" not in user_prompt
+        # DB hook should be kept
+        assert "Database query latency" in user_prompt
+        # Relevance constraint directive should be present
+        assert "PRODUCT-RELEVANCE CONSTRAINT (DATABASE SELLER)" in user_prompt
