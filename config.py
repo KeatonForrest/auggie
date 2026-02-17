@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     research_tight_writing_enabled: bool = False
     writing_relevance_gate_enabled: bool = False
     pain_frontend_rule_enabled: bool = False
-    linkedin_message_enabled: bool = False
+    linkedin_message_enabled: bool = True
 
     # In-process worker
     worker_enabled: bool = True
