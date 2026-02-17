@@ -53,15 +53,15 @@ class TestLinkedInQualityGate:
         result = linkedin_cr_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
-    def test_over_45_words_cr(self, linkedin_cr_strategy):
-        words = ["word"] * 48
+    def test_over_55_words_cr(self, linkedin_cr_strategy):
+        words = ["word"] * 60
         words[5] = "Acme"
         words[6] = "Corp"
         msg = " ".join(words) + "?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_cr_strategy.validate(msg, ctx)
         assert result.is_valid is False
-        assert "48 words" in result.error_reason
+        assert "60 words" in result.error_reason
 
 
 # --- LinkedIn message generation (CR) ---

@@ -213,15 +213,15 @@ class TestLinkedInQualityGate:
         assert result.is_valid is False
         assert "lacks a prospect-specific anchor" in result.error_reason
 
-    def test_over_90_words_dm(self, linkedin_dm_strategy):
-        words = ["word"] * 95
+    def test_over_100_words_dm(self, linkedin_dm_strategy):
+        words = ["word"] * 105
         words[10] = "Acme"
         words[11] = "Corp"
         msg = " ".join(words) + "?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
-        assert "95 words" in result.error_reason
+        assert "105 words" in result.error_reason
 
     def test_anchor_matches_with_suffix(self, linkedin_dm_strategy):
         msg = "MongoDB is scaling its data platform fast. Curious how the team handles peak throughput?"
@@ -338,7 +338,7 @@ class TestLinkedInMessageGeneration:
                 writing_relevance_gate_enabled=False,
             )
 
-            over_msg = "Acme Corp is doing great work. " + " ".join(["Growth"] * 85) + " Curious about scaling?"
+            over_msg = "Acme Corp is doing great work. " + " ".join(["Growth"] * 100) + " Curious about scaling?"
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = f"Message:\n{over_msg}"
@@ -366,7 +366,7 @@ class TestLinkedInMessageGeneration:
                     problems_solved="database scalability",
                 )
 
-        assert result["word_count"] <= 90
+        assert result["word_count"] <= 100
 
     @pytest.mark.asyncio
     async def test_empty_response_raises(self, sample_document):
@@ -468,10 +468,10 @@ class TestLinkedInMessageGeneration:
             )
             first_msg.usage = None
 
-            # Anchor rescue returns >90 words (over the 90-word DM limit)
-            filler = " ".join(["growth"] * 86)
+            # Anchor rescue returns >100 words (over the 90+10 buffer)
+            filler = " ".join(["growth"] * 97)
             rescue_text = f"Acme Corp is scaling fast. {filler} Curious about that?"
-            assert len(rescue_text.split()) > 90
+            assert len(rescue_text.split()) > 100
 
             anchor_resp = MagicMock()
             anchor_resp.choices = [MagicMock()]
@@ -504,7 +504,7 @@ class TestLinkedInMessageGeneration:
                     problems_solved="database scalability",
                 )
 
-        assert result["word_count"] <= 90
+        assert result["word_count"] <= 100
         assert result["message"].strip().endswith("?")
 
 

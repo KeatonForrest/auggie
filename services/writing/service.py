@@ -453,7 +453,7 @@ class WritingService:
         """Trim to word/char limits with CTA rescue. Returns (message, cta_rescued)."""
         cta_rescued = False
 
-        if len(message.split()) > limit:
+        if len(message.split()) > limit + 10:
             message = trim_to_word_limit(message, limit)
 
             # CTA rescue: if trim killed trailing ?

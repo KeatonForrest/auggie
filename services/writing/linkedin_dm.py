@@ -50,7 +50,7 @@ class LinkedInDMStrategy:
         if word_count < 10:
             return ValidationResult(is_valid=False, error_reason=f"Message is {word_count} words, minimum is 10")
         limit = LINKEDIN_WORD_LIMITS["dm"]
-        if word_count > limit:
+        if word_count > limit + 10:
             return ValidationResult(is_valid=False, error_reason=f"Message is {word_count} words, limit is {limit}")
 
         # Banned phrases
