@@ -31,6 +31,25 @@ Important:
 If this is not a LinkedIn profile screenshot, respond with:
 NOT_LINKEDIN: [brief description of what the image shows]"""
 
+LINKEDIN_CONTEXT_PROMPT = """Extract the following from this LinkedIn screenshot.
+
+Determine the CONTENT TYPE first:
+- PROFILE: A LinkedIn profile page (shows name, headline, experience, about)
+- POST: A LinkedIn post or article (shows author, post content, reactions)
+- OTHER: Not a LinkedIn screenshot
+
+Output in this exact format (leave blank if not visible):
+
+CONTENT_TYPE: [PROFILE|POST|OTHER]
+AUTHOR_NAME: [person's name]
+AUTHOR_TITLE: [job title if visible]
+AUTHOR_COMPANY: [company if visible]
+FOCUS_SNIPPET: [most notable content — for PROFILE: headline + about summary (first 200 chars); for POST: the post text (first 300 chars)]
+ENGAGEMENT: [for POST: approximate reaction/comment count if visible; for PROFILE: leave blank]
+
+If the image is not from LinkedIn, respond with:
+NOT_LINKEDIN: [brief description of what the image shows]"""
+
 
 class VisionService:
     """Service for extracting structured data from screenshots using vision models."""
@@ -75,6 +94,86 @@ class VisionService:
         except Exception as e:
             logger.error("Vision extraction failed: %s", e)
             return {}
+
+    async def extract_linkedin_context(
+        self, image_bytes: bytes, content_type: str
+    ) -> dict:
+        """Extract structured context from a LinkedIn screenshot (profile or post).
+
+        Returns dict with keys: content_type, author_name, author_title,
+        author_company, focus_snippet, engagement, low_confidence.
+        Returns {"content_type": "other"} if not LinkedIn or extraction fails.
+        """
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+        data_url = f"data:{content_type};base64,{b64_image}"
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.settings.vision_model,
+                max_tokens=1500,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": LINKEDIN_CONTEXT_PROMPT},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ],
+            )
+
+            text = response.choices[0].message.content or ""
+            return self._parse_linkedin_context(text)
+
+        except Exception as e:
+            logger.error("LinkedIn context extraction failed: %s", e)
+            return {"content_type": "other"}
+
+    def _parse_linkedin_context(self, text: str) -> dict:
+        """Parse the model's structured LinkedIn context output into a dict."""
+        if "NOT_LINKEDIN" in text:
+            logger.info("Image is not from LinkedIn: %s", text[:200])
+            return {"content_type": "other"}
+
+        labels = [
+            "CONTENT_TYPE", "AUTHOR_NAME", "AUTHOR_TITLE",
+            "AUTHOR_COMPANY", "FOCUS_SNIPPET", "ENGAGEMENT",
+        ]
+        field_map = {
+            "CONTENT_TYPE": "content_type",
+            "AUTHOR_NAME": "author_name",
+            "AUTHOR_TITLE": "author_title",
+            "AUTHOR_COMPANY": "author_company",
+            "FOCUS_SNIPPET": "focus_snippet",
+            "ENGAGEMENT": "engagement",
+        }
+
+        context = {}
+        label_pattern = "|".join(labels)
+        for label, key in field_map.items():
+            match = re.search(
+                rf"^{label}:[ \t]*(.*?)(?=^(?:{label_pattern}):|\Z)",
+                text, re.MULTILINE | re.DOTALL
+            )
+            if match:
+                value = match.group(1).strip()
+                if value and value.lower() not in ("n/a", "not visible", "blank"):
+                    context[key] = value
+
+        # Normalize content_type to lowercase
+        ct = context.get("content_type", "").upper()
+        if ct == "PROFILE":
+            context["content_type"] = "profile"
+        elif ct == "POST":
+            context["content_type"] = "post"
+        else:
+            context["content_type"] = "other"
+
+        # Low-confidence flag if focus_snippet is empty or too short
+        snippet = context.get("focus_snippet", "")
+        context["low_confidence"] = len(snippet) < 10
+
+        return context
 
     def _parse_persona(self, text: str) -> dict:
         """Parse the model's structured output into a dict."""

@@ -13,6 +13,7 @@ from services.pea_selector import load_prompt_sections
 logger = logging.getLogger(__name__)
 
 WORD_LIMITS = {1: 75, 2: 100, 3: 60}
+LINKEDIN_WORD_LIMITS = {"dm": 90, "connection_request": 45}
 
 _CATEGORY_KEYWORDS = {
     "database": [
@@ -803,6 +804,440 @@ Use the partial-signal examples as your primary models for this sequence.""")
         parts.append(f"<report>\n{report}\n</report>")
 
         return "\n\n".join(parts)
+
+    def _build_linkedin_system_prompt(self, mode: str) -> str:
+        """Build the system prompt for LinkedIn message generation.
+
+        Args:
+            mode: "dm" or "connection_request"
+        """
+        shared = """You write single LinkedIn messages for B2B sellers.
+
+ROLE: You are the seller, writing a direct message to a prospect.
+The message opens a conversation. It does not close a deal.
+
+CONSTRAINTS:
+- No subject line. LinkedIn messages don't have them.
+- No "I noticed on your LinkedIn..." or "I saw your post about..."
+  -- reference the content naturally as if you already knew it.
+- No product pitches. Earn curiosity, don't sell.
+- Write like a peer texting a colleague, not an email marketer.
+- No emdashes. No bold. No bullet points. Plain conversational text.
+- CTA must be low-friction: a question, not a meeting request.
+  Good: "curious how you're thinking about X"
+  Bad: "would love 15 minutes to discuss"
+- The message MUST end with exactly one question. One `?`, at the end. Not two questions, not zero.
+
+RELEVANCE GUARDRAIL:
+- Only reference pains and signals that map directly to what the seller
+  sells (their product category and stated problems solved).
+- Infrastructure, frontend, CDN, and dev-tooling signals are OFF LIMITS
+  unless the seller category is explicitly web performance, frontend,
+  or devtools.
+- When in doubt, use business pain (growth, ops, cost, compliance)
+  over technical observations.
+
+OUTPUT FORMAT:
+Message:
+[the message text]"""
+
+        if mode == "connection_request":
+            mode_block = """
+
+WORD LIMIT: 25-45 words. Aim for this range. The ceiling is enforced;
+the floor is a target. Connection request notes are capped at 300
+characters by LinkedIn -- every word counts.
+
+STRUCTURE:
+1. Context (1 sentence): One specific, concrete reason you're reaching out.
+2. CTA (1 sentence): A genuine question that invites them to accept.
+
+No bridge sentence. There is no room. Get to the point."""
+        else:
+            mode_block = """
+
+WORD LIMIT: 50-90 words. Aim for this range. The ceiling is enforced; the floor is a target.
+
+STRUCTURE:
+1. Hook (1-2 sentences): Reference something specific -- a post they wrote,
+   a career move, a company initiative. Connect it to a business pattern.
+2. Bridge (1 sentence): Why this matters now / what you've seen at
+   similar companies.
+3. CTA (1 sentence): A genuine question that invites a reply."""
+
+        return shared + mode_block
+
+    def _build_linkedin_user_prompt(
+        self, report: str, linkedin_context: dict, product_context: str,
+        persona_context: str, problems_solved: str, mode: str,
+    ) -> str:
+        """Build the user prompt for LinkedIn message generation."""
+        mode_label = "direct message" if mode == "dm" else "connection request note"
+        parts = [f"Write a LinkedIn {mode_label} to this prospect."]
+
+        # Screenshot context
+        low_confidence = linkedin_context.get("low_confidence", True)
+        ct = linkedin_context.get("content_type", "none")
+
+        if not low_confidence and ct in ("profile", "post"):
+            ctx_lines = [f"Content type: {ct}"]
+            name = linkedin_context.get("author_name", "")
+            title = linkedin_context.get("author_title", "")
+            company = linkedin_context.get("author_company", "")
+            author_parts = [p for p in [name, title, company] if p]
+            if author_parts:
+                ctx_lines.append(f"Author: {', '.join(author_parts)}")
+            snippet = linkedin_context.get("focus_snippet", "")
+            if snippet:
+                ctx_lines.append(f"Key content: {snippet}")
+            engagement = linkedin_context.get("engagement", "")
+            if engagement:
+                ctx_lines.append(f"Engagement: {engagement}")
+            parts.append("<screenshot_context>\n" + "\n".join(ctx_lines) + "\n</screenshot_context>")
+        else:
+            parts.append("Screenshot was unclear or not provided. Use research signals only -- do not reference specific LinkedIn content.")
+
+        # Research report
+        parts.append(f"<report>\n{report}\n</report>")
+
+        # Seller context (always included)
+        seller_block = (
+            "**SELLER CONTEXT -- USE THIS TO FILTER SIGNALS:**\n"
+            f"Product category: {product_context}\n"
+            f"Problems solved: {problems_solved}\n"
+            "Only reference pains that a buyer would connect to these capabilities."
+        )
+        parts.append(seller_block)
+
+        # Product-relevance constraint from denylists
+        category = self._detect_product_category(product_context)
+        if category and category in _CATEGORY_DENYLISTS:
+            denylist = _CATEGORY_DENYLISTS[category]
+            parts.append(
+                f"**PRODUCT-RELEVANCE CONSTRAINT ({category.upper()} SELLER):**\n"
+                "\n"
+                "Use ONLY signals causally connected to the seller's product category. "
+                "Reject weak or indirect signal connections even if technically interesting.\n"
+                "\n"
+                f"{denylist['prompt_constraint']}"
+            )
+
+        return "\n\n".join(parts)
+
+    def _validate_linkedin_message(self, message: str, mode: str, company_name: str) -> tuple[bool, str]:
+        """Validate a LinkedIn message meets structural quality requirements.
+
+        Returns (is_valid, error_reason).
+        """
+        # Trailing question check
+        if not re.search(r'\?\s*$', message):
+            return False, "Message must end with exactly one question"
+        if message.count('?') != 1:
+            return False, "Message must end with exactly one question"
+
+        # Word count check
+        word_count = len(message.split())
+        limit = LINKEDIN_WORD_LIMITS.get(mode, 90)
+        if word_count < 10:
+            return False, f"Message is {word_count} words, minimum is 10"
+        if word_count > limit:
+            return False, f"Message is {word_count} words, limit is {limit}"
+
+        # Char limit for connection_request
+        if mode == "connection_request" and len(message) > 300:
+            return False, "Connection request exceeds 300 character limit"
+
+        # Banned phrases
+        banned = [
+            "I noticed on your LinkedIn",
+            "I saw your post",
+            "I'd love 15 minutes",
+            "I'd love to grab 15",
+            "would love 15 minutes",
+        ]
+        msg_lower = message.lower()
+        for phrase in banned:
+            if phrase.lower() in msg_lower:
+                return False, f"Message contains banned phrase: {phrase}"
+
+        # Company anchor — fuzzy match: strip common suffixes and try
+        # both the full name and the core name (e.g. "MongoDB" from "MongoDB, Inc.")
+        if not self._company_anchor_match(company_name, msg_lower):
+            return False, "Message lacks a prospect-specific anchor"
+
+        return True, ""
+
+    @staticmethod
+    def _company_anchor_match(company_name: str, msg_lower: str) -> bool:
+        """Check if the message contains the company name (fuzzy).
+
+        Tries the full name first, then strips common suffixes like
+        Inc., Corp., LLC, .com, Ltd., Co., etc. to match the core name.
+        """
+        name_lower = company_name.lower().strip()
+        if name_lower in msg_lower:
+            return True
+
+        # Strip common suffixes and trailing punctuation
+        suffixes = [
+            ", inc.", ", inc", " inc.", " inc",
+            ", corp.", ", corp", " corp.", " corp",
+            ", llc", " llc",
+            ", ltd.", ", ltd", " ltd.", " ltd",
+            ", co.", " co.",
+            ".com", ".io", ".ai", ".co",
+        ]
+        core = name_lower
+        for suffix in suffixes:
+            if core.endswith(suffix):
+                core = core[: -len(suffix)].strip()
+                break
+
+        # Also strip trailing comma or period left over
+        core = core.rstrip(",. ")
+
+        if core and len(core) >= 3 and core in msg_lower:
+            return True
+
+        return False
+
+    def _filter_linkedin_relevance(self, message: str, product_context: str) -> tuple[bool, list[str]]:
+        """Scan a LinkedIn message for blocked signal families.
+
+        Returns (is_clean, blocked_terms). is_clean=True means no blocked patterns
+        found or category not detected.
+        """
+        category = self._detect_product_category(product_context)
+        if not category or category not in _CATEGORY_DENYLISTS:
+            return True, []
+
+        denylist = _CATEGORY_DENYLISTS[category]
+        msg_lower = message.lower()
+        blocked_terms = []
+
+        for pattern in denylist["blocked_patterns"]:
+            if pattern in msg_lower:
+                # Check if linkage override applies
+                has_linkage = any(ov in msg_lower for ov in denylist["linkage_overrides"])
+                if not has_linkage:
+                    blocked_terms.append(pattern)
+
+        return len(blocked_terms) == 0, blocked_terms
+
+    async def generate_linkedin_message(
+        self,
+        document: ResearchDocument,
+        product_context: str,
+        linkedin_context: dict,
+        mode: str = "dm",
+        retrieved_materials: str = "",
+        seller_company: str = "",
+        problems_solved: str = "",
+        persona_context: str = "",
+        custom_signals: str = "",
+    ) -> dict:
+        """Generate a single LinkedIn message from a research document.
+
+        Returns dict with: message, word_count, char_count, content_type, mode, cta_rescued.
+        """
+        # Validate mode — reject invalid values explicitly so callers
+        # can't silently get dm behaviour when they meant something else.
+        if mode not in ("dm", "connection_request"):
+            raise ValueError(f"Invalid LinkedIn message mode: {mode!r}. Must be 'dm' or 'connection_request'.")
+
+        # Build report (reuse existing)
+        report = self._build_report(
+            document, product_context, retrieved_materials,
+            seller_company=seller_company, problems_solved=problems_solved,
+            persona_context=persona_context, custom_signals=custom_signals,
+        )
+
+        # Apply relevance gate if enabled
+        if getattr(self.settings, "writing_relevance_gate_enabled", False):
+            category = self._detect_product_category(product_context)
+            if category:
+                report = self._apply_relevance_gate(report, category)
+
+        # Build prompts
+        system_prompt = self._build_linkedin_system_prompt(mode)
+        user_prompt = self._build_linkedin_user_prompt(
+            report, linkedin_context, product_context,
+            persona_context, problems_solved, mode,
+        )
+
+        # Single LLM call
+        response = await self.client.chat.completions.create(
+            model=self.settings.writing_model,
+            max_tokens=500,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+
+        raw = response.choices[0].message.content or ""
+
+        # Post-processing: emdash replacement + bold stripping
+        raw = (
+            raw
+            .replace("\u2014", " - ")
+            .replace("\u2013", " - ")
+            .replace("\u2015", " - ")
+            .replace("\u2012", " - ")
+        )
+        raw = re.sub(r"\*+(.+?)\*+", r"\1", raw)
+
+        # Parse: extract text after "Message:" prefix
+        message = raw.strip()
+        msg_match = re.search(r"^Message:\s*", message, re.MULTILINE)
+        if msg_match:
+            message = message[msg_match.end():].strip()
+
+        if not message:
+            raise SequenceValidationError(
+                code="linkedin_generation_failed",
+                message="Generated LinkedIn message was empty",
+            )
+
+        # Relevance post-filter: single re-prompt if blocked terms found
+        is_clean, blocked_terms = self._filter_linkedin_relevance(message, product_context)
+        if not is_clean:
+            reprompt = (
+                f"Your message references {', '.join(blocked_terms)}. "
+                "This is not relevant to what the seller sells. "
+                "Rewrite using only signals from the research report that connect to: "
+                f"{problems_solved}\n\n"
+                "Output ONLY the message text. No headers or labels."
+            )
+            retry_response = await self.client.chat.completions.create(
+                model=self.settings.writing_model,
+                max_tokens=500,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                    {"role": "assistant", "content": f"Message:\n{message}"},
+                    {"role": "user", "content": reprompt},
+                ],
+            )
+            retry_raw = retry_response.choices[0].message.content or ""
+            retry_raw = (
+                retry_raw
+                .replace("\u2014", " - ")
+                .replace("\u2013", " - ")
+                .replace("\u2015", " - ")
+                .replace("\u2012", " - ")
+            )
+            retry_raw = re.sub(r"\*+(.+?)\*+", r"\1", retry_raw)
+            retry_msg = retry_raw.strip()
+            retry_match = re.search(r"^Message:\s*", retry_msg, re.MULTILINE)
+            if retry_match:
+                retry_msg = retry_msg[retry_match.end():].strip()
+            if retry_msg:
+                message = retry_msg
+
+        # Word-limit normalization
+        limit = LINKEDIN_WORD_LIMITS[mode]
+        cta_rescued = False
+
+        if len(message.split()) > limit:
+            message = self._trim_to_word_limit(message, limit)
+
+            # CTA rescue: if trim killed trailing ?
+            if not re.search(r'\?\s*$', message):
+                rescue_prompt = (
+                    f"Rewrite this LinkedIn message to be under {limit} words. "
+                    "It MUST end with a question. Keep the same message and tone. "
+                    "Output ONLY the message text.\n\n"
+                    f"{message}"
+                )
+                try:
+                    rescue_response = await self.client.chat.completions.create(
+                        model=self.settings.writing_model,
+                        max_tokens=500,
+                        messages=[{"role": "user", "content": rescue_prompt}],
+                    )
+                    rescue_raw = rescue_response.choices[0].message.content or ""
+                    rescue_raw = (
+                        rescue_raw
+                        .replace("\u2014", " - ")
+                        .replace("\u2013", " - ")
+                        .replace("\u2015", " - ")
+                        .replace("\u2012", " - ")
+                    )
+                    rescue_raw = re.sub(r"\*+(.+?)\*+", r"\1", rescue_raw)
+                    rescue_msg = rescue_raw.strip()
+                    if (
+                        rescue_msg
+                        and len(rescue_msg.split()) <= limit
+                        and re.search(r'\?\s*$', rescue_msg)
+                    ):
+                        message = rescue_msg
+                        cta_rescued = True
+                except Exception:
+                    logger.warning("CTA rescue failed for LinkedIn message")
+
+        # Char-limit normalization (connection_request only)
+        if mode == "connection_request" and len(message) > 300:
+            # Truncate at last sentence boundary within 300 chars
+            truncated = message[:300]
+            last_period = max(truncated.rfind('.'), truncated.rfind('?'), truncated.rfind('!'))
+            if last_period > 100:
+                message = message[:last_period + 1].strip()
+            else:
+                message = truncated.strip()
+
+            # CTA rescue if truncation removed ?
+            if not re.search(r'\?\s*$', message):
+                rescue_prompt = (
+                    f"Rewrite this LinkedIn connection request note to be under 300 characters "
+                    f"and under {limit} words. It MUST end with a question. "
+                    "Keep the same message and tone. Output ONLY the message text.\n\n"
+                    f"{message}"
+                )
+                try:
+                    rescue_response = await self.client.chat.completions.create(
+                        model=self.settings.writing_model,
+                        max_tokens=300,
+                        messages=[{"role": "user", "content": rescue_prompt}],
+                    )
+                    rescue_raw = rescue_response.choices[0].message.content or ""
+                    rescue_raw = (
+                        rescue_raw
+                        .replace("\u2014", " - ")
+                        .replace("\u2013", " - ")
+                        .replace("\u2015", " - ")
+                        .replace("\u2012", " - ")
+                    )
+                    rescue_raw = re.sub(r"\*+(.+?)\*+", r"\1", rescue_raw)
+                    rescue_msg = rescue_raw.strip()
+                    if (
+                        rescue_msg
+                        and len(rescue_msg) <= 300
+                        and re.search(r'\?\s*$', rescue_msg)
+                    ):
+                        message = rescue_msg
+                        cta_rescued = True
+                except Exception:
+                    logger.warning("Char-limit CTA rescue failed for connection request")
+
+        # Quality gate
+        valid, error_reason = self._validate_linkedin_message(
+            message, mode, document.company_name
+        )
+        if not valid:
+            raise SequenceValidationError(
+                code="linkedin_validation_failed",
+                message=error_reason,
+            )
+
+        return {
+            "message": message,
+            "word_count": len(message.split()),
+            "char_count": len(message),
+            "content_type": linkedin_context.get("content_type", "none"),
+            "mode": mode,
+            "cta_rescued": cta_rescued,
+        }
 
     @staticmethod
     def _detect_product_category(product_context: str) -> str:

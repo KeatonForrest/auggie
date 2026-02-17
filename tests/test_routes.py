@@ -6,7 +6,9 @@ run fast and don't hit real APIs.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from services.writing import SequenceValidationError
 
 
 @pytest.mark.asyncio
@@ -204,3 +206,170 @@ async def test_download_markdown(authed_client, sample_research_document):
 
         assert response.status_code == 200
         assert "text/markdown" in response.headers["content-type"]
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn message endpoint tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _enable_linkedin():
+    """Enable the linkedin_message_enabled feature flag for the test."""
+    with patch("routes.research.settings") as mock_settings:
+        mock_settings.linkedin_message_enabled = True
+        yield mock_settings
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_happy_path(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message should return generated message."""
+    result = {
+        "message": "Acme Corp is scaling fast — have you considered a managed data layer?",
+        "word_count": 13,
+        "char_count": 68,
+        "content_type": "none",
+        "mode": "dm",
+        "cta_rescued": False,
+    }
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_ws.generate_linkedin_message = AsyncMock(return_value=result)
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["message"] == result["message"]
+    assert data["mode"] == "dm"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_connection_request(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message with mode=connection_request."""
+    result = {
+        "message": "Acme's growth is impressive — open to a quick chat about data infra?",
+        "word_count": 13,
+        "char_count": 67,
+        "content_type": "none",
+        "mode": "connection_request",
+        "cta_rescued": False,
+    }
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_ws.generate_linkedin_message = AsyncMock(return_value=result)
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "connection_request"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["mode"] == "connection_request"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_invalid_mode(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message with bad mode returns 422."""
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document):
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "bad_mode"},
+        )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "invalid_mode"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_feature_flag_off(authed_client, sample_research_document):
+    """POST /document/{id}/linkedin-message returns 404 when feature disabled."""
+    with patch("routes.research.settings") as mock_settings:
+        mock_settings.linkedin_message_enabled = False
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_document_not_found(authed_client, _enable_linkedin):
+    """POST /document/{id}/linkedin-message returns 404 for missing document."""
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=None):
+        response = await authed_client.post(
+            "/document/999/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_not_linkedin_screenshot(authed_client, sample_research_document, _enable_linkedin):
+    """POST with a non-LinkedIn screenshot returns 422 with not_linkedin code."""
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.vision_service") as mock_vs:
+        mock_vs.extract_linkedin_context = AsyncMock(return_value={"content_type": "other"})
+
+        # Simulate file upload
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+            files={"screenshot": ("photo.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
+        )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "not_linkedin"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_validation_error(authed_client, sample_research_document, _enable_linkedin):
+    """SequenceValidationError from writing service maps to 422."""
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_ws.generate_linkedin_message = AsyncMock(
+            side_effect=SequenceValidationError("quality_gate_failed", "Message failed quality checks"),
+        )
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "quality_gate_failed"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_message_generic_error(authed_client, sample_research_document, _enable_linkedin):
+    """Unexpected exception maps to 500."""
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_ws.generate_linkedin_message = AsyncMock(
+            side_effect=RuntimeError("something broke"),
+        )
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 500
+    data = response.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "linkedin_generation_failed"

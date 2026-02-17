@@ -216,6 +216,7 @@ async def view_document(
             "is_owner": is_owner,
             "share_token": share_token,
             "app_url": settings.app_url,
+            "linkedin_message_enabled": getattr(settings, "linkedin_message_enabled", False),
         }
     )
 
@@ -283,6 +284,7 @@ async def view_document_by_slug(
             "app_url": settings.app_url,
             "org_slug": org_slug,
             "doc_slug": doc_slug,
+            "linkedin_message_enabled": getattr(settings, "linkedin_message_enabled", False),
         }
     )
 
@@ -437,6 +439,121 @@ async def generate_outreach(
         return JSONResponse({
             "success": False,
             "error": {"code": "outreach_generation_failed", "message": "Failed to generate outreach. Please try again."},
+        }, status_code=500)
+
+
+@router.post("/document/{doc_id}/linkedin-message")
+async def generate_linkedin_message(
+    doc_id: int,
+    screenshot: UploadFile = File(None),
+    mode: str = Form("dm"),
+    user: dict = Depends(require_onboarding),
+):
+    """Generate a single LinkedIn message from a research document + optional screenshot."""
+    # Feature flag gate
+    if not getattr(settings, "linkedin_message_enabled", False):
+        raise HTTPException(status_code=404, detail="Feature not enabled")
+
+    # Validate mode
+    if mode not in ("dm", "connection_request"):
+        return JSONResponse({
+            "success": False,
+            "error": {"code": "invalid_mode", "message": "Mode must be 'dm' or 'connection_request'"},
+        }, status_code=422)
+
+    # Load document, validate ownership
+    document = await get_document(doc_id, user_id=user["id"])
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    try:
+        # Extract LinkedIn context from screenshot if provided
+        if screenshot and screenshot.filename:
+            try:
+                image_bytes = await screenshot.read()
+                if len(image_bytes) > 10 * 1024 * 1024:
+                    return JSONResponse({
+                        "success": False,
+                        "error": {"code": "file_too_large", "message": "Screenshot must be under 10MB"},
+                    }, status_code=422)
+
+                if not (screenshot.content_type and screenshot.content_type.startswith("image/")):
+                    return JSONResponse({
+                        "success": False,
+                        "error": {"code": "invalid_file", "message": "Please upload an image file"},
+                    }, status_code=422)
+
+                linkedin_context = await vision_service.extract_linkedin_context(
+                    image_bytes, screenshot.content_type
+                )
+
+                if linkedin_context.get("content_type") == "other":
+                    return JSONResponse({
+                        "success": False,
+                        "error": {
+                            "code": "not_linkedin",
+                            "message": "Screenshot does not appear to be from LinkedIn. Upload a LinkedIn profile or post screenshot, or use 'Generate from research only'.",
+                        },
+                    }, status_code=422)
+            except Exception:
+                logger.warning("Failed to extract LinkedIn context from screenshot", exc_info=True)
+                linkedin_context = {"content_type": "none", "low_confidence": True}
+        else:
+            linkedin_context = {"content_type": "none", "low_confidence": True}
+
+        # Build persona_context from linkedin_context if profile type
+        persona_context = ""
+        if linkedin_context.get("content_type") == "profile" and not linkedin_context.get("low_confidence"):
+            persona_parts = []
+            if linkedin_context.get("author_name"):
+                persona_parts.append(f"**Name:** {linkedin_context['author_name']}")
+            if linkedin_context.get("author_title"):
+                persona_parts.append(f"**Title:** {linkedin_context['author_title']}")
+            if linkedin_context.get("author_company"):
+                persona_parts.append(f"**Company:** {linkedin_context['author_company']}")
+            if persona_parts:
+                persona_context = "\n".join(persona_parts)
+
+        # Retrieve materials (non-fatal)
+        materials = ""
+        try:
+            from services.collect import _get_retrieval_service
+            retrieval = _get_retrieval_service()
+            if retrieval:
+                materials = await retrieval.get_relevant_context(
+                    user_id=user["id"],
+                    company_name=document.company_name,
+                    company_description=document.company_overview[:500] if document.company_overview else "",
+                ) or ""
+        except Exception:
+            pass
+
+        result = await writing_service.generate_linkedin_message(
+            document=document,
+            product_context=user.get("product_context", ""),
+            linkedin_context=linkedin_context,
+            mode=mode,
+            retrieved_materials=materials,
+            seller_company=user.get("company_name", ""),
+            problems_solved=user.get("problems_solved", ""),
+            persona_context=persona_context,
+            custom_signals=user.get("custom_signals", ""),
+        )
+        return JSONResponse({"success": True, **result})
+
+    except SequenceValidationError as e:
+        logger.warning("LinkedIn message validation failed for doc %d: %s", doc_id, e.message,
+                       extra={"event_type": "linkedin_generation", "doc_id": doc_id, "error_code": e.code})
+        return JSONResponse({
+            "success": False,
+            "error": {"code": e.code, "message": e.message},
+        }, status_code=422)
+    except Exception as e:
+        logger.error("Error generating LinkedIn message for doc %d: %s", doc_id, e,
+                     extra={"event_type": "linkedin_generation", "doc_id": doc_id, "error_code": "linkedin_generation_failed"})
+        return JSONResponse({
+            "success": False,
+            "error": {"code": "linkedin_generation_failed", "message": "Failed to generate LinkedIn message. Please try again."},
         }, status_code=500)
 
 

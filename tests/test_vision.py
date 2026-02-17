@@ -199,3 +199,75 @@ class TestExtractPersona:
                 )
 
         assert persona == {}
+
+
+# --- LinkedIn context parsing ---
+
+
+class TestLinkedInContextParsing:
+    def test_profile_parsed(self, vision_service):
+        text = (
+            "CONTENT_TYPE: PROFILE\n"
+            "AUTHOR_NAME: Jane Smith\n"
+            "AUTHOR_TITLE: VP of Engineering\n"
+            "AUTHOR_COMPANY: Acme Corp\n"
+            "FOCUS_SNIPPET: Building scalable systems at Acme Corp. Passionate about distributed systems and team building.\n"
+            "ENGAGEMENT:\n"
+        )
+        ctx = vision_service._parse_linkedin_context(text)
+        assert ctx["content_type"] == "profile"
+        assert ctx["author_name"] == "Jane Smith"
+        assert ctx["author_title"] == "VP of Engineering"
+        assert ctx["author_company"] == "Acme Corp"
+        assert "scalable systems" in ctx["focus_snippet"]
+        assert ctx["low_confidence"] is False
+
+    def test_post_parsed(self, vision_service):
+        text = (
+            "CONTENT_TYPE: POST\n"
+            "AUTHOR_NAME: John Doe\n"
+            "AUTHOR_TITLE: CTO\n"
+            "AUTHOR_COMPANY: StartupX\n"
+            "FOCUS_SNIPPET: We just launched our new AI-powered analytics platform. Excited to share what we built over the last 6 months.\n"
+            "ENGAGEMENT: 142 reactions, 23 comments\n"
+        )
+        ctx = vision_service._parse_linkedin_context(text)
+        assert ctx["content_type"] == "post"
+        assert ctx["author_name"] == "John Doe"
+        assert "AI-powered analytics" in ctx["focus_snippet"]
+        assert "142 reactions" in ctx["engagement"]
+        assert ctx["low_confidence"] is False
+
+    def test_not_linkedin_returns_other(self, vision_service):
+        text = "NOT_LINKEDIN: This is a screenshot of a company website."
+        ctx = vision_service._parse_linkedin_context(text)
+        assert ctx["content_type"] == "other"
+
+    def test_missing_fields_partial(self, vision_service):
+        text = (
+            "CONTENT_TYPE: PROFILE\n"
+            "AUTHOR_NAME: Jane Doe\n"
+            "AUTHOR_TITLE:\n"
+            "AUTHOR_COMPANY:\n"
+            "FOCUS_SNIPPET: Senior leader in enterprise software with 15 years of experience.\n"
+            "ENGAGEMENT:\n"
+        )
+        ctx = vision_service._parse_linkedin_context(text)
+        assert ctx["content_type"] == "profile"
+        assert ctx["author_name"] == "Jane Doe"
+        assert "author_title" not in ctx
+        assert "author_company" not in ctx
+        assert ctx["low_confidence"] is False
+
+    def test_empty_snippet_low_confidence(self, vision_service):
+        text = (
+            "CONTENT_TYPE: PROFILE\n"
+            "AUTHOR_NAME: Bob\n"
+            "AUTHOR_TITLE: CEO\n"
+            "AUTHOR_COMPANY: TechCo\n"
+            "FOCUS_SNIPPET:\n"
+            "ENGAGEMENT:\n"
+        )
+        ctx = vision_service._parse_linkedin_context(text)
+        assert ctx["content_type"] == "profile"
+        assert ctx["low_confidence"] is True

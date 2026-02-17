@@ -1093,3 +1093,402 @@ class TestRelevanceGateIntegration:
         assert "Database query latency" in user_prompt
         # Relevance constraint directive should be present
         assert "PRODUCT-RELEVANCE CONSTRAINT (DATABASE SELLER)" in user_prompt
+
+
+# --- LinkedIn system prompt ---
+
+
+class TestLinkedInSystemPrompt:
+    def test_dm_word_limit(self, writing_service):
+        prompt = writing_service._build_linkedin_system_prompt("dm")
+        assert "50-90 words" in prompt
+        assert "Hook" in prompt
+        assert "Bridge" in prompt
+        assert "CTA" in prompt
+
+    def test_cr_word_limit(self, writing_service):
+        prompt = writing_service._build_linkedin_system_prompt("connection_request")
+        assert "25-45 words" in prompt
+        assert "300" in prompt
+        assert "Context" in prompt
+        assert "No bridge sentence" in prompt
+
+    def test_no_email_rules(self, writing_service):
+        for mode in ("dm", "connection_request"):
+            prompt = writing_service._build_linkedin_system_prompt(mode)
+            assert "PEA FRAMEWORK" not in prompt
+            assert "Subject 1:" not in prompt
+            assert "Email 1:" not in prompt
+
+    def test_relevance_guardrail(self, writing_service):
+        for mode in ("dm", "connection_request"):
+            prompt = writing_service._build_linkedin_system_prompt(mode)
+            assert "RELEVANCE GUARDRAIL" in prompt
+            assert "Only reference pains" in prompt
+
+
+# --- LinkedIn user prompt ---
+
+
+class TestLinkedInUserPrompt:
+    def test_profile_context(self, writing_service):
+        ctx = {
+            "content_type": "profile",
+            "author_name": "Jane Smith",
+            "author_title": "VP Engineering",
+            "author_company": "Acme Corp",
+            "focus_snippet": "Building scalable systems for enterprise customers.",
+            "low_confidence": False,
+        }
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report text", ctx, "MongoDB Atlas database", "", "scalability", "dm"
+        )
+        assert "<screenshot_context>" in prompt
+        assert "Jane Smith" in prompt
+        assert "VP Engineering" in prompt
+        assert "scalable systems" in prompt
+
+    def test_post_context(self, writing_service):
+        ctx = {
+            "content_type": "post",
+            "author_name": "John Doe",
+            "focus_snippet": "We just shipped our new platform.",
+            "engagement": "100 reactions",
+            "low_confidence": False,
+        }
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report", ctx, "product", "", "problems", "dm"
+        )
+        assert "<screenshot_context>" in prompt
+        assert "shipped our new platform" in prompt
+
+    def test_low_confidence_fallback(self, writing_service):
+        ctx = {"content_type": "profile", "low_confidence": True}
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report", ctx, "product", "", "problems", "dm"
+        )
+        assert "<screenshot_context>" not in prompt
+        assert "Screenshot was unclear" in prompt
+
+    def test_research_only(self, writing_service):
+        ctx = {"content_type": "none", "low_confidence": True}
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report", ctx, "product", "", "problems", "dm"
+        )
+        assert "<screenshot_context>" not in prompt
+        assert "<report>" in prompt
+
+    def test_seller_context_always_present(self, writing_service):
+        ctx = {"content_type": "none", "low_confidence": True}
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report", ctx, "MongoDB Atlas database", "", "scalability, performance", "dm"
+        )
+        assert "SELLER CONTEXT" in prompt
+        assert "MongoDB Atlas database" in prompt
+        assert "scalability, performance" in prompt
+
+
+# --- LinkedIn relevance filter ---
+
+
+class TestLinkedInRelevanceFilter:
+    def test_db_seller_react_blocked(self, writing_service):
+        msg = "Your React frontend rewrite looks ambitious."
+        is_clean, blocked = writing_service._filter_linkedin_relevance(
+            msg, "MongoDB Atlas - scalable database platform"
+        )
+        assert is_clean is False
+        assert "react" in blocked
+
+    def test_db_seller_query_passes(self, writing_service):
+        msg = "Your query performance challenges remind me of a pattern."
+        is_clean, blocked = writing_service._filter_linkedin_relevance(
+            msg, "MongoDB Atlas - scalable database platform"
+        )
+        assert is_clean is True
+        assert blocked == []
+
+    def test_unknown_category_passes(self, writing_service):
+        msg = "Your React and CDN setup is interesting."
+        is_clean, blocked = writing_service._filter_linkedin_relevance(
+            msg, "Salesforce CRM for enterprise sales teams"
+        )
+        assert is_clean is True
+
+    def test_cdn_db_linkage_passes(self, writing_service):
+        msg = "Your CDN changes are causing a database bottleneck in the API layer."
+        is_clean, blocked = writing_service._filter_linkedin_relevance(
+            msg, "MongoDB Atlas - scalable database platform"
+        )
+        assert is_clean is True
+
+
+# --- LinkedIn quality gate ---
+
+
+class TestLinkedInQualityGate:
+    def test_valid_passes(self, writing_service):
+        msg = "Acme Corp is scaling fast. The companies growing at your pace usually hit a data layer bottleneck they don't see coming. Curious how you're thinking about that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is True
+        assert reason == ""
+
+    def test_no_question_mark(self, writing_service):
+        msg = "Acme Corp is scaling fast. The companies growing at your pace usually hit a data layer bottleneck."
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "must end with exactly one question" in reason
+
+    def test_question_in_middle(self, writing_service):
+        msg = "Is Acme Corp scaling? The companies growing at your pace usually hit a data layer bottleneck."
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "must end with exactly one question" in reason
+
+    def test_multiple_questions(self, writing_service):
+        msg = "Is Acme Corp scaling fast? Are you thinking about your data layer?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "must end with exactly one question" in reason
+
+    def test_banned_phrase(self, writing_service):
+        msg = "I noticed on your LinkedIn that Acme Corp is doing interesting work. Curious how you're thinking about scaling?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "banned phrase" in reason
+
+    def test_valid_phrase_passes(self, writing_service):
+        msg = "Based on Acme Corp's team growth, the data layer challenges usually surface around this stage. Curious how you're handling that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is True
+
+    def test_missing_anchor(self, writing_service):
+        msg = "Your team is growing fast and the data challenges usually surface at this stage. Curious how you're handling that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "lacks a prospect-specific anchor" in reason
+
+    def test_over_90_words_dm(self, writing_service):
+        words = ["word"] * 95
+        words[10] = "Acme"
+        words[11] = "Corp"
+        msg = " ".join(words) + "?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "95 words" in reason
+
+    def test_over_300_chars_cr(self, writing_service):
+        # Build a message that is under 45 words but over 300 chars (use long words)
+        long_words = " ".join(["longwordherex"] * 22)
+        msg = f"Acme Corp {long_words} scaling?"
+        assert len(msg.split()) < 45, f"Got {len(msg.split())} words"
+        assert len(msg) > 300, f"Got {len(msg)} chars"
+        valid, reason = writing_service._validate_linkedin_message(msg, "connection_request", "Acme Corp")
+        assert valid is False
+        assert "300 character limit" in reason
+
+    def test_anchor_matches_with_suffix(self, writing_service):
+        """Company stored as 'MongoDB, Inc.' matches message mentioning 'MongoDB'."""
+        msg = "MongoDB is scaling its data platform fast. Curious how the team handles peak throughput?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "MongoDB, Inc.")
+        assert valid is True
+
+    def test_anchor_matches_dotcom(self, writing_service):
+        """Company stored as 'nike.com' matches message mentioning 'Nike'."""
+        msg = "Nike is pushing into direct-to-consumer at a pace that usually surfaces fulfillment bottlenecks. Curious how you're handling that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "nike.com")
+        assert valid is True
+
+    def test_anchor_still_fails_when_absent(self, writing_service):
+        """Core name not in message still fails."""
+        msg = "Your team is growing fast and challenges surface at this stage. Curious how you're handling that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "MongoDB, Inc.")
+        assert valid is False
+        assert "lacks a prospect-specific anchor" in reason
+
+
+# --- LinkedIn message generation ---
+
+
+class TestLinkedInMessageGeneration:
+    @pytest.mark.asyncio
+    async def test_happy_dm(self, sample_document):
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = (
+                "Message:\n"
+                "Acme Corp is scaling its engineering team while shipping new products. "
+                "The companies growing at that pace usually find the data layer becomes "
+                "the bottleneck before anyone expects it. Curious how you're thinking about that?"
+            )
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                result = await service.generate_linkedin_message(
+                    document=sample_document,
+                    product_context="MongoDB Atlas database",
+                    linkedin_context={"content_type": "none", "low_confidence": True},
+                    mode="dm",
+                    problems_solved="database scalability",
+                )
+
+        assert result["mode"] == "dm"
+        assert result["word_count"] <= 90
+        assert "Acme Corp" in result["message"]
+        assert result["message"].strip().endswith("?")
+
+    @pytest.mark.asyncio
+    async def test_happy_cr(self, sample_document):
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = (
+                "Message:\n"
+                "Acme Corp's data growth caught my eye. Curious how you're scaling the backend?"
+            )
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                result = await service.generate_linkedin_message(
+                    document=sample_document,
+                    product_context="MongoDB Atlas database",
+                    linkedin_context={"content_type": "none", "low_confidence": True},
+                    mode="connection_request",
+                    problems_solved="database scalability",
+                )
+
+        assert result["mode"] == "connection_request"
+        assert result["word_count"] <= 45
+        assert result["char_count"] <= 300
+
+    @pytest.mark.asyncio
+    async def test_invalid_mode_raises(self, sample_document):
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            with patch("services.writing.AsyncOpenAI"):
+                service = WritingService()
+                with pytest.raises(ValueError, match="Invalid LinkedIn message mode"):
+                    await service.generate_linkedin_message(
+                        document=sample_document,
+                        product_context="MongoDB Atlas database",
+                        linkedin_context={"content_type": "none", "low_confidence": True},
+                        mode="invalid_mode",
+                        problems_solved="database scalability",
+                    )
+
+    @pytest.mark.asyncio
+    async def test_over_limit_trimmed(self, sample_document):
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            # Generate a message that's over 90 words but contains Acme Corp and ends with ?
+            over_msg = "Acme Corp is doing great work. " + " ".join(["Growth"] * 85) + " Curious about scaling?"
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = f"Message:\n{over_msg}"
+
+            # CTA rescue response (must be >= 10 words to pass quality gate)
+            rescue_msg = "Acme Corp is doing great work on their data platform. Curious about scaling?"
+            mock_rescue = MagicMock()
+            mock_rescue.choices = [MagicMock()]
+            mock_rescue.choices[0].message.content = rescue_msg
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=[mock_message, mock_rescue]
+            )
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                result = await service.generate_linkedin_message(
+                    document=sample_document,
+                    product_context="MongoDB Atlas database",
+                    linkedin_context={"content_type": "none", "low_confidence": True},
+                    mode="dm",
+                    problems_solved="database scalability",
+                )
+
+        assert result["word_count"] <= 90
+
+    @pytest.mark.asyncio
+    async def test_empty_response_raises(self, sample_document):
+        from services.writing import SequenceValidationError
+
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = ""
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                with pytest.raises(SequenceValidationError) as exc_info:
+                    await service.generate_linkedin_message(
+                        document=sample_document,
+                        product_context="MongoDB Atlas database",
+                        linkedin_context={"content_type": "none", "low_confidence": True},
+                        problems_solved="database scalability",
+                    )
+                assert exc_info.value.code == "linkedin_generation_failed"
+
+
+# --- LinkedIn channel modes ---
+
+
+class TestLinkedInChannelModes:
+    def test_dm_limit_90(self):
+        from services.writing import LINKEDIN_WORD_LIMITS
+        assert LINKEDIN_WORD_LIMITS["dm"] == 90
+
+    def test_cr_limit_45(self):
+        from services.writing import LINKEDIN_WORD_LIMITS
+        assert LINKEDIN_WORD_LIMITS["connection_request"] == 45
+
+    def test_invalid_mode_not_in_dict(self):
+        from services.writing import LINKEDIN_WORD_LIMITS
+        assert "invalid" not in LINKEDIN_WORD_LIMITS
