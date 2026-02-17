@@ -80,7 +80,8 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         product_type=user.get("product_type", "saas"),
         problems_solved=user.get("problems_solved", ""),
     )
-    pain_inferences = pain_engine.evaluate(bundle, seller=seller_context)
+    pain_inferences = pain_engine.evaluate(bundle, seller=seller_context,
+                                           seller_product_context=user.get("product_context", ""))
     pain_ms = (time.monotonic() - t0) * 1000
     logger.info("[pipeline %s] pain inference: %.0fms (%d signals)", domain, pain_ms, len(pain_inferences))
 

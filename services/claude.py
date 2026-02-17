@@ -152,6 +152,18 @@ class ClaudeService:
 
 """
 
+    _FRONTEND_CDN_KEYWORDS = {"database", "db ", "data warehouse", "data lake", "sql", "nosql", "mongodb", "postgres", "postgresql", "mysql", "redis", "dynamodb", "data platform", "data infrastructure"}
+
+    def _frontend_signal_suppression_note(self, problems_solved: str, seller_product_category: str) -> str:
+        """Return prompt instruction to suppress frontend/CDN signals for non-webperf sellers."""
+        text = (problems_solved + " " + seller_product_category).lower()
+        hits = sum(1 for kw in self._FRONTEND_CDN_KEYWORDS if kw in text)
+        if hits < 2:
+            return ""
+        return """**IMPORTANT — FRONTEND/CDN SIGNAL SUPPRESSION**: The seller sells a database or data infrastructure product. Do NOT elevate frontend framework observations (React, Vue, Angular, jQuery, Svelte, Next.js, CSS tooling, bundlers), CDN presence/absence (Cloudflare, Fastly, Akamai), page speed, or marketing tag issues into Existential Data Points, PVP Seed, Talking Points, Before Scenario, or score evidence UNLESS the signal explicitly ties to a database bottleneck, query performance issue, or data layer consequence. Frontend/CDN signals are irrelevant to this seller's product and confuse the reader. Focus exclusively on data infrastructure, query performance, scaling pressure, and operational pain.
+
+"""
+
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
                                product_type: str = "saas", custom_signals: str = "",
@@ -208,8 +220,7 @@ The company data contains several types of information with different reliabilit
 
 {self._infrastructure_data_descriptions(problems_solved, product_type)}
 
-{self._security_suppression_note(problems_solved, product_type)}{self._website_quality_suppression_note(problems_solved, product_type)}
-10. **Robots.txt Signals** - Parsed from the company's robots.txt:
+{self._security_suppression_note(problems_solved, product_type)}{self._website_quality_suppression_note(problems_solved, product_type)}{self._frontend_signal_suppression_note(problems_solved, seller_product_category)}10. **Robots.txt Signals** - Parsed from the company's robots.txt:
     - Disallowed /api or /graphql paths confirm API infrastructure exists
     - Disallowed /admin paths confirm internal tooling
     - Crawl-delay values hint at server capacity concerns
@@ -866,29 +877,46 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("")
 
         if pain_inferences:
-            sections.append("## Programmatic Pain Signals")
-            sections.append("Use these as STARTING POINTS. Validate against other data. Do not repeat verbatim.")
-            sections.append("")
-            # Group by category in fixed order
-            category_order = ["security", "engineering", "operations", "marketing", "data"]
-            category_labels = {
-                "security": "Security", "engineering": "Engineering",
-                "operations": "Operations", "marketing": "Marketing", "data": "Data",
-            }
-            by_cat: dict[str, list[PainInference]] = {}
-            for pi in pain_inferences:
-                by_cat.setdefault(pi.category or "other", []).append(pi)
-            for cat in category_order:
-                group = by_cat.get(cat, [])
-                if not group:
-                    continue
-                group.sort(key=lambda x: x.confidence, reverse=True)
-                sections.append(f"### {category_labels.get(cat, cat.title())} ({len(group)} signal{'s' if len(group) != 1 else ''})")
-                for pi in group:
-                    sections.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+            # Separate action-tier-eligible from background-only inferences
+            action_tier = [pi for pi in pain_inferences if not pi.category.startswith("_background_")]
+            background_only = [pi for pi in pain_inferences if pi.category.startswith("_background_")]
+
+            if action_tier:
+                sections.append("## Programmatic Pain Signals")
+                sections.append("Use these as STARTING POINTS. Validate against other data. Do not repeat verbatim.")
+                sections.append("")
+                # Group by category in fixed order
+                category_order = ["security", "engineering", "operations", "marketing", "data"]
+                category_labels = {
+                    "security": "Security", "engineering": "Engineering",
+                    "operations": "Operations", "marketing": "Marketing", "data": "Data",
+                }
+                by_cat: dict[str, list[PainInference]] = {}
+                for pi in action_tier:
+                    by_cat.setdefault(pi.category or "other", []).append(pi)
+                for cat in category_order:
+                    group = by_cat.get(cat, [])
+                    if not group:
+                        continue
+                    group.sort(key=lambda x: x.confidence, reverse=True)
+                    sections.append(f"### {category_labels.get(cat, cat.title())} ({len(group)} signal{'s' if len(group) != 1 else ''})")
+                    for pi in group:
+                        sections.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+                        sections.append(f"  {pi.description}")
+                        for ev in pi.evidence:
+                            sections.append(f"  - {ev}")
+                        sections.append("")
+
+            if background_only:
+                sections.append("## Background-Only Signals (DO NOT use in Action Tier)")
+                sections.append("These signals were flagged as irrelevant to the seller's product category. "
+                                "Do NOT include them in Existential Data Points, PVP Seed, Talking Points, "
+                                "or Before Scenario. They are provided for optional context only.")
+                sections.append("")
+                for pi in background_only:
+                    real_cat = pi.category.removeprefix("_background_")
+                    sections.append(f"**{pi.title}** [{real_cat}] (severity: {pi.severity}, confidence: {pi.confidence})")
                     sections.append(f"  {pi.description}")
-                    for ev in pi.evidence:
-                        sections.append(f"  - {ev}")
                     sections.append("")
 
         if scraped.firmographics:

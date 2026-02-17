@@ -1,16 +1,23 @@
 """Tests for services/pain_inference.py"""
 
 import pytest
-from services.pain_inference import PainInferenceEngine
+from unittest.mock import patch, MagicMock
+from services.pain_inference import PainInferenceEngine, detect_seller_category, is_action_tier_relevant
 from models import (
     SignalBundle, DNSProfile, SSLProfile, SecurityPosture,
     RobotsSignals, JobSignals, TechMention, TechStack, DetectedTechnology,
-    SellerContext,
+    SellerContext, PainInference,
 )
 
 
 @pytest.fixture
 def engine():
+    return PainInferenceEngine()
+
+
+@pytest.fixture
+def engine_frontend_on():
+    """Engine fixture that patches pain_frontend_rule_enabled=True."""
     return PainInferenceEngine()
 
 
@@ -267,7 +274,9 @@ class TestComplianceGap:
 
 
 class TestFrontendPerformanceDebt:
-    def test_triggers(self, engine):
+    @patch("services.pain_inference.get_settings")
+    def test_triggers(self, mock_settings, engine):
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
         bundle = SignalBundle(
             tech_by_domain={"x.com": _make_stack(
                 ("React", "javascript framework"), ("Vue", "javascript framework"),
@@ -277,7 +286,9 @@ class TestFrontendPerformanceDebt:
         ids = [r.rule_id for r in results]
         assert "frontend_performance_debt" in ids
 
-    def test_no_trigger_with_cdn(self, engine):
+    @patch("services.pain_inference.get_settings")
+    def test_no_trigger_with_cdn(self, mock_settings, engine):
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
         bundle = SignalBundle(
             tech_by_domain={"x.com": _make_stack(
                 ("React", "javascript framework"), ("Vue", "javascript framework"),
@@ -288,8 +299,10 @@ class TestFrontendPerformanceDebt:
         ids = [r.rule_id for r in results]
         assert "frontend_performance_debt" not in ids
 
-    def test_no_trigger_meta_framework_pair(self, engine):
+    @patch("services.pain_inference.get_settings")
+    def test_no_trigger_meta_framework_pair(self, mock_settings, engine):
         """Next.js + React should not fire since Next.js wraps React."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
         bundle = SignalBundle(
             tech_by_domain={"x.com": _make_stack(
                 ("Next.js", "javascript framework"), ("React", "javascript framework"),
@@ -955,3 +968,221 @@ class TestDataInfraPainBehaviorLock:
         results = engine.evaluate(bundle)
         ids = [r.rule_id for r in results]
         assert "data_infra_pain" not in ids
+
+
+# --- Frontend rule kill switch ---
+
+
+class TestFrontendRuleKillSwitch:
+    def test_flag_off_no_frontend_inference(self, engine):
+        """With pain_frontend_rule_enabled=False (default), frontend_performance_debt never fires."""
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(
+                ("React", "javascript framework"), ("Vue", "javascript framework"),
+                ("jQuery", "javascript framework"),
+            )},
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "frontend_performance_debt" not in ids
+
+    @patch("services.pain_inference.get_settings")
+    def test_flag_on_emits_frontend_inference(self, mock_settings, engine):
+        """With pain_frontend_rule_enabled=True, frontend_performance_debt fires normally."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(
+                ("React", "javascript framework"), ("Vue", "javascript framework"),
+                ("jQuery", "javascript framework"),
+            )},
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "frontend_performance_debt" in ids
+
+
+# --- detect_seller_category ---
+
+
+class TestDetectSellerCategory:
+    def test_detects_database(self):
+        assert detect_seller_category("MongoDB Atlas - scalable database platform") == "database"
+
+    def test_returns_empty_for_crm(self):
+        assert detect_seller_category("Salesforce CRM for enterprise sales") == ""
+
+    def test_returns_empty_for_empty_input(self):
+        assert detect_seller_category("") == ""
+
+    def test_requires_two_hits(self):
+        """Single keyword match should not trigger category detection."""
+        assert detect_seller_category("We help with database things") == ""
+
+
+# --- is_action_tier_relevant ---
+
+
+class TestIsActionTierRelevant:
+    def test_clean_signal_passes(self):
+        """Signals not in denied families pass through."""
+        inference = PainInference(
+            rule_id="database_scaling_pressure",
+            title="Database Scaling Pressure",
+            description="Single DB with hiring pressure.",
+            severity="medium",
+            evidence=["Single database: postgresql"],
+            confidence=55,
+            category="engineering",
+        )
+        assert is_action_tier_relevant(inference, "database") is True
+
+    def test_frontend_signal_blocked_for_db_seller(self):
+        """Frontend signals are blocked for database sellers."""
+        inference = PainInference(
+            rule_id="frontend_performance_debt",
+            title="Frontend Performance Debt",
+            description="Multiple JS frameworks without a CDN.",
+            severity="medium",
+            evidence=["Frameworks: React, Vue", "No CDN detected"],
+            confidence=50,
+            category="engineering",
+        )
+        assert is_action_tier_relevant(inference, "database") is False
+
+    def test_frontend_signal_with_db_linkage_passes(self):
+        """Frontend signal with explicit DB linkage overrides the block."""
+        inference = PainInference(
+            rule_id="frontend_performance_debt",
+            title="Frontend Performance Debt",
+            description="Multiple JS frameworks causing database bottleneck in API layer.",
+            severity="medium",
+            evidence=["Frameworks: React, Vue", "API latency traced to query performance"],
+            confidence=50,
+            category="engineering",
+        )
+        assert is_action_tier_relevant(inference, "database") is True
+
+    def test_unknown_category_passes(self):
+        """Unknown seller category always passes."""
+        inference = PainInference(
+            rule_id="frontend_performance_debt",
+            title="Frontend Performance Debt",
+            description="Multiple JS frameworks without a CDN.",
+            severity="medium",
+            evidence=["Frameworks: React, Vue"],
+            confidence=50,
+            category="engineering",
+        )
+        assert is_action_tier_relevant(inference, "unknown_cat") is True
+
+    def test_empty_category_passes(self):
+        """Empty seller category always passes."""
+        inference = PainInference(
+            rule_id="frontend_performance_debt",
+            title="Frontend Performance Debt",
+            description="Multiple JS frameworks without a CDN.",
+            severity="medium",
+            evidence=["Frameworks: React, Vue"],
+            confidence=50,
+            category="engineering",
+        )
+        assert is_action_tier_relevant(inference, "") is True
+
+    def test_tag_bloat_blocked_for_db_seller(self):
+        """Marketing tag bloat is blocked for database sellers."""
+        inference = PainInference(
+            rule_id="tag_bloat",
+            title="Tag/Analytics Bloat",
+            description="6+ analytics tools detected.",
+            severity="medium",
+            evidence=["Detected 8 analytics/ad/tag tools"],
+            confidence=60,
+            category="marketing",
+        )
+        assert is_action_tier_relevant(inference, "database") is False
+
+
+# --- Action Tier gate in evaluate() ---
+
+
+class TestActionTierGateInEvaluate:
+    @patch("services.pain_inference.get_settings")
+    def test_frontend_signal_demoted_to_background_for_db_seller(self, mock_settings, engine):
+        """When seller is DB, frontend_performance_debt gets _background_ prefix."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(
+                ("React", "javascript framework"), ("Vue", "javascript framework"),
+                ("jQuery", "javascript framework"),
+            )},
+        )
+        results = engine.evaluate(bundle, seller_product_context="MongoDB Atlas - scalable database platform")
+        frontend = [r for r in results if r.rule_id == "frontend_performance_debt"]
+        assert len(frontend) == 1
+        assert frontend[0].category.startswith("_background_")
+
+    @patch("services.pain_inference.get_settings")
+    def test_db_signal_not_demoted_for_db_seller(self, mock_settings, engine):
+        """Database scaling pressure stays in normal category for DB seller."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=False)
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(("postgresql", "database"),)},
+            job_signals=JobSignals(role_types=["data", "backend"], tech_mentions=[], seniority_distribution={}),
+        )
+        results = engine.evaluate(bundle, seller_product_context="MongoDB Atlas - scalable database platform")
+        db_signals = [r for r in results if r.rule_id == "database_scaling_pressure"]
+        assert len(db_signals) == 1
+        assert not db_signals[0].category.startswith("_background_")
+
+
+# --- Golden fixture: Nike/Costco-like tech profile ---
+
+
+class TestGoldenFixtureDbSeller:
+    """Nike/Costco-like tech profile should not produce frontend debt in Action Tier for DB seller."""
+
+    @patch("services.pain_inference.get_settings")
+    def test_large_retail_tech_profile_no_frontend_in_action_tier(self, mock_settings, engine):
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=True)
+        bundle = SignalBundle(
+            tech_by_domain={
+                "www.bigretail.com": _make_stack(
+                    ("React", "javascript framework"),
+                    ("jQuery", "javascript"),
+                    ("Bootstrap", "css framework"),
+                    ("Google Analytics", "analytics"),
+                    ("Hotjar", "analytics"),
+                    ("GTM", "tag manager"),
+                    ("Optimizely", "analytics"),
+                ),
+                "app.bigretail.com": _make_stack(
+                    ("Angular", "javascript framework"),
+                    ("Node.js", "javascript"),
+                    ("PostgreSQL", "database"),
+                ),
+            },
+            job_signals=JobSignals(
+                role_types=["frontend", "backend", "data"],
+                tech_mentions=[
+                    TechMention(name="React", category="javascript", count=3),
+                    TechMention(name="PostgreSQL", category="database", count=2),
+                ],
+                seniority_distribution={"senior": 2, "mid": 3},
+            ),
+        )
+        results = engine.evaluate(
+            bundle,
+            seller_product_context="MongoDB Atlas - scalable database platform for modern applications",
+        )
+
+        # Frontend signals should be background-only
+        for r in results:
+            if r.rule_id in ("frontend_performance_debt", "tag_bloat", "marketing_product_mismatch"):
+                assert r.category.startswith("_background_"), \
+                    f"{r.rule_id} should be background-only for DB seller, got category={r.category}"
+
+        # Database/data signals should NOT be background
+        for r in results:
+            if r.rule_id in ("database_scaling_pressure", "data_infra_pain"):
+                assert not r.category.startswith("_background_"), \
+                    f"{r.rule_id} should be action-tier for DB seller, got category={r.category}"

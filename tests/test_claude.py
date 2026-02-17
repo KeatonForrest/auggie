@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 
 from services.claude import ClaudeService
-from models import ScrapedContent, TechStack, DetectedTechnology, ResearchDocument
+from models import ScrapedContent, TechStack, DetectedTechnology, ResearchDocument, PainInference
 
 
 @pytest.fixture
@@ -1008,3 +1008,132 @@ class TestFormatSections:
         result = tight_writing_service._format_sections(sections)
         assert "In summary" not in result["company_overview"]
         assert result["company_overview"].startswith("the team is expanding")
+
+
+# --- Frontend signal suppression in system prompt ---
+
+
+class TestFrontendSignalSuppression:
+    def test_db_seller_gets_frontend_suppression_note(self, claude_service):
+        """Database seller system prompt includes frontend/CDN suppression."""
+        result = claude_service._build_system_prompt(
+            product_context="MongoDB Atlas - scalable nosql database platform",
+            problems_solved="database scaling, sql query performance",
+            seller_product_category="database",
+        )
+        assert "FRONTEND/CDN SIGNAL SUPPRESSION" in result
+
+    def test_non_db_seller_no_frontend_suppression_note(self, claude_service):
+        """Non-database seller system prompt does NOT include frontend suppression."""
+        result = claude_service._build_system_prompt(
+            product_context="Salesforce CRM for enterprise sales",
+            problems_solved="sales pipeline management",
+        )
+        assert "FRONTEND/CDN SIGNAL SUPPRESSION" not in result
+
+    def test_suppression_note_mentions_key_terms(self, claude_service):
+        """Suppression note references React, Vue, CDN, and database bottleneck."""
+        result = claude_service._build_system_prompt(
+            product_context="PostgreSQL managed database service with sql optimization",
+            problems_solved="database hosting, sql query optimization",
+            seller_product_category="database",
+        )
+        assert "React" in result
+        assert "CDN" in result
+        assert "database bottleneck" in result
+
+
+# --- Background-only pain signal rendering ---
+
+
+class TestBackgroundOnlyPainSignals:
+    def test_background_signals_separated_in_user_prompt(self, claude_service):
+        """Background-tagged inferences render under 'Background-Only Signals' header."""
+        scraped = ScrapedContent(homepage="Test homepage content.")
+        pain_inferences = [
+            PainInference(
+                rule_id="database_scaling_pressure",
+                title="Database Scaling Pressure",
+                description="Single DB with hiring.",
+                severity="medium",
+                evidence=["Single database: postgresql"],
+                confidence=55,
+                category="engineering",
+            ),
+            PainInference(
+                rule_id="frontend_performance_debt",
+                title="Frontend Performance Debt",
+                description="Multiple JS frameworks without CDN.",
+                severity="medium",
+                evidence=["Frameworks: React, Vue"],
+                confidence=50,
+                category="_background_engineering",
+            ),
+        ]
+        result = claude_service._build_user_prompt(
+            "https://example.com", scraped, pain_inferences=pain_inferences,
+        )
+        assert "## Programmatic Pain Signals" in result
+        assert "Database Scaling Pressure" in result
+        assert "## Background-Only Signals (DO NOT use in Action Tier)" in result
+        assert "Frontend Performance Debt" in result
+
+    def test_no_background_signals_no_background_section(self, claude_service):
+        """When all inferences are action-tier, no background section appears."""
+        scraped = ScrapedContent(homepage="Test homepage content.")
+        pain_inferences = [
+            PainInference(
+                rule_id="database_scaling_pressure",
+                title="Database Scaling Pressure",
+                description="Single DB with hiring.",
+                severity="medium",
+                evidence=["Single database: postgresql"],
+                confidence=55,
+                category="engineering",
+            ),
+        ]
+        result = claude_service._build_user_prompt(
+            "https://example.com", scraped, pain_inferences=pain_inferences,
+        )
+        assert "## Programmatic Pain Signals" in result
+        assert "Background-Only Signals" not in result
+
+    def test_all_background_no_action_tier_section(self, claude_service):
+        """When all inferences are background-only, no action-tier pain signal section appears."""
+        scraped = ScrapedContent(homepage="Test homepage content.")
+        pain_inferences = [
+            PainInference(
+                rule_id="frontend_performance_debt",
+                title="Frontend Performance Debt",
+                description="Multiple JS frameworks without CDN.",
+                severity="medium",
+                evidence=["Frameworks: React, Vue"],
+                confidence=50,
+                category="_background_engineering",
+            ),
+        ]
+        result = claude_service._build_user_prompt(
+            "https://example.com", scraped, pain_inferences=pain_inferences,
+        )
+        assert "## Programmatic Pain Signals" not in result
+        assert "## Background-Only Signals (DO NOT use in Action Tier)" in result
+
+    def test_background_signal_shows_real_category(self, claude_service):
+        """Background signal renders its real category (without prefix) in output."""
+        scraped = ScrapedContent(homepage="Test homepage content.")
+        pain_inferences = [
+            PainInference(
+                rule_id="frontend_performance_debt",
+                title="Frontend Performance Debt",
+                description="Multiple JS frameworks without CDN.",
+                severity="medium",
+                evidence=["Frameworks: React, Vue"],
+                confidence=50,
+                category="_background_engineering",
+            ),
+        ]
+        result = claude_service._build_user_prompt(
+            "https://example.com", scraped, pain_inferences=pain_inferences,
+        )
+        assert "[engineering]" in result
+        assert "_background_" not in result.split("Background-Only Signals")[1]

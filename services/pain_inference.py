@@ -1,7 +1,83 @@
 """Pain inference engine — derive actionable pain signals from collected data."""
 
+import logging
 from typing import Optional
 from models import SignalBundle, PainInference, TechStack, SellerContext
+from config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# ── Category policy: deterministic Action Tier relevance gate ──
+
+_CATEGORY_KEYWORDS = {
+    "database": [
+        "database", "db ", "data warehouse", "data lake", "sql", "nosql",
+        "mongodb", "postgres", "postgresql", "mysql", "redis", "dynamodb",
+        "cassandra", "cockroachdb", "data platform", "data infrastructure",
+        "vector database", "graph database", "time-series", "olap", "oltp",
+    ],
+}
+
+_FRONTEND_DENYLIST = {
+    "frontend_frameworks", "cdn_delivery", "css_tooling", "marketing_tags",
+}
+
+_DB_LINKAGE_TERMS = [
+    "database bottleneck", "db bottleneck", "query performance",
+    "api latency", "data pipeline", "backend performance",
+    "read replica", "write throughput", "connection pool",
+    "slow queries", "index", "migration", "data-intensive",
+]
+
+# Maps rule_id → set of signal families the rule belongs to
+_RULE_FAMILIES: dict[str, set[str]] = {
+    "frontend_performance_debt": {"frontend_frameworks"},
+    "tag_bloat": {"marketing_tags"},
+    "marketing_product_mismatch": {"frontend_frameworks"},
+}
+
+# Maps seller category → set of denied signal families
+_CATEGORY_DENYLISTS: dict[str, set[str]] = {
+    "database": _FRONTEND_DENYLIST,
+}
+
+
+def detect_seller_category(product_context: str) -> str:
+    """Detect seller product category from product context using keyword hits.
+
+    Returns the category with >= 2 keyword hits, or "" if none match.
+    """
+    if not product_context:
+        return ""
+    text = product_context.lower()
+    for category, keywords in _CATEGORY_KEYWORDS.items():
+        hits = sum(1 for kw in keywords if kw in text)
+        if hits >= 2:
+            return category
+    return ""
+
+
+def is_action_tier_relevant(inference: PainInference, seller_category: str) -> bool:
+    """Determine if a pain inference is relevant for Action Tier fields.
+
+    Returns True if the signal should be included in Action Tier
+    (existential_data_points, pvp_seed, talking_points). Returns False
+    if the signal should be suppressed from Action Tier (kept for
+    background context only).
+    """
+    if not seller_category or seller_category not in _CATEGORY_DENYLISTS:
+        return True
+    denied_families = _CATEGORY_DENYLISTS[seller_category]
+    rule_families = _RULE_FAMILIES.get(inference.rule_id, set())
+    if not rule_families.intersection(denied_families):
+        return True
+    # Check for linkage override: evidence text contains DB-related terms
+    evidence_text = " ".join(inference.evidence).lower()
+    description_text = inference.description.lower()
+    combined = evidence_text + " " + description_text
+    if any(term in combined for term in _DB_LINKAGE_TERMS):
+        return True
+    return False
 
 
 class PainInferenceEngine:
@@ -43,7 +119,10 @@ class PainInferenceEngine:
         "ping identity", "azure ad", "keycloak",
     }
 
-    def evaluate(self, bundle: SignalBundle, seller: Optional[SellerContext] = None) -> list[PainInference]:
+    def evaluate(self, bundle: SignalBundle, seller: Optional[SellerContext] = None,
+                 seller_product_context: str = "") -> list[PainInference]:
+        settings = get_settings()
+
         rules = [
             self._identity_fragmentation,
             self._tech_debt,
@@ -57,13 +136,19 @@ class PainInferenceEngine:
             self._tag_bloat,
             self._vendor_lock_in,
             self._compliance_gap,
-            self._frontend_performance_debt,
             self._hiring_velocity_anomaly,
             self._tool_sprawl,
             self._observability_gap,
             self._database_scaling_pressure,
             self._auth_fragmentation,
         ]
+
+        # Gate: frontend_performance_debt only runs when flag is on
+        if getattr(settings, "pain_frontend_rule_enabled", False):
+            rules.append(self._frontend_performance_debt)
+        else:
+            logger.debug("pain_frontend_rule_enabled=off, skipping frontend_performance_debt")
+
         results = []
         for rule in rules:
             inference = rule(bundle)
@@ -75,6 +160,19 @@ class PainInferenceEngine:
         if seller is not None:
             self._apply_seller_weighting(results, seller)
             results = [r for r in results if r.confidence > 0]
+
+        # Action Tier relevance gate: tag irrelevant signals
+        seller_category = detect_seller_category(seller_product_context)
+        if seller_category:
+            filtered_count = 0
+            for r in results:
+                if not is_action_tier_relevant(r, seller_category):
+                    r.category = f"_background_{r.category}"
+                    filtered_count += 1
+            if filtered_count:
+                logger.info("pain_signal_filtered_irrelevant: %d signals demoted to background for %s seller",
+                            filtered_count, seller_category)
+
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
 
