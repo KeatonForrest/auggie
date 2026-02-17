@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     research_model: str = "google/gemini-2.5-flash"
     writing_model: str = "mistralai/mistral-small-creative"
+    writing_model_email: str = ""
+    writing_model_linkedin_dm: str = ""
+    writing_model_linkedin_connection: str = ""
     vision_model: str = "google/gemini-2.5-flash"
     database_url: str  # Required: postgresql://user:pass@host:port/db
 
