@@ -1187,6 +1187,15 @@ class TestLinkedInUserPrompt:
         assert "MongoDB Atlas database" in prompt
         assert "scalability, performance" in prompt
 
+    def test_company_anchor_instruction(self, writing_service):
+        ctx = {"content_type": "none", "low_confidence": True}
+        prompt = writing_service._build_linkedin_user_prompt(
+            "report", ctx, "product", "", "problems", "dm",
+            company_name="Fortive.com",
+        )
+        assert "MUST mention the company" in prompt
+        assert '"fortive"' in prompt
+
 
 # --- LinkedIn relevance filter ---
 
@@ -1251,8 +1260,26 @@ class TestLinkedInQualityGate:
         assert valid is False
         assert "must end with exactly one question" in reason
 
-    def test_banned_phrase(self, writing_service):
+    def test_banned_robotic_phrase(self, writing_service):
         msg = "I noticed on your LinkedIn that Acme Corp is doing interesting work. Curious how you're thinking about scaling?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is False
+        assert "banned phrase" in reason
+
+    def test_i_noticed_natural_passes(self, writing_service):
+        """'I noticed' followed by a specific signal (not LinkedIn reference) is allowed."""
+        msg = "I noticed Acme Corp is hiring three data engineers this quarter. That usually means the pipeline has outgrown the team. Curious how you're handling that?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is True
+
+    def test_i_saw_natural_passes(self, writing_service):
+        """'I saw' followed by a specific signal is allowed."""
+        msg = "I saw Acme Corp just closed a Series B. That pace of growth usually surfaces infra bottlenecks. Curious how you're thinking about scaling?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
+        assert valid is True
+
+    def test_came_across_profile_banned(self, writing_service):
+        msg = "I came across your profile and Acme Corp caught my eye. Curious how you're thinking about scaling?"
         valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Acme Corp")
         assert valid is False
         assert "banned phrase" in reason
@@ -1305,6 +1332,44 @@ class TestLinkedInQualityGate:
         valid, reason = writing_service._validate_linkedin_message(msg, "dm", "MongoDB, Inc.")
         assert valid is False
         assert "lacks a prospect-specific anchor" in reason
+
+    def test_anchor_domain_root(self, writing_service):
+        """Company stored as 'fortive.com' matches 'Fortive' in message."""
+        msg = "Fortive is growing through acquisitions fast. Curious how you're integrating the new teams?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "fortive.com")
+        assert valid is True
+
+    def test_anchor_org_domain(self, writing_service):
+        """Company stored as 'acme.org' matches 'acme' in message."""
+        msg = "Acme is doing interesting work in the nonprofit space. Curious how you're scaling operations?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "acme.org")
+        assert valid is True
+
+    def test_anchor_multiword_token(self, writing_service):
+        """Multi-word core: 'Palo Alto Networks' matches 'Palo' in message."""
+        msg = "Palo Alto's expansion into cloud security is impressive. Curious how the migration path is going?"
+        valid, reason = writing_service._validate_linkedin_message(msg, "dm", "Palo Alto Networks, Inc.")
+        assert valid is True
+
+
+class TestExtractCompanyCore:
+    def test_strips_inc(self):
+        assert WritingService._extract_company_core("MongoDB, Inc.") == "mongodb"
+
+    def test_strips_dotcom(self):
+        assert WritingService._extract_company_core("nike.com") == "nike"
+
+    def test_strips_corp(self):
+        assert WritingService._extract_company_core("Acme Corp") == "acme"
+
+    def test_strips_llc(self):
+        assert WritingService._extract_company_core("DataCo LLC") == "dataco"
+
+    def test_plain_name_unchanged(self):
+        assert WritingService._extract_company_core("Fortive") == "fortive"
+
+    def test_short_name_returns_original(self):
+        assert WritingService._extract_company_core("AI") == "ai"
 
 
 # --- LinkedIn message generation ---
@@ -1475,6 +1540,54 @@ class TestLinkedInMessageGeneration:
                         problems_solved="database scalability",
                     )
                 assert exc_info.value.code == "linkedin_generation_failed"
+
+    @pytest.mark.asyncio
+    async def test_anchor_retry_rescues_missing_company(self, sample_document):
+        """If first LLM response lacks company name, anchor retry injects it."""
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            # First response: valid structure but missing company anchor
+            first_msg = MagicMock()
+            first_msg.choices = [MagicMock()]
+            first_msg.choices[0].message.content = (
+                "Message:\n"
+                "Your team is scaling fast and the data layer usually becomes the bottleneck at this stage. "
+                "Curious how you're thinking about that?"
+            )
+
+            # Anchor rescue response: includes company name
+            rescue_msg = MagicMock()
+            rescue_msg.choices = [MagicMock()]
+            rescue_msg.choices[0].message.content = (
+                "Acme Corp is scaling fast and the data layer usually becomes the bottleneck at this stage. "
+                "Curious how you're thinking about that?"
+            )
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=[first_msg, rescue_msg]
+            )
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                result = await service.generate_linkedin_message(
+                    document=sample_document,
+                    product_context="MongoDB Atlas database",
+                    linkedin_context={"content_type": "none", "low_confidence": True},
+                    mode="dm",
+                    problems_solved="database scalability",
+                )
+
+        assert "acme" in result["message"].lower()
+        # Two LLM calls: initial + anchor rescue
+        assert mock_client.chat.completions.create.call_count == 2
 
 
 # --- LinkedIn channel modes ---

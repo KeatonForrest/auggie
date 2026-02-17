@@ -818,8 +818,10 @@ The message opens a conversation. It does not close a deal.
 
 CONSTRAINTS:
 - No subject line. LinkedIn messages don't have them.
-- No "I noticed on your LinkedIn..." or "I saw your post about..."
-  -- reference the content naturally as if you already knew it.
+- No robotic LinkedIn openers like "I noticed on your LinkedIn...",
+  "I came across your profile...", or "I saw your LinkedIn post about..."
+  "I noticed..." and "I saw..." are fine when followed by a specific signal,
+  not a reference to the platform itself.
 - No product pitches. Earn curiosity, don't sell.
 - Write like a peer texting a colleague, not an email marketer.
 - No emdashes. No bold. No bullet points. Plain conversational text.
@@ -870,10 +872,16 @@ STRUCTURE:
     def _build_linkedin_user_prompt(
         self, report: str, linkedin_context: dict, product_context: str,
         persona_context: str, problems_solved: str, mode: str,
+        company_name: str = "",
     ) -> str:
         """Build the user prompt for LinkedIn message generation."""
         mode_label = "direct message" if mode == "dm" else "connection request note"
         parts = [f"Write a LinkedIn {mode_label} to this prospect."]
+
+        # Company anchor instruction
+        if company_name:
+            core = self._extract_company_core(company_name)
+            parts.append(f'The message MUST mention the company by name. Use this token: "{core}".')
 
         # Screenshot context
         low_confidence = linkedin_context.get("low_confidence", True)
@@ -947,10 +955,16 @@ STRUCTURE:
         if mode == "connection_request" and len(message) > 300:
             return False, "Connection request exceeds 300 character limit"
 
-        # Banned phrases
+        # Banned phrases — robotic LinkedIn cliches, not natural phrasing.
+        # "I noticed..." and "I saw..." are fine on their own; only the
+        # full robotic variants are banned.
         banned = [
             "I noticed on your LinkedIn",
-            "I saw your post",
+            "I noticed on your profile",
+            "I noticed your LinkedIn",
+            "I saw your post on LinkedIn",
+            "I saw your LinkedIn",
+            "I came across your profile",
             "I'd love 15 minutes",
             "I'd love to grab 15",
             "would love 15 minutes",
@@ -968,24 +982,25 @@ STRUCTURE:
         return True, ""
 
     @staticmethod
-    def _company_anchor_match(company_name: str, msg_lower: str) -> bool:
-        """Check if the message contains the company name (fuzzy).
+    def _extract_company_core(company_name: str) -> str:
+        """Extract the core company token from a company name or domain.
 
-        Tries the full name first, then strips common suffixes like
-        Inc., Corp., LLC, .com, Ltd., Co., etc. to match the core name.
+        Examples:
+            "MongoDB, Inc." -> "mongodb"
+            "fortive.com"   -> "fortive"
+            "nike.com"      -> "nike"
+            "Acme Corp"     -> "acme"
         """
         name_lower = company_name.lower().strip()
-        if name_lower in msg_lower:
-            return True
 
-        # Strip common suffixes and trailing punctuation
+        # Strip common legal/corporate suffixes
         suffixes = [
             ", inc.", ", inc", " inc.", " inc",
             ", corp.", ", corp", " corp.", " corp",
             ", llc", " llc",
             ", ltd.", ", ltd", " ltd.", " ltd",
             ", co.", " co.",
-            ".com", ".io", ".ai", ".co",
+            ".com", ".io", ".ai", ".co", ".org", ".net",
         ]
         core = name_lower
         for suffix in suffixes:
@@ -993,11 +1008,29 @@ STRUCTURE:
                 core = core[: -len(suffix)].strip()
                 break
 
-        # Also strip trailing comma or period left over
         core = core.rstrip(",. ")
+        return core if len(core) >= 3 else name_lower
 
-        if core and len(core) >= 3 and core in msg_lower:
+    @staticmethod
+    def _company_anchor_match(company_name: str, msg_lower: str) -> bool:
+        """Check if the message contains the company name (fuzzy).
+
+        Tries: full name, core name (suffix-stripped), domain root,
+        and individual tokens from multi-word names.
+        """
+        name_lower = company_name.lower().strip()
+        if name_lower in msg_lower:
             return True
+
+        core = WritingService._extract_company_core(name_lower)
+        if core and core in msg_lower:
+            return True
+
+        # For multi-word cores, try each word >= 4 chars (e.g. "Palo Alto" -> check "palo", "alto")
+        if " " in core:
+            for token in core.split():
+                if len(token) >= 4 and token in msg_lower:
+                    return True
 
         return False
 
@@ -1063,6 +1096,7 @@ STRUCTURE:
         user_prompt = self._build_linkedin_user_prompt(
             report, linkedin_context, product_context,
             persona_context, problems_solved, mode,
+            company_name=document.company_name,
         )
 
         # Single LLM call
@@ -1220,10 +1254,45 @@ STRUCTURE:
                 except Exception:
                     logger.warning("Char-limit CTA rescue failed for connection request")
 
-        # Quality gate
+        # Quality gate — one retry on anchor failure
         valid, error_reason = self._validate_linkedin_message(
             message, mode, document.company_name
         )
+        if not valid and "anchor" in error_reason:
+            core = self._extract_company_core(document.company_name)
+            anchor_rescue_prompt = (
+                f'Your message does not mention the prospect company. '
+                f'Rewrite it to include "{core}" naturally. '
+                f'Keep the same tone and structure. It MUST end with a question.\n\n'
+                f'Output ONLY the message text.\n\n{message}'
+            )
+            try:
+                anchor_response = await self.client.chat.completions.create(
+                    model=self.settings.writing_model,
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": anchor_rescue_prompt}],
+                )
+                anchor_raw = anchor_response.choices[0].message.content or ""
+                anchor_raw = (
+                    anchor_raw
+                    .replace("\u2014", " - ")
+                    .replace("\u2013", " - ")
+                    .replace("\u2015", " - ")
+                    .replace("\u2012", " - ")
+                )
+                anchor_raw = re.sub(r"\*+(.+?)\*+", r"\1", anchor_raw)
+                anchor_msg = anchor_raw.strip()
+                anchor_match = re.search(r"^Message:\s*", anchor_msg, re.MULTILINE)
+                if anchor_match:
+                    anchor_msg = anchor_msg[anchor_match.end():].strip()
+                if anchor_msg:
+                    message = anchor_msg
+                    valid, error_reason = self._validate_linkedin_message(
+                        message, mode, document.company_name
+                    )
+            except Exception:
+                logger.warning("Anchor rescue retry failed for LinkedIn message")
+
         if not valid:
             raise SequenceValidationError(
                 code="linkedin_validation_failed",
