@@ -23,6 +23,7 @@ from db.documents import (
 )
 from db.jobs import create_job_with_credit, create_research_job
 from services.instances import firecrawl_service, claude_service, tech_detection_service, writing_service, vision_service
+from services.writing import SequenceValidationError
 from services.collect import collect_enrichment_data
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
@@ -423,11 +424,19 @@ async def generate_outreach(
             "subject_options": subject_options,
             "markdown": writing_service.format_emails_markdown(emails),
         })
-    except Exception as e:
-        logger.error("Error generating outreach: %s", e)
+    except SequenceValidationError as e:
+        logger.warning("Outreach validation failed for doc %d: %s", doc_id, e.message,
+                       extra={"event_type": "email_generation", "doc_id": doc_id, "error_code": e.code})
         return JSONResponse({
             "success": False,
-            "error": "Failed to generate outreach. Please try again.",
+            "error": {"code": e.code, "message": e.message},
+        }, status_code=422)
+    except Exception as e:
+        logger.error("Error generating outreach for doc %d: %s", doc_id, e,
+                     extra={"event_type": "email_generation", "doc_id": doc_id, "error_code": "outreach_generation_failed"})
+        return JSONResponse({
+            "success": False,
+            "error": {"code": "outreach_generation_failed", "message": "Failed to generate outreach. Please try again."},
         }, status_code=500)
 
 

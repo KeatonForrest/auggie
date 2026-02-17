@@ -25,6 +25,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Lint PEA prompts
+        run: python3 scripts/lint_pea_prompt.py
+
       - name: Run tests
         env:
           FIRECRAWL_API_KEY: "test-dummy"

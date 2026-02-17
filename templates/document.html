@@ -478,8 +478,14 @@ This template displays a generated research document with:
                 <div id="outreach-content" class="hidden prose max-w-none">
                     <!-- Emails will be inserted here -->
                 </div>
-                <div id="outreach-error" class="hidden text-center py-8 text-red-600">
-                    <!-- Error message will be shown here -->
+                <div id="outreach-error" class="hidden py-8">
+                    <div class="text-center">
+                        <svg class="mx-auto h-10 w-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        <p id="outreach-error-message" class="mt-3 text-sm text-red-600"></p>
+                        <p class="mt-1 text-xs text-gray-500">Try regenerating — results vary between attempts.</p>
+                    </div>
                 </div>
             </div>
 
@@ -645,7 +651,8 @@ This template displays a generated research document with:
                 document.getElementById('outreach-loading').classList.add('hidden');
                 document.getElementById('outreach-error').classList.remove('hidden');
                 const errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate outreach');
-                document.getElementById('outreach-error').textContent = errMsg;
+                document.getElementById('outreach-error-message').textContent = errMsg;
+                document.getElementById('regenerate-btn').classList.remove('hidden');
             }
         })
         .catch(err => {
@@ -653,7 +660,8 @@ This template displays a generated research document with:
             btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Messaging';
             document.getElementById('outreach-loading').classList.add('hidden');
             document.getElementById('outreach-error').classList.remove('hidden');
-            document.getElementById('outreach-error').textContent = 'Network error: ' + err.message;
+            document.getElementById('outreach-error-message').textContent = 'Network error: ' + err.message;
+            document.getElementById('regenerate-btn').classList.remove('hidden');
         });
     }
 

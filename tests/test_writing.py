@@ -12,7 +12,11 @@ from services.writing import WritingService
 def writing_service():
     """WritingService with mocked API client."""
     with patch("services.writing.get_settings") as mock_settings:
-        mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            writing_model="mistralai/mistral-medium-3.1",
+            pea_selector_enabled=False,
+        )
         with patch("services.writing.AsyncOpenAI"):
             service = WritingService()
     return service
@@ -363,7 +367,7 @@ class TestGenerateEmailSequence:
     async def test_generate_sequence_basic(self, sample_document):
         """Test uncovered lines 1569-1587: generate_email_sequence method."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1", pea_selector_enabled=False)
 
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
@@ -410,7 +414,7 @@ Last check-in - still interested in discussing database performance?
     async def test_generate_sequence_with_all_parameters(self, full_document):
         """Test generate_email_sequence with all optional parameters."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1", pea_selector_enabled=False)
 
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
@@ -452,7 +456,7 @@ Last check-in - still interested in discussing database performance?
     async def test_generate_sequence_msp_type(self, sample_document):
         """Test generate_email_sequence with MSP product type."""
         with patch("services.writing.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", writing_model="mistralai/mistral-medium-3.1", pea_selector_enabled=False)
 
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
@@ -599,3 +603,277 @@ class TestPersonaContext:
         """No Recommended Contacts section when field is empty."""
         report = writing_service._build_report(sample_document, "Product")
         assert "## Recommended Contacts" not in report
+
+
+# --- _validate_sequence ---
+
+
+class TestValidateSequence:
+    def test_valid_sequence(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "test", "body": "Short body here."},
+            {"email_number": 2, "subject": "test", "body": "Another short body here."},
+            {"email_number": 3, "subject": "test", "body": "Final short body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is True
+        assert msg == ""
+
+    def test_wrong_email_count(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "test", "body": "Body."},
+            {"email_number": 2, "subject": "test", "body": "Body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is False
+        assert "Expected 3 emails" in msg
+
+    def test_wrong_email_numbers(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "test", "body": "Body."},
+            {"email_number": 2, "subject": "test", "body": "Body."},
+            {"email_number": 4, "subject": "test", "body": "Body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is False
+        assert "Email numbers must be 1,2,3" in msg
+
+    def test_empty_subject(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "", "body": "Body."},
+            {"email_number": 2, "subject": "test", "body": "Body."},
+            {"email_number": 3, "subject": "test", "body": "Body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is False
+        assert "empty subject" in msg
+
+    def test_empty_body(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "test", "body": "  "},
+            {"email_number": 2, "subject": "test", "body": "Body."},
+            {"email_number": 3, "subject": "test", "body": "Body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is False
+        assert "empty body" in msg
+
+    def test_over_word_limit(self, writing_service):
+        long_body = " ".join(["word"] * 80)  # 80 words, limit for email 1 is 75
+        emails = [
+            {"email_number": 1, "subject": "test", "body": long_body},
+            {"email_number": 2, "subject": "test", "body": "Short."},
+            {"email_number": 3, "subject": "test", "body": "Short."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, ["subj1"])
+        assert valid is False
+        assert "80 words" in msg
+
+    def test_no_subject_options(self, writing_service):
+        emails = [
+            {"email_number": 1, "subject": "test", "body": "Body."},
+            {"email_number": 2, "subject": "test", "body": "Body."},
+            {"email_number": 3, "subject": "test", "body": "Body."},
+        ]
+        valid, msg = writing_service._validate_sequence(emails, [])
+        assert valid is False
+        assert "No subject options" in msg
+
+
+# --- _repair_sequence_output ---
+
+
+class TestRepairSequence:
+    @pytest.mark.asyncio
+    async def test_repair_calls_model(self, writing_service):
+        """Repair sends malformed content to the model for reformatting."""
+        mock_message = MagicMock()
+        mock_message.choices = [MagicMock()]
+        mock_message.choices[0].message.content = (
+            "Subject 1: fixed subject\n"
+            "Subject 2: option two\n"
+            "Subject 3: option three\n\n"
+            "Email 1:\nFixed body one.\n\n"
+            "Email 2:\nFixed body two.\n\n"
+            "Email 3:\nFixed body three.\n"
+        )
+        writing_service.client = AsyncMock()
+        writing_service.client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+        result = await writing_service._repair_sequence_output("broken output")
+
+        assert "Subject 1: fixed subject" in result
+        writing_service.client.chat.completions.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_repair_strips_emdashes(self, writing_service):
+        """Repair pass removes em/en dashes from model output."""
+        mock_message = MagicMock()
+        mock_message.choices = [MagicMock()]
+        mock_message.choices[0].message.content = "Subject 1: test \u2014 subject\n\nEmail 1:\nbody"
+        writing_service.client = AsyncMock()
+        writing_service.client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+        result = await writing_service._repair_sequence_output("broken")
+        assert "\u2014" not in result
+        assert " - " in result
+
+
+# --- _over_limit_emails ---
+
+
+class TestOverLimitEmails:
+    def test_detects_over_limit(self, writing_service):
+        emails = [
+            {"email_number": 1, "body": " ".join(["word"] * 80)},  # limit 75
+            {"email_number": 2, "body": " ".join(["word"] * 50)},  # limit 100
+            {"email_number": 3, "body": " ".join(["word"] * 65)},  # limit 60
+        ]
+        over = writing_service._over_limit_emails(emails)
+        assert len(over) == 2
+        numbers = {o["email_number"] for o in over}
+        assert numbers == {1, 3}
+
+    def test_all_within_limit(self, writing_service):
+        emails = [
+            {"email_number": 1, "body": " ".join(["word"] * 70)},
+            {"email_number": 2, "body": " ".join(["word"] * 90)},
+            {"email_number": 3, "body": " ".join(["word"] * 55)},
+        ]
+        over = writing_service._over_limit_emails(emails)
+        assert len(over) == 0
+
+
+# --- PEA selector ---
+
+
+class TestPEASelector:
+    def test_high_score_uses_full_mode(self):
+        from services.pea_selector import select_examples
+        result = select_examples(opportunity_score=70)
+        assert result["mode"] == "full"
+        assert result["examples_count"] > 0
+
+    def test_low_score_uses_partial_mode(self):
+        from services.pea_selector import select_examples
+        result = select_examples(opportunity_score=30)
+        assert result["mode"] == "partial"
+        assert result["examples_count"] > 0
+
+    def test_msp_prioritizes_msp_example(self):
+        from services.pea_selector import select_examples
+        result = select_examples(opportunity_score=70, product_type="msp")
+        assert result["mode"] == "full"
+        # MSP example should be first
+        assert any("MSP" in ex or "law firm" in ex.lower() for ex in result["examples"])
+
+    def test_load_prompt_sections_default_path(self):
+        from services.pea_selector import load_prompt_sections
+        sections = load_prompt_sections(opportunity_score=70, use_selector=False)
+        assert sections["rules_core"]
+        assert sections["subject_rules"]
+        assert sections["examples"]
+        assert sections["mode"] == "full"
+        assert "**ADDITIONAL PVP EXAMPLES**" in sections["examples"]
+
+    def test_load_prompt_sections_partial_path(self):
+        from services.pea_selector import load_prompt_sections
+        sections = load_prompt_sections(opportunity_score=30, use_selector=False)
+        assert sections["mode"] == "partial"
+        assert "**PARTIAL-SIGNAL PVP EXAMPLES**" in sections["examples"]
+
+    def test_load_prompt_sections_selector_path(self):
+        from services.pea_selector import load_prompt_sections
+        sections = load_prompt_sections(opportunity_score=70, use_selector=True)
+        assert sections["mode"] == "full"
+        assert sections["examples_count"] > 0
+
+    def test_prompt_composition_includes_all_parts(self, writing_service):
+        """_build_system_prompt composes rules + subject rules + examples."""
+        prompt = writing_service._build_system_prompt(opportunity_score=70)
+        assert "**WRITING STYLE**" in prompt
+        assert "Subject 1:" in prompt
+        assert "**SECTION A: FULL-CONFIDENCE PVP EXAMPLES**" in prompt
+
+
+# --- generate_email_sequence validation flow ---
+
+
+class TestGenerateValidationFlow:
+    @pytest.mark.asyncio
+    async def test_validation_failure_raises_error(self, sample_document):
+        """When initial parse returns <3 emails and repair also fails, raises SequenceValidationError."""
+        from services.writing import SequenceValidationError
+
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+            )
+
+            # Initial call returns 1 email (fails validation)
+            mock_initial = MagicMock()
+            mock_initial.choices = [MagicMock()]
+            mock_initial.choices[0].message.content = "<email1>Only one email.</email1>"
+
+            # Repair also returns 1 email
+            mock_repair = MagicMock()
+            mock_repair.choices = [MagicMock()]
+            mock_repair.choices[0].message.content = "Email 1:\nStill only one."
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=[mock_initial, mock_repair]
+            )
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                with pytest.raises(SequenceValidationError) as exc_info:
+                    await service.generate_email_sequence(sample_document, "Product X")
+
+                assert exc_info.value.code == "sequence_repair_failed"
+
+    @pytest.mark.asyncio
+    async def test_repair_success_continues(self, sample_document):
+        """When initial output is malformed but repair succeeds, returns emails."""
+        with patch("services.writing.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                pea_selector_enabled=False,
+            )
+
+            # Initial call returns malformed (1 email)
+            mock_initial = MagicMock()
+            mock_initial.choices = [MagicMock()]
+            mock_initial.choices[0].message.content = "<email1>Only one.</email1>"
+
+            # Repair returns valid 3-email output
+            repaired = (
+                "<email_series>\n"
+                "<subject1>fixed subj</subject1>\n"
+                "<email1>Body one.</email1>\n"
+                "<email2>Body two.</email2>\n"
+                "<email3>Body three.</email3>\n"
+                "</email_series>"
+            )
+            mock_repair = MagicMock()
+            mock_repair.choices = [MagicMock()]
+            mock_repair.choices[0].message.content = repaired
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=[mock_initial, mock_repair]
+            )
+
+            with patch("services.writing.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                emails, subject_options = await service.generate_email_sequence(
+                    sample_document, "Product X"
+                )
+
+                assert len(emails) == 3
+                assert len(subject_options) >= 1

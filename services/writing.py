@@ -2,14 +2,25 @@
 
 import logging
 import re
+import time
 from openai import AsyncOpenAI
 from typing import Optional
 from models import ResearchDocument
 from config import get_settings
+from services.pea_selector import load_prompt_sections
 
 logger = logging.getLogger(__name__)
 
 WORD_LIMITS = {1: 75, 2: 100, 3: 60}
+
+
+class SequenceValidationError(Exception):
+    """Raised when a generated sequence fails validation after all repair attempts."""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        self.message = message
+        super().__init__(message)
 
 
 class WritingService:
@@ -113,8 +124,37 @@ class WritingService:
 
         return "\n".join(sections)
 
-    def _build_system_prompt(self, opportunity_score: Optional[int] = None) -> str:
-        """Build the system message with framework, rules, and examples."""
+    def _build_system_prompt(self, opportunity_score: Optional[int] = None,
+                              product_type: str = "saas",
+                              seller_product_category: str = "") -> str:
+        """Build the system message with framework, rules, and examples.
+
+        Loads from externalized prompt files when available. Falls back to
+        inline prompt if any file fails to load.
+        """
+        use_selector = getattr(self.settings, "pea_selector_enabled", False)
+        sections = load_prompt_sections(
+            opportunity_score=opportunity_score,
+            product_type=product_type,
+            seller_product_category=seller_product_category,
+            use_selector=use_selector,
+        )
+
+        # Fail-soft: if core rules loaded successfully, compose from files
+        if sections["rules_core"]:
+            parts = [sections["rules_core"]]
+            if sections["subject_rules"]:
+                parts.append(sections["subject_rules"])
+            if sections["examples"]:
+                parts.append(sections["examples"])
+            return "\n\n---\n\n".join(parts)
+
+        # Fallback: use inline prompt if files failed to load
+        logger.warning("Prompt files unavailable, using inline fallback")
+        return self._build_system_prompt_inline(opportunity_score)
+
+    def _build_system_prompt_inline(self, opportunity_score: Optional[int] = None) -> str:
+        """Inline fallback prompt — used when prompt files fail to load."""
 
         prompt = """You are an expert at crafting Personalized Value Propositions (PVPs) for B2B sales outreach.
 
@@ -786,6 +826,69 @@ Use the partial-signal examples as your primary models for this sequence.""")
 
         return emails, subject_options
 
+    def _validate_sequence(self, emails: list[dict], subject_options: list[str]) -> tuple[bool, str]:
+        """Validate a parsed email sequence meets all structural requirements.
+
+        Returns (is_valid, error_message).
+        """
+        if len(emails) != 3:
+            return False, f"Expected 3 emails, got {len(emails)}"
+
+        expected_numbers = {1, 2, 3}
+        actual_numbers = {e["email_number"] for e in emails}
+        if actual_numbers != expected_numbers:
+            return False, f"Email numbers must be 1,2,3 — got {sorted(actual_numbers)}"
+
+        for email in emails:
+            if not email.get("subject", "").strip():
+                return False, f"Email {email['email_number']} has empty subject"
+            if not email.get("body", "").strip():
+                return False, f"Email {email['email_number']} has empty body"
+
+        for email in emails:
+            limit = WORD_LIMITS.get(email["email_number"], 100)
+            count = len(email["body"].split())
+            if count > limit:
+                return False, f"Email {email['email_number']} is {count} words (limit {limit})"
+
+        if not subject_options:
+            return False, "No subject options provided"
+
+        return True, ""
+
+    async def _repair_sequence_output(self, raw_response: str) -> str:
+        """Ask the model to repair a malformed sequence into the expected format."""
+        repair_prompt = (
+            "The following email sequence output is malformed. "
+            "Rewrite it into EXACTLY this format with no other text:\n\n"
+            "Subject 1: [subject line option 1]\n"
+            "Subject 2: [subject line option 2]\n"
+            "Subject 3: [subject line option 3]\n\n"
+            "Email 1:\n[body]\n\n"
+            "Email 2:\n[body]\n\n"
+            "Email 3:\n[body]\n\n"
+            "Keep the same content, just fix the formatting. "
+            "Each email must have a non-empty body. "
+            "Output ONLY the formatted sequence.\n\n"
+            f"--- MALFORMED OUTPUT ---\n{raw_response}"
+        )
+        message = await self.client.chat.completions.create(
+            model=self.settings.writing_model,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": repair_prompt}],
+        )
+        result = message.choices[0].message.content or ""
+        # Clean up emdashes and bold markers
+        result = (
+            result
+            .replace("\u2014", " - ")
+            .replace("\u2013", " - ")
+            .replace("\u2015", " - ")
+            .replace("\u2012", " - ")
+        )
+        result = re.sub(r"\*+(.+?)\*+", r"\1", result)
+        return result.strip()
+
     def _over_limit_emails(self, emails: list[dict]) -> list[dict]:
         """Return emails that exceed their word limit."""
         over = []
@@ -838,13 +941,30 @@ Use the partial-signal examples as your primary models for this sequence.""")
             Tuple of (emails list, subject_options list).
         """
 
+        start_time = time.monotonic()
+        doc_id = getattr(document, "id", None)
+        telemetry = {
+            "event_type": "email_generation",
+            "doc_id": doc_id,
+            "parse_success": False,
+            "validation_pass": False,
+            "repair_attempted": False,
+            "repair_success": False,
+            "prompt_mode": "unknown",
+            "word_limit_pass": False,
+        }
+
         # Build the report from research
         report = self._build_report(document, product_context, retrieved_materials,
                                      seller_company=seller_company, problems_solved=problems_solved,
                                      persona_context=persona_context, custom_signals=custom_signals)
 
         # Build system and user prompts
-        system_prompt = self._build_system_prompt(document.opportunity_score)
+        system_prompt = self._build_system_prompt(
+            document.opportunity_score,
+            product_type=product_type,
+            seller_product_category=product_context,
+        )
         user_prompt = self._build_user_prompt(report, document.opportunity_score, product_type=product_type,
                                               has_persona=bool(persona_context))
 
@@ -872,8 +992,41 @@ Use the partial-signal examples as your primary models for this sequence.""")
         # Strip markdown bold/italic markers — emails are plain text
         response = re.sub(r"\*+(.+?)\*+", r"\1", response)
 
+        # Track prompt mode
+        score = document.opportunity_score if document.opportunity_score is not None else 50
+        telemetry["prompt_mode"] = "partial" if score < 50 else "full"
+
         # Parse the emails
         emails, subject_options = self._parse_emails(response)
+        telemetry["parse_success"] = len(emails) > 0
+
+        # Validate -> repair once -> validate
+        valid, error_msg = self._validate_sequence(emails, subject_options)
+        telemetry["validation_pass"] = valid
+        repair_attempted = False
+        repair_success = False
+
+        if not valid:
+            # Attempt one repair pass
+            repair_attempted = True
+            telemetry["repair_attempted"] = True
+            try:
+                repaired_response = await self._repair_sequence_output(response)
+                emails, subject_options = self._parse_emails(repaired_response)
+                valid, error_msg = self._validate_sequence(emails, subject_options)
+                repair_success = valid
+                telemetry["repair_success"] = repair_success
+                telemetry["validation_pass"] = valid
+            except Exception:
+                logger.warning("Repair pass failed", exc_info=True)
+
+            if not valid:
+                telemetry["latency_ms"] = int((time.monotonic() - start_time) * 1000)
+                logger.info("Email generation failed", extra=telemetry)
+                raise SequenceValidationError(
+                    code="sequence_validation_failed" if not repair_attempted else "sequence_repair_failed",
+                    message=error_msg or "Generated sequence failed validation after repair",
+                )
 
         # Enforce word limits — retry over-limit emails once
         over = self._over_limit_emails(emails)
@@ -881,7 +1034,6 @@ Use the partial-signal examples as your primary models for this sequence.""")
             for ov in over:
                 try:
                     shortened = await self._shorten_email(ov)
-                    # Replace the email body in the list
                     for email in emails:
                         if email["email_number"] == ov["email_number"]:
                             email["body"] = shortened
@@ -889,6 +1041,25 @@ Use the partial-signal examples as your primary models for this sequence.""")
                 except Exception:
                     logger.warning("Failed to shorten email %d (was %d words, limit %d)",
                                    ov["email_number"], ov["word_count"], ov["limit"])
+
+            # Re-validate after shortening
+            still_over = self._over_limit_emails(emails)
+            if still_over:
+                over_details = ", ".join(
+                    f"Email {o['email_number']}: {o['word_count']}/{o['limit']}"
+                    for o in still_over
+                )
+                telemetry["word_limit_pass"] = False
+                telemetry["latency_ms"] = int((time.monotonic() - start_time) * 1000)
+                logger.info("Email generation failed word limits", extra=telemetry)
+                raise SequenceValidationError(
+                    code="sequence_validation_failed",
+                    message=f"Emails still over word limit after shortening: {over_details}",
+                )
+
+        telemetry["word_limit_pass"] = True
+        telemetry["latency_ms"] = int((time.monotonic() - start_time) * 1000)
+        logger.info("Email generation completed", extra=telemetry)
 
         return emails, subject_options
 
