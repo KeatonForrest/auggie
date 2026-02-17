@@ -222,8 +222,8 @@ def _enable_linkedin():
 
 
 @pytest.mark.asyncio
-async def test_linkedin_message_happy_path(authed_client, sample_research_document, _enable_linkedin):
-    """POST /document/{id}/linkedin-message should return generated message."""
+async def test_linkedin_dm_no_screenshot(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message DM without screenshot succeeds."""
     result = {
         "message": "Acme Corp is scaling fast — have you considered a managed data layer?",
         "word_count": 13,
@@ -249,8 +249,8 @@ async def test_linkedin_message_happy_path(authed_client, sample_research_docume
 
 
 @pytest.mark.asyncio
-async def test_linkedin_message_connection_request(authed_client, sample_research_document, _enable_linkedin):
-    """POST /document/{id}/linkedin-message with mode=connection_request."""
+async def test_linkedin_connection_no_screenshot(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message connection_request without screenshot succeeds."""
     result = {
         "message": "Acme's growth is impressive — open to a quick chat about data infra?",
         "word_count": 13,
@@ -272,6 +272,37 @@ async def test_linkedin_message_connection_request(authed_client, sample_researc
     data = response.json()
     assert data["success"] is True
     assert data["mode"] == "connection_request"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_dm_with_screenshot(authed_client, sample_research_document, _enable_linkedin):
+    """POST /document/{id}/linkedin-message with valid LinkedIn screenshot succeeds."""
+    li_context = {"content_type": "profile", "author_name": "Jane Doe", "author_title": "CTO", "low_confidence": False}
+    result = {
+        "message": "Acme Corp is scaling fast — have you considered a managed data layer?",
+        "word_count": 13,
+        "char_count": 68,
+        "content_type": "profile",
+        "mode": "dm",
+        "cta_rescued": False,
+    }
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.vision_service") as mock_vs, \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_vs.extract_linkedin_context = AsyncMock(return_value=li_context)
+        mock_ws.generate_linkedin_message = AsyncMock(return_value=result)
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+            files={"screenshot": ("profile.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["content_type"] == "profile"
+    mock_vs.extract_linkedin_context.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -398,11 +398,11 @@ This template displays a generated research document with:
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOutreachModal()"></div>
 
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden mx-4">
-            <!-- Modal Header with Tabs -->
+            <!-- Modal Header with Mode Selector -->
             <div class="px-6 py-4 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div class="flex gap-1">
-                        <button id="tab-email" onclick="switchOutreachTab('email')"
+                        <button id="mode-email_sequence" onclick="setMessagingMode('email_sequence')"
                                 class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700">
                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
@@ -410,12 +410,19 @@ This template displays a generated research document with:
                             Email Sequence
                         </button>
                         {% if linkedin_message_enabled %}
-                        <button id="tab-linkedin" onclick="switchOutreachTab('linkedin')"
+                        <button id="mode-linkedin_dm" onclick="setMessagingMode('linkedin_dm')"
                                 class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100">
                             <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                             </svg>
-                            LinkedIn Message
+                            LinkedIn DM
+                        </button>
+                        <button id="mode-linkedin_connection_request" onclick="setMessagingMode('linkedin_connection_request')"
+                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100">
+                            <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                            </svg>
+                            Connection Note
                         </button>
                         {% endif %}
                     </div>
@@ -429,53 +436,27 @@ This template displays a generated research document with:
 
             <!-- Modal Body -->
             <div class="px-6 py-4 overflow-y-auto max-h-[60vh]">
-                <!-- Email Panel -->
-                <div id="email-panel">
-                <!-- Setup Screen -->
+                <!-- Setup Screen (shared across modes) -->
                 <div id="outreach-setup" class="py-4">
-                    <button onclick="startOutreachGeneration()"
-                            class="w-full inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                        </svg>
-                        Generate Sequence
-                    </button>
-
-                    <!-- Screenshot power-up toggle -->
-                    <div class="mt-3">
+                    <!-- Screenshot block (LinkedIn modes only) -->
+                    <div id="screenshot-block" class="hidden mb-3">
                         <input type="file" id="screenshot-input" accept="image/*" class="hidden">
-
-                        <!-- Collapsed state: toggle button -->
-                        <button id="screenshot-toggle" onclick="toggleScreenshotPanel()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-                            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        <div id="screenshot-dropzone"
+                             class="border border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                            <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
-                            Add LinkedIn screenshot to personalize for a specific person
-                            <svg id="screenshot-chevron" class="w-3 h-3 ml-auto transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-
-                        <!-- Expanded state: dropzone -->
-                        <div id="screenshot-panel" class="hidden mt-2">
-                            <div id="screenshot-dropzone"
-                                 class="border border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                                <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                                <p class="mt-1 text-xs text-gray-500" id="screenshot-label">Drop screenshot here or click to select</p>
-                                <p class="mt-0.5 text-xs text-gray-400">PNG, JPG, or WebP (max 10MB)</p>
-                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Drop LinkedIn screenshot here or click to select</p>
+                            <p class="mt-0.5 text-xs text-gray-400">Optional but recommended for personalization</p>
                         </div>
 
                         <!-- Attached state: compact preview -->
-                        <div id="screenshot-preview" class="hidden mt-2 flex items-center gap-2.5 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                        <div id="screenshot-preview" class="hidden flex items-center gap-2.5 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
                             <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                             <img id="screenshot-thumb" class="h-8 w-8 object-cover rounded flex-shrink-0" alt="Screenshot preview">
                             <p id="screenshot-name" class="text-xs font-medium text-gray-700 truncate flex-1 min-w-0"></p>
-                            <p id="screenshot-size" class="text-xs text-gray-400 flex-shrink-0"></p>
                             <button onclick="removeScreenshot()" class="text-gray-400 hover:text-red-500 flex-shrink-0">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -483,22 +464,47 @@ This template displays a generated research document with:
                             </button>
                         </div>
                     </div>
+
+                    <button id="generate-btn" onclick="startGeneration()"
+                            class="w-full inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                        <svg id="generate-btn-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                        <span id="generate-btn-label">Generate Sequence</span>
+                    </button>
                 </div>
 
+                <!-- Loading -->
                 <div id="outreach-loading" class="hidden text-center py-8">
                     <img src="/static/auggie-writing.jpg" alt="Auggie writing" class="w-24 h-24 mx-auto mb-3">
                     <div class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-blue-600 border-t-transparent"></div>
-                    <p class="mt-2 text-gray-600">Auggie is writing your sequence...</p>
+                    <p id="loading-message" class="mt-2 text-gray-600">Auggie is writing your sequence...</p>
                 </div>
-                <div id="subject-picker" class="hidden mb-4">
-                    <label class="block text-xs font-medium text-gray-500 mb-2">Subject line — pick one</label>
-                    <div id="subject-options" class="flex flex-col gap-2">
-                        <!-- Subject option buttons inserted by JS -->
+
+                <!-- Email Result -->
+                <div id="email-result" class="hidden">
+                    <div id="subject-picker" class="hidden mb-4">
+                        <label class="block text-xs font-medium text-gray-500 mb-2">Subject line — pick one</label>
+                        <div id="subject-options" class="flex flex-col gap-2">
+                        </div>
+                    </div>
+                    <div id="outreach-content" class="prose max-w-none">
                     </div>
                 </div>
-                <div id="outreach-content" class="hidden prose max-w-none">
-                    <!-- Emails will be inserted here -->
+
+                <!-- LinkedIn Result -->
+                <div id="li-result" class="hidden py-4">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">LinkedIn Message</label>
+                    <textarea id="li-message-textarea"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                              rows="5" oninput="updateLiCharCount()"></textarea>
+                    <div class="flex items-center justify-between mt-1.5">
+                        <p id="li-char-count" class="text-xs text-gray-400"></p>
+                        <p id="li-cta-tip" class="hidden text-xs text-amber-600">Tip: consider adding a question at the end to invite a reply</p>
+                    </div>
                 </div>
+
+                <!-- Error (shared) -->
                 <div id="outreach-error" class="hidden py-8">
                     <div class="text-center">
                         <svg class="mx-auto h-10 w-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,99 +514,11 @@ This template displays a generated research document with:
                         <p class="mt-1 text-xs text-gray-500">Try regenerating — results vary between attempts.</p>
                     </div>
                 </div>
-                </div><!-- /email-panel -->
-
-                <!-- LinkedIn Panel -->
-                <div id="linkedin-panel" class="hidden">
-                    <!-- LinkedIn Setup -->
-                    <div id="li-setup" class="py-4">
-                        <!-- Channel selector pills -->
-                        <div class="flex gap-2 mb-4">
-                            <button id="li-mode-dm" onclick="setLinkedInMode('dm')"
-                                    class="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                                Direct Message
-                            </button>
-                            <button id="li-mode-cr" onclick="setLinkedInMode('connection_request')"
-                                    class="px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50">
-                                Connection Request
-                            </button>
-                        </div>
-
-                        <!-- Screenshot dropzone -->
-                        <div class="mb-3">
-                            <input type="file" id="li-screenshot-input" accept="image/*" class="hidden">
-                            <div id="li-screenshot-dropzone"
-                                 class="border border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                                <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                                <p class="mt-1 text-xs text-gray-500">Drop LinkedIn screenshot here or click to select</p>
-                                <p class="mt-0.5 text-xs text-gray-400">PNG, JPG, or WebP (max 10MB) — recommended for a more personalized message</p>
-                            </div>
-                        </div>
-
-                        <!-- Screenshot preview -->
-                        <div id="li-screenshot-preview" class="hidden mb-3 flex items-center gap-2.5 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-                            <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            <img id="li-screenshot-thumb" class="h-8 w-8 object-cover rounded flex-shrink-0" alt="Screenshot preview">
-                            <p id="li-screenshot-name" class="text-xs font-medium text-gray-700 truncate flex-1 min-w-0"></p>
-                            <button onclick="removeLiScreenshot()" class="text-gray-400 hover:text-red-500 flex-shrink-0">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                            </button>
-                        </div>
-
-                        <button onclick="startLinkedInGeneration(false)"
-                                class="w-full inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
-                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                            </svg>
-                            Generate LinkedIn Message
-                        </button>
-                        <button onclick="startLinkedInGeneration(true)"
-                                class="w-full mt-2 inline-flex items-center justify-center px-4 py-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                            Generate from research only (no screenshot)
-                        </button>
-                    </div>
-
-                    <!-- LinkedIn Loading -->
-                    <div id="li-loading" class="hidden text-center py-8">
-                        <img src="/static/auggie-writing.jpg" alt="Auggie writing" class="w-24 h-24 mx-auto mb-3">
-                        <div class="inline-block animate-spin rounded-full h-6 w-6 border-4 border-blue-600 border-t-transparent"></div>
-                        <p class="mt-2 text-gray-600">Auggie is writing your LinkedIn message...</p>
-                    </div>
-
-                    <!-- LinkedIn Result -->
-                    <div id="li-result" class="hidden py-4">
-                        <label class="block text-xs font-medium text-gray-500 mb-1">LinkedIn Message</label>
-                        <textarea id="li-message-textarea"
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                  rows="5" oninput="updateLiCharCount()"></textarea>
-                        <div class="flex items-center justify-between mt-1.5">
-                            <p id="li-char-count" class="text-xs text-gray-400"></p>
-                            <p id="li-cta-tip" class="hidden text-xs text-amber-600">Tip: consider adding a question at the end to invite a reply</p>
-                        </div>
-                    </div>
-
-                    <!-- LinkedIn Error -->
-                    <div id="li-error" class="hidden py-8">
-                        <div class="text-center">
-                            <svg class="mx-auto h-10 w-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                            </svg>
-                            <p id="li-error-message" class="mt-3 text-sm text-red-600"></p>
-                            <p class="mt-1 text-xs text-gray-500">Try regenerating — results vary between attempts.</p>
-                        </div>
-                    </div>
-                </div><!-- /linkedin-panel -->
             </div>
 
             <!-- Modal Footer -->
             <div class="px-6 py-4 border-t border-gray-200 flex justify-between">
-                <button onclick="regenerateOutreach()"
+                <button onclick="regenerateCurrentMode()"
                         id="regenerate-btn"
                         class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -608,30 +526,13 @@ This template displays a generated research document with:
                     </svg>
                     Regenerate
                 </button>
-                <button onclick="copyOutreach()"
-                        id="copy-outreach-btn"
+                <button onclick="copyCurrentMode()"
+                        id="copy-btn"
                         class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                     </svg>
-                    Copy All
-                </button>
-                <!-- LinkedIn footer buttons -->
-                <button onclick="regenerateLinkedIn()"
-                        id="li-regenerate-btn"
-                        class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Regenerate
-                </button>
-                <button onclick="copyLinkedInMessage()"
-                        id="li-copy-btn"
-                        class="hidden inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                    </svg>
-                    Copy Message
+                    <span id="copy-btn-label">Copy All</span>
                 </button>
             </div>
         </div>
@@ -716,76 +617,136 @@ This template displays a generated research document with:
     {% endif %}
 
     {% if is_owner %}
-    // Outreach Modal Functions
+    // Messaging Modal — unified state
+    let activeMode = 'email_sequence';  // email_sequence | linkedin_dm | linkedin_connection_request
     let outreachMarkdown = '';
     let currentSubjectOptions = [];
     let screenshotFile = null;
 
+    const MODE_CONFIG = {
+        email_sequence:              { label: 'Generate Sequence',       loading: 'Auggie is writing your sequence...', copyLabel: 'Copy All',     isLinkedIn: false },
+        linkedin_dm:                 { label: 'Generate DM',             loading: 'Auggie is writing your LinkedIn message...', copyLabel: 'Copy Message', isLinkedIn: true, apiMode: 'dm' },
+        linkedin_connection_request: { label: 'Generate Connection Note', loading: 'Auggie is writing your connection note...', copyLabel: 'Copy Message', isLinkedIn: true, apiMode: 'connection_request' },
+    };
+
     function generateOutreach() {
-        // Always open on the email tab
-        switchOutreachTab('email');
-        // Show modal with setup screen
+        // Always open on email_sequence
+        setMessagingMode('email_sequence');
         document.getElementById('outreach-modal').classList.remove('hidden');
-        document.getElementById('outreach-setup').classList.remove('hidden');
-        document.getElementById('outreach-loading').classList.add('hidden');
-        document.getElementById('outreach-content').classList.add('hidden');
-        document.getElementById('outreach-error').classList.add('hidden');
-        document.getElementById('regenerate-btn').classList.add('hidden');
-        document.getElementById('copy-outreach-btn').classList.add('hidden');
-        document.getElementById('subject-picker').classList.add('hidden');
+        _resetToSetup();
     }
 
-    function startOutreachGeneration() {
+    function setMessagingMode(mode) {
+        activeMode = mode;
+        var cfg = MODE_CONFIG[mode];
+
+        // Update header pills
+        ['email_sequence', 'linkedin_dm', 'linkedin_connection_request'].forEach(function(m) {
+            var btn = document.getElementById('mode-' + m);
+            if (!btn) return;
+            btn.className = m === mode
+                ? 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700'
+                : 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100';
+        });
+
+        // Screenshot block: visible only for LinkedIn modes
+        var ssBlock = document.getElementById('screenshot-block');
+        if (cfg.isLinkedIn) {
+            ssBlock.classList.remove('hidden');
+        } else {
+            ssBlock.classList.add('hidden');
+            removeScreenshot();
+        }
+
+        // Update generate button label
+        document.getElementById('generate-btn-label').textContent = cfg.label;
+
+        // Update copy button label
+        document.getElementById('copy-btn-label').textContent = cfg.copyLabel;
+
+        // Reset to setup if switching modes mid-result
+        _resetToSetup();
+    }
+
+    function _resetToSetup() {
+        document.getElementById('outreach-setup').classList.remove('hidden');
+        document.getElementById('outreach-loading').classList.add('hidden');
+        document.getElementById('email-result').classList.add('hidden');
+        document.getElementById('li-result').classList.add('hidden');
+        document.getElementById('outreach-error').classList.add('hidden');
+        document.getElementById('regenerate-btn').classList.add('hidden');
+        document.getElementById('copy-btn').classList.add('hidden');
+        document.getElementById('subject-picker').classList.add('hidden');
+        var ctaTip = document.getElementById('li-cta-tip');
+        if (ctaTip) ctaTip.classList.add('hidden');
+    }
+
+    // --- Unified generation dispatcher ---
+    function startGeneration() {
+        var cfg = MODE_CONFIG[activeMode];
+
         // Hide setup, show loading
         document.getElementById('outreach-setup').classList.add('hidden');
         document.getElementById('outreach-loading').classList.remove('hidden');
-        document.getElementById('outreach-content').classList.add('hidden');
+        document.getElementById('loading-message').textContent = cfg.loading;
+        document.getElementById('email-result').classList.add('hidden');
+        document.getElementById('li-result').classList.add('hidden');
         document.getElementById('outreach-error').classList.add('hidden');
         document.getElementById('regenerate-btn').classList.add('hidden');
-        document.getElementById('copy-outreach-btn').classList.add('hidden');
-        document.getElementById('subject-picker').classList.add('hidden');
+        document.getElementById('copy-btn').classList.add('hidden');
 
-        // Disable button while generating
-        const btn = document.getElementById('outreach-btn');
-        btn.disabled = true;
-        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...';
+        // Disable the trigger button on the document page
+        var triggerBtn = document.getElementById('outreach-btn');
+        if (triggerBtn) {
+            triggerBtn.disabled = true;
+            triggerBtn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...';
+        }
 
-        // Build request — only use FormData when there's a screenshot,
-        // otherwise send a plain POST to avoid empty-multipart parse errors.
-        const fetchOptions = { method: 'POST' };
+        if (cfg.isLinkedIn) {
+            _generateLinkedIn(cfg);
+        } else {
+            _generateEmail();
+        }
+    }
+
+    function _restoreTriggerBtn() {
+        var triggerBtn = document.getElementById('outreach-btn');
+        if (triggerBtn) {
+            triggerBtn.disabled = false;
+            triggerBtn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Messaging';
+        }
+    }
+
+    function _generateEmail() {
+        var fetchOptions = { method: 'POST' };
         if (screenshotFile) {
-            const formData = new FormData();
+            var formData = new FormData();
             formData.append('screenshot', screenshotFile);
             fetchOptions.body = formData;
         }
 
-        // Call API
         fetch('/document/{{ document.id }}/outreach', fetchOptions)
-        .then(response => response.json())
-        .then(data => {
-            btn.disabled = false;
-            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Messaging';
-
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _restoreTriggerBtn();
+            document.getElementById('outreach-loading').classList.add('hidden');
             if (data.success) {
                 outreachMarkdown = data.markdown;
                 currentSubjectOptions = data.subject_options || [];
-                document.getElementById('outreach-loading').classList.add('hidden');
-                document.getElementById('outreach-content').classList.remove('hidden');
+                document.getElementById('email-result').classList.remove('hidden');
                 renderEditableEmails(data.markdown);
                 renderSubjectPicker(currentSubjectOptions);
                 document.getElementById('regenerate-btn').classList.remove('hidden');
-                document.getElementById('copy-outreach-btn').classList.remove('hidden');
+                document.getElementById('copy-btn').classList.remove('hidden');
             } else {
-                document.getElementById('outreach-loading').classList.add('hidden');
                 document.getElementById('outreach-error').classList.remove('hidden');
-                const errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate outreach');
+                var errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate outreach');
                 document.getElementById('outreach-error-message').textContent = errMsg;
                 document.getElementById('regenerate-btn').classList.remove('hidden');
             }
         })
-        .catch(err => {
-            btn.disabled = false;
-            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>Messaging';
+        .catch(function(err) {
+            _restoreTriggerBtn();
             document.getElementById('outreach-loading').classList.add('hidden');
             document.getElementById('outreach-error').classList.remove('hidden');
             document.getElementById('outreach-error-message').textContent = 'Network error: ' + err.message;
@@ -793,53 +754,117 @@ This template displays a generated research document with:
         });
     }
 
-    function regenerateOutreach() {
-        // Show setup screen again so user can change screenshot choice
-        document.getElementById('outreach-setup').classList.remove('hidden');
-        document.getElementById('outreach-content').classList.add('hidden');
-        document.getElementById('outreach-error').classList.add('hidden');
-        document.getElementById('regenerate-btn').classList.add('hidden');
-        document.getElementById('copy-outreach-btn').classList.add('hidden');
-        document.getElementById('subject-picker').classList.add('hidden');
+    function _generateLinkedIn(cfg) {
+        var formData = new FormData();
+        formData.append('mode', cfg.apiMode);
+        if (screenshotFile) {
+            formData.append('screenshot', screenshotFile);
+        }
+
+        fetch('/document/{{ document.id }}/linkedin-message', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _restoreTriggerBtn();
+            document.getElementById('outreach-loading').classList.add('hidden');
+            if (data.success) {
+                document.getElementById('li-result').classList.remove('hidden');
+                document.getElementById('li-message-textarea').value = data.message;
+                updateLiCharCount();
+                document.getElementById('regenerate-btn').classList.remove('hidden');
+                document.getElementById('copy-btn').classList.remove('hidden');
+                // CTA tip
+                if (data.cta_rescued === false && !data.message.trim().endsWith('?')) {
+                    document.getElementById('li-cta-tip').classList.remove('hidden');
+                } else {
+                    document.getElementById('li-cta-tip').classList.add('hidden');
+                }
+            } else {
+                document.getElementById('outreach-error').classList.remove('hidden');
+                var errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate message');
+                document.getElementById('outreach-error-message').textContent = errMsg;
+                document.getElementById('regenerate-btn').classList.remove('hidden');
+            }
+        })
+        .catch(function(err) {
+            _restoreTriggerBtn();
+            document.getElementById('outreach-loading').classList.add('hidden');
+            document.getElementById('outreach-error').classList.remove('hidden');
+            document.getElementById('outreach-error-message').textContent = 'Network error: ' + err.message;
+            document.getElementById('regenerate-btn').classList.remove('hidden');
+        });
     }
 
-    // Screenshot panel toggle
-    function toggleScreenshotPanel() {
-        const panel = document.getElementById('screenshot-panel');
-        const chevron = document.getElementById('screenshot-chevron');
-        panel.classList.toggle('hidden');
-        chevron.classList.toggle('rotate-180');
+    // --- Mode-aware footer actions ---
+    function regenerateCurrentMode() {
+        _resetToSetup();
     }
 
-    // Screenshot drop zone handlers
+    function copyCurrentMode() {
+        var cfg = MODE_CONFIG[activeMode];
+        var text = '';
+        if (cfg.isLinkedIn) {
+            text = document.getElementById('li-message-textarea').value.trim();
+        } else {
+            var subjects = document.querySelectorAll('.email-subject');
+            var bodies = document.querySelectorAll('.email-body');
+            if (subjects.length === 0) {
+                text = outreachMarkdown;
+            } else {
+                for (var i = 0; i < subjects.length; i++) {
+                    text += '## Email ' + (i + 1) + '\n\n';
+                    text += '**Subject:** ' + subjects[i].value + '\n\n';
+                    text += bodies[i].value + '\n\n';
+                }
+                text = text.trim();
+            }
+        }
+        navigator.clipboard.writeText(text).then(function() {
+            var btn = document.getElementById('copy-btn');
+            var orig = btn.innerHTML;
+            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+            setTimeout(function() { btn.innerHTML = orig; }, 2000);
+        });
+    }
+
+    function updateLiCharCount() {
+        var textarea = document.getElementById('li-message-textarea');
+        var text = textarea.value;
+        var words = text.trim().split(/\s+/).filter(function(w) { return w; }).length;
+        var chars = text.length;
+        var countEl = document.getElementById('li-char-count');
+        if (activeMode === 'linkedin_connection_request') {
+            countEl.textContent = words + ' words, ' + chars + '/300 chars';
+            countEl.className = chars > 280 ? 'text-xs text-amber-600 font-medium' : 'text-xs text-gray-400';
+        } else {
+            countEl.textContent = words + ' words';
+            countEl.className = 'text-xs text-gray-400';
+        }
+    }
+
+    // --- Screenshot handlers (shared single dropzone) ---
     (function() {
-        const dropzone = document.getElementById('screenshot-dropzone');
-        const input = document.getElementById('screenshot-input');
+        var dropzone = document.getElementById('screenshot-dropzone');
+        var input = document.getElementById('screenshot-input');
         if (!dropzone || !input) return;
 
-        dropzone.addEventListener('click', () => input.click());
-
-        dropzone.addEventListener('dragover', (e) => {
+        dropzone.addEventListener('click', function() { input.click(); });
+        dropzone.addEventListener('dragover', function(e) {
             e.preventDefault();
             dropzone.classList.add('border-blue-400', 'bg-blue-50');
         });
-
-        dropzone.addEventListener('dragleave', () => {
+        dropzone.addEventListener('dragleave', function() {
             dropzone.classList.remove('border-blue-400', 'bg-blue-50');
         });
-
-        dropzone.addEventListener('drop', (e) => {
+        dropzone.addEventListener('drop', function(e) {
             e.preventDefault();
             dropzone.classList.remove('border-blue-400', 'bg-blue-50');
-            if (e.dataTransfer.files.length) {
-                handleScreenshotFile(e.dataTransfer.files[0]);
-            }
+            if (e.dataTransfer.files.length) handleScreenshotFile(e.dataTransfer.files[0]);
         });
-
-        input.addEventListener('change', () => {
-            if (input.files.length) {
-                handleScreenshotFile(input.files[0]);
-            }
+        input.addEventListener('change', function() {
+            if (input.files.length) handleScreenshotFile(input.files[0]);
         });
     })();
 
@@ -853,17 +878,12 @@ This template displays a generated research document with:
             return;
         }
         screenshotFile = file;
-
-        // Hide toggle and dropzone, show compact preview
-        document.getElementById('screenshot-toggle').classList.add('hidden');
-        document.getElementById('screenshot-panel').classList.add('hidden');
-        const preview = document.getElementById('screenshot-preview');
-        preview.classList.remove('hidden');
+        document.getElementById('screenshot-dropzone').classList.add('hidden');
+        document.getElementById('screenshot-preview').classList.remove('hidden');
         document.getElementById('screenshot-name').textContent = file.name;
-        document.getElementById('screenshot-size').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
+        var reader = new FileReader();
+        reader.onload = function(e) {
             document.getElementById('screenshot-thumb').src = e.target.result;
         };
         reader.readAsDataURL(file);
@@ -873,21 +893,18 @@ This template displays a generated research document with:
         screenshotFile = null;
         document.getElementById('screenshot-input').value = '';
         document.getElementById('screenshot-preview').classList.add('hidden');
-        document.getElementById('screenshot-panel').classList.add('hidden');
-        document.getElementById('screenshot-chevron').classList.remove('rotate-180');
-        document.getElementById('screenshot-toggle').classList.remove('hidden');
+        document.getElementById('screenshot-dropzone').classList.remove('hidden');
     }
 
     function closeOutreachModal() {
         document.getElementById('outreach-modal').classList.add('hidden');
     }
 
+    // --- Email rendering helpers ---
     function renderEditableEmails(markdown) {
         var container = document.getElementById('outreach-content');
-        // Extract shared subject line
         var subjectMatch = markdown.match(/\*\*Subject:\*\*\s*(.+)/);
         var sharedSubject = subjectMatch ? subjectMatch[1].trim() : '';
-        // Split on "## Email N" headers (not "# Email Sequence")
         var sections = markdown.split(/(?=^## Email \d)/m);
         var html = '';
         var emailCount = 0;
@@ -895,10 +912,8 @@ This template displays a generated research document with:
             section = section.trim();
             if (!section || !section.match(/^## Email \d/)) return;
             emailCount++;
-            // Extract per-email subject if present, otherwise use shared
             var perSubject = section.match(/\*\*Subject:\*\*\s*(.+)/);
             var subject = perSubject ? perSubject[1].trim() : sharedSubject;
-            // Remove header, subject line, and trailing ---
             var body = section
                 .replace(/^## Email \d+\s*\n?/, '')
                 .replace(/\*\*Subject:\*\*\s*.+\n?/, '')
@@ -943,11 +958,9 @@ This template displays a generated research document with:
     function selectSubject(idx) {
         var subject = currentSubjectOptions[idx];
         if (!subject) return;
-        // Update all email subject inputs
         document.querySelectorAll('.email-subject').forEach(function(input) {
             input.value = subject;
         });
-        // Update button styles
         document.querySelectorAll('.subject-opt').forEach(function(btn, i) {
             if (i === idx) {
                 btn.className = 'subject-opt text-left px-3 py-2 text-sm rounded-lg border transition-colors border-blue-500 bg-blue-50 text-blue-700 font-medium';
@@ -957,239 +970,8 @@ This template displays a generated research document with:
         });
     }
 
-    function copyOutreach() {
-        // Build text from current editable fields
-        var subjects = document.querySelectorAll('.email-subject');
-        var bodies = document.querySelectorAll('.email-body');
-        var text = '';
-        if (subjects.length === 0) {
-            text = outreachMarkdown;
-        } else {
-            for (var i = 0; i < subjects.length; i++) {
-                text += '## Email ' + (i + 1) + '\n\n';
-                text += '**Subject:** ' + subjects[i].value + '\n\n';
-                text += bodies[i].value + '\n\n';
-            }
-        }
-        navigator.clipboard.writeText(text.trim()).then(() => {
-            const btn = document.getElementById('copy-outreach-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
-            setTimeout(() => { btn.innerHTML = originalText; }, 2000);
-        });
-    }
-
-    // --- LinkedIn Message Functions ---
-    let liMode = 'dm';
-    let liScreenshotFile = null;
-    let activeOutreachTab = 'email';
-
-    function switchOutreachTab(tab) {
-        activeOutreachTab = tab;
-        const emailPanel = document.getElementById('email-panel');
-        const linkedinPanel = document.getElementById('linkedin-panel');
-        const tabEmail = document.getElementById('tab-email');
-        const tabLinkedin = document.getElementById('tab-linkedin');
-
-        // Email footer buttons
-        const regenBtn = document.getElementById('regenerate-btn');
-        const copyBtn = document.getElementById('copy-outreach-btn');
-        // LinkedIn footer buttons
-        const liRegenBtn = document.getElementById('li-regenerate-btn');
-        const liCopyBtn = document.getElementById('li-copy-btn');
-
-        if (tab === 'linkedin') {
-            emailPanel.classList.add('hidden');
-            linkedinPanel.classList.remove('hidden');
-            tabEmail.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100';
-            if (tabLinkedin) tabLinkedin.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700';
-            // Hide email buttons
-            regenBtn.classList.add('hidden');
-            copyBtn.classList.add('hidden');
-            // Restore LinkedIn buttons if result or error is showing
-            var liResultVisible = !document.getElementById('li-result').classList.contains('hidden');
-            var liErrorVisible = !document.getElementById('li-error').classList.contains('hidden');
-            if (liResultVisible) {
-                liRegenBtn.classList.remove('hidden');
-                liCopyBtn.classList.remove('hidden');
-            } else if (liErrorVisible) {
-                liRegenBtn.classList.remove('hidden');
-            }
-        } else {
-            emailPanel.classList.remove('hidden');
-            linkedinPanel.classList.add('hidden');
-            tabEmail.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700';
-            if (tabLinkedin) tabLinkedin.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100';
-            // Hide LinkedIn buttons
-            liRegenBtn.classList.add('hidden');
-            liCopyBtn.classList.add('hidden');
-            // Restore email buttons if content or error is showing
-            var emailContentVisible = !document.getElementById('outreach-content').classList.contains('hidden');
-            var emailErrorVisible = !document.getElementById('outreach-error').classList.contains('hidden');
-            if (emailContentVisible) {
-                regenBtn.classList.remove('hidden');
-                copyBtn.classList.remove('hidden');
-            } else if (emailErrorVisible) {
-                regenBtn.classList.remove('hidden');
-            }
-        }
-    }
-
-    function setLinkedInMode(mode) {
-        liMode = mode;
-        const dmBtn = document.getElementById('li-mode-dm');
-        const crBtn = document.getElementById('li-mode-cr');
-        if (mode === 'dm') {
-            dmBtn.className = 'px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
-            crBtn.className = 'px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50';
-        } else {
-            crBtn.className = 'px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
-            dmBtn.className = 'px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50';
-        }
-    }
-
-    function startLinkedInGeneration(researchOnly) {
-        // Hide setup, show loading
-        document.getElementById('li-setup').classList.add('hidden');
-        document.getElementById('li-loading').classList.remove('hidden');
-        document.getElementById('li-result').classList.add('hidden');
-        document.getElementById('li-error').classList.add('hidden');
-        document.getElementById('li-regenerate-btn').classList.add('hidden');
-        document.getElementById('li-copy-btn').classList.add('hidden');
-
-        const formData = new FormData();
-        formData.append('mode', liMode);
-        if (!researchOnly && liScreenshotFile) {
-            formData.append('screenshot', liScreenshotFile);
-        }
-
-        fetch('/document/{{ document.id }}/linkedin-message', {
-            method: 'POST',
-            body: formData,
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('li-loading').classList.add('hidden');
-            if (data.success) {
-                document.getElementById('li-result').classList.remove('hidden');
-                document.getElementById('li-message-textarea').value = data.message;
-                updateLiCharCount(data);
-                document.getElementById('li-regenerate-btn').classList.remove('hidden');
-                document.getElementById('li-copy-btn').classList.remove('hidden');
-                // Show CTA tip if rescue failed
-                if (data.cta_rescued === false && !data.message.trim().endsWith('?')) {
-                    document.getElementById('li-cta-tip').classList.remove('hidden');
-                } else {
-                    document.getElementById('li-cta-tip').classList.add('hidden');
-                }
-            } else {
-                document.getElementById('li-error').classList.remove('hidden');
-                const errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Failed to generate message');
-                document.getElementById('li-error-message').textContent = errMsg;
-                document.getElementById('li-regenerate-btn').classList.remove('hidden');
-            }
-        })
-        .catch(err => {
-            document.getElementById('li-loading').classList.add('hidden');
-            document.getElementById('li-error').classList.remove('hidden');
-            document.getElementById('li-error-message').textContent = 'Network error: ' + err.message;
-            document.getElementById('li-regenerate-btn').classList.remove('hidden');
-        });
-    }
-
-    function updateLiCharCount(data) {
-        const textarea = document.getElementById('li-message-textarea');
-        const text = textarea.value;
-        const words = text.trim().split(/\s+/).filter(w => w).length;
-        const chars = text.length;
-        const countEl = document.getElementById('li-char-count');
-        if (liMode === 'connection_request') {
-            countEl.textContent = words + ' words, ' + chars + '/300 chars';
-            if (chars > 280) {
-                countEl.className = 'text-xs text-amber-600 font-medium';
-            } else {
-                countEl.className = 'text-xs text-gray-400';
-            }
-        } else {
-            countEl.textContent = words + ' words';
-            countEl.className = 'text-xs text-gray-400';
-        }
-    }
-
-    function regenerateLinkedIn() {
-        document.getElementById('li-setup').classList.remove('hidden');
-        document.getElementById('li-result').classList.add('hidden');
-        document.getElementById('li-error').classList.add('hidden');
-        document.getElementById('li-regenerate-btn').classList.add('hidden');
-        document.getElementById('li-copy-btn').classList.add('hidden');
-        document.getElementById('li-cta-tip').classList.add('hidden');
-    }
-
-    function copyLinkedInMessage() {
-        const text = document.getElementById('li-message-textarea').value;
-        navigator.clipboard.writeText(text.trim()).then(() => {
-            const btn = document.getElementById('li-copy-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
-            setTimeout(() => { btn.innerHTML = originalText; }, 2000);
-        });
-    }
-
-    function handleLiScreenshotFile(file) {
-        if (!file.type.startsWith('image/')) {
-            alert('Please upload an image file (PNG, JPG, or WebP).');
-            return;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-            alert('Image must be under 10MB.');
-            return;
-        }
-        liScreenshotFile = file;
-        document.getElementById('li-screenshot-dropzone').classList.add('hidden');
-        const preview = document.getElementById('li-screenshot-preview');
-        preview.classList.remove('hidden');
-        document.getElementById('li-screenshot-name').textContent = file.name;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('li-screenshot-thumb').src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function removeLiScreenshot() {
-        liScreenshotFile = null;
-        document.getElementById('li-screenshot-input').value = '';
-        document.getElementById('li-screenshot-preview').classList.add('hidden');
-        document.getElementById('li-screenshot-dropzone').classList.remove('hidden');
-    }
-
-    // LinkedIn screenshot dropzone handlers
-    (function() {
-        const dropzone = document.getElementById('li-screenshot-dropzone');
-        const input = document.getElementById('li-screenshot-input');
-        if (!dropzone || !input) return;
-
-        dropzone.addEventListener('click', () => input.click());
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('border-blue-400', 'bg-blue-50');
-        });
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('border-blue-400', 'bg-blue-50');
-        });
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('border-blue-400', 'bg-blue-50');
-            if (e.dataTransfer.files.length) handleLiScreenshotFile(e.dataTransfer.files[0]);
-        });
-        input.addEventListener('change', () => {
-            if (input.files.length) handleLiScreenshotFile(input.files[0]);
-        });
-    })();
-
     // Close modal on Escape key
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') closeOutreachModal();
     });
 
