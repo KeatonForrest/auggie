@@ -658,7 +658,8 @@ class TestValidateSequence:
         assert valid is False
         assert "empty body" in msg
 
-    def test_over_word_limit(self, writing_service):
+    def test_over_word_limit_passes_validation(self, writing_service):
+        """Word limits are NOT checked by _validate_sequence — handled by shorten pipeline."""
         long_body = " ".join(["word"] * 80)  # 80 words, limit for email 1 is 75
         emails = [
             {"email_number": 1, "subject": "test", "body": long_body},
@@ -666,8 +667,7 @@ class TestValidateSequence:
             {"email_number": 3, "subject": "test", "body": "Short."},
         ]
         valid, msg = writing_service._validate_sequence(emails, ["subj1"])
-        assert valid is False
-        assert "80 words" in msg
+        assert valid is True
 
     def test_no_subject_options(self, writing_service):
         emails = [

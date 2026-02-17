@@ -827,7 +827,11 @@ Use the partial-signal examples as your primary models for this sequence.""")
         return emails, subject_options
 
     def _validate_sequence(self, emails: list[dict], subject_options: list[str]) -> tuple[bool, str]:
-        """Validate a parsed email sequence meets all structural requirements.
+        """Validate a parsed email sequence meets structural requirements.
+
+        Word limits are NOT checked here — they are enforced separately by the
+        shorten pipeline after validation, so over-limit emails get a chance to
+        be shortened rather than triggering an immediate failure.
 
         Returns (is_valid, error_message).
         """
@@ -844,12 +848,6 @@ Use the partial-signal examples as your primary models for this sequence.""")
                 return False, f"Email {email['email_number']} has empty subject"
             if not email.get("body", "").strip():
                 return False, f"Email {email['email_number']} has empty body"
-
-        for email in emails:
-            limit = WORD_LIMITS.get(email["email_number"], 100)
-            count = len(email["body"].split())
-            if count > limit:
-                return False, f"Email {email['email_number']} is {count} words (limit {limit})"
 
         if not subject_options:
             return False, "No subject options provided"
@@ -898,6 +896,31 @@ Use the partial-signal examples as your primary models for this sequence.""")
             if count > limit:
                 over.append({**email, "word_count": count, "limit": limit})
         return over
+
+    def _trim_to_word_limit(self, body: str, limit: int) -> str:
+        """Deterministically trim text to a hard word cap."""
+        words = body.split()
+        if len(words) <= limit:
+            return body.strip()
+
+        # Prefer sentence-preserving trim first.
+        sentences = re.split(r"(?<=[.!?])\s+", body.strip())
+        kept: list[str] = []
+        kept_words = 0
+        for sentence in sentences:
+            sentence_words = sentence.split()
+            if not sentence_words:
+                continue
+            if kept_words + len(sentence_words) > limit:
+                break
+            kept.append(sentence.strip())
+            kept_words += len(sentence_words)
+
+        if kept and kept_words > 0:
+            return " ".join(kept).strip()
+
+        # Fallback: strict token trim.
+        return " ".join(words[:limit]).strip()
 
     async def _shorten_email(self, email: dict) -> str:
         """Ask the model to rewrite an over-limit email shorter."""
@@ -1032,15 +1055,28 @@ Use the partial-signal examples as your primary models for this sequence.""")
         over = self._over_limit_emails(emails)
         if over:
             for ov in over:
-                try:
-                    shortened = await self._shorten_email(ov)
-                    for email in emails:
-                        if email["email_number"] == ov["email_number"]:
-                            email["body"] = shortened
+                # Try model-based shortening twice before deterministic hard trim.
+                for _attempt in range(2):
+                    try:
+                        shortened = await self._shorten_email(ov)
+                        for email in emails:
+                            if email["email_number"] == ov["email_number"]:
+                                email["body"] = shortened
+                                break
+
+                        refreshed = self._over_limit_emails([email for email in emails if email["email_number"] == ov["email_number"]])
+                        if not refreshed:
                             break
-                except Exception:
-                    logger.warning("Failed to shorten email %d (was %d words, limit %d)",
-                                   ov["email_number"], ov["word_count"], ov["limit"])
+                        ov = refreshed[0]
+                    except Exception:
+                        logger.warning("Failed to shorten email %d (was %d words, limit %d)",
+                                       ov["email_number"], ov["word_count"], ov["limit"])
+
+                # Last-resort hard cap to avoid user-facing dead-end.
+                for email in emails:
+                    if email["email_number"] == ov["email_number"]:
+                        email["body"] = self._trim_to_word_limit(email["body"], ov["limit"])
+                        break
 
             # Re-validate after shortening
             still_over = self._over_limit_emails(emails)
