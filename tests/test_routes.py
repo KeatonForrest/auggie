@@ -8,6 +8,13 @@ run fast and don't hit real APIs.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from services.google_sheets import (
+    GoogleSheetsError,
+    GoogleIntegrationMissing,
+    GoogleSheetAccessDenied,
+    GoogleSheetNotFound,
+    GoogleTokenRevoked,
+)
 from services.writing import SequenceValidationError
 
 
@@ -454,3 +461,104 @@ async def test_linkedin_dm_works_when_connection_note_disabled(authed_client, sa
     data = response.json()
     assert data["success"] is True
     assert data["mode"] == "dm"
+
+
+# ---------------------------------------------------------------------------
+# Google Sheets import route error mapping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_import_google_sheet_invalid_url(authed_client):
+    """POST /lists/import-google-sheet with non-Sheets URL returns 400 + invalid_spreadsheet_url."""
+    with patch("api.ratelimit.upload_limiter", MagicMock(check=MagicMock())):
+        response = await authed_client.post(
+            "/lists/import-google-sheet",
+            json={"url": "https://example.com/not-a-sheet", "list_name": "Test"},
+        )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_spreadsheet_url"
+
+
+@pytest.mark.asyncio
+async def test_import_google_sheet_access_denied(authed_client):
+    """POST /lists/import-google-sheet → GoogleSheetAccessDenied maps to 403 + sheet_access_denied."""
+    with patch("api.ratelimit.upload_limiter", MagicMock(check=MagicMock())), \
+         patch("services.google_sheets.refresh_access_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("services.google_sheets._sheets_request", new_callable=AsyncMock, side_effect=GoogleSheetAccessDenied()):
+        response = await authed_client.post(
+            "/lists/import-google-sheet",
+            json={"url": "https://docs.google.com/spreadsheets/d/abc123/edit", "list_name": "Test"},
+        )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "sheet_access_denied"
+
+
+@pytest.mark.asyncio
+async def test_import_google_sheet_not_found(authed_client):
+    """POST /lists/import-google-sheet → GoogleSheetNotFound maps to 404 + sheet_not_found."""
+    with patch("api.ratelimit.upload_limiter", MagicMock(check=MagicMock())), \
+         patch("services.google_sheets.refresh_access_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("services.google_sheets._sheets_request", new_callable=AsyncMock, side_effect=GoogleSheetNotFound()):
+        response = await authed_client.post(
+            "/lists/import-google-sheet",
+            json={"url": "https://docs.google.com/spreadsheets/d/abc123/edit", "list_name": "Test"},
+        )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "sheet_not_found"
+
+
+@pytest.mark.asyncio
+async def test_import_google_sheet_generic_exception(authed_client):
+    """POST /lists/import-google-sheet → untyped exception maps to 502 + google_sheets_api_error."""
+    with patch("api.ratelimit.upload_limiter", MagicMock(check=MagicMock())), \
+         patch("services.google_sheets.refresh_access_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("services.google_sheets._sheets_request", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+        response = await authed_client.post(
+            "/lists/import-google-sheet",
+            json={"url": "https://docs.google.com/spreadsheets/d/abc123/edit", "list_name": "Test"},
+        )
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "google_sheets_api_error"
+
+
+# ---------------------------------------------------------------------------
+# Google Sheets push route error mapping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_push_to_sheets_integration_missing(authed_client):
+    """POST /lists/{id}/push-to-sheets without integration returns 400 + google_integration_missing."""
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value={"id": 1, "name": "Test"}), \
+         patch("routes.lists.get_integration", new_callable=AsyncMock, return_value=None):
+        response = await authed_client.post("/lists/1/push-to-sheets", json={})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "google_integration_missing"
+
+
+@pytest.mark.asyncio
+async def test_push_to_sheets_typed_error_passthrough(authed_client):
+    """POST /lists/{id}/push-to-sheets → GoogleTokenRevoked passes through as 401."""
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value={"id": 1, "name": "Test"}), \
+         patch("routes.lists.get_integration", new_callable=AsyncMock, return_value={"provider": "google_sheets"}), \
+         patch("routes.lists.get_list_accounts", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.lists.get_outreach_drafts_batch", new_callable=AsyncMock, return_value={}), \
+         patch("services.google_sheets.refresh_access_token", new_callable=AsyncMock, side_effect=GoogleTokenRevoked()):
+        response = await authed_client.post("/lists/1/push-to-sheets", json={})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "google_token_revoked"
+
+
+@pytest.mark.asyncio
+async def test_push_to_sheets_generic_exception(authed_client):
+    """POST /lists/{id}/push-to-sheets → untyped exception maps to 502 + google_sheets_api_error."""
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value={"id": 1, "name": "Test"}), \
+         patch("routes.lists.get_integration", new_callable=AsyncMock, return_value={"provider": "google_sheets"}), \
+         patch("routes.lists.get_list_accounts", new_callable=AsyncMock, return_value=[]), \
+         patch("routes.lists.get_outreach_drafts_batch", new_callable=AsyncMock, return_value={}), \
+         patch("services.google_sheets.refresh_access_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("services.google_sheets._sheets_request", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+        response = await authed_client.post("/lists/1/push-to-sheets", json={})
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "google_sheets_api_error"
