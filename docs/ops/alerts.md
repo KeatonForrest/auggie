@@ -8,7 +8,12 @@ All alert events are emitted as structured JSON log fields via Python's `logging
 |---|---|---|---|
 | `auth_failure` | 401 from session or API key auth | WARNING | `status_code` |
 | `auth_session_error` | Session/DB error during auth lookup | ERROR | — |
-| `oauth_callback_failure` | Google/Microsoft OAuth callback error | ERROR | `provider`, `status_code` |
+| `oauth_callback_error` | OAuth callback missing code, state mismatch, or exchange failure | WARNING/ERROR | `provider`, `user_id` |
+| `oauth_integration_connected` | OAuth integration successfully connected | INFO | `provider`, `user_id` |
+| `google_sheets_connect` | User initiated Google Sheets OAuth flow | INFO | `user_id` |
+| `google_sheets_disconnect` | User disconnected Google Sheets | INFO | `user_id` |
+| `google_sheets_import` | Google Sheets import failed | ERROR | `error_code`, `user_id` |
+| `google_sheets_push` | Google Sheets push failed | ERROR | `error_code`, `user_id` |
 | `integration_provider_error` | Upstream provider (Apollo, etc.) error | ERROR | `provider`, `status_code` |
 | `unhandled_5xx` | Unhandled server exception | ERROR | `status_code` |
 
@@ -17,7 +22,9 @@ All alert events are emitted as structured JSON log fields via Python's `logging
 Every alert log entry includes:
 - `event_type` — machine-readable event classification
 - `status_code` — HTTP status code (where applicable)
+- `error_code` — stable error code from exception hierarchy (Google Sheets errors)
 - `provider` — OAuth/integration provider name (where applicable)
+- `user_id` — authenticated user ID (where applicable)
 - `request_id` — injected by RequestIDMiddleware into all log records
 - `timestamp`, `level`, `logger` — standard fields from JSON formatter
 
@@ -39,16 +46,32 @@ Every alert log entry includes:
 - **Notes:** Any sustained 5xx rate requires immediate investigation
 
 ### OAuth Failures
-- **Filter:** `event_type:oauth_callback_failure`
+- **Filter:** `event_type:oauth_callback_error`
 - **Threshold:** >5 occurrences in 10-minute window
 - **Action:** Notify Slack channel
-- **Notes:** Check if Google/Microsoft OAuth configuration changed
+- **Notes:** Check if Google/Microsoft OAuth configuration changed. Error codes: `oauth_callback_missing_code`, `oauth_state_invalid`, `oauth_token_exchange_failed`
 
 ### Integration Provider Errors
 - **Filter:** `event_type:integration_provider_error`
 - **Threshold:** >10 occurrences in 10-minute window
 - **Action:** Notify Slack channel
 - **Notes:** Upstream provider may be degraded — check their status page
+
+### Google Token Revoked
+- **Filter:** `error_code:google_token_revoked`
+- **Warning threshold:** >5 occurrences in 15-minute window
+- **Critical threshold:** >15 occurrences in 15-minute window
+- **Action:** Warning → Slack channel; Critical → Slack + PagerDuty
+- **Dimensions:** `event_type` (google_sheets_import / google_sheets_push), `error_code`, distinct `user_id` count
+- **Notes:** Indicates users' Google access was revoked or refresh tokens expired. A spike across many users may signal an OAuth config change or Google policy enforcement. Individual occurrences are normal — users reconnect via the error message.
+
+### Google Sheets API Errors
+- **Filter:** `error_code:google_sheets_api_error`
+- **Warning threshold:** >5 occurrences in 15-minute window
+- **Critical threshold:** >15 occurrences in 15-minute window
+- **Action:** Warning → Slack channel; Critical → Slack + PagerDuty
+- **Dimensions:** `event_type` (google_sheets_import / google_sheets_push), `error_code`, distinct `user_id` count
+- **Notes:** Catch-all for non-classified Sheets API failures (5xx from Google, unexpected status codes). A spike likely means Google Sheets API is degraded — check https://www.google.com/appsstatus/dashboard/ before escalating.
 
 ### Health Check Failures
 - **Filter:** `GET /health` returning non-200
@@ -62,3 +85,5 @@ Every alert log entry includes:
 - **OAuth failures in dev/staging:** Ignore unless the same pattern appears in production.
 - **Single 5xx errors:** Investigate but don't page unless sustained (>2% rate).
 - **Integration errors during provider maintenance:** Check Apollo/Google status pages before escalating.
+- **Isolated google_token_revoked events:** Normal user behaviour — they revoked access or their token expired. Only investigate if many distinct users are affected simultaneously.
+- **google_sheets_api_error spike:** Check Google Workspace Status Dashboard first. If Google is healthy, investigate whether a code change altered request format.
