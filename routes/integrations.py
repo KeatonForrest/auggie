@@ -535,6 +535,7 @@ async def teams_test(request: Request, user: dict = Depends(require_auth)):
 @router.get("/integrations/google_sheets/connect")
 async def google_sheets_connect(request: Request, user: dict = Depends(require_auth)):
     """Redirect to Google OAuth for Sheets access."""
+    logger.info("Google Sheets connect initiated", extra={"event_type": "google_sheets_connect", "user_id": user["id"]})
     return await _oauth_connect(request, "google_sheets", gsheets_authorize_url)
 
 
@@ -551,6 +552,7 @@ async def google_sheets_callback(request: Request, user: dict = Depends(require_
 async def google_sheets_disconnect(request: Request, user: dict = Depends(require_auth)):
     """Disconnect Google Sheets integration."""
     await delete_integration(user["id"], "google_sheets")
+    logger.info("Google Sheets disconnected", extra={"event_type": "google_sheets_disconnect", "user_id": user["id"]})
     return RedirectResponse(url="/integrations", status_code=303)
 
 

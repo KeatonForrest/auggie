@@ -21,6 +21,7 @@ from database import (
 from db.jobs import create_job_with_credit, create_research_job
 from api.validation import validate_company_url
 from api.tasks import create_tracked_task
+from api.errors import APIError
 from routes._helpers import normalize_url, templates, logger
 from routes.integrations_constants import DEPRECATION_MESSAGE
 from routes.schemas import AccountIdsRequest
@@ -70,7 +71,7 @@ async def import_google_sheet(
     """Import rows from a Google Sheets URL, same logic as CSV upload."""
     from api.ratelimit import upload_limiter, get_client_ip
     from api.jobs import run_list_analysis
-    from services.google_sheets import extract_spreadsheet_id, fetch_sheet_rows
+    from services.google_sheets import extract_spreadsheet_id, fetch_sheet_rows, GoogleSheetsError
     from routes.schemas import GoogleSheetsImportRequest
 
     upload_limiter.check(get_client_ip(request))
@@ -78,13 +79,16 @@ async def import_google_sheet(
     body = GoogleSheetsImportRequest(**(await request.json()))
     spreadsheet_id = extract_spreadsheet_id(body.url)
     if not spreadsheet_id:
-        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL.")
+        raise APIError("invalid_spreadsheet_url", "Invalid Google Sheets URL.", 400)
 
     try:
         rows = await fetch_sheet_rows(user["id"], spreadsheet_id)
+    except GoogleSheetsError as e:
+        logger.error("Google Sheets import failed", extra={"event_type": "google_sheets_import", "error_code": e.code, "user_id": user["id"]})
+        raise APIError(e.code, e.message, e.status_code)
     except Exception as e:
-        logger.error("Google Sheets API error: %s", e)
-        raise HTTPException(status_code=502, detail="Failed to read Google Sheet. Make sure it's shared or you've connected Google Sheets.")
+        logger.error("Google Sheets import unexpected error: %s", e, extra={"event_type": "google_sheets_import", "user_id": user["id"]})
+        raise APIError("google_sheets_api_error", "Google Sheets API error. Please try again.", 502)
 
     if not rows:
         raise HTTPException(status_code=400, detail="Sheet is empty.")
@@ -481,7 +485,7 @@ async def push_to_sheets(
     user: dict = Depends(require_onboarding),
 ):
     """Push list data + sequences to a new Google Spreadsheet."""
-    from services.google_sheets import create_and_write_sheet
+    from services.google_sheets import create_and_write_sheet, GoogleSheetsError
 
     lst = await get_list(list_id, user["id"])
     if not lst:
@@ -489,7 +493,7 @@ async def push_to_sheets(
 
     integration = await get_integration(user["id"], "google_sheets")
     if not integration:
-        raise HTTPException(status_code=400, detail="Google Sheets not connected")
+        raise APIError("google_integration_missing", "Google Sheets is not connected. Connect it in Integrations.", 400)
 
     try:
         body = await request.json()
@@ -525,9 +529,12 @@ async def push_to_sheets(
     title = f"Auggie - {lst['name']}"
     try:
         spreadsheet_url = await create_and_write_sheet(user["id"], title, header, rows)
+    except GoogleSheetsError as e:
+        logger.error("Google Sheets push failed", extra={"event_type": "google_sheets_push", "error_code": e.code, "user_id": user["id"]})
+        raise APIError(e.code, e.message, e.status_code)
     except Exception as e:
-        logger.error("Google Sheets push failed: %s", e)
-        raise HTTPException(status_code=502, detail="Failed to create Google Sheet. You may need to reconnect Google Sheets.")
+        logger.error("Google Sheets push unexpected error: %s", e, extra={"event_type": "google_sheets_push", "user_id": user["id"]})
+        raise APIError("google_sheets_api_error", "Google Sheets API error. Please try again.", 502)
 
     return JSONResponse({"success": True, "spreadsheet_url": spreadsheet_url})
 

@@ -193,13 +193,24 @@ async def _oauth_callback(
     """Generic OAuth callback: verify state, exchange code, upsert integration."""
     code = request.query_params.get("code")
     state = request.query_params.get("state")
+    expected_state = request.session.get(f"_{provider}_state_")
 
-    if not code or state != request.session.get(f"_{provider}_state_"):
-        raise HTTPException(status_code=400, detail="Invalid OAuth callback")
+    if not code:
+        logger.warning("OAuth callback missing code", extra={"event_type": "oauth_callback_error", "provider": provider, "user_id": user["id"]})
+        raise HTTPException(status_code=400, detail={"code": "oauth_callback_missing_code", "message": "Authorization was not granted. Please try again."})
+
+    if not expected_state or state != expected_state:
+        logger.warning("OAuth callback state mismatch", extra={"event_type": "oauth_callback_error", "provider": provider, "user_id": user["id"]})
+        raise HTTPException(status_code=400, detail={"code": "oauth_state_invalid", "message": "OAuth session expired. Please try connecting again."})
 
     request.session.pop(f"_{provider}_state_", None)
 
-    token_data = await exchange_code_fn(code)
+    try:
+        token_data = await exchange_code_fn(code)
+    except Exception as exc:
+        logger.error("OAuth token exchange failed for %s", provider, extra={"event_type": "oauth_callback_error", "provider": provider, "user_id": user["id"]}, exc_info=True)
+        raise HTTPException(status_code=502, detail={"code": "oauth_token_exchange_failed", "message": "Failed to complete authentication. Please try again."}) from exc
+
     expires_at = datetime.now(timezone.utc) + timedelta(
         seconds=token_data.get("expires_in", expires_in_default)
     )
@@ -215,6 +226,7 @@ async def _oauth_callback(
         kwargs["metadata"] = metadata_fn(token_data)
 
     await upsert_integration(**kwargs)
+    logger.info("OAuth integration connected", extra={"event_type": "oauth_integration_connected", "provider": provider, "user_id": user["id"]})
     return RedirectResponse(url="/integrations", status_code=302)
 
 
