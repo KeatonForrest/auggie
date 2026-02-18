@@ -417,6 +417,7 @@ This template displays a generated research document with:
                             </svg>
                             LinkedIn DM
                         </button>
+                        {% if linkedin_connection_note_enabled %}
                         <button id="mode-linkedin_connection_request" onclick="setMessagingMode('linkedin_connection_request')"
                                 class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:bg-gray-100">
                             <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24">
@@ -424,6 +425,7 @@ This template displays a generated research document with:
                             </svg>
                             Connection Note
                         </button>
+                        {% endif %}
                         {% endif %}
                     </div>
                     <button onclick="closeOutreachModal()" class="text-gray-400 hover:text-gray-600">
@@ -626,7 +628,9 @@ This template displays a generated research document with:
     const MODE_CONFIG = {
         email_sequence:              { label: 'Generate Sequence',       loading: 'Auggie is writing your sequence...', copyLabel: 'Copy All',     isLinkedIn: false },
         linkedin_dm:                 { label: 'Generate DM',             loading: 'Auggie is writing your LinkedIn message...', copyLabel: 'Copy Message', isLinkedIn: true, apiMode: 'dm' },
+        {% if linkedin_connection_note_enabled %}
         linkedin_connection_request: { label: 'Generate Connection Note', loading: 'Auggie is writing your connection note...', copyLabel: 'Copy Message', isLinkedIn: true, apiMode: 'connection_request' },
+        {% endif %}
     };
 
     function generateOutreach() {
@@ -641,7 +645,7 @@ This template displays a generated research document with:
         var cfg = MODE_CONFIG[mode];
 
         // Update header pills
-        ['email_sequence', 'linkedin_dm', 'linkedin_connection_request'].forEach(function(m) {
+        Object.keys(MODE_CONFIG).forEach(function(m) {
             var btn = document.getElementById('mode-' + m);
             if (!btn) return;
             btn.className = m === mode
@@ -835,6 +839,7 @@ This template displays a generated research document with:
         var words = text.trim().split(/\s+/).filter(function(w) { return w; }).length;
         var chars = text.length;
         var countEl = document.getElementById('li-char-count');
+        {% if linkedin_connection_note_enabled %}
         if (activeMode === 'linkedin_connection_request') {
             countEl.textContent = words + ' words, ' + chars + '/300 chars';
             countEl.className = chars > 280 ? 'text-xs text-amber-600 font-medium' : 'text-xs text-gray-400';
@@ -842,6 +847,10 @@ This template displays a generated research document with:
             countEl.textContent = words + ' words';
             countEl.className = 'text-xs text-gray-400';
         }
+        {% else %}
+        countEl.textContent = words + ' words';
+        countEl.className = 'text-xs text-gray-400';
+        {% endif %}
     }
 
     // --- Screenshot handlers (shared single dropzone) ---

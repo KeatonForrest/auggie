@@ -48,7 +48,7 @@ class TestLinkedInQualityGate:
         assert "300 character limit" in result.error_reason
 
     def test_valid_cr_passes(self, linkedin_cr_strategy):
-        msg = "Acme Corp's data growth caught my eye. Curious how you're scaling?"
+        msg = "Acme Corp's data growth and engineering expansion caught my eye. The companies at your stage usually hit a scaling inflection point. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_cr_strategy.validate(msg, ctx)
         assert result.is_valid is True
@@ -83,7 +83,9 @@ class TestLinkedInMessageGeneration:
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = (
                 "Message:\n"
-                "Acme Corp's data growth caught my eye. Curious how you're scaling the backend?"
+                "Acme Corp's data growth and engineering expansion caught my eye. "
+                "The companies at your stage usually hit a scaling inflection point. "
+                "Curious how you're handling that?"
             )
             mock_message.usage = None
 
@@ -117,12 +119,13 @@ class TestLinkedInMessageGeneration:
                 writing_relevance_gate_enabled=False,
             )
 
-            # First response: no company anchor
+            # First response: no company anchor (>= 20 words)
             first_msg = MagicMock()
             first_msg.choices = [MagicMock()]
             first_msg.choices[0].message.content = (
                 "Message:\n"
-                "Your team is scaling fast. Curious how you're handling that?"
+                "Your team is scaling fast and the data layer challenges usually surface at this stage "
+                "when traffic climbs. Curious how you're handling that?"
             )
             first_msg.usage = None
 
@@ -138,7 +141,7 @@ class TestLinkedInMessageGeneration:
             anchor_resp.usage = None
 
             # CTA rescue after word-trim + char-trim (trim kills trailing ?)
-            cta_rescue_text = "Acme Corp is scaling their data layer fast. Curious how you're handling that?"
+            cta_rescue_text = "Acme Corp is scaling their data layer fast and the challenges usually surface at this stage. Curious how you're handling that?"
             cta_resp = MagicMock()
             cta_resp.choices = [MagicMock()]
             cta_resp.choices[0].message.content = cta_rescue_text
@@ -180,7 +183,9 @@ class TestLinkedInMessageGeneration:
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = (
                 "Message:\n"
-                "Acme Corp's data growth caught my eye. Curious how you're scaling?"
+                "Acme Corp's data growth and engineering expansion caught my eye. "
+                "The companies at your stage usually hit a scaling inflection point. "
+                "Curious how you're handling that?"
             )
             mock_message.usage = None
 
@@ -203,6 +208,85 @@ class TestLinkedInMessageGeneration:
 
 
 # --- LinkedIn channel modes (CR) ---
+
+
+class TestLinkedInMinWordFloor:
+    def test_under_20_words_cr(self, linkedin_cr_strategy):
+        """CR messages under 20 words should fail validation."""
+        msg = "Acme Corp looks great. Scaling?"
+        assert len(msg.split()) < 20
+        ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
+        result = linkedin_cr_strategy.validate(msg, ctx)
+        assert result.is_valid is False
+        assert "minimum is 20" in result.error_reason
+
+
+class TestLinkedInConnectionNoteFlag:
+    @pytest.mark.asyncio
+    async def test_connection_request_blocked_when_flag_off(self, sample_document):
+        """Service raises SequenceValidationError when connection note flag is off."""
+        with patch("services.writing.service.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                writing_model_linkedin_connection="",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+                linkedin_connection_note_enabled=False,
+            )
+
+            with patch("services.writing.service.AsyncOpenAI"):
+                service = WritingService()
+                with pytest.raises(SequenceValidationError) as exc_info:
+                    await service.generate_linkedin_message(
+                        document=sample_document,
+                        product_context="MongoDB Atlas database",
+                        linkedin_context={"content_type": "none", "low_confidence": True},
+                        mode="connection_request",
+                        problems_solved="database scalability",
+                    )
+
+        assert exc_info.value.code == "connection_note_disabled"
+
+    @pytest.mark.asyncio
+    async def test_dm_not_blocked_when_connection_note_flag_off(self, sample_document):
+        """DM mode is unaffected by connection note flag."""
+        with patch("services.writing.service.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                writing_model_linkedin_dm="",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+                linkedin_connection_note_enabled=False,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = (
+                "Message:\n"
+                "Acme Corp is scaling its engineering team rapidly while shipping new products to market. "
+                "The companies growing at that pace usually find the data layer becomes "
+                "the bottleneck before anyone expects it to cause real problems. "
+                "Curious how you're handling the data layer?"
+            )
+            mock_message.usage = None
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.service.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+                result = await service.generate_linkedin_message(
+                    document=sample_document,
+                    product_context="MongoDB Atlas database",
+                    linkedin_context={"content_type": "none", "low_confidence": True},
+                    mode="dm",
+                    problems_solved="database scalability",
+                )
+
+        assert result["mode"] == "dm"
 
 
 class TestLinkedInChannelModes:

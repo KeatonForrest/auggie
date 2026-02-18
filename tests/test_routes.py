@@ -215,9 +215,19 @@ async def test_download_markdown(authed_client, sample_research_document):
 
 @pytest.fixture
 def _enable_linkedin():
-    """Enable the linkedin_message_enabled feature flag for the test."""
+    """Enable LinkedIn flags (both message + connection note) for the test."""
     with patch("routes.research.settings") as mock_settings:
         mock_settings.linkedin_message_enabled = True
+        mock_settings.linkedin_connection_note_enabled = True
+        yield mock_settings
+
+
+@pytest.fixture
+def _enable_linkedin_dm_only():
+    """Enable LinkedIn message but NOT connection notes."""
+    with patch("routes.research.settings") as mock_settings:
+        mock_settings.linkedin_message_enabled = True
+        mock_settings.linkedin_connection_note_enabled = False
         yield mock_settings
 
 
@@ -404,3 +414,43 @@ async def test_linkedin_message_generic_error(authed_client, sample_research_doc
     data = response.json()
     assert data["success"] is False
     assert data["error"]["code"] == "linkedin_generation_failed"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_connection_note_disabled(authed_client, sample_research_document, _enable_linkedin_dm_only):
+    """POST connection_request returns 422 when connection note flag is off."""
+    response = await authed_client.post(
+        "/document/1/linkedin-message",
+        data={"mode": "connection_request"},
+    )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "connection_note_disabled"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_dm_works_when_connection_note_disabled(authed_client, sample_research_document, _enable_linkedin_dm_only):
+    """DM mode still works when connection note flag is off."""
+    result = {
+        "message": "Acme Corp is scaling fast — have you considered a managed data layer?",
+        "word_count": 13,
+        "char_count": 68,
+        "content_type": "none",
+        "mode": "dm",
+        "cta_rescued": False,
+    }
+    with patch("routes.research.get_document", new_callable=AsyncMock, return_value=sample_research_document), \
+         patch("routes.research.writing_service") as mock_ws:
+        mock_ws.generate_linkedin_message = AsyncMock(return_value=result)
+
+        response = await authed_client.post(
+            "/document/1/linkedin-message",
+            data={"mode": "dm"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["mode"] == "dm"

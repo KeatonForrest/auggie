@@ -217,6 +217,7 @@ async def view_document(
             "share_token": share_token,
             "app_url": settings.app_url,
             "linkedin_message_enabled": getattr(settings, "linkedin_message_enabled", False),
+            "linkedin_connection_note_enabled": getattr(settings, "linkedin_connection_note_enabled", False),
         }
     )
 
@@ -285,6 +286,7 @@ async def view_document_by_slug(
             "org_slug": org_slug,
             "doc_slug": doc_slug,
             "linkedin_message_enabled": getattr(settings, "linkedin_message_enabled", False),
+            "linkedin_connection_note_enabled": getattr(settings, "linkedin_connection_note_enabled", False),
         }
     )
 
@@ -453,6 +455,14 @@ async def generate_linkedin_message(
     # Feature flag gate
     if not getattr(settings, "linkedin_message_enabled", False):
         raise HTTPException(status_code=404, detail="Feature not enabled")
+
+    # Connection note sub-flag
+    if mode == "connection_request" and not getattr(settings, "linkedin_connection_note_enabled", False):
+        logger.info("Connection note request blocked (flag off)", extra={"event_type": "linkedin_generation", "doc_id": doc_id, "error_code": "connection_note_disabled"})
+        return JSONResponse({
+            "success": False,
+            "error": {"code": "connection_note_disabled", "message": "Connection notes are not enabled. Use DM mode instead."},
+        }, status_code=422)
 
     # Validate mode
     if mode not in ("dm", "connection_request"):
