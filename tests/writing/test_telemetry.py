@@ -98,7 +98,10 @@ class TestTelemetryEmission:
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = (
                 "Message:\n"
-                "Acme Corp is scaling fast. Curious how you're handling the data layer?"
+                "Acme Corp is scaling its engineering team rapidly while shipping new products to market. "
+                "The companies growing at that pace usually find the data layer becomes "
+                "the bottleneck before anyone expects it to cause real problems. "
+                "Curious how you're handling the data layer?"
             )
             mock_message.usage = None
 
@@ -124,3 +127,85 @@ class TestTelemetryEmission:
         assert record.channel == "linkedin_dm"
         assert record.latency_ms >= 0
         assert record.word_limit_pass is True
+
+    @pytest.mark.asyncio
+    async def test_happy_path_retry_count_zero(self, sample_document, caplog):
+        """Happy path: no retries means retry_count == 0."""
+        with patch("services.writing.service.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                writing_model_email="",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            mock_message = MagicMock()
+            mock_message.choices = [MagicMock()]
+            mock_message.choices[0].message.content = (
+                "Subject 1: test\n\n"
+                "Email 1:\nBody one.\n\n"
+                "Email 2:\nBody two.\n\n"
+                "Email 3:\nBody three."
+            )
+            mock_message.usage = None
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_message)
+
+            with patch("services.writing.service.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+
+                with caplog.at_level(logging.INFO, logger="services.writing.service"):
+                    await service.generate_email_sequence(sample_document, "Product X")
+
+        tel_records = [r for r in caplog.records if "email generation" in r.message]
+        assert len(tel_records) >= 1
+        assert tel_records[0].retry_count == 0
+
+    @pytest.mark.asyncio
+    async def test_repair_path_retry_count_incremented(self, sample_document, caplog):
+        """Repair path: retry_count >= 1 when repair is attempted."""
+        with patch("services.writing.service.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                writing_model="mistralai/mistral-medium-3.1",
+                writing_model_email="",
+                pea_selector_enabled=False,
+                writing_relevance_gate_enabled=False,
+            )
+
+            # First call: malformed (only 1 email)
+            mock_initial = MagicMock()
+            mock_initial.choices = [MagicMock()]
+            mock_initial.choices[0].message.content = "<email1>Only one.</email1>"
+            mock_initial.usage = None
+
+            # Repair call: valid
+            repaired = (
+                "Subject 1: fixed\n\n"
+                "Email 1:\nBody one.\n\n"
+                "Email 2:\nBody two.\n\n"
+                "Email 3:\nBody three."
+            )
+            mock_repair = MagicMock()
+            mock_repair.choices = [MagicMock()]
+            mock_repair.choices[0].message.content = repaired
+            mock_repair.usage = None
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=[mock_initial, mock_repair]
+            )
+
+            with patch("services.writing.service.AsyncOpenAI") as mock_openai:
+                mock_openai.return_value = mock_client
+                service = WritingService()
+
+                with caplog.at_level(logging.INFO, logger="services.writing.service"):
+                    await service.generate_email_sequence(sample_document, "Product X")
+
+        tel_records = [r for r in caplog.records if "email generation" in r.message]
+        assert len(tel_records) >= 1
+        assert tel_records[0].retry_count >= 1

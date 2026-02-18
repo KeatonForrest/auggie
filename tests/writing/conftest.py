@@ -21,7 +21,7 @@ def writing_service():
             writing_model_email="",
             writing_model_linkedin_dm="",
             writing_model_linkedin_connection="",
-            pea_selector_enabled=False,
+            pea_selector_enabled=True,
             writing_relevance_gate_enabled=False,
         )
         with patch("services.writing.service.AsyncOpenAI"):
@@ -39,7 +39,7 @@ def relevance_gate_service():
             writing_model_email="",
             writing_model_linkedin_dm="",
             writing_model_linkedin_connection="",
-            pea_selector_enabled=False,
+            pea_selector_enabled=True,
             writing_relevance_gate_enabled=True,
         )
         with patch("services.writing.service.AsyncOpenAI"):

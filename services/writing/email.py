@@ -11,6 +11,38 @@ from services.writing.types import (
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Deterministic subject-line validation
+# ---------------------------------------------------------------------------
+
+_AI_STANDALONE = re.compile(r'\bai\b', re.IGNORECASE)
+_HAS_DIGITS = re.compile(r'\d')
+
+
+def _validate_subject_line(subject: str) -> tuple[str, list[str]]:
+    """Deterministic subject-line cleanup and issue detection.
+
+    Returns (cleaned_subject, unfixable_issues).
+    Auto-fixes: lowercase, strips trailing ! and ?.
+    Flags (unfixable): word count > 6, standalone "ai", digits.
+    """
+    # Auto-fix: lowercase
+    cleaned = subject.lower()
+    # Auto-fix: strip trailing punctuation (! and ?)
+    cleaned = cleaned.rstrip("!?").strip()
+
+    unfixable: list[str] = []
+    word_count = len(cleaned.split())
+    if word_count > 6:
+        unfixable.append(f"too long ({word_count} words, max 6)")
+    if _AI_STANDALONE.search(cleaned):
+        unfixable.append('contains standalone "ai"')
+    if _HAS_DIGITS.search(cleaned):
+        unfixable.append("contains digits")
+
+    return cleaned, unfixable
+
+
 class EmailStrategy:
     """Pure-logic strategy for 3-email PVP sequences.
 
@@ -806,6 +838,54 @@ Use the partial-signal examples as your primary models for this sequence.""")
             if count > limit:
                 over.append({**email, "word_count": count, "limit": limit})
         return over
+
+    # ------------------------------------------------------------------
+    # Subject-line validation
+    # ------------------------------------------------------------------
+
+    def fix_subject_lines(
+        self, emails: list[dict], subject_options: list[str],
+    ) -> tuple[list[dict], list[str], list[str]]:
+        """Apply deterministic subject-line fixes.
+
+        Returns (emails, subject_options, unfixable_issues).
+        """
+        all_issues: list[str] = []
+        new_options: list[str] = []
+        for subj in subject_options:
+            cleaned, issues = _validate_subject_line(subj)
+            new_options.append(cleaned)
+            all_issues.extend(issues)
+
+        # Apply first cleaned subject to all emails
+        if new_options:
+            for email in emails:
+                email["subject"] = new_options[0]
+
+        return emails, new_options, all_issues
+
+    def rewrite_subject_prompt(
+        self, subjects: list[str], issues: list[str], ctx: GenerationContext,
+    ) -> str:
+        """Return a prompt asking the LLM to rewrite flagged subject lines."""
+        issue_text = "; ".join(issues)
+        current = "\n".join(f"  Subject {i+1}: {s}" for i, s in enumerate(subjects))
+        return (
+            "The following subject lines have issues that must be fixed:\n"
+            f"{current}\n\n"
+            f"Issues: {issue_text}\n\n"
+            "Rewrite ALL 3 subject lines following these rules:\n"
+            "- MAX 4 words. Shorter is better.\n"
+            "- All lowercase. No title case.\n"
+            "- No questions, no exclamation marks, no numbers/stats\n"
+            "- NEVER use the word 'AI' in a subject line\n"
+            "- Reference something specific from the prospect's world\n"
+            "- Each must take a genuinely different angle\n\n"
+            "Output EXACTLY in this format:\n"
+            "Subject 1: [text]\n"
+            "Subject 2: [text]\n"
+            "Subject 3: [text]"
+        )
 
     # ------------------------------------------------------------------
     # Limits

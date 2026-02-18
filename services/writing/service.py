@@ -351,11 +351,41 @@ class WritingService:
         emails, subject_options = strategy.parse_output(response, ctx)
         tel.parse_success = len(emails) > 0
 
+        # Deterministic subject-line fixes
+        emails, subject_options, subj_issues = strategy.fix_subject_lines(emails, subject_options)
+        if subj_issues:
+            tel.retry_count += 1
+            try:
+                rewrite_prompt = strategy.rewrite_subject_prompt(subject_options, subj_issues, ctx)
+                rewrite_raw, in_tok, out_tok = await self._llm_call(
+                    model,
+                    [{"role": "user", "content": rewrite_prompt}],
+                    200,
+                )
+                tel.input_tokens += in_tok
+                tel.output_tokens += out_tok
+                # Re-parse just the subjects from the rewrite
+                new_subjs = re.findall(r"[Ss]ubject\s*\d\s*:\s*(.+)", rewrite_raw)
+                if new_subjs:
+                    new_subjs = [s.strip().strip("`\"'") for s in new_subjs[:3]]
+                    # Re-apply deterministic fixes
+                    from services.writing.email import _validate_subject_line
+                    cleaned_new = []
+                    for s in new_subjs:
+                        c, _ = _validate_subject_line(s)
+                        cleaned_new.append(c)
+                    subject_options = cleaned_new
+                    for email in emails:
+                        email["subject"] = cleaned_new[0]
+            except Exception:
+                logger.warning("Subject-line rewrite failed", exc_info=True)
+
         # Validate -> repair once -> validate
         result = strategy.validate((emails, subject_options), ctx)
 
         if not result.is_valid:
             tel.repair_attempted = True
+            tel.retry_count += 1
             try:
                 repair_text = strategy.repair_prompt(response, ctx, result.error_reason)
                 repaired_response, in_tok, out_tok = await self._llm_call(
@@ -383,6 +413,7 @@ class WritingService:
         # Enforce word limits - shorten over-limit emails in parallel
         over = strategy.over_limit_emails(emails)
         if over:
+            tel.retry_count += len(over)
             for _pass in range(2):
                 async def _try_shorten(ov: dict) -> tuple[int, str | None]:
                     try:
@@ -453,11 +484,12 @@ class WritingService:
         """Trim to word/char limits with CTA rescue. Returns (message, cta_rescued)."""
         cta_rescued = False
 
-        if len(message.split()) > limit + 10:
+        if len(message.split()) > limit:
             message = trim_to_word_limit(message, limit)
 
             # CTA rescue: if trim killed trailing ?
             if not re.search(r'\?\s*$', message):
+                tel.retry_count += 1
                 rescue_prompt = (
                     f"Rewrite this LinkedIn message to be under {limit} words. "
                     "It MUST end with a question. Keep the same message and tone. "
@@ -493,6 +525,7 @@ class WritingService:
 
             # CTA rescue if truncation removed ?
             if not re.search(r'\?\s*$', message):
+                tel.retry_count += 1
                 rescue_prompt = (
                     f"Rewrite this LinkedIn connection request note to be under 300 characters "
                     f"and under {limit} words. It MUST end with a question. "
@@ -542,6 +575,13 @@ class WritingService:
         # Validate mode
         if mode not in ("dm", "connection_request"):
             raise ValueError(f"Invalid LinkedIn message mode: {mode!r}. Must be 'dm' or 'connection_request'.")
+
+        # Service-level guard: block connection_request when flag is off
+        if mode == "connection_request" and not getattr(self.settings, "linkedin_connection_note_enabled", False):
+            raise SequenceValidationError(
+                code="connection_note_disabled",
+                message="Connection notes are not enabled.",
+            )
 
         start_time = time.monotonic()
         tel = GenerationTelemetry(channel=f"linkedin_{mode}")
@@ -614,6 +654,7 @@ class WritingService:
         is_clean, blocked_terms = filter_relevance(message, category)
         if not is_clean:
             tel.relevance_reprompted = True
+            tel.retry_count += 1
             reprompt = (
                 f"Your message references {', '.join(blocked_terms)}. "
                 "This is not relevant to what the seller sells. "
@@ -656,6 +697,7 @@ class WritingService:
 
         # One retry on anchor failure
         if not result.is_valid and "anchor" in result.error_reason:
+            tel.retry_count += 1
             core = extract_company_core(document.company_name)
             anchor_rescue_prompt = (
                 f'Your message does not mention the prospect company. '

@@ -16,18 +16,62 @@ _CATEGORY_KEYWORDS = {
         "cassandra", "cockroachdb", "data platform", "data infrastructure",
         "vector database", "graph database", "time-series", "olap", "oltp",
     ],
+    "fintech": [
+        "payments", "banking", "lending", "kyc", "aml", "billing platform",
+        "payment processing", "financial services", "neobank", "fintech",
+        "transaction", "pci", "card issuing", "underwriting", "regtech",
+    ],
+    "healthtech": [
+        "healthcare", "ehr", "telehealth", "hipaa", "clinical", "patient",
+        "health tech", "healthtech", "medical device", "digital health",
+        "electronic health record", "health information", "care coordination",
+    ],
+    "martech": [
+        "marketing automation", "cdp", "attribution", "personalization",
+        "customer data platform", "campaign management", "martech",
+        "marketing platform", "email marketing", "lead scoring",
+        "marketing analytics", "demand generation",
+    ],
+    "devtools": [
+        "developer tools", "ci/cd", "observability", "apm", "kubernetes",
+        "devtools", "developer experience", "build system", "deployment",
+        "infrastructure as code", "monitoring", "logging", "container",
+        "developer platform",
+    ],
 }
 
 _FRONTEND_DENYLIST = {
     "frontend_frameworks", "cdn_delivery", "css_tooling", "marketing_tags",
 }
 
-_DB_LINKAGE_TERMS = [
-    "database bottleneck", "db bottleneck", "query performance",
-    "api latency", "data pipeline", "backend performance",
-    "read replica", "write throughput", "connection pool",
-    "slow queries", "index", "migration", "data-intensive",
-]
+# Per-category linkage terms (override blocked signals when present)
+_CATEGORY_LINKAGE_TERMS: dict[str, list[str]] = {
+    "database": [
+        "database bottleneck", "db bottleneck", "query performance",
+        "api latency", "data pipeline", "backend performance",
+        "read replica", "write throughput", "connection pool",
+        "slow queries", "index", "migration", "data-intensive",
+    ],
+    "fintech": [
+        "payment flow", "transaction", "pci", "financial data",
+        "billing integration", "payment processing", "ledger",
+    ],
+    "healthtech": [
+        "patient data", "ehr integration", "clinical workflow", "hipaa",
+        "health record", "care coordination", "telehealth",
+    ],
+    "martech": [
+        "customer data", "campaign performance", "lead scoring",
+        "marketing analytics", "attribution", "conversion",
+    ],
+    "devtools": [
+        "developer experience", "build time", "pipeline",
+        "infrastructure", "deployment velocity", "developer productivity",
+    ],
+}
+
+# Backward compat alias
+_DB_LINKAGE_TERMS = _CATEGORY_LINKAGE_TERMS["database"]
 
 # Maps rule_id → set of signal families the rule belongs to
 _RULE_FAMILIES: dict[str, set[str]] = {
@@ -39,6 +83,10 @@ _RULE_FAMILIES: dict[str, set[str]] = {
 # Maps seller category → set of denied signal families
 _CATEGORY_DENYLISTS: dict[str, set[str]] = {
     "database": _FRONTEND_DENYLIST,
+    "fintech": {"frontend_frameworks", "cdn_delivery", "marketing_tags"},
+    "healthtech": {"frontend_frameworks", "cdn_delivery", "marketing_tags"},
+    "martech": {"devops_infra", "security_scanning"},
+    "devtools": {"marketing_tags", "crm_sales"},
 }
 
 
@@ -71,12 +119,14 @@ def is_action_tier_relevant(inference: PainInference, seller_category: str) -> b
     rule_families = _RULE_FAMILIES.get(inference.rule_id, set())
     if not rule_families.intersection(denied_families):
         return True
-    # Check for linkage override: evidence text contains DB-related terms
-    evidence_text = " ".join(inference.evidence).lower()
-    description_text = inference.description.lower()
-    combined = evidence_text + " " + description_text
-    if any(term in combined for term in _DB_LINKAGE_TERMS):
-        return True
+    # Check for linkage override: evidence text contains category-specific terms
+    linkage_terms = _CATEGORY_LINKAGE_TERMS.get(seller_category, [])
+    if linkage_terms:
+        evidence_text = " ".join(inference.evidence).lower()
+        description_text = inference.description.lower()
+        combined = evidence_text + " " + description_text
+        if any(term in combined for term in linkage_terms):
+            return True
     return False
 
 

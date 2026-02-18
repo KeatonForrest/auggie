@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from services.writing import WritingService
 from services.writing.postprocess import extract_company_core
+from services.pain_inference import detect_seller_category
 
 
 # --- _build_report ---
@@ -222,6 +223,22 @@ class TestCategoryDetection:
     def test_returns_empty_for_empty_input(self, writing_service):
         assert writing_service._detect_product_category("") == ""
 
+    def test_detects_fintech(self, writing_service):
+        ctx = "Stripe payments platform for billing and payment processing"
+        assert writing_service._detect_product_category(ctx) == "fintech"
+
+    def test_detects_healthtech(self, writing_service):
+        ctx = "Epic-compatible EHR platform for clinical healthcare providers"
+        assert writing_service._detect_product_category(ctx) == "healthtech"
+
+    def test_detects_martech(self, writing_service):
+        ctx = "Marketing automation and CDP for attribution and personalization"
+        assert writing_service._detect_product_category(ctx) == "martech"
+
+    def test_detects_devtools(self, writing_service):
+        ctx = "Developer tools for CI/CD and observability monitoring"
+        assert writing_service._detect_product_category(ctx) == "devtools"
+
 
 class TestHookRelevanceScoring:
     def test_clean_hook_scores_5(self, writing_service):
@@ -239,6 +256,38 @@ class TestHookRelevanceScoring:
     def test_unknown_category_scores_5(self, writing_service):
         text = "- CDN migration underway with Cloudflare"
         assert writing_service._score_hook_relevance(text, "unknown_cat") == 5
+
+    def test_fintech_blocked_without_linkage_scores_2(self, writing_service):
+        text = "- They migrated their frontend to React and Vue"
+        assert writing_service._score_hook_relevance(text, "fintech") == 2
+
+    def test_fintech_blocked_with_linkage_scores_4(self, writing_service):
+        text = "- React rebuild is delaying their payment flow integration"
+        assert writing_service._score_hook_relevance(text, "fintech") == 4
+
+    def test_healthtech_blocked_without_linkage_scores_2(self, writing_service):
+        text = "- CDN migration to Cloudflare underway"
+        assert writing_service._score_hook_relevance(text, "healthtech") == 2
+
+    def test_healthtech_blocked_with_linkage_scores_4(self, writing_service):
+        text = "- CDN issues causing problems with patient data delivery"
+        assert writing_service._score_hook_relevance(text, "healthtech") == 4
+
+    def test_martech_blocked_without_linkage_scores_2(self, writing_service):
+        text = "- Kubernetes cluster scaling issues"
+        assert writing_service._score_hook_relevance(text, "martech") == 2
+
+    def test_martech_blocked_with_linkage_scores_4(self, writing_service):
+        text = "- CI/CD pipeline delays are blocking customer data updates"
+        assert writing_service._score_hook_relevance(text, "martech") == 4
+
+    def test_devtools_blocked_without_linkage_scores_2(self, writing_service):
+        text = "- Their marketing automation is a mess with HubSpot"
+        assert writing_service._score_hook_relevance(text, "devtools") == 2
+
+    def test_devtools_blocked_with_linkage_scores_4(self, writing_service):
+        text = "- Marketing automation changes are slowing developer experience"
+        assert writing_service._score_hook_relevance(text, "devtools") == 4
 
 
 class TestRelevanceGate:
@@ -310,3 +359,26 @@ class TestExtractCompanyCore:
 
     def test_short_name_returns_original(self):
         assert extract_company_core("AI") == "ai"
+
+
+# --- Pain inference category detection ---
+
+
+class TestPainInferenceCategoryDetection:
+    def test_detects_database(self):
+        assert detect_seller_category("MongoDB Atlas database platform") == "database"
+
+    def test_detects_fintech(self):
+        assert detect_seller_category("Stripe payments and billing platform") == "fintech"
+
+    def test_detects_healthtech(self):
+        assert detect_seller_category("Epic EHR for healthcare clinical workflows") == "healthtech"
+
+    def test_detects_martech(self):
+        assert detect_seller_category("Marketing automation CDP for attribution") == "martech"
+
+    def test_detects_devtools(self):
+        assert detect_seller_category("CI/CD developer tools for observability") == "devtools"
+
+    def test_returns_empty_for_unknown(self):
+        assert detect_seller_category("Salesforce CRM") == ""

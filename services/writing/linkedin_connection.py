@@ -48,8 +48,8 @@ class LinkedInConnectionStrategy:
 
         # Word count check
         word_count = len(message.split())
-        if word_count < 10:
-            return ValidationResult(is_valid=False, error_reason=f"Message is {word_count} words, minimum is 10")
+        if word_count < 20:
+            return ValidationResult(is_valid=False, error_reason=f"Message is {word_count} words, minimum is 20")
         limit = LINKEDIN_WORD_LIMITS["connection_request"]
         if word_count > limit + 10:
             return ValidationResult(is_valid=False, error_reason=f"Message is {word_count} words, limit is {limit}")

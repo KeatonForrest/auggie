@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 from models import ResearchDocument
 from services.writing import WritingService, SequenceValidationError
+from services.writing.email import _validate_subject_line
 from services.writing.types import GenerationContext
 
 
@@ -269,7 +270,7 @@ Last check-in - still interested in discussing database performance?
                 )
 
         assert len(emails) == 3
-        assert emails[0]["subject"] == "Following up on database scaling"
+        assert emails[0]["subject"] == "following up on database scaling"
         assert "growing fast" in emails[0]["body"]
         assert len(subject_options) >= 1
 
@@ -645,6 +646,30 @@ class TestRelevancePromptContract:
         assert "CDN, frontend framework" in prompt
         assert "database bottleneck" in prompt
 
+    def test_fintech_constraint_injected(self, email_strategy):
+        ctx = GenerationContext(document=None, product_context="", report="test report", product_category="fintech")
+        prompt = email_strategy.build_user_prompt(ctx)
+        assert "PRODUCT-RELEVANCE CONSTRAINT (FINTECH SELLER)" in prompt
+        assert "payment flow" in prompt
+
+    def test_healthtech_constraint_injected(self, email_strategy):
+        ctx = GenerationContext(document=None, product_context="", report="test report", product_category="healthtech")
+        prompt = email_strategy.build_user_prompt(ctx)
+        assert "PRODUCT-RELEVANCE CONSTRAINT (HEALTHTECH SELLER)" in prompt
+        assert "patient data" in prompt
+
+    def test_martech_constraint_injected(self, email_strategy):
+        ctx = GenerationContext(document=None, product_context="", report="test report", product_category="martech")
+        prompt = email_strategy.build_user_prompt(ctx)
+        assert "PRODUCT-RELEVANCE CONSTRAINT (MARTECH SELLER)" in prompt
+        assert "customer data" in prompt
+
+    def test_devtools_constraint_injected(self, email_strategy):
+        ctx = GenerationContext(document=None, product_context="", report="test report", product_category="devtools")
+        prompt = email_strategy.build_user_prompt(ctx)
+        assert "PRODUCT-RELEVANCE CONSTRAINT (DEVTOOLS SELLER)" in prompt
+        assert "developer experience" in prompt
+
 
 class TestRelevanceGateIntegration:
     @pytest.mark.asyncio
@@ -692,3 +717,63 @@ class TestRelevanceGateIntegration:
         assert "React frontend rewrite" not in user_prompt
         assert "Database query latency" in user_prompt
         assert "PRODUCT-RELEVANCE CONSTRAINT (DATABASE SELLER)" in user_prompt
+
+
+# --- Subject-line validation ---
+
+
+class TestSubjectLineValidation:
+    def test_lowercase_auto_fix(self):
+        cleaned, issues = _validate_subject_line("Database Scaling")
+        assert cleaned == "database scaling"
+        assert issues == []
+
+    def test_punctuation_strip_exclamation(self):
+        cleaned, issues = _validate_subject_line("great deal!")
+        assert cleaned == "great deal"
+        assert issues == []
+
+    def test_punctuation_strip_question(self):
+        cleaned, issues = _validate_subject_line("pipeline issues?")
+        assert cleaned == "pipeline issues"
+        assert issues == []
+
+    def test_ai_flagged(self):
+        cleaned, issues = _validate_subject_line("ai scaling")
+        assert any('"ai"' in i for i in issues)
+
+    def test_digits_flagged(self):
+        cleaned, issues = _validate_subject_line("q4 pipeline 2025")
+        assert any("digits" in i for i in issues)
+
+    def test_length_flagged(self):
+        cleaned, issues = _validate_subject_line("this is a very long subject line indeed")
+        assert any("too long" in i for i in issues)
+
+    def test_clean_pass(self):
+        cleaned, issues = _validate_subject_line("warehouse automation")
+        assert cleaned == "warehouse automation"
+        assert issues == []
+
+    def test_fix_subject_lines_applies_to_emails(self, email_strategy):
+        emails = [
+            {"email_number": 1, "subject": "OLD Subject!", "body": "Body."},
+            {"email_number": 2, "subject": "OLD Subject!", "body": "Body."},
+            {"email_number": 3, "subject": "OLD Subject!", "body": "Body."},
+        ]
+        subject_options = ["OLD Subject!", "Option Two?", "Third!"]
+        emails, opts, issues = email_strategy.fix_subject_lines(emails, subject_options)
+        assert opts == ["old subject", "option two", "third"]
+        assert all(e["subject"] == "old subject" for e in emails)
+        assert issues == []
+
+    def test_rewrite_subject_prompt_format(self, email_strategy):
+        ctx = GenerationContext(document=None, product_context="", report="")
+        prompt = email_strategy.rewrite_subject_prompt(
+            ["ai growth", "pipeline 42", "very long subject line of many words"],
+            ['contains standalone "ai"', "contains digits", "too long (7 words, max 6)"],
+            ctx,
+        )
+        assert "Subject 1:" in prompt
+        assert "ai growth" in prompt
+        assert "MAX 4 words" in prompt

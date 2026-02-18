@@ -108,11 +108,12 @@ class Settings(BaseSettings):
     # Feature flags
     materials_enabled: bool = False
     cloudflare_rate_limiting: bool = False
-    pea_selector_enabled: bool = False
+    pea_selector_enabled: bool = True
     research_tight_writing_enabled: bool = False
     writing_relevance_gate_enabled: bool = False
     pain_frontend_rule_enabled: bool = False
     linkedin_message_enabled: bool = True
+    linkedin_connection_note_enabled: bool = False
 
     # In-process worker
     worker_enabled: bool = True

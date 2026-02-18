@@ -149,67 +149,67 @@ class TestLinkedInRelevanceFilter:
 
 class TestLinkedInQualityGate:
     def test_valid_passes(self, linkedin_dm_strategy):
-        msg = "Acme Corp is scaling fast. The companies growing at your pace usually hit a data layer bottleneck they don't see coming. Curious how you're thinking about that?"
+        msg = "Acme Corp is scaling its engineering team fast while shipping new products to market. The companies growing at your pace usually hit a data layer bottleneck they don't see coming until it slows everything down. Curious how you're thinking about that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
         assert result.error_reason == ""
 
     def test_no_question_mark(self, linkedin_dm_strategy):
-        msg = "Acme Corp is scaling fast. The companies growing at your pace usually hit a data layer bottleneck."
+        msg = "Acme Corp is scaling its engineering team fast while shipping new products to market. The companies growing at your pace usually hit a data layer bottleneck they don't see coming until it becomes a real problem for the whole organization."
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "must end with exactly one question" in result.error_reason
 
     def test_question_in_middle(self, linkedin_dm_strategy):
-        msg = "Is Acme Corp scaling? The companies growing at your pace usually hit a data layer bottleneck."
+        msg = "Is Acme Corp scaling its engineering team while shipping new products? The companies growing at your pace usually hit a data layer bottleneck they don't see coming until it becomes a significant problem for the entire team."
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "must end with exactly one question" in result.error_reason
 
     def test_multiple_questions(self, linkedin_dm_strategy):
-        msg = "Is Acme Corp scaling fast? Are you thinking about your data layer?"
+        msg = "Is Acme Corp scaling its engineering team while shipping new products to market? That pace of growth usually surfaces bottlenecks in the data layer. Are you already thinking about how to handle the data infrastructure challenges ahead?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "must end with exactly one question" in result.error_reason
 
     def test_banned_robotic_phrase(self, linkedin_dm_strategy):
-        msg = "I noticed on your LinkedIn that Acme Corp is doing interesting work. Curious how you're thinking about scaling?"
+        msg = "I noticed on your LinkedIn that Acme Corp is doing interesting work scaling their engineering team. The companies growing at this pace often find the data layer becomes the bottleneck before anyone expects it. Curious how you're thinking about scaling?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "banned phrase" in result.error_reason
 
     def test_i_noticed_natural_passes(self, linkedin_dm_strategy):
-        msg = "I noticed Acme Corp is hiring three data engineers this quarter. That usually means the pipeline has outgrown the team. Curious how you're handling that?"
+        msg = "I noticed Acme Corp is hiring three data engineers this quarter. That usually means the data pipeline has outgrown the team and things are starting to break. The companies handling this best tend to invest early. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_i_saw_natural_passes(self, linkedin_dm_strategy):
-        msg = "I saw Acme Corp just closed a Series B. That pace of growth usually surfaces infra bottlenecks. Curious how you're thinking about scaling?"
+        msg = "I saw Acme Corp just closed a Series B while expanding the engineering team aggressively across multiple locations. That pace of growth usually surfaces infrastructure bottlenecks in the data layer before most teams expect them to become real problems. Curious how you're thinking about scaling?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_came_across_profile_banned(self, linkedin_dm_strategy):
-        msg = "I came across your profile and Acme Corp caught my eye. Curious how you're thinking about scaling?"
+        msg = "I came across your profile and saw that Acme Corp is scaling their engineering team rapidly while shipping new products. The companies growing at this pace often hit a data layer bottleneck before anyone expects it. Curious how you're thinking about scaling?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "banned phrase" in result.error_reason
 
     def test_valid_phrase_passes(self, linkedin_dm_strategy):
-        msg = "Based on Acme Corp's team growth, the data layer challenges usually surface around this stage. Curious how you're handling that?"
+        msg = "Based on Acme Corp's recent team growth and expansion into new markets, the data layer challenges usually surface around this stage when traffic starts climbing. The pattern is surprisingly consistent across companies at your scale. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_missing_anchor(self, linkedin_dm_strategy):
-        msg = "Your team is growing fast and the data challenges usually surface at this stage. Curious how you're handling that?"
+        msg = "Your team is growing fast and the data challenges usually surface at this stage when traffic starts climbing and the infrastructure starts to buckle under the load. The pattern is surprisingly consistent across companies at your scale and stage. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
@@ -226,38 +226,38 @@ class TestLinkedInQualityGate:
         assert "105 words" in result.error_reason
 
     def test_anchor_matches_with_suffix(self, linkedin_dm_strategy):
-        msg = "MongoDB is scaling its data platform fast. Curious how the team handles peak throughput?"
+        msg = "MongoDB is scaling its data platform at a remarkable pace while expanding the engineering team rapidly. The companies growing this fast usually find the data layer becomes the bottleneck before anyone on the team expects it to happen. Curious how the team handles peak throughput?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="MongoDB, Inc.")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_anchor_matches_dotcom(self, linkedin_dm_strategy):
-        msg = "Nike is pushing into direct-to-consumer at a pace that usually surfaces fulfillment bottlenecks. Curious how you're handling that?"
+        msg = "Nike is pushing into direct-to-consumer channels at a pace that usually surfaces fulfillment and logistics bottlenecks across the entire supply chain. The companies handling this transition best tend to invest heavily in their infrastructure and systems early on. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="nike.com")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_anchor_still_fails_when_absent(self, linkedin_dm_strategy):
-        msg = "Your team is growing fast and challenges surface at this stage. Curious how you're handling that?"
+        msg = "Your team is growing fast and the infrastructure challenges usually surface at this stage when traffic starts climbing and the systems start to buckle. The pattern is surprisingly consistent across companies at your scale and stage of growth. Curious how you're handling that?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="MongoDB, Inc.")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is False
         assert "lacks a prospect-specific anchor" in result.error_reason
 
     def test_anchor_domain_root(self, linkedin_dm_strategy):
-        msg = "Fortive is growing through acquisitions fast. Curious how you're integrating the new teams?"
+        msg = "Fortive is growing through acquisitions at a pace that usually creates integration challenges across the engineering and product teams involved. The companies handling multiple acquisitions best tend to standardize their tooling and processes early on before things get complex. Curious how you're integrating the new teams?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="fortive.com")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_anchor_org_domain(self, linkedin_dm_strategy):
-        msg = "Acme is doing interesting work in the nonprofit space. Curious how you're scaling operations?"
+        msg = "Acme is doing interesting work in the nonprofit space while scaling their operations rapidly across multiple locations. The organizations handling this growth phase best tend to invest in their infrastructure and processes early on before things get complex. Curious how you're scaling operations?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="acme.org")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
 
     def test_anchor_multiword_token(self, linkedin_dm_strategy):
-        msg = "Palo Alto's expansion into cloud security is impressive. Curious how the migration path is going?"
+        msg = "Palo Alto's expansion into cloud security at this scale is impressive. The companies making this transition successfully tend to find that the biggest challenge is integrating their existing tools with the new platform. Curious how the migration path is going?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Palo Alto Networks, Inc.")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True
@@ -282,9 +282,10 @@ class TestLinkedInMessageGeneration:
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = (
                 "Message:\n"
-                "Acme Corp is scaling its engineering team while shipping new products. "
+                "Acme Corp is scaling its engineering team rapidly while shipping new products to market. "
                 "The companies growing at that pace usually find the data layer becomes "
-                "the bottleneck before anyone expects it. Curious how you're thinking about that?"
+                "the bottleneck before anyone expects it to cause problems. The pattern is remarkably consistent. "
+                "Curious how you're thinking about that?"
             )
             mock_message.usage = None
 
@@ -340,13 +341,14 @@ class TestLinkedInMessageGeneration:
                 writing_relevance_gate_enabled=False,
             )
 
-            over_msg = "Acme Corp is doing great work. " + " ".join(["Growth"] * 100) + " Curious about scaling?"
+            # 95 words: over the 90-word limit but under the 100-word validation buffer
+            over_msg = "Acme Corp is doing great work. " + " ".join(["Growth"] * 86) + " Curious about scaling?"
             mock_message = MagicMock()
             mock_message.choices = [MagicMock()]
             mock_message.choices[0].message.content = f"Message:\n{over_msg}"
             mock_message.usage = None
 
-            rescue_msg = "Acme Corp is doing great work on their data platform. Curious about scaling?"
+            rescue_msg = "Acme Corp is doing great work on their data platform while scaling their engineering team rapidly across multiple offices. The companies growing at that pace usually find the data layer becomes the bottleneck before anyone expects it to happen. Curious about how you're approaching scaling?"
             mock_rescue = MagicMock()
             mock_rescue.choices = [MagicMock()]
             mock_rescue.choices[0].message.content = rescue_msg
@@ -416,7 +418,9 @@ class TestLinkedInMessageGeneration:
             first_msg.choices = [MagicMock()]
             first_msg.choices[0].message.content = (
                 "Message:\n"
-                "Your team is scaling fast and the data layer usually becomes the bottleneck at this stage. "
+                "Your team is scaling fast and the data layer usually becomes the bottleneck at this stage "
+                "when traffic starts climbing and the infrastructure starts to buckle under the load. "
+                "The companies handling this best invest early in their data infrastructure. "
                 "Curious how you're thinking about that?"
             )
             first_msg.usage = None
@@ -424,7 +428,9 @@ class TestLinkedInMessageGeneration:
             rescue_msg = MagicMock()
             rescue_msg.choices = [MagicMock()]
             rescue_msg.choices[0].message.content = (
-                "Acme Corp is scaling fast and the data layer usually becomes the bottleneck at this stage. "
+                "Acme Corp is scaling fast and the data layer usually becomes the bottleneck at this stage "
+                "when traffic starts climbing and the infrastructure buckles under the load. "
+                "The companies handling this best invest early in their data infrastructure. "
                 "Curious how you're thinking about that?"
             )
             rescue_msg.usage = None
@@ -450,7 +456,7 @@ class TestLinkedInMessageGeneration:
 
     @pytest.mark.asyncio
     async def test_anchor_retry_over_limit_gets_trimmed(self, sample_document):
-        """Regression: anchor rescue returning 91 words must be normalized to ≤90."""
+        """Regression: anchor rescue returning >90 words must be normalized to ≤90."""
         with patch("services.writing.service.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(
                 openrouter_api_key="test-key",
@@ -460,13 +466,14 @@ class TestLinkedInMessageGeneration:
                 writing_relevance_gate_enabled=False,
             )
 
-            # First response: no company anchor
+            # First response: no company anchor (but >= 40 words)
             first_msg = MagicMock()
             first_msg.choices = [MagicMock()]
             first_msg.choices[0].message.content = (
                 "Message:\n"
-                "Your team is scaling fast and the data layer usually becomes the bottleneck. "
-                "Curious how you're thinking about that?"
+                "Your team is scaling fast and the data layer usually becomes the bottleneck at this stage "
+                "when traffic starts climbing and the infrastructure starts to buckle under the load. "
+                "The companies handling this best invest early. Curious how you're thinking about that?"
             )
             first_msg.usage = None
 
@@ -482,7 +489,9 @@ class TestLinkedInMessageGeneration:
 
             # CTA rescue after trim (trim kills the trailing ?)
             cta_rescue_text = (
-                "Acme Corp is scaling fast and the data layer is the usual bottleneck. "
+                "Acme Corp is scaling fast and the data layer is the usual bottleneck at this stage "
+                "when traffic starts climbing and the infrastructure buckles under the load. "
+                "The companies handling this best invest early in their data infrastructure. "
                 "Curious how you're thinking about that?"
             )
             cta_resp = MagicMock()
@@ -511,6 +520,17 @@ class TestLinkedInMessageGeneration:
 
 
 # --- LinkedIn channel modes (DM) ---
+
+
+class TestLinkedInMinWordFloor:
+    def test_under_40_words_dm(self, linkedin_dm_strategy):
+        """DM messages under 40 words should fail validation."""
+        msg = "Acme Corp is interesting. Curious about your plans?"
+        assert len(msg.split()) < 40
+        ctx = GenerationContext(document=None, product_context="", report="", company_name="Acme Corp")
+        result = linkedin_dm_strategy.validate(msg, ctx)
+        assert result.is_valid is False
+        assert "minimum is 40" in result.error_reason
 
 
 class TestLinkedInChannelModes:
