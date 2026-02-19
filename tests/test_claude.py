@@ -887,7 +887,7 @@ SCORE_SUMMARY: Medium opportunity
                 assert "Case study 1" in system_prompt
                 assert "Seller Co" in system_prompt
                 assert "CTO" in system_prompt
-                assert "Fintech" in system_prompt
+                assert "Financial Services" in system_prompt
                 assert "Scaling" in system_prompt
                 assert "PROFESSIONAL SERVICES / CONSULTANCY MODIFIER" in system_prompt
 

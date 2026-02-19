@@ -11,6 +11,8 @@ from models import (
 )
 from config import get_settings
 from services.writing.types import normalize_seller_category, SELLER_RELEVANT_ROLES
+from utils.icp import normalize_verticals
+from utils.personas import build_target_titles
 
 STYLE_CONTRACT = """
 
@@ -1038,9 +1040,19 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         seller_product_category: str = "",
     ) -> ResearchDocument:
         """Generate the full Account Research Document using Claude."""
+        normalized_industries = ""
+        if target_industries and target_industries.strip():
+            raw_industries = [i.strip() for i in target_industries.split(",") if i.strip()]
+            normalized_industries = ", ".join(normalize_verticals(raw_industries))
+
+        normalized_personas = ""
+        if target_personas and target_personas.strip():
+            normalized_personas = ", ".join(build_target_titles(target_personas, max_titles=5))
+
         system_prompt = self._build_system_prompt(
             product_context, retrieved_materials, seller_company,
-            target_personas=target_personas, target_industries=target_industries,
+            target_personas=normalized_personas or target_personas,
+            target_industries=normalized_industries or target_industries,
             problems_solved=problems_solved, product_type=product_type,
             custom_signals=custom_signals, solution_motion=solution_motion,
             seller_product_category=seller_product_category,
