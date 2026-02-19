@@ -97,8 +97,10 @@ _CATEGORY_KEYWORDS = {
 # ---------------------------------------------------------------------------
 
 CATEGORY_SLUG_MAP: dict[str, str] = {
+    # Keys must exactly match the <option value="..."> strings persisted
+    # from templates/onboarding.html and templates/settings.html.
     "MarTech": "martech",
-    "FinTech": "fintech",
+    "Fintech": "fintech",
     "HealthTech": "healthtech",
     "ConstructionTech": "constructiontech",
     "EdTech": "edtech",
@@ -108,11 +110,11 @@ CATEGORY_SLUG_MAP: dict[str, str] = {
     "HRTech": "hrtech",
     "Cybersecurity": "cybersecurity",
     "DevTools / Infra": "devtools",
-    "E-commerce / Retail Tech": "ecommerce",
+    "E-commerce Tech": "ecommerce",
     "Supply Chain / Logistics Tech": "supplychain",
     "GovTech": "govtech",
     "TravelTech": "traveltech",
-    "Media / Entertainment Tech": "mediatech",
+    "MediaTech": "mediatech",
     "Other / Cross-industry": "",
 }
 

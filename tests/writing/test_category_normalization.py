@@ -32,12 +32,14 @@ class TestCategorySlugMap:
         assert len(CATEGORY_SLUG_MAP) == 17
 
     def test_all_expected_ui_strings_present(self):
+        # These must match the <option value="..."> strings in
+        # templates/onboarding.html and templates/settings.html.
         expected = {
-            "MarTech", "FinTech", "HealthTech", "ConstructionTech", "EdTech",
+            "MarTech", "Fintech", "HealthTech", "ConstructionTech", "EdTech",
             "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity",
-            "DevTools / Infra", "E-commerce / Retail Tech",
+            "DevTools / Infra", "E-commerce Tech",
             "Supply Chain / Logistics Tech", "GovTech", "TravelTech",
-            "Media / Entertainment Tech", "Other / Cross-industry",
+            "MediaTech", "Other / Cross-industry",
         }
         assert set(CATEGORY_SLUG_MAP.keys()) == expected
 
@@ -63,3 +65,16 @@ class TestSellerRelevantRoles:
 
     def test_constructiontech_includes_project_management(self):
         assert "project_management" in SELLER_RELEVANT_ROLES["constructiontech"]
+
+
+class TestSlugMapMatchesTemplates:
+    """Guard against CATEGORY_SLUG_MAP keys drifting from the persisted form values."""
+
+    def test_fintech_exact_casing(self):
+        assert "Fintech" in CATEGORY_SLUG_MAP  # not "FinTech"
+
+    def test_ecommerce_exact_label(self):
+        assert "E-commerce Tech" in CATEGORY_SLUG_MAP  # not "E-commerce / Retail Tech"
+
+    def test_mediatech_exact_label(self):
+        assert "MediaTech" in CATEGORY_SLUG_MAP  # not "Media / Entertainment Tech"
