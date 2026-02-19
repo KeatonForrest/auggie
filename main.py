@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -365,6 +365,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 # Home page + static pages
 # =============================================================================
 
+@app.get("/about", response_class=HTMLResponse)
+async def about_page(request: Request):
+    """Public about page — no auth required."""
+    return templates.TemplateResponse(request, "about.html")
+
+
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_page(request: Request):
     """Privacy policy page."""
@@ -375,6 +381,18 @@ async def privacy_page(request: Request):
 async def terms_page(request: Request):
     """Terms of service page."""
     return templates.TemplateResponse(request, "terms.html")
+
+
+@app.get("/.well-known/security.txt", response_class=PlainTextResponse)
+async def security_txt():
+    """RFC 9116 security.txt — helps security researchers and URL categorization bots."""
+    return PlainTextResponse(
+        "Contact: mailto:keaton@auggie.tools\n"
+        "Expires: 2027-02-19T00:00:00Z\n"
+        "Preferred-Languages: en\n"
+        "Canonical: https://auggie.tools/.well-known/security.txt\n"
+        "Policy: https://auggie.tools/about\n",
+    )
 
 
 @app.get("/", response_class=HTMLResponse)

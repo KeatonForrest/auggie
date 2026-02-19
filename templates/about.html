@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Auggie</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <a href="/" class="flex items-center gap-3 text-3xl font-bold text-gray-900 hover:text-gray-700">Auggie <img src="/static/logo.png" alt="" class="w-14 h-14"></a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-3xl mx-auto py-12 px-4">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">About Auggie</h1>
+
+        <div class="prose prose-gray max-w-none space-y-6 text-gray-700">
+            <h2 class="text-xl font-semibold text-gray-900">What is Auggie?</h2>
+            <p>Auggie is an AI-powered account research platform built for B2B sales teams. It automates the deep company research that reps need before outreach — pulling from public sources like company websites, job postings, SEC filings, and technology signals to produce structured, actionable intelligence.</p>
+
+            <h2 class="text-xl font-semibold text-gray-900">How it works</h2>
+            <ul class="list-disc pl-6 space-y-1">
+                <li>You provide a company URL.</li>
+                <li>Auggie scrapes publicly available information: homepage, careers page, blog, news, regulatory filings, and technology stack.</li>
+                <li>AI models analyze the data and produce a structured research document: company overview, business problems, hiring signals, tech stack, opportunity scoring, and personalized talking points.</li>
+                <li>Results are delivered via the web app, API, or integrated directly into your CRM.</li>
+            </ul>
+
+            <h2 class="text-xl font-semibold text-gray-900">Data practices</h2>
+            <ul class="list-disc pl-6 space-y-1">
+                <li><strong>Public data only:</strong> Auggie researches companies using publicly available web content. We do not scrape private or gated content.</li>
+                <li><strong>No personal data harvesting:</strong> We do not collect or sell personal information about individuals. Contact enrichment is opt-in and uses licensed third-party providers.</li>
+                <li><strong>Secure infrastructure:</strong> All traffic is encrypted via TLS. OAuth tokens and credentials are stored encrypted at rest. We do not store credit card numbers (handled by Stripe).</li>
+            </ul>
+
+            <h2 class="text-xl font-semibold text-gray-900">Company</h2>
+            <p>Auggie is built and operated by Auggie Tools, LLC. For questions, security concerns, or partnership inquiries, contact us at <a href="mailto:keaton@auggie.tools" class="text-blue-600 hover:text-blue-800">keaton@auggie.tools</a>.</p>
+
+            <div class="mt-8 pt-6 border-t text-sm text-gray-500 space-y-1">
+                <p><a href="/privacy" class="text-blue-600 hover:text-blue-800">Privacy Policy</a> · <a href="/terms" class="text-blue-600 hover:text-blue-800">Terms of Service</a></p>
+                <p><a href="/.well-known/security.txt" class="text-blue-600 hover:text-blue-800">Security Contact (security.txt)</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
