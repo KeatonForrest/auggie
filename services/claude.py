@@ -10,6 +10,7 @@ from models import (
     DNSProfile, SSLProfile, SecurityPosture, RobotsSignals, JobSignals, PainInference,
 )
 from config import get_settings
+from services.writing.types import normalize_seller_category, SELLER_RELEVANT_ROLES
 
 STYLE_CONTRACT = """
 
@@ -227,8 +228,9 @@ The company data contains several types of information with different reliabilit
 
 11. **Parsed Job Signals** - Structured extraction from job posting text:
     - Technology mentions by category (language, framework, database, cloud, data, devops, security)
-    - Role types (backend, frontend, fullstack, data, devops, security, mobile)
+    - Role types (backend, frontend, fullstack, data, devops, security, mobile, marketing, sales, finance, operations, healthcare_clinical, hr_people, legal_compliance, product, project_management, construction, education)
     - Seniority distribution — heavy senior/staff hiring signals hard problems; heavy junior hiring signals scaling
+    - Roles marked as "Relevant" are most important for this seller's product category — prioritize these in the Hiring Signals section
     - Use these to cross-reference and validate the detected tech stack
 
 12. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
@@ -797,6 +799,45 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
                     result.append(override)
         return "\n".join(result)
 
+    @staticmethod
+    def _format_job_signals_section(job_signals: JobSignals, seller_product_category: str = "") -> list[str]:
+        """Format parsed job signals, splitting role types by relevance when a category is known."""
+        lines: list[str] = ["## Parsed Job Signals"]
+
+        # Tech mentions by category
+        by_cat: dict[str, list[str]] = {}
+        for tm in job_signals.tech_mentions:
+            by_cat.setdefault(tm.category, []).append(f"{tm.name} (x{tm.count})")
+        for cat, items in by_cat.items():
+            lines.append(f"- {cat}: {', '.join(items)}")
+
+        # Role types — split into relevant/other when category is known
+        if job_signals.role_types:
+            slug = normalize_seller_category(seller_product_category)
+            relevant_set = SELLER_RELEVANT_ROLES.get(slug, set()) if slug else set()
+
+            if relevant_set:
+                relevant = [r for r in job_signals.role_types if r in relevant_set]
+                other = [r for r in job_signals.role_types if r not in relevant_set]
+                if relevant:
+                    lines.append(
+                        f"- Relevant role types ({seller_product_category} seller): "
+                        f"{', '.join(relevant)}"
+                    )
+                if other:
+                    lines.append(f"- Other role types: {', '.join(other)}")
+                if not relevant and not other:
+                    lines.append(f"- Role types: {', '.join(job_signals.role_types)}")
+            else:
+                lines.append(f"- Role types: {', '.join(job_signals.role_types)}")
+
+        # Seniority distribution
+        if job_signals.seniority_distribution:
+            seniority_str = ", ".join(f"{k}: {v}" for k, v in job_signals.seniority_distribution.items())
+            lines.append(f"- Seniority: {seniority_str}")
+
+        return lines
+
     def _build_user_prompt(
         self,
         company_url: str,
@@ -808,6 +849,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         robots_signals: Optional[RobotsSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
+        seller_product_category: str = "",
     ) -> str:
         """Build the user prompt with all scraped research data."""
         sections = [f"# Research Data for {company_url}\n"]
@@ -861,18 +903,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
                 sections.append(f"- Crawl delay: {robots_signals.crawl_delay}")
             sections.append("")
 
-        if job_signals and job_signals.tech_mentions:
-            sections.append("## Parsed Job Signals")
-            by_cat: dict[str, list[str]] = {}
-            for tm in job_signals.tech_mentions:
-                by_cat.setdefault(tm.category, []).append(f"{tm.name} (x{tm.count})")
-            for cat, items in by_cat.items():
-                sections.append(f"- {cat}: {', '.join(items)}")
-            if job_signals.role_types:
-                sections.append(f"- Role types: {', '.join(job_signals.role_types)}")
-            if job_signals.seniority_distribution:
-                seniority_str = ", ".join(f"{k}: {v}" for k, v in job_signals.seniority_distribution.items())
-                sections.append(f"- Seniority: {seniority_str}")
+        if job_signals and (job_signals.tech_mentions or job_signals.role_types):
+            sections.extend(self._format_job_signals_section(job_signals, seller_product_category))
             sections.append("")
 
         if pain_inferences:
@@ -1018,6 +1050,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             dns_profile=dns_profile, ssl_profile=ssl_profile,
             security_posture=security_posture, robots_signals=robots_signals,
             job_signals=job_signals, pain_inferences=pain_inferences,
+            seller_product_category=seller_product_category,
         )
 
         model = self.settings.research_model

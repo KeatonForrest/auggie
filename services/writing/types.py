@@ -92,6 +92,58 @@ _CATEGORY_KEYWORDS = {
     ],
 }
 
+# ---------------------------------------------------------------------------
+# Category normalization: UI strings → internal slugs
+# ---------------------------------------------------------------------------
+
+CATEGORY_SLUG_MAP: dict[str, str] = {
+    "MarTech": "martech",
+    "FinTech": "fintech",
+    "HealthTech": "healthtech",
+    "ConstructionTech": "constructiontech",
+    "EdTech": "edtech",
+    "PropTech": "proptech",
+    "InsurTech": "insurtech",
+    "LegalTech": "legaltech",
+    "HRTech": "hrtech",
+    "Cybersecurity": "cybersecurity",
+    "DevTools / Infra": "devtools",
+    "E-commerce / Retail Tech": "ecommerce",
+    "Supply Chain / Logistics Tech": "supplychain",
+    "GovTech": "govtech",
+    "TravelTech": "traveltech",
+    "Media / Entertainment Tech": "mediatech",
+    "Other / Cross-industry": "",
+}
+
+
+def normalize_seller_category(raw: str) -> str:
+    """Map a UI category string to its internal slug. Returns '' for unknown/other."""
+    if not raw:
+        return ""
+    return CATEGORY_SLUG_MAP.get(raw, "")
+
+
+# Which role types matter for each seller category
+SELLER_RELEVANT_ROLES: dict[str, set[str]] = {
+    "martech": {"marketing", "sales", "product", "data"},
+    "fintech": {"finance", "legal_compliance", "operations", "security", "data"},
+    "healthtech": {"healthcare_clinical", "operations", "legal_compliance", "data"},
+    "constructiontech": {"construction", "operations", "project_management"},
+    "edtech": {"education", "product"},
+    "proptech": {"operations", "sales"},
+    "insurtech": {"finance", "operations", "legal_compliance", "data"},
+    "legaltech": {"legal_compliance", "operations"},
+    "hrtech": {"hr_people", "operations", "product"},
+    "cybersecurity": {"security", "devops", "legal_compliance"},
+    "devtools": {"devops", "backend", "fullstack", "data", "frontend"},
+    "ecommerce": {"marketing", "operations", "product", "data"},
+    "supplychain": {"operations", "data"},
+    "govtech": {"operations", "legal_compliance", "security"},
+    "traveltech": {"operations", "sales", "product"},
+    "mediatech": {"marketing", "product", "data"},
+}
+
 _CATEGORY_DENYLISTS = {
     "database": {
         "blocked_patterns": [
