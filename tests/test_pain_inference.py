@@ -133,17 +133,10 @@ class TestMultiCloud:
 
 
 class TestEmailRisk:
-    def test_triggers_missing_spf(self, engine):
+    def test_email_risk_rule_disabled(self, engine):
+        """email_risk rule is fully disabled — never fires."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=True, has_dmarc=True, dmarc_policy="reject"),
-        )
-        results = engine.evaluate(bundle)
-        ids = [r.rule_id for r in results]
-        assert "email_risk" in ids
-
-    def test_no_trigger_all_present(self, engine):
-        bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=True, has_dkim=True, has_dmarc=True, dmarc_policy="reject"),
+            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
         )
         results = engine.evaluate(bundle)
         ids = [r.rule_id for r in results]
@@ -548,7 +541,6 @@ class TestCompoundRules:
         results = engine.evaluate(bundle)
         ids = [r.rule_id for r in results]
         assert "security_gap" in ids
-        assert "email_risk" in ids
         assert "cert_gap" in ids
         assert "systemic_security_underinvestment" in ids
 
@@ -701,11 +693,11 @@ class TestCategories:
     def test_category_values(self, engine):
         """Spot-check some category assignments."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         results = engine.evaluate(bundle)
-        email = next(r for r in results if r.rule_id == "email_risk")
-        assert email.category == "security"
+        gap = next(r for r in results if r.rule_id == "security_gap")
+        assert gap.category == "security"
 
 
 class TestEvaluate:
@@ -728,16 +720,16 @@ class TestSellerWeighting:
     def test_seller_weighting_boosts_relevant(self, engine):
         """Security seller → security signals get +15."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         # Without seller
         base_results = engine.evaluate(bundle)
-        base_conf = next(r.confidence for r in base_results if r.rule_id == "email_risk")
+        base_conf = next(r.confidence for r in base_results if r.rule_id == "security_gap")
 
         # With security seller
         seller = SellerContext(problems_solved="We help with security compliance and threat detection")
         seller_results = engine.evaluate(bundle, seller=seller)
-        seller_conf = next(r.confidence for r in seller_results if r.rule_id == "email_risk")
+        seller_conf = next(r.confidence for r in seller_results if r.rule_id == "security_gap")
         assert seller_conf == base_conf + 15
 
     def test_seller_weighting_dampens_irrelevant(self, engine):
@@ -789,42 +781,42 @@ class TestSellerWeighting:
     def test_seller_weighting_empty_problems_solved_suppresses_security(self, engine):
         """Empty problems_solved → security signals suppressed."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         seller = SellerContext(problems_solved="")
         results = engine.evaluate(bundle, seller=seller)
         security_ids = [r.rule_id for r in results if r.category == "security"]
-        assert "email_risk" not in security_ids
+        assert "security_gap" not in security_ids
 
     def test_seller_weighting_irrelevant_problems_solved_suppresses_security(self, engine):
         """Irrelevant problems_solved (no category match) → security signals suppressed."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         seller = SellerContext(problems_solved="we sell office furniture and supplies")
         results = engine.evaluate(bundle, seller=seller)
         security_ids = [r.rule_id for r in results if r.category == "security"]
-        assert "email_risk" not in security_ids
+        assert "security_gap" not in security_ids
 
     def test_seller_weighting_msp_with_empty_problems_solved_suppresses_security(self, engine):
         """MSP seller with empty problems_solved → security signals suppressed (no auto-keep)."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         seller = SellerContext(product_type="msp", problems_solved="")
         results = engine.evaluate(bundle, seller=seller)
         security_ids = [r.rule_id for r in results if r.category == "security"]
-        assert "email_risk" not in security_ids
+        assert "security_gap" not in security_ids
 
     def test_seller_weighting_msp_with_security_problems_keeps_security(self, engine):
         """MSP seller with security keywords in problems_solved → security signals kept."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         seller = SellerContext(product_type="msp", problems_solved="security compliance threat")
         results = engine.evaluate(bundle, seller=seller)
         ids = [r.rule_id for r in results]
-        assert "email_risk" in ids
+        assert "security_gap" in ids
 
 
 def _make_stack_with_confidence(*techs):
@@ -861,13 +853,13 @@ class TestDetectionConfidence:
         assert r.confidence == 75
 
     def test_detection_confidence_with_no_tech_match(self, engine):
-        """Non-tech rules (DNS/SSL) unaffected by detection confidence."""
+        """Non-tech rules (security headers) unaffected by detection confidence."""
         bundle = SignalBundle(
-            dns_profile=DNSProfile(domain="x.com", has_spf=False, has_dkim=False, has_dmarc=False),
+            security_posture=SecurityPosture(score=1, present=["x-content-type-options"], missing=["a", "b", "c", "d", "e"], grade="D"),
         )
         results_base = engine.evaluate(bundle)
-        email_conf = next(r.confidence for r in results_base if r.rule_id == "email_risk")
-        assert email_conf == 70
+        gap_conf = next(r.confidence for r in results_base if r.rule_id == "security_gap")
+        assert gap_conf == 75
 
     def test_detection_confidence_dict_input_matches_techstack(self, engine):
         """Dict-shaped tech_by_domain should dampen identically to TechStack."""
@@ -1100,6 +1092,7 @@ class TestIsActionTierRelevant:
             category="marketing",
         )
         assert is_action_tier_relevant(inference, "database") is False
+
 
 
 # --- Action Tier gate in evaluate() ---

@@ -155,6 +155,17 @@ class TestLinkedInRelevanceFilter:
         assert is_clean is False
         assert "frontend" in blocked
 
+    def test_martech_seller_dkim_blocked(self):
+        msg = "Your missing DKIM record creates deliverability risk."
+        is_clean, blocked = filter_relevance(msg, "martech")
+        assert is_clean is False
+        assert "dkim" in blocked
+
+    def test_db_seller_email_spoofing_blocked(self):
+        msg = "Email spoofing risk from your missing DMARC could hurt trust."
+        is_clean, blocked = filter_relevance(msg, "database")
+        assert is_clean is False
+
 
 # --- LinkedIn flattery bans ---
 

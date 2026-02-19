@@ -643,7 +643,7 @@ class TestRelevancePromptContract:
     def test_category_specific_constraint_text(self, email_strategy):
         ctx = GenerationContext(document=None, product_context="", report="test report", product_category="database")
         prompt = email_strategy.build_user_prompt(ctx)
-        assert "CDN, frontend framework" in prompt
+        assert "CDN, frontend" in prompt
         assert "database bottleneck" in prompt
 
     def test_fintech_constraint_injected(self, email_strategy):

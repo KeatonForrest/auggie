@@ -100,6 +100,7 @@ _CATEGORY_DENYLISTS = {
             "next.js", "nuxt", "jquery", "bootstrap", "tailwind",
             "css", "scss", "webpack", "vite", "bundler",
             "seo", "page speed", "tag manager", "google tag",
+            "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
             "database bottleneck", "db bottleneck", "query performance",
@@ -108,10 +109,10 @@ _CATEGORY_DENYLISTS = {
             "slow queries", "index", "migration", "data-intensive",
         ],
         "prompt_constraint": (
-            "CDN, frontend, CSS tooling, and marketing automation "
-            "angles are INVALID for a database seller unless the talking point "
-            "explicitly ties them to a database bottleneck, query performance "
-            "issue, or data layer consequence."
+            "CDN, frontend, CSS tooling, marketing automation, and email "
+            "infrastructure (DKIM/DMARC/SPF) angles are INVALID for a database "
+            "seller unless the talking point explicitly ties them to a database "
+            "bottleneck, query performance issue, or data layer consequence."
         ),
     },
     "fintech": {
@@ -119,16 +120,17 @@ _CATEGORY_DENYLISTS = {
             "frontend", "react", "vue", "angular", "svelte",
             "cdn", "content delivery", "seo", "page speed",
             "marketing automation", "tag manager", "google tag",
+            "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
             "payment flow", "transaction", "pci", "financial data",
             "billing integration", "payment processing", "ledger",
         ],
         "prompt_constraint": (
-            "Frontend, CDN, SEO, and marketing automation angles "
-            "are INVALID for a fintech seller unless the talking point "
-            "explicitly ties them to a payment flow, transaction processing, "
-            "PCI compliance, or financial data consequence."
+            "Frontend, CDN, SEO, marketing automation, and email "
+            "infrastructure (DKIM/DMARC/SPF) angles are INVALID for a fintech "
+            "seller unless the talking point explicitly ties them to a payment "
+            "flow, transaction processing, PCI compliance, or financial data consequence."
         ),
     },
     "healthtech": {
@@ -136,16 +138,17 @@ _CATEGORY_DENYLISTS = {
             "frontend", "react", "vue", "angular",
             "cdn", "content delivery", "e-commerce", "ecommerce",
             "marketing automation", "seo", "tag manager",
+            "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
             "patient data", "ehr integration", "clinical workflow", "hipaa",
             "health record", "care coordination", "telehealth",
         ],
         "prompt_constraint": (
-            "Frontend, CDN, e-commerce, and marketing automation "
-            "angles are INVALID for a healthtech seller unless the talking "
-            "point explicitly ties them to patient data, EHR integration, "
-            "clinical workflow, or HIPAA compliance."
+            "Frontend, CDN, e-commerce, marketing automation, and email "
+            "infrastructure (DKIM/DMARC/SPF) angles are INVALID for a "
+            "healthtech seller unless the talking point explicitly ties them "
+            "to patient data, EHR integration, clinical workflow, or HIPAA compliance."
         ),
     },
     "martech": {
@@ -153,16 +156,18 @@ _CATEGORY_DENYLISTS = {
             "db migration", "database migration", "kubernetes", "k8s",
             "ci/cd", "devops", "security scanning", "vulnerability",
             "infrastructure as code", "terraform",
+            "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
             "customer data", "campaign performance", "lead scoring",
             "marketing analytics", "attribution", "conversion",
         ],
         "prompt_constraint": (
-            "Database migration, Kubernetes, CI/CD, DevOps, and security "
-            "scanning angles are INVALID for a martech seller unless the "
-            "talking point explicitly ties them to customer data, campaign "
-            "performance, lead scoring, or marketing analytics."
+            "Database migration, Kubernetes, CI/CD, DevOps, security "
+            "scanning, and email infrastructure (DKIM/DMARC/SPF) angles are "
+            "INVALID for a martech seller unless the talking point explicitly "
+            "ties them to customer data, campaign performance, lead scoring, "
+            "or marketing analytics."
         ),
     },
     "devtools": {
@@ -170,16 +175,18 @@ _CATEGORY_DENYLISTS = {
             "marketing automation", "seo", "e-commerce", "ecommerce",
             "crm", "salesforce", "hubspot", "customer data platform",
             "cdp", "campaign management",
+            "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
             "developer experience", "build time", "pipeline",
             "infrastructure", "deployment velocity", "developer productivity",
         ],
         "prompt_constraint": (
-            "Marketing automation, SEO, e-commerce, and CRM angles are "
-            "INVALID for a devtools seller unless the talking point "
-            "explicitly ties them to developer experience, build time, "
-            "CI/CD pipeline, or infrastructure concerns."
+            "Marketing automation, SEO, e-commerce, CRM, and email "
+            "infrastructure (DKIM/DMARC/SPF) angles are INVALID for a "
+            "devtools seller unless the talking point explicitly ties them "
+            "to developer experience, build time, CI/CD pipeline, or "
+            "infrastructure concerns."
         ),
     },
 }

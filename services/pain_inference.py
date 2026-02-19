@@ -179,7 +179,6 @@ class PainInferenceEngine:
             self._security_gap,
             self._scaling_pressure,
             self._multi_cloud,
-            self._email_risk,
             self._cert_gap,
             self._marketing_product_mismatch,
             self._data_infra_pain,
@@ -299,24 +298,17 @@ class PainInferenceEngine:
 
     def _security_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
         sp = bundle.security_posture
-        dns = bundle.dns_profile
         if sp and sp.score <= 2:
-            missing_email = dns and (not dns.has_dmarc or not dns.has_spf)
-            if missing_email:
-                evidence = [f"Security header score: {sp.score}/6 (grade {sp.grade})", f"Missing headers: {', '.join(sp.missing[:3])}"]
-                if dns and not dns.has_dmarc:
-                    evidence.append("No DMARC record")
-                if dns and not dns.has_spf:
-                    evidence.append("No SPF record")
-                return PainInference(
-                    rule_id="security_gap",
-                    title="Security Posture Gap",
-                    description="Weak security headers combined with missing email authentication signals broad security underinvestment.",
-                    severity="high",
-                    evidence=evidence,
-                    confidence=80,
-                    category="security",
-                )
+            evidence = [f"Security header score: {sp.score}/6 (grade {sp.grade})", f"Missing headers: {', '.join(sp.missing[:3])}"]
+            return PainInference(
+                rule_id="security_gap",
+                title="Security Posture Gap",
+                description="Weak security headers signal broad security underinvestment.",
+                severity="high",
+                evidence=evidence,
+                confidence=75,
+                category="security",
+            )
         return None
 
     def _scaling_pressure(self, bundle: SignalBundle) -> Optional[PainInference]:
@@ -495,11 +487,8 @@ class PainInferenceEngine:
 
     def _compliance_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
         sp = bundle.security_posture
-        dns = bundle.dns_profile
         js = bundle.job_signals
         if not sp or sp.score > 2:
-            return None
-        if not dns or (dns.has_dmarc and dns.has_spf):
             return None
         if not js:
             return None
@@ -513,15 +502,11 @@ class PainInferenceEngine:
         if not has_security_signal:
             return None
         evidence = [f"Security header grade: {sp.grade} ({sp.score}/6)"]
-        if not dns.has_dmarc:
-            evidence.append("Missing DMARC")
-        if not dns.has_spf:
-            evidence.append("Missing SPF")
         evidence.append("Security-related hiring signals detected")
         return PainInference(
             rule_id="compliance_gap",
             title="Compliance Gap",
-            description="Weak security posture combined with missing email auth and security hiring signals suggests compliance exposure.",
+            description="Weak security posture combined with security hiring signals suggests compliance exposure.",
             severity="high",
             evidence=evidence,
             confidence=70,
