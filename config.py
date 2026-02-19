@@ -114,6 +114,8 @@ class Settings(BaseSettings):
     pain_frontend_rule_enabled: bool = False
     linkedin_message_enabled: bool = True
     linkedin_connection_note_enabled: bool = False
+    research_tiered_prompt_enabled: bool = False
+    research_validation_enabled: bool = False
 
     # In-process worker
     worker_enabled: bool = True

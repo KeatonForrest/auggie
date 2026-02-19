@@ -160,29 +160,63 @@ class SignalBundle(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
 
+_APP_PREFIXES = ("app.", "dashboard.", "portal.", "console.", "platform.", "my.", "admin.", "web.")
+
+
+def _classify_domain(domain: str) -> str:
+    """Classify a domain as Product/Application, API, or Marketing Site."""
+    normalized = domain.lower()
+    if normalized.startswith("www."):
+        normalized = normalized[4:]
+    if normalized.startswith(_APP_PREFIXES):
+        return "Product/Application"
+    if normalized.startswith("api."):
+        return "API"
+    return "Marketing Site"
+
+
 def format_multi_domain_tech(tech_by_domain: dict[str, "TechStack"]) -> str:
     """Format technology results from multiple domains for Claude's prompt."""
     if not tech_by_domain:
         return "No technologies detected."
 
     sections = []
-    app_prefixes = ("app.", "dashboard.", "portal.", "console.", "platform.", "my.", "admin.", "web.")
 
     for domain, tech_stack in tech_by_domain.items():
         if not tech_stack.technologies:
             continue
 
-        if domain.startswith(app_prefixes):
-            domain_type = "Product/Application"
-        elif domain.startswith("api."):
-            domain_type = "API"
-        else:
-            domain_type = "Marketing Site"
-
+        domain_type = _classify_domain(domain)
         section = f"**{domain}** ({domain_type}):\n{tech_stack.to_prompt_text()}"
         sections.append(section)
 
     return "\n\n".join(sections)
+
+
+def format_tech_by_tier(tech_by_domain: dict[str, "TechStack"]) -> tuple[str, str]:
+    """Split tech by domain into tier1 (Product/App + API) and tier3 (Marketing Site) text.
+
+    Returns (tier1_text, tier3_text). Either may be empty string.
+    """
+    if not tech_by_domain:
+        return ("", "")
+
+    tier1_sections = []
+    tier3_sections = []
+
+    for domain, tech_stack in tech_by_domain.items():
+        if not tech_stack.technologies:
+            continue
+
+        domain_type = _classify_domain(domain)
+        section = f"**{domain}** ({domain_type}):\n{tech_stack.to_prompt_text()}"
+
+        if domain_type in ("Product/Application", "API"):
+            tier1_sections.append(section)
+        else:
+            tier3_sections.append(section)
+
+    return ("\n\n".join(tier1_sections), "\n\n".join(tier3_sections))
 
 
 class ResearchDocument(BaseModel):

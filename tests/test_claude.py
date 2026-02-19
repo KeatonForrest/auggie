@@ -4,8 +4,11 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 
-from services.claude import ClaudeService
-from models import ScrapedContent, TechStack, DetectedTechnology, ResearchDocument, PainInference
+from services.claude import ClaudeService, ResearchValidationResult
+from models import (
+    ScrapedContent, TechStack, DetectedTechnology, ResearchDocument, PainInference,
+    _classify_domain, format_multi_domain_tech, format_tech_by_tier,
+)
 
 
 @pytest.fixture
@@ -16,6 +19,8 @@ def claude_service():
             openrouter_api_key="test-key",
             research_model="google/gemini-2.5-flash",
             research_tight_writing_enabled=False,
+            research_tiered_prompt_enabled=False,
+            research_validation_enabled=False,
         )
         with patch("services.claude.AsyncOpenAI"):
             service = ClaudeService()
@@ -30,6 +35,40 @@ def tight_writing_service():
             openrouter_api_key="test-key",
             research_model="google/gemini-2.5-flash",
             research_tight_writing_enabled=True,
+            research_tiered_prompt_enabled=False,
+            research_validation_enabled=False,
+        )
+        with patch("services.claude.AsyncOpenAI"):
+            service = ClaudeService()
+            return service
+
+
+@pytest.fixture
+def tiered_service():
+    """ClaudeService with research_tiered_prompt_enabled=True."""
+    with patch("services.claude.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            research_model="google/gemini-2.5-flash",
+            research_tight_writing_enabled=False,
+            research_tiered_prompt_enabled=True,
+            research_validation_enabled=False,
+        )
+        with patch("services.claude.AsyncOpenAI"):
+            service = ClaudeService()
+            return service
+
+
+@pytest.fixture
+def validation_service():
+    """ClaudeService with research_validation_enabled=True."""
+    with patch("services.claude.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock(
+            openrouter_api_key="test-key",
+            research_model="google/gemini-2.5-flash",
+            research_tight_writing_enabled=False,
+            research_tiered_prompt_enabled=False,
+            research_validation_enabled=True,
         )
         with patch("services.claude.AsyncOpenAI"):
             service = ClaudeService()
@@ -773,7 +812,7 @@ SCORE_SUMMARY: Strong opportunity.
 
         # Create service with mocked client
         with patch("services.claude.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash", research_tight_writing_enabled=False, research_tiered_prompt_enabled=False, research_validation_enabled=False)
             with patch("services.claude.AsyncOpenAI") as mock_openai:
                 mock_client = AsyncMock()
                 mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -852,7 +891,7 @@ SCORE_SUMMARY: Medium opportunity
 """
 
         with patch("services.claude.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash")
+            mock_settings.return_value = MagicMock(openrouter_api_key="test-key", research_model="google/gemini-2.5-flash", research_tight_writing_enabled=False, research_tiered_prompt_enabled=False, research_validation_enabled=False)
             with patch("services.claude.AsyncOpenAI") as mock_openai:
                 mock_client = AsyncMock()
                 mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -1208,3 +1247,671 @@ class TestFormatJobSignalsSection:
         lines = ClaudeService._format_job_signals_section(signals, "")
         joined = "\n".join(lines)
         assert "Seniority: senior: 3, junior: 1" in joined
+
+
+# --- Format Tech By Tier ---
+
+
+class TestFormatTechByTier:
+    """Tests for _classify_domain and format_tech_by_tier."""
+
+    def test_classify_product_domains(self):
+        """Product/Application subdomains are classified correctly."""
+        for prefix in ("app.", "dashboard.", "portal.", "console.", "platform.", "my.", "admin.", "web."):
+            assert _classify_domain(f"{prefix}example.com") == "Product/Application"
+
+    def test_classify_api_domain(self):
+        assert _classify_domain("api.example.com") == "API"
+
+    def test_classify_marketing_site(self):
+        assert _classify_domain("example.com") == "Marketing Site"
+        assert _classify_domain("www.example.com") == "Marketing Site"
+
+    def test_classify_case_insensitive(self):
+        """Mixed case should still classify correctly."""
+        assert _classify_domain("App.Example.com") == "Product/Application"
+        assert _classify_domain("API.Example.com") == "API"
+
+    def test_classify_www_prefix_stripped(self):
+        """www. prefix is stripped before classification."""
+        assert _classify_domain("www.app.example.com") == "Product/Application"
+        assert _classify_domain("www.api.example.com") == "API"
+
+    def test_format_multi_domain_tech_uses_classify_domain(self):
+        """format_multi_domain_tech produces same buckets as _classify_domain."""
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
+            "example.com": TechStack(technologies=[DetectedTechnology(name="WordPress")]),
+        }
+        result = format_multi_domain_tech(tech_by_domain)
+        assert "Product/Application" in result
+        assert "Marketing Site" in result
+
+    def test_format_tech_by_tier_splits_correctly(self):
+        """Product/API goes to tier1, marketing to tier3."""
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
+            "api.example.com": TechStack(technologies=[DetectedTechnology(name="FastAPI")]),
+            "example.com": TechStack(technologies=[DetectedTechnology(name="WordPress")]),
+        }
+        tier1, tier3 = format_tech_by_tier(tech_by_domain)
+        assert "React" in tier1
+        assert "FastAPI" in tier1
+        assert "WordPress" in tier3
+        assert "WordPress" not in tier1
+        assert "React" not in tier3
+
+    def test_format_tech_by_tier_empty_input(self):
+        tier1, tier3 = format_tech_by_tier({})
+        assert tier1 == ""
+        assert tier3 == ""
+
+    def test_format_tech_by_tier_only_product(self):
+        """Only product tech → tier1 populated, tier3 empty."""
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
+        }
+        tier1, tier3 = format_tech_by_tier(tech_by_domain)
+        assert "React" in tier1
+        assert tier3 == ""
+
+    def test_format_tech_by_tier_only_marketing(self):
+        """Only marketing tech → tier3 populated, tier1 empty."""
+        tech_by_domain = {
+            "example.com": TechStack(technologies=[DetectedTechnology(name="WordPress")]),
+        }
+        tier1, tier3 = format_tech_by_tier(tech_by_domain)
+        assert tier1 == ""
+        assert "WordPress" in tier3
+
+    def test_format_tech_by_tier_skips_empty_stacks(self):
+        """Domains with no technologies are skipped."""
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[]),
+            "example.com": TechStack(technologies=[DetectedTechnology(name="WordPress")]),
+        }
+        tier1, tier3 = format_tech_by_tier(tech_by_domain)
+        assert tier1 == ""
+        assert "WordPress" in tier3
+
+
+# --- Tiered User Prompt ---
+
+
+class TestTieredUserPrompt:
+    """Tests for _build_tiered_user_prompt and the dispatch logic."""
+
+    def test_flag_off_uses_flat_prompt(self, claude_service):
+        """When tiered flag is off, _build_user_prompt uses flat format."""
+        scraped = ScrapedContent(homepage="Test")
+        result = claude_service._build_user_prompt("https://example.com", scraped)
+        assert "## TIER 1:" not in result
+        assert "## Homepage Content" in result
+
+    def test_flag_on_uses_tiered_prompt(self, tiered_service):
+        """When tiered flag is on, _build_user_prompt uses tiered format."""
+        scraped = ScrapedContent(homepage="Test")
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        assert "## TIER 2: MEDIUM-CONFIDENCE SIGNALS" in result
+        assert "## Homepage Content" in result
+
+    def test_tier_headers_present_and_ordered(self, tiered_service):
+        """All three tier headers appear in correct order when content exists."""
+        scraped = ScrapedContent(
+            homepage="Homepage", firmographics="500 employees",
+            additional_pages="Extra pages",
+        )
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
+            "example.com": TechStack(technologies=[DetectedTechnology(name="WordPress")]),
+        }
+        result = tiered_service._build_user_prompt(
+            "https://example.com", scraped, tech_by_domain=tech_by_domain,
+        )
+        t1 = result.index("## TIER 1: HIGH-CONFIDENCE SIGNALS")
+        t2 = result.index("## TIER 2: MEDIUM-CONFIDENCE SIGNALS")
+        t3 = result.index("## TIER 3: LOWER-CONFIDENCE SIGNALS")
+        assert t1 < t2 < t3
+
+    def test_empty_tiers_suppressed(self, tiered_service):
+        """Tiers with no content should not emit headers."""
+        scraped = ScrapedContent(homepage="Just homepage")
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        # No tech, no firmographics, no edgar → no tier1
+        assert "## TIER 1:" not in result
+        # Homepage exists → tier2 present
+        assert "## TIER 2:" in result
+
+    def test_product_tech_in_tier1_marketing_in_tier3(self, tiered_service):
+        """Product/app tech goes to tier 1, marketing tech to tier 3."""
+        scraped = ScrapedContent()
+        tech_by_domain = {
+            "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
+            "example.com": TechStack(technologies=[DetectedTechnology(name="jQuery")]),
+        }
+        result = tiered_service._build_user_prompt(
+            "https://example.com", scraped, tech_by_domain=tech_by_domain,
+        )
+        # Find tier boundaries
+        t1_start = result.index("## TIER 1:")
+        t3_start = result.index("## TIER 3:")
+        tier1_section = result[t1_start:t3_start]
+        tier3_section = result[t3_start:]
+        assert "React" in tier1_section
+        assert "jQuery" in tier3_section
+
+    def test_pain_split_by_confidence(self, tiered_service):
+        """Pain inferences are split into tiers by confidence."""
+        scraped = ScrapedContent(homepage="Test", firmographics="500 employees")
+        pains = [
+            PainInference(rule_id="high", title="High Pain", description="Desc", severity="high",
+                          evidence=["ev1"], confidence=80, category="engineering"),
+            PainInference(rule_id="med", title="Med Pain", description="Desc", severity="medium",
+                          evidence=["ev2"], confidence=55, category="operations"),
+            PainInference(rule_id="low", title="Low Pain", description="Desc", severity="low",
+                          evidence=["ev3"], confidence=20, category="marketing"),
+            PainInference(rule_id="bg", title="BG Pain", description="Desc", severity="low",
+                          evidence=["ev4"], confidence=50, category="_background_security"),
+        ]
+        result = tiered_service._build_user_prompt(
+            "https://example.com", scraped, pain_inferences=pains,
+        )
+        t1_start = result.index("## TIER 1:")
+        t2_start = result.index("## TIER 2:")
+        t3_start = result.index("## TIER 3:")
+        tier1 = result[t1_start:t2_start]
+        tier2 = result[t2_start:t3_start]
+        tier3 = result[t3_start:]
+        assert "High Pain" in tier1
+        assert "Med Pain" in tier2
+        assert "Low Pain" in tier3
+        assert "BG Pain" in tier3
+
+    def test_edgar_in_tier1(self, tiered_service):
+        """SEC EDGAR filings should appear in Tier 1."""
+        scraped = ScrapedContent(edgar_filings="10-K filing content")
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        assert "## TIER 1:" in result
+        t1_start = result.index("## TIER 1:")
+        # Find if tier 2 exists
+        if "## TIER 2:" in result:
+            t1_end = result.index("## TIER 2:")
+        else:
+            t1_end = len(result)
+        tier1 = result[t1_start:t1_end]
+        assert "SEC EDGAR Filings" in tier1
+
+    def test_web_mentions_in_tier3(self, tiered_service):
+        """Web mentions should appear in Tier 3."""
+        scraped = ScrapedContent(homepage="Test", web_mentions="Crunchbase data")
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        assert "## TIER 3:" in result
+        t3_start = result.index("## TIER 3:")
+        tier3 = result[t3_start:]
+        assert "Third-Party Web Mentions" in tier3
+
+    def test_job_postings_cap_12000(self, tiered_service):
+        """Job postings are capped at 12000 chars in tiered mode."""
+        scraped = ScrapedContent(job_postings="x" * 15000)
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        assert "x" * 12000 in result
+        assert "x" * 12001 not in result
+
+    def test_marketing_tech_cap_3000(self, tiered_service):
+        """Marketing-site tech text is capped at 3000 chars in tier 3."""
+        # Build a tech stack with a very long to_prompt_text output
+        many_techs = [DetectedTechnology(name=f"Tech{i}", category="Framework") for i in range(200)]
+        tech_by_domain = {
+            "example.com": TechStack(technologies=many_techs),
+        }
+        scraped = ScrapedContent()
+        result = tiered_service._build_user_prompt(
+            "https://example.com", scraped, tech_by_domain=tech_by_domain,
+        )
+        # Find the marketing tech section in tier 3
+        t3_start = result.index("## TIER 3:")
+        tier3 = result[t3_start:]
+        marketing_start = tier3.index("## VERIFIED Technologies — Marketing Site")
+        # The text after the header should be capped
+        marketing_section = tier3[marketing_start:]
+        # The full tech output would be much longer than 3000 chars
+        _, tier3_text_full = format_tech_by_tier(tech_by_domain)
+        assert len(tier3_text_full) > 3000
+        # But the prompt should have truncated it
+        assert tier3_text_full[:3000] in marketing_section
+        assert tier3_text_full[:3001] not in marketing_section
+
+    def test_system_prompt_includes_tier_structure_when_enabled(self, tiered_service):
+        """System prompt includes DATA TIER STRUCTURE when flag is on."""
+        result = tiered_service._build_system_prompt(product_context="Test product")
+        assert "DATA TIER STRUCTURE" in result
+        assert "TIER 1" in result
+        assert "TIER 2" in result
+        assert "TIER 3" in result
+
+    def test_system_prompt_no_tier_structure_when_disabled(self, claude_service):
+        """System prompt omits DATA TIER STRUCTURE when flag is off."""
+        result = claude_service._build_system_prompt(product_context="Test product")
+        assert "DATA TIER STRUCTURE" not in result
+
+
+# --- Research Validation ---
+
+
+class TestResearchValidation:
+    """Tests for validation checks."""
+
+    def test_edp_sources_pass_empty(self, claude_service):
+        assert ClaudeService._check_edp_sources("") is None
+
+    def test_edp_sources_pass_no_urgency(self, claude_service):
+        assert ClaudeService._check_edp_sources("No immediate urgency signals identified.") is None
+
+    def test_edp_sources_pass_no_existential(self, claude_service):
+        assert ClaudeService._check_edp_sources("No existential data points found.") is None
+
+    def test_edp_sources_pass_well_structured(self, claude_service):
+        edp = """- **Signal**: PostgreSQL on app.example.com with 3x growth
+- **Sources**: Tech scan of app.example.com, Series B press release
+- **Threshold**: Single DB + growth creates performance cliff
+- **Consequence**: Degradation within 3-6 months"""
+        assert ClaudeService._check_edp_sources(edp) is None
+
+    def test_edp_sources_fail_no_markers(self, claude_service):
+        """Substantial text with bullets but no Signal/Sources markers → fail."""
+        edp = """- The company is growing rapidly and their infrastructure needs to scale significantly to handle increased traffic and user demand across all regions
+- Their primary database architecture might not handle the projected load going forward based on current growth trajectory and capacity analysis
+- They should consider upgrading their infrastructure to modern distributed systems before the next quarter deadline"""
+        result = ClaudeService._check_edp_sources(edp)
+        assert result is not None
+        assert "format not followed" in result
+
+    def test_edp_sources_fail_signal_without_sources(self, claude_service):
+        """Signal markers present but missing Sources → fail."""
+        edp = """**Signal**: PostgreSQL detected on app.example.com
+**Threshold**: Single DB with growth pressure
+**Consequence**: Performance degradation risk"""
+        result = ClaudeService._check_edp_sources(edp)
+        assert result is not None
+        assert "missing Sources" in result
+
+    def test_edp_sources_fail_empty_after_colon(self, claude_service):
+        """Sources: present but nothing after the colon → fail."""
+        edp = """**Signal**: PostgreSQL detected on app.example.com
+**Sources**:
+**Threshold**: Single DB with growth pressure
+**Consequence**: Performance degradation risk"""
+        result = ClaudeService._check_edp_sources(edp)
+        assert result is not None
+        assert "missing Sources" in result
+
+    def test_concrete_pain_pass_with_source_ref(self, claude_service):
+        sections = {
+            "existential_data_points": "**Sources**: Detected on app.example.com",
+            "business_problems": "General issues",
+        }
+        assert ClaudeService._check_concrete_pain(sections) is None
+
+    def test_concrete_pain_pass_from_job_posting(self, claude_service):
+        sections = {
+            "existential_data_points": "",
+            "hiring_signals": "From job posting: Senior DB Engineer open for 4 months",
+        }
+        assert ClaudeService._check_concrete_pain(sections) is None
+
+    def test_concrete_pain_fail_no_refs(self, claude_service):
+        sections = {
+            "existential_data_points": "The company has growth challenges",
+            "business_problems": "They need better tools",
+            "hiring_signals": "Several roles are open",
+            "confirmed_tech_stack": "React, Node.js",
+        }
+        result = ClaudeService._check_concrete_pain(sections)
+        assert result is not None
+        assert "No concrete source references" in result
+
+    def test_concrete_pain_pass_empty_sections(self, claude_service):
+        """Empty sections should pass (nothing to check)."""
+        assert ClaudeService._check_concrete_pain({}) is None
+
+    def test_score_calibration_pass_different_scores(self, claude_service):
+        scores = {"pain": 75, "fit": 50, "timing": 30,
+                  "pain_evidence": "evidence", "fit_evidence": "evidence", "timing_evidence": "evidence"}
+        assert ClaudeService._check_score_calibration(scores) is None
+
+    def test_score_calibration_fail_identical(self, claude_service):
+        scores = {"pain": 60, "fit": 60, "timing": 60,
+                  "pain_evidence": "evidence", "fit_evidence": "evidence", "timing_evidence": "evidence"}
+        result = ClaudeService._check_score_calibration(scores)
+        assert result is not None
+        assert "identical" in result
+
+    def test_score_calibration_fail_lazy_middle(self, claude_service):
+        scores = {"pain": 62, "fit": 65, "timing": 63,
+                  "pain_evidence": "evidence", "fit_evidence": "evidence", "timing_evidence": "evidence"}
+        result = ClaudeService._check_score_calibration(scores)
+        assert result is not None
+        assert "lazy-middle" in result
+
+    def test_score_calibration_pass_outside_lazy_band(self, claude_service):
+        """Scores within 8 points but outside 55-75 → pass."""
+        scores = {"pain": 82, "fit": 85, "timing": 80,
+                  "pain_evidence": "evidence", "fit_evidence": "evidence", "timing_evidence": "evidence"}
+        assert ClaudeService._check_score_calibration(scores) is None
+
+    def test_score_calibration_fail_empty_evidence(self, claude_service):
+        scores = {"pain": 75, "fit": 50, "timing": 30,
+                  "pain_evidence": "", "fit_evidence": "evidence", "timing_evidence": "evidence"}
+        result = ClaudeService._check_score_calibration(scores)
+        assert result is not None
+        assert "Empty evidence" in result
+
+    def test_score_calibration_pass_no_signals_evidence(self, claude_service):
+        """'No pain signals found' is valid non-empty evidence."""
+        scores = {"pain": 20, "fit": 50, "timing": 30,
+                  "pain_evidence": "No pain signals found", "fit_evidence": "ICP match", "timing_evidence": "Recent funding"}
+        assert ClaudeService._check_score_calibration(scores) is None
+
+    def test_score_calibration_skip_fewer_than_3(self, claude_service):
+        """With fewer than 3 scores, spread check is skipped."""
+        scores = {"pain": 60, "fit": 60}
+        assert ClaudeService._check_score_calibration(scores) is None
+
+    def test_generic_filler_pass_clean(self, claude_service):
+        assert claude_service._check_generic_filler(
+            "PostgreSQL detected on app.example.com with growth pressure",
+            "Database scaling is a critical concern"
+        ) is None
+
+    def test_generic_filler_fail_companies_like_yours(self, claude_service):
+        result = claude_service._check_generic_filler(
+            "Companies like yours often struggle with scaling",
+            "Database performance is critical"
+        )
+        assert result is not None
+        assert "companies like yours" in result
+
+    def test_generic_filler_fail_organizations_in_this_space(self, claude_service):
+        result = claude_service._check_generic_filler(
+            "No issues here",
+            "Organizations in this space typically face these challenges"
+        )
+        assert result is not None
+        assert "organizations in this space" in result
+
+    def test_generic_filler_case_insensitive(self, claude_service):
+        result = claude_service._check_generic_filler(
+            "COMPANIES LIKE YOURS need better tools",
+            ""
+        )
+        assert result is not None
+
+    def test_validate_research_all_pass(self, claude_service):
+        sections = {
+            "existential_data_points": "**Signal**: DB scaling\n**Sources**: Detected on app.example.com",
+            "business_problems": "From job posting: scaling issues",
+            "hiring_signals": "Open for 4 months",
+            "confirmed_tech_stack": "PostgreSQL",
+        }
+        scores = {"pain": 75, "fit": 50, "timing": 30,
+                  "pain_evidence": "DB scaling", "fit_evidence": "ICP match", "timing_evidence": "Hiring"}
+        result = claude_service._validate_research(sections, scores)
+        assert result.is_valid
+        assert len(result.failed_checks) == 0
+
+    def test_validate_research_multiple_failures(self, claude_service):
+        sections = {
+            "existential_data_points": "Companies like yours often struggle with these problems and need solutions.",
+            "business_problems": "Generic issues that many businesses face in the current market.",
+            "hiring_signals": "Several roles exist",
+            "confirmed_tech_stack": "Various technologies",
+        }
+        # EDP has no markers + generic filler + no concrete refs
+        # And identical scores
+        scores = {"pain": 60, "fit": 60, "timing": 60,
+                  "pain_evidence": "Generic", "fit_evidence": "Generic", "timing_evidence": "Generic"}
+        result = claude_service._validate_research(sections, scores)
+        assert not result.is_valid
+        assert len(result.failed_checks) >= 2
+
+
+# --- Research Validation Repair ---
+
+
+class TestResearchValidationRepair:
+    """Tests for repair call shape and fail-open behavior."""
+
+    @pytest.mark.asyncio
+    async def test_repair_uses_4_message_shape(self):
+        """Repair call sends exactly 4 messages: system, user, assistant, repair."""
+        # Initial response that will fail validation (identical scores)
+        initial_response = MagicMock()
+        initial_response.choices = [MagicMock()]
+        initial_response.choices[0].message.content = """## Company Overview
+Test company
+
+## Existential Data Points
+Companies like yours struggle with scaling.
+
+## Opportunity Score
+SCORE_PAIN: 60
+SCORE_PAIN_EVIDENCE: Generic pain
+SCORE_FIT: 60
+SCORE_FIT_EVIDENCE: Generic fit
+SCORE_TIMING: 60
+SCORE_TIMING_EVIDENCE: Generic timing
+SCORE_COMPOSITE: 60
+SCORE_SUMMARY: Medium opportunity
+"""
+
+        # Repaired response that passes
+        repaired_response = MagicMock()
+        repaired_response.choices = [MagicMock()]
+        repaired_response.choices[0].message.content = """## Company Overview
+Test company
+
+## Existential Data Points
+**Signal**: PostgreSQL detected on app.example.com
+**Sources**: Tech scan, job posting analysis
+**Threshold**: Single DB with growth pressure
+**Consequence**: Performance risk within 6 months
+
+## Stated Business Problems
+From job posting: Database scaling challenges mentioned.
+
+## Opportunity Score
+SCORE_PAIN: 72
+SCORE_PAIN_EVIDENCE: - DB scaling pressure from job postings
+SCORE_FIT: 55
+SCORE_FIT_EVIDENCE: - Moderate ICP alignment
+SCORE_TIMING: 38
+SCORE_TIMING_EVIDENCE: - Limited urgency signals
+SCORE_COMPOSITE: 57
+SCORE_SUMMARY: Moderate opportunity with clear pain but limited timing.
+"""
+
+        with patch("services.claude.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                research_model="google/gemini-2.5-flash",
+                research_tight_writing_enabled=False,
+                research_tiered_prompt_enabled=False,
+                research_validation_enabled=True,
+            )
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
+                mock_client = AsyncMock()
+                mock_client.chat.completions.create = AsyncMock(
+                    side_effect=[initial_response, repaired_response]
+                )
+                mock_openai.return_value = mock_client
+
+                service = ClaudeService()
+                scraped = ScrapedContent(homepage="Test")
+
+                await service.generate_research_document(
+                    company_url="https://example.com",
+                    scraped=scraped,
+                    product_context="Database software",
+                )
+
+                # Should have been called twice (initial + repair)
+                assert mock_client.chat.completions.create.call_count == 2
+
+                # Check the repair call has 4 messages
+                repair_call = mock_client.chat.completions.create.call_args_list[1]
+                repair_messages = repair_call[1]["messages"]
+                assert len(repair_messages) == 4
+                assert repair_messages[0]["role"] == "system"
+                assert repair_messages[1]["role"] == "user"
+                assert repair_messages[2]["role"] == "assistant"
+                assert repair_messages[3]["role"] == "user"
+                # Repair instructions should not duplicate the user_prompt
+                assert "Research Data for" not in repair_messages[3]["content"]
+                assert "Fix ONLY" in repair_messages[3]["content"]
+
+    @pytest.mark.asyncio
+    async def test_fail_open_keeps_original_on_repair_failure(self):
+        """If repair also fails validation, original output is preserved."""
+        bad_response = MagicMock()
+        bad_response.choices = [MagicMock()]
+        bad_response.choices[0].message.content = """## Company Overview
+Test company
+
+## Existential Data Points
+Companies like yours struggle.
+
+## Opportunity Score
+SCORE_PAIN: 60
+SCORE_PAIN_EVIDENCE: Generic
+SCORE_FIT: 60
+SCORE_FIT_EVIDENCE: Generic
+SCORE_TIMING: 60
+SCORE_TIMING_EVIDENCE: Generic
+SCORE_COMPOSITE: 60
+SCORE_SUMMARY: Medium
+"""
+
+        # Repair also returns bad output
+        still_bad_response = MagicMock()
+        still_bad_response.choices = [MagicMock()]
+        still_bad_response.choices[0].message.content = bad_response.choices[0].message.content
+
+        with patch("services.claude.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                research_model="google/gemini-2.5-flash",
+                research_tight_writing_enabled=False,
+                research_tiered_prompt_enabled=False,
+                research_validation_enabled=True,
+            )
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
+                mock_client = AsyncMock()
+                mock_client.chat.completions.create = AsyncMock(
+                    side_effect=[bad_response, still_bad_response]
+                )
+                mock_openai.return_value = mock_client
+
+                service = ClaudeService()
+                scraped = ScrapedContent(homepage="Test")
+
+                result = await service.generate_research_document(
+                    company_url="https://example.com",
+                    scraped=scraped,
+                    product_context="Database software",
+                )
+
+                # Should still return the original (fail-open)
+                assert result.company_overview == "Test company"
+                assert result.pain_score == 60
+                assert mock_client.chat.completions.create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_fail_open_on_api_error(self):
+        """If repair API call throws, original output is preserved."""
+        initial_response = MagicMock()
+        initial_response.choices = [MagicMock()]
+        initial_response.choices[0].message.content = """## Company Overview
+Test company
+
+## Opportunity Score
+SCORE_PAIN: 60
+SCORE_PAIN_EVIDENCE: Generic
+SCORE_FIT: 60
+SCORE_FIT_EVIDENCE: Generic
+SCORE_TIMING: 60
+SCORE_TIMING_EVIDENCE: Generic
+SCORE_COMPOSITE: 60
+SCORE_SUMMARY: Medium
+"""
+
+        with patch("services.claude.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                research_model="google/gemini-2.5-flash",
+                research_tight_writing_enabled=False,
+                research_tiered_prompt_enabled=False,
+                research_validation_enabled=True,
+            )
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
+                mock_client = AsyncMock()
+                mock_client.chat.completions.create = AsyncMock(
+                    side_effect=[initial_response, RuntimeError("API error")]
+                )
+                mock_openai.return_value = mock_client
+
+                service = ClaudeService()
+                scraped = ScrapedContent(homepage="Test")
+
+                result = await service.generate_research_document(
+                    company_url="https://example.com",
+                    scraped=scraped,
+                    product_context="Database software",
+                )
+
+                # Fail-open: original output preserved
+                assert result.company_overview == "Test company"
+                assert result.pain_score == 60
+
+    @pytest.mark.asyncio
+    async def test_no_validation_when_flag_off(self):
+        """When validation flag is off, no repair call happens even with bad output."""
+        bad_response = MagicMock()
+        bad_response.choices = [MagicMock()]
+        bad_response.choices[0].message.content = """## Company Overview
+Test
+
+## Opportunity Score
+SCORE_PAIN: 60
+SCORE_PAIN_EVIDENCE: Generic
+SCORE_FIT: 60
+SCORE_FIT_EVIDENCE: Generic
+SCORE_TIMING: 60
+SCORE_TIMING_EVIDENCE: Generic
+SCORE_COMPOSITE: 60
+SCORE_SUMMARY: Medium
+"""
+
+        with patch("services.claude.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                openrouter_api_key="test-key",
+                research_model="google/gemini-2.5-flash",
+                research_tight_writing_enabled=False,
+                research_tiered_prompt_enabled=False,
+                research_validation_enabled=False,
+            )
+            with patch("services.claude.AsyncOpenAI") as mock_openai:
+                mock_client = AsyncMock()
+                mock_client.chat.completions.create = AsyncMock(return_value=bad_response)
+                mock_openai.return_value = mock_client
+
+                service = ClaudeService()
+                scraped = ScrapedContent(homepage="Test")
+
+                await service.generate_research_document(
+                    company_url="https://example.com",
+                    scraped=scraped,
+                    product_context="Database software",
+                )
+
+                # Only 1 call (no repair)
+                assert mock_client.chat.completions.create.call_count == 1

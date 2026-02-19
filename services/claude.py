@@ -1,14 +1,19 @@
 """claude.py - AI research document generation using Claude API."""
 
+import logging
 import re
+from dataclasses import dataclass, field
 from openai import AsyncOpenAI
 from typing import Optional
 from datetime import datetime
 
 from models import (
     ScrapedContent, ResearchDocument, TechStack, format_multi_domain_tech,
+    format_tech_by_tier,
     DNSProfile, SSLProfile, SecurityPosture, RobotsSignals, JobSignals, PainInference,
 )
+
+logger = logging.getLogger(__name__)
 from config import get_settings
 from services.writing.types import normalize_seller_category, SELLER_RELEVANT_ROLES
 from utils.icp import normalize_verticals
@@ -79,6 +84,13 @@ _DEDUP_PRIORITY = [
     "business_problems",
     "talking_points",
 ]
+
+
+@dataclass
+class ResearchValidationResult:
+    is_valid: bool
+    failed_checks: list[str] = field(default_factory=list)
+    failure_details: dict[str, str] = field(default_factory=dict)
 
 
 class ClaudeService:
@@ -251,7 +263,21 @@ The company data contains several types of information with different reliabilit
     - These are EXTERNAL perspectives — they fill gaps when the company's own website is sparse
     - Cross-reference with first-party data. If a Crunchbase profile says "50 employees" and job postings show 30+ open roles, that's a growth signal
     - This data only appears for companies with thin web presence, so when you see it, lean on it heavily
+"""
 
+        if self.settings.research_tiered_prompt_enabled:
+            base_prompt += """
+DATA TIER STRUCTURE:
+
+The research data in the user message is organized into three tiers by signal reliability:
+- **TIER 1 (HIGH-CONFIDENCE):** Verified/structured data — product subdomain tech, parsed job signals, detailed job postings, firmographics, SEC filings, high-confidence pain inferences (>= 70). Treat as ground truth. Build Existential Data Points primarily from this tier.
+- **TIER 2 (MEDIUM-CONFIDENCE):** First-party website content — homepage, about, careers, blog, DNS, robots.txt, investor relations, medium-confidence pain inferences (40-69), federal regulations. Use to support Tier 1 or surface secondary patterns.
+- **TIER 3 (LOWER-CONFIDENCE):** Inferred/secondary data — marketing-site tech, SSL/TLS, security headers, web mentions, additional pages, low-confidence pain inferences (< 40), background-only signals. Use only to corroborate higher-tier signals.
+
+When a Tier 3 signal contradicts a Tier 1 signal, trust Tier 1. When Tier 2 corroborates Tier 1, increase confidence. Never build an Existential Data Point solely from Tier 3 evidence.
+"""
+
+        base_prompt += f"""
 YOUR COMPANY: {seller_company}
 
 YOUR PRODUCT CONTEXT (the product you are selling):
@@ -853,7 +879,37 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         pain_inferences: Optional[list[PainInference]] = None,
         seller_product_category: str = "",
     ) -> str:
-        """Build the user prompt with all scraped research data."""
+        """Dispatch to tiered or flat user prompt based on feature flag."""
+        if self.settings.research_tiered_prompt_enabled:
+            return self._build_tiered_user_prompt(
+                company_url, scraped, tech_by_domain,
+                dns_profile=dns_profile, ssl_profile=ssl_profile,
+                security_posture=security_posture, robots_signals=robots_signals,
+                job_signals=job_signals, pain_inferences=pain_inferences,
+                seller_product_category=seller_product_category,
+            )
+        return self._build_flat_user_prompt(
+            company_url, scraped, tech_by_domain,
+            dns_profile=dns_profile, ssl_profile=ssl_profile,
+            security_posture=security_posture, robots_signals=robots_signals,
+            job_signals=job_signals, pain_inferences=pain_inferences,
+            seller_product_category=seller_product_category,
+        )
+
+    def _build_flat_user_prompt(
+        self,
+        company_url: str,
+        scraped: ScrapedContent,
+        tech_by_domain: Optional[dict[str, TechStack]] = None,
+        dns_profile: Optional[DNSProfile] = None,
+        ssl_profile: Optional[SSLProfile] = None,
+        security_posture: Optional[SecurityPosture] = None,
+        robots_signals: Optional[RobotsSignals] = None,
+        job_signals: Optional[JobSignals] = None,
+        pain_inferences: Optional[list[PainInference]] = None,
+        seller_product_category: str = "",
+    ) -> str:
+        """Build the user prompt with all scraped research data (flat, original format)."""
         sections = [f"# Research Data for {company_url}\n"]
 
         if tech_by_domain:
@@ -1017,6 +1073,434 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 
         return "\n".join(sections)
 
+    @staticmethod
+    def _split_pain_by_tier(
+        pain_inferences: list[PainInference],
+    ) -> dict[str, list[PainInference]]:
+        """Split pain inferences into tier1/tier2/tier3/background buckets."""
+        buckets: dict[str, list[PainInference]] = {
+            "tier1": [], "tier2": [], "tier3": [], "background": [],
+        }
+        for pi in pain_inferences:
+            if pi.category.startswith("_background_"):
+                buckets["background"].append(pi)
+            elif pi.confidence >= 70:
+                buckets["tier1"].append(pi)
+            elif pi.confidence >= 40:
+                buckets["tier2"].append(pi)
+            else:
+                buckets["tier3"].append(pi)
+        return buckets
+
+    @staticmethod
+    def _format_pain_group(pains: list[PainInference], is_background: bool = False) -> list[str]:
+        """Format a group of pain inferences, grouped by category in fixed order."""
+        if not pains:
+            return []
+
+        lines: list[str] = []
+        category_order = ["security", "engineering", "operations", "marketing", "data"]
+        category_labels = {
+            "security": "Security", "engineering": "Engineering",
+            "operations": "Operations", "marketing": "Marketing", "data": "Data",
+        }
+        by_cat: dict[str, list[PainInference]] = {}
+        for pi in pains:
+            cat = pi.category.removeprefix("_background_") if is_background else (pi.category or "other")
+            by_cat.setdefault(cat, []).append(pi)
+
+        for cat in category_order:
+            group = by_cat.get(cat, [])
+            if not group:
+                continue
+            group.sort(key=lambda x: x.confidence, reverse=True)
+            lines.append(f"### {category_labels.get(cat, cat.title())} ({len(group)} signal{'s' if len(group) != 1 else ''})")
+            for pi in group:
+                if is_background:
+                    real_cat = pi.category.removeprefix("_background_")
+                    lines.append(f"**{pi.title}** [{real_cat}] (severity: {pi.severity}, confidence: {pi.confidence})")
+                    lines.append(f"  {pi.description}")
+                else:
+                    lines.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+                    lines.append(f"  {pi.description}")
+                    for ev in pi.evidence:
+                        lines.append(f"  - {ev}")
+                lines.append("")
+
+        # Handle uncategorized pains
+        for cat, group in by_cat.items():
+            if cat in category_order:
+                continue
+            group.sort(key=lambda x: x.confidence, reverse=True)
+            lines.append(f"### {cat.title()} ({len(group)} signal{'s' if len(group) != 1 else ''})")
+            for pi in group:
+                if is_background:
+                    real_cat = pi.category.removeprefix("_background_")
+                    lines.append(f"**{pi.title}** [{real_cat}] (severity: {pi.severity}, confidence: {pi.confidence})")
+                    lines.append(f"  {pi.description}")
+                else:
+                    lines.append(f"**{pi.title}** (severity: {pi.severity}, confidence: {pi.confidence})")
+                    lines.append(f"  {pi.description}")
+                    for ev in pi.evidence:
+                        lines.append(f"  - {ev}")
+                lines.append("")
+
+        return lines
+
+    def _build_tiered_user_prompt(
+        self,
+        company_url: str,
+        scraped: ScrapedContent,
+        tech_by_domain: Optional[dict[str, TechStack]] = None,
+        dns_profile: Optional[DNSProfile] = None,
+        ssl_profile: Optional[SSLProfile] = None,
+        security_posture: Optional[SecurityPosture] = None,
+        robots_signals: Optional[RobotsSignals] = None,
+        job_signals: Optional[JobSignals] = None,
+        pain_inferences: Optional[list[PainInference]] = None,
+        seller_product_category: str = "",
+    ) -> str:
+        """Build the user prompt organized into signal-quality tiers."""
+        sections = [f"# Research Data for {company_url}\n"]
+
+        # Split tech by tier
+        tier1_tech, tier3_tech = ("", "")
+        if tech_by_domain:
+            tier1_tech, tier3_tech = format_tech_by_tier(tech_by_domain)
+
+        # Split pain by tier
+        pain_buckets = self._split_pain_by_tier(pain_inferences or [])
+
+        # --- TIER 1: HIGH-CONFIDENCE SIGNALS ---
+        tier1_parts: list[str] = []
+
+        if tier1_tech:
+            tier1_parts.append("## VERIFIED Technologies — Product/App Subdomains")
+            tier1_parts.append(tier1_tech)
+            tier1_parts.append("")
+
+        if job_signals and (job_signals.tech_mentions or job_signals.role_types):
+            tier1_parts.extend(self._format_job_signals_section(job_signals, seller_product_category))
+            tier1_parts.append("")
+
+        if scraped.job_postings:
+            tier1_parts.append("## Detailed Job Postings")
+            tier1_parts.append("(From job boards - these contain specific tech requirements)")
+            tier1_parts.append(scraped.job_postings[:12000])
+            tier1_parts.append("")
+
+        if scraped.firmographics:
+            tier1_parts.append("## CONFIRMED Firmographic Data (from connected data provider)")
+            tier1_parts.append(scraped.firmographics)
+            tier1_parts.append("")
+
+        if scraped.edgar_filings:
+            tier1_parts.append("## SEC EDGAR Filings (Public Company)")
+            tier1_parts.append("(From SEC.gov - official regulatory filings. 8-K = material events, Risk Factors = company-disclosed challenges)")
+            tier1_parts.append(scraped.edgar_filings[:8000])
+            tier1_parts.append("")
+
+        if pain_buckets["tier1"]:
+            tier1_parts.append("## High-Confidence Pain Signals (confidence >= 70)")
+            tier1_parts.append("Use these as STARTING POINTS. Validate against other data. Do not repeat verbatim.")
+            tier1_parts.append("")
+            tier1_parts.extend(self._format_pain_group(pain_buckets["tier1"]))
+
+        if tier1_parts:
+            sections.append("## TIER 1: HIGH-CONFIDENCE SIGNALS")
+            sections.append("Treat as ground truth. Build Existential Data Points primarily from this tier.")
+            sections.append("")
+            sections.extend(tier1_parts)
+
+        # --- TIER 2: MEDIUM-CONFIDENCE SIGNALS ---
+        tier2_parts: list[str] = []
+
+        if scraped.homepage:
+            tier2_parts.append("## Homepage Content")
+            tier2_parts.append(scraped.homepage[:5000])
+            tier2_parts.append("")
+
+        if scraped.about:
+            tier2_parts.append("## About Page")
+            tier2_parts.append(scraped.about[:3000])
+            tier2_parts.append("")
+
+        if scraped.careers:
+            tier2_parts.append("## Careers/Jobs Landing Page")
+            tier2_parts.append(scraped.careers[:5000])
+            tier2_parts.append("")
+
+        if scraped.blog:
+            tier2_parts.append("## Blog/Engineering Blog Content")
+            tier2_parts.append(scraped.blog[:5000])
+            tier2_parts.append("")
+
+        if dns_profile:
+            tier2_parts.append("## DNS Infrastructure Signals")
+            if dns_profile.ns_provider:
+                tier2_parts.append(f"- NS Provider: {dns_profile.ns_provider}")
+            if dns_profile.cloud_provider_hints:
+                tier2_parts.append(f"- Cloud hints: {', '.join(dns_profile.cloud_provider_hints)}")
+            tier2_parts.append("")
+
+        if robots_signals:
+            tier2_parts.append("## Robots.txt Signals")
+            if robots_signals.api_paths:
+                tier2_parts.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
+            if robots_signals.admin_paths:
+                tier2_parts.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
+            if robots_signals.crawl_delay is not None:
+                tier2_parts.append(f"- Crawl delay: {robots_signals.crawl_delay}")
+            tier2_parts.append("")
+
+        if scraped.investor_relations:
+            tier2_parts.append("## Investor Relations (Public Company)")
+            tier2_parts.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
+            tier2_parts.append(scraped.investor_relations[:8000])
+            tier2_parts.append("")
+
+        if pain_buckets["tier2"]:
+            tier2_parts.append("## Medium-Confidence Pain Signals (confidence 40-69)")
+            tier2_parts.append("These are hypotheses — include only if corroborated by other evidence.")
+            tier2_parts.append("")
+            tier2_parts.extend(self._format_pain_group(pain_buckets["tier2"]))
+
+        if scraped.federal_regulations:
+            tier2_parts.append("## Upcoming Federal Regulations")
+            tier2_parts.append("(From Federal Register — upcoming compliance deadlines relevant to this company's industry)")
+            tier2_parts.append(scraped.federal_regulations[:6000])
+            tier2_parts.append("")
+
+        if tier2_parts:
+            sections.append("## TIER 2: MEDIUM-CONFIDENCE SIGNALS")
+            sections.append("First-party content and corroborative data. Use to support Tier 1 signals or surface secondary patterns.")
+            sections.append("")
+            sections.extend(tier2_parts)
+
+        # --- TIER 3: LOWER-CONFIDENCE SIGNALS ---
+        tier3_parts: list[str] = []
+
+        if tier3_tech:
+            tier3_parts.append("## VERIFIED Technologies — Marketing Site")
+            tier3_parts.append(tier3_tech[:3000])
+            tier3_parts.append("")
+
+        if ssl_profile:
+            tier3_parts.append("## SSL/TLS Certificate")
+            if ssl_profile.issuer:
+                tier3_parts.append(f"- Issuer: {ssl_profile.issuer}")
+            if ssl_profile.expiry_days is not None:
+                tier3_parts.append(f"- Expires in: {ssl_profile.expiry_days} days")
+            tier3_parts.append(f"- SAN count: {ssl_profile.san_count}")
+            tier3_parts.append(f"- Wildcard: {'Yes' if ssl_profile.is_wildcard else 'No'}")
+            tier3_parts.append(f"- Automated renewal: {'Likely' if ssl_profile.automation_inferred else 'Unknown'}")
+            tier3_parts.append("")
+
+        if security_posture:
+            tier3_parts.append("## Security Header Analysis")
+            tier3_parts.append(f"- Grade: {security_posture.grade} ({security_posture.score}/6)")
+            if security_posture.present:
+                tier3_parts.append(f"- Present: {', '.join(security_posture.present)}")
+            if security_posture.missing:
+                tier3_parts.append(f"- Missing: {', '.join(security_posture.missing)}")
+            tier3_parts.append("")
+
+        if scraped.web_mentions:
+            tier3_parts.append("## Third-Party Web Mentions")
+            tier3_parts.append("(From web search — Crunchbase, G2, press coverage, and other external sources.)")
+            tier3_parts.append(scraped.web_mentions[:8000])
+            tier3_parts.append("")
+
+        if scraped.additional_pages:
+            tier3_parts.append("## Additional Website Pages")
+            tier3_parts.append(scraped.additional_pages[:6000])
+            tier3_parts.append("")
+
+        if pain_buckets["tier3"]:
+            tier3_parts.append("## Low-Confidence Pain Signals (confidence < 40)")
+            tier3_parts.append("Low confidence — include only with strong corroboration from higher tiers.")
+            tier3_parts.append("")
+            tier3_parts.extend(self._format_pain_group(pain_buckets["tier3"]))
+
+        if pain_buckets["background"]:
+            tier3_parts.append("## Background-Only Signals (DO NOT use in Action Tier)")
+            tier3_parts.append("These signals were flagged as irrelevant to the seller's product category. "
+                               "Do NOT include them in Existential Data Points, PVP Seed, Talking Points, "
+                               "or Before Scenario. They are provided for optional context only.")
+            tier3_parts.append("")
+            tier3_parts.extend(self._format_pain_group(pain_buckets["background"], is_background=True))
+
+        if tier3_parts:
+            sections.append("## TIER 3: LOWER-CONFIDENCE SIGNALS")
+            sections.append("Inferred or secondary data. Use only to corroborate higher-tier signals, not as primary evidence.")
+            sections.append("")
+            sections.extend(tier3_parts)
+
+        sections.append("---")
+        sections.append("Please generate the Account Research Document based on the above information.")
+
+        return "\n".join(sections)
+
+    # --- Post-generation validation checks ---
+
+    _GENERIC_FILLER_PHRASES = [
+        "companies like yours",
+        "organizations in this space",
+        "businesses of this size",
+        "organizations like yours",
+        "businesses like yours",
+    ]
+
+    @staticmethod
+    def _check_edp_sources(edp_text: str) -> Optional[str]:
+        """Check that EDP section has proper source attribution.
+
+        Returns failure message or None if pass.
+        """
+        if not edp_text or not edp_text.strip():
+            return None
+        lower = edp_text.lower()
+        if "no existential" in lower or "no immediate urgency" in lower:
+            return None
+
+        has_signal_markers = "**signal**:" in lower
+        has_sources_markers = "**sources**:" in lower or "sources:" in lower
+
+        # If text is substantial with multiple bullets but zero structural markers → format not followed
+        if len(edp_text) > 200 and edp_text.count("- ") >= 2 and not has_signal_markers and not has_sources_markers:
+            return "EDP format not followed — no Signal/Sources markers found in substantial EDP text"
+
+        # If proper signal markers exist, check each unit has sources
+        if has_signal_markers:
+            # Split into EDP units by **Signal**: markers only
+            units = re.split(r"(?=\*\*Signal\*\*:)", edp_text, flags=re.IGNORECASE)
+            units = [u.strip() for u in units if u.strip()]
+            units_without_sources = 0
+            for unit in units:
+                unit_lower = unit.lower()
+                if "**signal**:" in unit_lower:
+                    if not re.search(r"(?:\*\*sources\*\*|sources):[ \t]*\S", unit_lower):
+                        units_without_sources += 1
+            if units_without_sources > 0:
+                return f"{units_without_sources} EDP unit(s) missing Sources attribution"
+
+        return None
+
+    @staticmethod
+    def _check_concrete_pain(sections: dict) -> Optional[str]:
+        """Check for concrete source markers across pain-related sections.
+
+        Returns failure message or None if pass.
+        """
+        source_markers = [
+            "sources:", "detected on", "from careers page", "from sec filing",
+            "from job posting", "open for", "open since",
+        ]
+        check_keys = ["existential_data_points", "business_problems", "hiring_signals", "confirmed_tech_stack"]
+        combined = " ".join(sections.get(k, "") for k in check_keys).lower()
+        if not combined.strip():
+            return None
+        if any(marker in combined for marker in source_markers):
+            return None
+        return "No concrete source references found in pain-related sections (EDP, Business Problems, Hiring Signals, Tech Stack)"
+
+    @staticmethod
+    def _check_score_calibration(scores: dict) -> Optional[str]:
+        """Check that scores aren't lazily identical or clustered.
+
+        Returns failure message or None if pass.
+        """
+        pain = scores.get("pain")
+        fit = scores.get("fit")
+        timing = scores.get("timing")
+
+        # Need at least 3 scores to check
+        vals = [v for v in [pain, fit, timing] if v is not None]
+        if len(vals) < 3:
+            return None
+
+        # Fail if all three identical
+        if pain == fit == timing:
+            return f"All three scores identical ({pain}) — likely lazy output"
+
+        # Fail if all within 8 points AND all in 55-75 lazy middle band
+        spread = max(vals) - min(vals)
+        if spread <= 8 and all(55 <= v <= 75 for v in vals):
+            return f"All scores within {spread} points in lazy-middle band (55-75): Pain={pain}, Fit={fit}, Timing={timing}"
+
+        # Check evidence emptiness
+        for key in ["pain_evidence", "fit_evidence", "timing_evidence"]:
+            val = scores.get(key)
+            if val is None or (isinstance(val, str) and val.strip() == ""):
+                return f"Empty evidence field: {key}"
+
+        return None
+
+    def _check_generic_filler(self, edp_text: str, bp_text: str) -> Optional[str]:
+        """Check for generic filler phrases.
+
+        Returns failure message or None if pass.
+        """
+        combined = (edp_text + " " + bp_text).lower()
+        found = [p for p in self._GENERIC_FILLER_PHRASES if p in combined]
+        if found:
+            return f"Generic filler detected: {', '.join(repr(p) for p in found)}"
+        return None
+
+    def _validate_research(self, sections: dict, scores: dict) -> ResearchValidationResult:
+        """Run all validation checks and return result."""
+        failed_checks: list[str] = []
+        failure_details: dict[str, str] = {}
+
+        edp_text = sections.get("existential_data_points", "")
+        bp_text = sections.get("business_problems", "")
+
+        checks = [
+            ("edp_sources", self._check_edp_sources(edp_text)),
+            ("concrete_pain", self._check_concrete_pain(sections)),
+            ("score_calibration", self._check_score_calibration(scores)),
+            ("generic_filler", self._check_generic_filler(edp_text, bp_text)),
+        ]
+
+        for name, result in checks:
+            if result is not None:
+                failed_checks.append(name)
+                failure_details[name] = result
+
+        return ResearchValidationResult(
+            is_valid=len(failed_checks) == 0,
+            failed_checks=failed_checks,
+            failure_details=failure_details,
+        )
+
+    @staticmethod
+    def _build_repair_instructions(validation: ResearchValidationResult) -> str:
+        """Build repair instructions from validation failures."""
+        lines = ["The following quality checks failed on your output:\n"]
+        for check_name in validation.failed_checks:
+            detail = validation.failure_details.get(check_name, "")
+            lines.append(f"- **{check_name}**: {detail}")
+
+        lines.append("")
+        lines.append("Fix instructions:")
+        if "edp_sources" in validation.failed_checks:
+            lines.append("- Each Existential Data Point must use the **Signal**/**Sources**/**Threshold**/**Consequence** format. Add **Sources**: lines citing where each claim came from.")
+        if "concrete_pain" in validation.failed_checks:
+            lines.append("- Add concrete source references (e.g., 'Detected on app.example.com', 'From job posting', 'From SEC filing') to pain-related sections.")
+        if "score_calibration" in validation.failed_checks:
+            lines.append("- Re-score each dimension independently. Companies almost always have uneven profiles. Ensure each score reflects distinct evidence and provide non-empty evidence fields.")
+        if "generic_filler" in validation.failed_checks:
+            lines.append("- Remove generic filler phrases. Replace with specific, company-level observations from the research data.")
+
+        lines.append("")
+        lines.append("Fix ONLY the failing sections + Opportunity Score.")
+        lines.append("Do not invent sources. Cite where each claim came from.")
+        lines.append("Do not remove sections; if missing evidence, add 'No X signals found' with a brief reason.")
+        lines.append("Keep claims tied to the provided research data; if unsure, move to Information Gaps.")
+        lines.append("Preserve all sections that passed.")
+
+        return "\n".join(lines)
+
     async def generate_research_document(
         self,
         company_url: str,
@@ -1079,9 +1563,58 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         full_markdown = response.choices[0].message.content or ""
         thinking_content = ""
         sections = self._parse_sections(full_markdown)
+        scores = self._parse_scores(full_markdown)
+
+        # --- Validation + Repair (gated by feature flag) ---
+        if self.settings.research_validation_enabled:
+            validation = self._validate_research(sections, scores)
+            if not validation.is_valid:
+                logger.warning(
+                    "Research validation failed",
+                    extra={
+                        "company_url": str(company_url),
+                        "failed_checks": validation.failed_checks,
+                        "model": model,
+                    },
+                )
+                try:
+                    repair_instructions = self._build_repair_instructions(validation)
+                    repair_response = await self.client.chat.completions.create(
+                        model=model,
+                        max_tokens=16000,
+                        temperature=1.0,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                            {"role": "assistant", "content": full_markdown},
+                            {"role": "user", "content": repair_instructions},
+                        ],
+                    )
+                    repaired_markdown = repair_response.choices[0].message.content or ""
+                    repaired_sections = self._parse_sections(repaired_markdown)
+                    repaired_scores = self._parse_scores(repaired_markdown)
+                    repair_validation = self._validate_research(repaired_sections, repaired_scores)
+
+                    if repair_validation.is_valid:
+                        full_markdown = repaired_markdown
+                        sections = repaired_sections
+                        scores = repaired_scores
+                        logger.info("Research repair succeeded", extra={"company_url": str(company_url)})
+                    else:
+                        # Fail-open: keep original
+                        logger.warning(
+                            "Research repair still failed, keeping original",
+                            extra={
+                                "company_url": str(company_url),
+                                "failed_checks": repair_validation.failed_checks,
+                            },
+                        )
+                except Exception:
+                    # Fail-open: keep original on any error
+                    logger.exception("Research repair call failed, keeping original", extra={"company_url": str(company_url)})
+
         if self.settings.research_tight_writing_enabled:
             sections = self._format_sections(sections)
-        scores = self._parse_scores(full_markdown)
 
         return ResearchDocument(
             company_url=str(company_url),
