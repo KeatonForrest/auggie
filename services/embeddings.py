@@ -30,12 +30,18 @@ class EmbeddingService:
         if len(text) > self.MAX_CHARS:
             text = text[:self.MAX_CHARS]
 
-        response = await self.client.embeddings.create(
-            model=self.MODEL,
-            input=text
-        )
+        try:
+            response = await self.client.embeddings.create(
+                model=self.MODEL,
+                input=text,
+            )
+        except Exception as exc:
+            raise RuntimeError("Embedding generation failed") from exc
 
-        return response.data[0].embedding
+        data = getattr(response, "data", None) or []
+        if not data or not getattr(data[0], "embedding", None):
+            raise RuntimeError("Embedding generation failed")
+        return data[0].embedding
 
     async def embed_batch(self, texts: list[str], batch_size: int = 100) -> list[list[float]]:
         """Generate embeddings for multiple texts.
@@ -62,13 +68,17 @@ class EmbeddingService:
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
 
-            response = await self.client.embeddings.create(
-                model=self.MODEL,
-                input=batch
-            )
+            try:
+                response = await self.client.embeddings.create(
+                    model=self.MODEL,
+                    input=batch,
+                )
+            except Exception as exc:
+                raise RuntimeError("Embedding generation failed") from exc
 
             # Sort by index to maintain order (API may return out of order)
-            sorted_data = sorted(response.data, key=lambda x: x.index)
+            data = getattr(response, "data", None) or []
+            sorted_data = sorted(data, key=lambda x: x.index)
             batch_embeddings = [item.embedding for item in sorted_data]
             all_embeddings.extend(batch_embeddings)
 

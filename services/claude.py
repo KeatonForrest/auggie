@@ -1550,17 +1550,32 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         )
 
         model = self.settings.research_model
-        response = await self.client.chat.completions.create(
-            model=model,
-            max_tokens=16000,
-            temperature=1.0,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
+        try:
+            response = await self.client.chat.completions.create(
+                model=model,
+                max_tokens=16000,
+                temperature=1.0,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+        except Exception as exc:
+            logger.exception(
+                "Research generation call failed",
+                extra={"event_type": "research_generation_failed", "company_url": str(company_url), "model": model},
+            )
+            raise RuntimeError("Research generation failed. Please try again.") from exc
 
-        full_markdown = response.choices[0].message.content or ""
+        choices = getattr(response, "choices", None) or []
+        if not choices or not getattr(choices[0], "message", None):
+            logger.warning(
+                "Research generation returned no choices",
+                extra={"event_type": "research_generation_no_choices", "company_url": str(company_url), "model": model},
+            )
+            raise RuntimeError("Research generation failed. Please try again.")
+
+        full_markdown = getattr(choices[0].message, "content", "") or ""
         thinking_content = ""
         sections = self._parse_sections(full_markdown)
         scores = self._parse_scores(full_markdown)
@@ -1590,7 +1605,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
                             {"role": "user", "content": repair_instructions},
                         ],
                     )
-                    repaired_markdown = repair_response.choices[0].message.content or ""
+                    repair_choices = getattr(repair_response, "choices", None) or []
+                    if not repair_choices or not getattr(repair_choices[0], "message", None):
+                        raise RuntimeError("Research repair returned no choices")
+                    repaired_markdown = getattr(repair_choices[0].message, "content", "") or ""
                     repaired_sections = self._parse_sections(repaired_markdown)
                     repaired_scores = self._parse_scores(repaired_markdown)
                     repair_validation = self._validate_research(repaired_sections, repaired_scores)

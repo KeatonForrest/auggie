@@ -88,7 +88,11 @@ class VisionService:
                 ],
             )
 
-            text = response.choices[0].message.content or ""
+            choices = getattr(response, "choices", None) or []
+            if not choices or not getattr(choices[0], "message", None):
+                logger.warning("Vision extraction returned no choices")
+                return {}
+            text = getattr(choices[0].message, "content", "") or ""
             return self._parse_persona(text)
 
         except Exception as e:
@@ -122,7 +126,11 @@ class VisionService:
                 ],
             )
 
-            text = response.choices[0].message.content or ""
+            choices = getattr(response, "choices", None) or []
+            if not choices or not getattr(choices[0], "message", None):
+                logger.warning("LinkedIn context extraction returned no choices")
+                return {"content_type": "other"}
+            text = getattr(choices[0].message, "content", "") or ""
             return self._parse_linkedin_context(text)
 
         except Exception as e:

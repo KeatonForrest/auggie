@@ -77,7 +77,10 @@ class WritingService:
             max_tokens=max_tokens,
             messages=messages,
         )
-        content = response.choices[0].message.content or ""
+        choices = getattr(response, "choices", None) or []
+        if not choices or not getattr(choices[0], "message", None):
+            raise RuntimeError("LLM returned no choices")
+        content = getattr(choices[0].message, "content", "") or ""
         content = postprocess(content)
 
         input_tokens = getattr(response.usage, "prompt_tokens", 0) if response.usage else 0

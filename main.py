@@ -235,7 +235,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.app_url],
-    allow_methods=["GET", "POST", "DELETE"],
+    # PATCH triggers browser preflight; include OPTIONS explicitly.
+    allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
     allow_credentials=True,
 )

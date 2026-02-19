@@ -1,6 +1,7 @@
 """v1 API routes — authenticated via API key."""
 
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -48,6 +49,8 @@ class SortOrder(str, Enum):
 CLAY_TIMEOUT = 120.0
 
 router = APIRouter(prefix="/v1")
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -439,7 +442,8 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
             await save_idempotency(api_user["api_key_id"], idem_key, 200, response_body.model_dump())
         return response_body
     except Exception as e:
-        raise APIError("internal_error", str(e)[:500], 500)
+        logger.exception("Enrichment failed", extra={"event_type": "api_enrich_failed", "doc_id": body.document_id})
+        raise APIError("internal_error", "Internal error", 500)
 
 
 
@@ -580,8 +584,12 @@ async def clay_enrich(request: Request, body: ClayEnrichRequest, api_user: dict 
         if not is_admin:
             await refund_credit(api_user["id"])
         from database import update_job_status
-        await update_job_status(job["id"], "failed", error_message=str(e)[:500])
-        raise APIError("internal_error", str(e)[:500], 500)
+        logger.exception(
+            "Clay enrich failed",
+            extra={"event_type": "api_clay_enrich_failed", "job_id": job["id"], "duration_s": duration},
+        )
+        await update_job_status(job["id"], "failed", error_message="Internal error")
+        raise APIError("internal_error", "Internal error", 500)
 
 
 def _build_default_titles(user: dict) -> list[str]:
@@ -651,7 +659,8 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
             emails=[SequenceEmail(**e) for e in emails],
         )
     except Exception as e:
-        raise APIError("internal_error", str(e)[:500], 500)
+        logger.exception("Sequence generation failed", extra={"event_type": "api_sequence_failed", "doc_id": doc_id})
+        raise APIError("internal_error", "Internal error", 500)
 
 
 # =============================================================================
