@@ -1137,3 +1137,74 @@ class TestBackgroundOnlyPainSignals:
         )
         assert "[engineering]" in result
         assert "_background_" not in result.split("Background-Only Signals")[1]
+
+
+class TestFormatJobSignalsSection:
+    """Tests for _format_job_signals_section static method."""
+
+    def _make_signals(self, role_types=None, tech_mentions=None, seniority=None):
+        from models import JobSignals, TechMention
+        return JobSignals(
+            tech_mentions=tech_mentions or [],
+            role_types=role_types or [],
+            seniority_distribution=seniority or {},
+            total_roles_parsed=0,
+        )
+
+    def test_known_category_splits_relevant_and_other(self):
+        signals = self._make_signals(role_types=["marketing", "sales", "backend", "frontend"])
+        lines = ClaudeService._format_job_signals_section(signals, "MarTech")
+        joined = "\n".join(lines)
+        assert "Relevant role types (MarTech seller): marketing, sales" in joined
+        assert "Other role types: backend, frontend" in joined
+
+    def test_unknown_category_falls_back_to_single_line(self):
+        signals = self._make_signals(role_types=["backend", "marketing"])
+        lines = ClaudeService._format_job_signals_section(signals, "SomeUnknown")
+        joined = "\n".join(lines)
+        assert "- Role types: backend, marketing" in joined
+        assert "Relevant" not in joined
+
+    def test_empty_category_falls_back_to_single_line(self):
+        signals = self._make_signals(role_types=["backend"])
+        lines = ClaudeService._format_job_signals_section(signals, "")
+        joined = "\n".join(lines)
+        assert "- Role types: backend" in joined
+        assert "Relevant" not in joined
+
+    def test_no_roles_omits_role_lines(self):
+        from models import TechMention
+        signals = self._make_signals(
+            tech_mentions=[TechMention(name="Python", category="language", count=1)],
+        )
+        lines = ClaudeService._format_job_signals_section(signals, "MarTech")
+        joined = "\n".join(lines)
+        assert "Role types" not in joined
+        assert "language: Python" in joined
+
+    def test_all_roles_relevant_no_other_line(self):
+        signals = self._make_signals(role_types=["marketing", "sales"])
+        lines = ClaudeService._format_job_signals_section(signals, "MarTech")
+        joined = "\n".join(lines)
+        assert "Relevant role types" in joined
+        assert "Other role types" not in joined
+
+    def test_no_roles_relevant_only_other_line(self):
+        signals = self._make_signals(role_types=["backend", "frontend"])
+        lines = ClaudeService._format_job_signals_section(signals, "HealthTech")
+        joined = "\n".join(lines)
+        assert "Other role types: backend, frontend" in joined
+        assert "Relevant role types" not in joined
+
+    def test_construction_tech_project_management_relevant(self):
+        signals = self._make_signals(role_types=["project_management", "backend"])
+        lines = ClaudeService._format_job_signals_section(signals, "ConstructionTech")
+        joined = "\n".join(lines)
+        assert "Relevant role types (ConstructionTech seller): project_management" in joined
+        assert "Other role types: backend" in joined
+
+    def test_seniority_included(self):
+        signals = self._make_signals(seniority={"senior": 3, "junior": 1})
+        lines = ClaudeService._format_job_signals_section(signals, "")
+        joined = "\n".join(lines)
+        assert "Seniority: senior: 3, junior: 1" in joined
