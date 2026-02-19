@@ -4,14 +4,19 @@ import re
 
 
 def strip_emdashes(text: str) -> str:
-    """Replace unicode dashes with ASCII hyphens."""
-    return (
+    """Replace unicode dashes with commas for natural phrasing."""
+    text = (
         text
-        .replace("\u2014", " - ")   # em dash
-        .replace("\u2013", " - ")   # en dash
-        .replace("\u2015", " - ")   # horizontal bar
-        .replace("\u2012", " - ")   # figure dash
+        .replace("\u2014", ", ")   # em dash
+        .replace("\u2013", ", ")   # en dash
+        .replace("\u2015", ", ")   # horizontal bar
+        .replace("\u2012", ", ")   # figure dash
     )
+    # Clean up spacing artifacts from pre-spaced dashes
+    text = text.replace(" , ", ", ")
+    text = text.replace(" ,", ",")
+    text = text.replace("  ", " ")
+    return text
 
 
 def strip_bold(text: str) -> str:

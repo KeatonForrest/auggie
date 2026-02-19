@@ -21,7 +21,12 @@ STRUCTURE:
    a career move, a company initiative. Connect it to a business pattern.
 2. Bridge (1 sentence): Why this matters now / what you've seen at
    similar companies.
-3. CTA (1 sentence): A genuine question that invites a reply."""
+3. CTA (1 sentence): A genuine question that invites a reply.
+   Do NOT assume the prospect has a specific pain they haven't expressed.
+   Ask about their approach or priorities, not about a problem you invented.
+   Good: "curious how you're thinking about X"
+   Bad: "how are you balancing the need for X while maintaining Y"
+"""
 
 
 class LinkedInDMStrategy:

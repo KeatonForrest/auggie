@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 from services.writing import WritingService, SequenceValidationError
 from services.writing.types import GenerationContext, LINKEDIN_WORD_LIMITS
-from services.writing.linkedin_shared import filter_relevance
+from services.writing.linkedin_shared import filter_relevance, validate_linkedin_banned_phrases
 
 
 # --- LinkedIn system prompt (DM) ---
@@ -143,6 +143,33 @@ class TestLinkedInRelevanceFilter:
         is_clean, blocked = filter_relevance(msg, "database")
         assert is_clean is True
 
+    def test_db_seller_frontend_role_blocked(self):
+        msg = "Your new Senior Frontend Developer hire signals a UI push."
+        is_clean, blocked = filter_relevance(msg, "database")
+        assert is_clean is False
+        assert "frontend" in blocked
+
+    def test_fintech_seller_frontend_blocked(self):
+        msg = "The frontend engineer roles you posted look exciting."
+        is_clean, blocked = filter_relevance(msg, "fintech")
+        assert is_clean is False
+        assert "frontend" in blocked
+
+
+# --- LinkedIn flattery bans ---
+
+
+class TestLinkedInFlatteryBans:
+    def test_flattery_is_impressive_banned(self):
+        ok, reason = validate_linkedin_banned_phrases("your growth is impressive and worth watching")
+        assert ok is False
+        assert "is impressive" in reason
+
+    def test_flattery_is_exciting_banned(self):
+        ok, reason = validate_linkedin_banned_phrases("your roadmap is exciting to see")
+        assert ok is False
+        assert "is exciting" in reason
+
 
 # --- LinkedIn quality gate (DM) ---
 
@@ -257,7 +284,7 @@ class TestLinkedInQualityGate:
         assert result.is_valid is True
 
     def test_anchor_multiword_token(self, linkedin_dm_strategy):
-        msg = "Palo Alto's expansion into cloud security at this scale is impressive. The companies making this transition successfully tend to find that the biggest challenge is integrating their existing tools with the new platform. Curious how the migration path is going?"
+        msg = "Palo Alto's expansion into cloud security at this scale caught my eye. The companies making this transition successfully tend to find that the biggest challenge is integrating their existing tools with the new platform. Curious how the migration path is going?"
         ctx = GenerationContext(document=None, product_context="", report="", company_name="Palo Alto Networks, Inc.")
         result = linkedin_dm_strategy.validate(msg, ctx)
         assert result.is_valid is True

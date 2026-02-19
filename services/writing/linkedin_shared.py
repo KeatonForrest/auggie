@@ -23,7 +23,10 @@ CONSTRAINTS:
   not a reference to the platform itself.
 - No product pitches. Earn curiosity, don't sell.
 - Write like a peer texting a colleague, not an email marketer.
-- No emdashes. No bold. No bullet points. Plain conversational text.
+- No flattery. Never call the prospect's work "impressive", "exciting",
+  "fascinating", or "remarkable". Peers don't open with compliments.
+- No dashes as punctuation (no emdashes, no spaced hyphens like ' - ').
+  No bold. No bullet points. Plain conversational text.
 - CTA must be low-friction: a question, not a meeting request.
   Good: "curious how you're thinking about X"
   Bad: "would love 15 minutes to discuss"
@@ -143,6 +146,14 @@ def validate_linkedin_banned_phrases(msg_lower: str) -> tuple[bool, str]:
         "I'd love 15 minutes",
         "I'd love to grab 15",
         "would love 15 minutes",
+        "is impressive",
+        "is exciting",
+        "is fascinating",
+        "is remarkable",
+        "really impressive",
+        "truly impressive",
+        "really exciting",
+        "truly exciting",
     ]
     for phrase in banned:
         if phrase.lower() in msg_lower:

@@ -96,7 +96,7 @@ _CATEGORY_DENYLISTS = {
     "database": {
         "blocked_patterns": [
             "cdn", "content delivery", "cloudflare", "fastly", "akamai",
-            "frontend framework", "react", "vue", "angular", "svelte",
+            "frontend", "react", "vue", "angular", "svelte",
             "next.js", "nuxt", "jquery", "bootstrap", "tailwind",
             "css", "scss", "webpack", "vite", "bundler",
             "seo", "page speed", "tag manager", "google tag",
@@ -108,7 +108,7 @@ _CATEGORY_DENYLISTS = {
             "slow queries", "index", "migration", "data-intensive",
         ],
         "prompt_constraint": (
-            "CDN, frontend framework, CSS tooling, and marketing automation "
+            "CDN, frontend, CSS tooling, and marketing automation "
             "angles are INVALID for a database seller unless the talking point "
             "explicitly ties them to a database bottleneck, query performance "
             "issue, or data layer consequence."
@@ -116,7 +116,7 @@ _CATEGORY_DENYLISTS = {
     },
     "fintech": {
         "blocked_patterns": [
-            "frontend framework", "react", "vue", "angular", "svelte",
+            "frontend", "react", "vue", "angular", "svelte",
             "cdn", "content delivery", "seo", "page speed",
             "marketing automation", "tag manager", "google tag",
         ],
@@ -125,7 +125,7 @@ _CATEGORY_DENYLISTS = {
             "billing integration", "payment processing", "ledger",
         ],
         "prompt_constraint": (
-            "Frontend framework, CDN, SEO, and marketing automation angles "
+            "Frontend, CDN, SEO, and marketing automation angles "
             "are INVALID for a fintech seller unless the talking point "
             "explicitly ties them to a payment flow, transaction processing, "
             "PCI compliance, or financial data consequence."
@@ -133,7 +133,7 @@ _CATEGORY_DENYLISTS = {
     },
     "healthtech": {
         "blocked_patterns": [
-            "frontend framework", "react", "vue", "angular",
+            "frontend", "react", "vue", "angular",
             "cdn", "content delivery", "e-commerce", "ecommerce",
             "marketing automation", "seo", "tag manager",
         ],
@@ -142,7 +142,7 @@ _CATEGORY_DENYLISTS = {
             "health record", "care coordination", "telehealth",
         ],
         "prompt_constraint": (
-            "Frontend framework, CDN, e-commerce, and marketing automation "
+            "Frontend, CDN, e-commerce, and marketing automation "
             "angles are INVALID for a healthtech seller unless the talking "
             "point explicitly ties them to patient data, EHR integration, "
             "clinical workflow, or HIPAA compliance."
