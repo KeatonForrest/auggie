@@ -11,59 +11,6 @@
     <h2 class="text-lg font-semibold text-gray-900 mb-1">Data Sources</h2>
     <p class="text-sm text-gray-500 mb-4">Import companies and enrich your pipeline</p>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-        {% if integrations.get('apollo') %}
-        <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900">Apollo</h3>
-                        <p class="text-sm text-gray-500">Import lists and export CSV files to Apollo.io</p>
-                    </div>
-                </div>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Connected</span>
-            </div>
-            <div class="flex items-center gap-3">
-                <button onclick="openApolloImport()" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
-                    Import from List
-                </button>
-                <form method="post" action="/integrations/apollo/disconnect" class="inline">
-                    <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                        Disconnect
-                    </button>
-                </form>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if not integrations.get('apollo') %}
-        <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900">Apollo</h3>
-                        <p class="text-sm text-gray-500">Import lists and export CSV files to Apollo.io</p>
-                    </div>
-                </div>
-            </div>
-            <div id="apollo-form">
-                <div class="flex gap-3">
-                    <input type="text" id="apollo-key" placeholder="Enter your Apollo master API key"
-                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-600 focus:border-yellow-600 outline-none">
-                    <button onclick="connectApollo()" id="apollo-btn" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800">
-                        Connect
-                    </button>
-                </div>
-                <p id="apollo-error" class="mt-2 text-sm text-red-600 hidden"></p>
-            </div>
-        </div>
-        {% endif %}
-
         {% if integrations.get('google_sheets') %}
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between mb-4">
@@ -309,89 +256,10 @@
     {% endif %}
 </div>
 
-<!-- Apollo Import Modal -->
-<div id="apollo-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Import from Apollo</h2>
-            <button onclick="closeApolloImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
-        </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div id="ap-loading" class="text-center py-8 text-gray-500">Loading saved lists...</div>
-            <div id="ap-lists" class="hidden space-y-2"></div>
-            <div id="ap-error" class="hidden text-center py-8 text-red-600"></div>
-        </div>
-        <div class="p-6 border-t flex justify-end">
-            <input type="text" id="ap-list-name" placeholder="List name" value="Apollo Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
-            <button onclick="importApolloList()" id="ap-import-btn" class="px-4 py-2 bg-yellow-700 text-white text-sm font-medium rounded-lg hover:bg-yellow-800 disabled:opacity-50" disabled>
-                Import & Analyze
-            </button>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// === Apollo ===
-var apSelectedListId = null;
-
-function openApolloImport() {
-    document.getElementById('apollo-modal').classList.remove('hidden');
-    loadApolloLists();
-}
-
-function closeApolloImport() {
-    document.getElementById('apollo-modal').classList.add('hidden');
-}
-
-function loadApolloLists() {
-    document.getElementById('ap-loading').classList.remove('hidden');
-    document.getElementById('ap-error').classList.add('hidden');
-    fetch('/integrations/apollo/lists')
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(lists) {
-            document.getElementById('ap-loading').classList.add('hidden');
-            var container = document.getElementById('ap-lists');
-            container.classList.remove('hidden');
-            container.innerHTML = '';
-            lists.forEach(function(l) {
-                var div = document.createElement('div');
-                div.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer';
-                div.textContent = l.name || l.id;
-                div.onclick = function() {
-                    container.querySelectorAll('div').forEach(function(d) { d.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer'; });
-                    div.className = 'p-3 rounded-lg border border-yellow-600 bg-yellow-50 cursor-pointer';
-                    apSelectedListId = l.id;
-                    document.getElementById('ap-import-btn').disabled = false;
-                };
-                container.appendChild(div);
-            });
-            if (lists.length === 0) container.innerHTML = '<p class="text-gray-500 text-sm">No saved lists found.</p>';
-        })
-        .catch(function() {
-            document.getElementById('ap-loading').classList.add('hidden');
-            document.getElementById('ap-error').classList.remove('hidden');
-            document.getElementById('ap-error').textContent = 'Failed to load lists from Apollo.';
-        });
-}
-
-function importApolloList() {
-    if (!apSelectedListId) return;
-    var btn = document.getElementById('ap-import-btn');
-    btn.disabled = true; btn.textContent = 'Importing...';
-    fetch('/integrations/apollo/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: apSelectedListId, name: document.getElementById('ap-list-name').value || 'Apollo Import' })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) window.location.href = '/lists/' + data.list_id;
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
-    })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
-}
-
 // === Slack ===
 function connectSlack() {
     var btn = document.getElementById('slack-btn');
@@ -462,27 +330,5 @@ function testTeams() {
         .catch(function() { btn.disabled = false; btn.textContent = 'Send Test Message'; });
 }
 
-// === Apollo API key connect ===
-function connectApollo() {
-    var btn = document.getElementById('apollo-btn');
-    var key = document.getElementById('apollo-key').value.trim();
-    var errEl = document.getElementById('apollo-error');
-    errEl.classList.add('hidden');
-
-    if (!key) { errEl.textContent = 'Please enter an API key'; errEl.classList.remove('hidden'); return; }
-
-    btn.disabled = true; btn.textContent = 'Validating...';
-
-    fetch('/integrations/apollo/connect', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: key })
-    })
-    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-    .then(function(res) {
-        if (res.ok && res.data.success) { window.location.reload(); }
-        else { errEl.textContent = res.data.detail || 'Invalid API key'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; }
-    })
-    .catch(function() { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Connect'; });
-}
 </script>
 {% endblock %}

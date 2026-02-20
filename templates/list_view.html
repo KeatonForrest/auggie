@@ -35,10 +35,10 @@
                         <span class="font-medium">CSV</span>
                         <span class="block text-xs text-gray-400">Company-level with scores</span>
                     </a>
-                    <button onclick="document.getElementById('apollo-export-modal').classList.remove('hidden'); document.getElementById('export-dropdown').classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                        <span class="font-medium">CSV for Apollo</span>
-                        <span class="block text-xs text-gray-400">Contact-level with email sequences</span>
-                    </button>
+                    <a href="/lists/{{ list.id }}/export-csv" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onclick="document.getElementById('export-dropdown').classList.add('hidden')">
+                        <span class="font-medium">Contacts CSV</span>
+                        <span class="block text-xs text-gray-400">Contact-level export</span>
+                    </a>
                     {% if google_sheets_connected %}
                     <div class="border-t border-gray-100 my-1"></div>
                     <button onclick="pushToGoogleSheets(); document.getElementById('export-dropdown').classList.add('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" id="gsheets-btn">
@@ -228,71 +228,7 @@
         {% endif %}
         <button onclick="enrichSelected()" class="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded hover:bg-teal-700">Enrich Selected</button>
         <button onclick="writeSequencesSelected()" class="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">Write Sequences</button>
-        {% if apollo_connected %}
-        <button onclick="document.getElementById('apollo-export-modal').classList.remove('hidden')" class="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Export for Apollo</button>
-        {% endif %}
         <button id="retry-selected-btn" onclick="retrySelected()" class="hidden px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700">Retry Selected</button>
-    </div>
-</div>
-
-<!-- Apollo CSV Export Modal -->
-<div id="apollo-export-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) document.getElementById('apollo-export-modal').classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Export for Apollo</h2>
-            <button onclick="document.getElementById('apollo-export-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">&times;</button>
-        </div>
-        <div class="p-6 space-y-4">
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p class="text-sm text-amber-800 font-medium">Why a CSV?</p>
-                <p class="text-sm text-amber-700 mt-1">Apollo's API does not support creating email steps in sequences programmatically. Despite Auggie generating fully personalized, ready-to-send emails, Apollo provides no way to deliver them directly into sequences via their API. This CSV workaround uses Apollo's custom contact fields as the bridge.</p>
-            </div>
-
-            <div>
-                <p class="text-sm font-medium text-gray-900 mb-2">One-time setup in Apollo (takes ~2 minutes):</p>
-                <ol class="text-sm text-gray-600 space-y-1.5 list-decimal list-inside">
-                    <li>Go to <strong>Settings &rarr; Custom Fields &rarr; Contact</strong></li>
-                    <li>Create these 10 text fields:
-                        <div class="mt-1 ml-5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs font-mono text-gray-500">
-                            <span>auggie_composite_score</span>
-                            <span>auggie_pain_score</span>
-                            <span>auggie_fit_score</span>
-                            <span>auggie_timing_score</span>
-                            <span>auggie_email_1_subject</span>
-                            <span>auggie_email_1_body</span>
-                            <span>auggie_email_2_subject</span>
-                            <span>auggie_email_2_body</span>
-                            <span>auggie_email_3_subject</span>
-                            <span>auggie_email_3_body</span>
-                        </div>
-                    </li>
-                    <li>Create a 3-step sequence template where each email uses:<br>
-                        <span class="text-xs font-mono text-gray-500">Subject: {{auggie_email_1_subject}}</span><br>
-                        <span class="text-xs font-mono text-gray-500">Body: {{auggie_email_1_body}}</span><br>
-                        <span class="text-xs text-gray-400">(repeat for email 2 and 3)</span>
-                    </li>
-                </ol>
-            </div>
-
-            <div>
-                <p class="text-sm font-medium text-gray-900 mb-2">Each time you export:</p>
-                <ol class="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                    <li>Download the CSV below</li>
-                    <li>In Apollo: <strong>People &rarr; Import</strong> &rarr; upload the CSV</li>
-                    <li>Map the columns (Apollo remembers your mapping after the first time)</li>
-                    <li>Add the imported contacts to your sequence &mdash; hit activate</li>
-                </ol>
-            </div>
-
-            <p class="text-xs text-gray-400">Apollo's column mapping is remembered per-workspace, so this gets faster after the first import.</p>
-        </div>
-        <div class="p-6 border-t flex justify-end gap-3">
-            <button onclick="document.getElementById('apollo-export-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <a href="/lists/{{ list.id }}/export-apollo" onclick="document.getElementById('apollo-export-modal').classList.add('hidden')" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 inline-flex items-center">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                Download CSV
-            </a>
-        </div>
     </div>
 </div>
 

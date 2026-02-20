@@ -401,13 +401,13 @@ class TestIntegrationsPage:
             response = await authed_client.get("/integrations")
 
         assert response.status_code == 200
-        assert "Apollo" in response.text
+        assert "Google Sheets" in response.text
         assert "Slack" in response.text
 
     @pytest.mark.asyncio
     async def test_shows_connected_status(self, authed_client):
         integrations = [
-            {"provider": "apollo", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
+            {"provider": "slack", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
         ]
         with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \
              patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 1000, "is_admin": False}):

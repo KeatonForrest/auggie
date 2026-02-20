@@ -54,9 +54,6 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket_name: str = "auggie-materials"
 
-    # Apollo.io (for contact enrichment) - requires paid plan
-    apollo_api_key: str = ""
-
     # People Data Labs (for contact enrichment)
     pdl_api_key: str = ""
 

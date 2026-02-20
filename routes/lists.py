@@ -44,7 +44,6 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
     usage = await get_user_usage(user["id"])
     recent, _has_more = await list_lists(user["id"])
     gsheets_integration = await get_integration(user["id"], "google_sheets")
-    apollo_integration = await get_integration(user["id"], "apollo")
     return templates.TemplateResponse(
         request,
         "lists.html",
@@ -54,7 +53,6 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "google_sheets_connected": gsheets_integration is not None,
-            "apollo_connected": apollo_integration is not None,
             "zoominfo_connected": False,
             "pdl_connected": False,
             "lusha_connected": False,
@@ -282,7 +280,6 @@ async def view_list(
 
     # Check if integrations are connected
     gsheets_integration = await get_integration(user["id"], "google_sheets")
-    apollo_integration = await get_integration(user["id"], "apollo")
 
     # Contact counts per account (single SQL query)
     contact_counts = await get_contact_counts_for_list(list_id, user["id"])
@@ -309,7 +306,6 @@ async def view_list(
             "smartlead_connected": False,
             "outreach_connected": False,
             "salesloft_connected": False,
-            "apollo_connected": apollo_integration is not None,
             "gong_engage_connected": False,
             "google_sheets_connected": gsheets_integration is not None,
             "scored_count": scored_count,
@@ -365,12 +361,12 @@ async def export_list_csv(
     )
 
 
-@router.get("/lists/{list_id}/export-apollo")
-async def export_apollo_csv(
+@router.get("/lists/{list_id}/export-csv")
+async def export_contacts_csv(
     list_id: int,
     user: dict = Depends(require_onboarding),
 ):
-    """Export contact-level CSV for Apollo import with personalized email content."""
+    """Export contact-level CSV with personalized email content."""
     lst = await get_list(list_id, user["id"])
     if not lst:
         raise HTTPException(status_code=404, detail="List not found")
@@ -425,7 +421,7 @@ async def export_apollo_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}_apollo.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_contacts.csv"'},
     )
 
 
@@ -587,7 +583,7 @@ async def batch_enrich(
     providers = await get_provider_priority(user["id"])
     if not providers:
         return JSONResponse(
-            {"success": False, "error": "No enrichment provider connected. Connect Apollo or another provider in Integrations."},
+            {"success": False, "error": "No enrichment provider connected. Connect a provider in Integrations."},
             status_code=422,
         )
 

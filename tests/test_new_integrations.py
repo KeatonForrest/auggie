@@ -1,5 +1,5 @@
 """
-test_new_integrations.py - Tests for Salesforce, Apollo, PDL, Slack/Notifications services and routes.
+test_new_integrations.py - Tests for Salesforce, PDL, Slack/Notifications services and routes.
 """
 
 import pytest
@@ -227,117 +227,6 @@ class TestSalesforceWriteListScores:
 
         result = await write_list_scores_to_salesforce(user_id=1, list_source={"provider": "salesforce"}, accounts=[])
         assert result == 0
-
-
-# =============================================================================
-# Apollo Integration Service Tests
-# =============================================================================
-
-class TestApolloIntegrationValidateKey:
-    @pytest.mark.asyncio
-    async def test_valid_key_returns_true(self):
-        from services.apollo import validate_integration_api_key
-
-        mock_resp = MagicMock(status_code=200)
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.get.return_value = mock_resp
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            assert await validate_integration_api_key("valid-key") is True
-
-    @pytest.mark.asyncio
-    async def test_invalid_key_returns_false(self):
-        from services.apollo import validate_integration_api_key
-
-        mock_resp = MagicMock(status_code=401)
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.get.return_value = mock_resp
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            assert await validate_integration_api_key("bad-key") is False
-
-
-class TestApolloIntegrationGetKey:
-    @pytest.mark.asyncio
-    async def test_returns_key_when_connected(self):
-        from services.apollo import _get_integration_api_key
-
-        with patch("services.apollo.get_integration", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = {"access_token": "apollo-key"}
-            key = await _get_integration_api_key(user_id=1)
-
-        assert key == "apollo-key"
-
-    @pytest.mark.asyncio
-    async def test_raises_when_not_connected(self):
-        from services.apollo import _get_integration_api_key
-
-        with patch("services.apollo.get_integration", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
-
-            with pytest.raises(RuntimeError, match="Apollo not connected"):
-                await _get_integration_api_key(user_id=1)
-
-
-class TestApolloListSavedLists:
-    @pytest.mark.asyncio
-    async def test_returns_labels(self):
-        from services.apollo import list_saved_lists
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [{"id": "l1", "name": "My List"}]
-        mock_resp.raise_for_status = MagicMock()
-
-        with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("httpx.AsyncClient") as mock_client_cls:
-
-            mock_client = AsyncMock()
-            mock_client.get.return_value = mock_resp
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            result = await list_saved_lists(user_id=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "My List"
-
-
-class TestApolloFetchListCompanies:
-    @pytest.mark.asyncio
-    async def test_fetches_companies(self):
-        from services.apollo import fetch_list_companies
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "organizations": [{"id": "org1", "primary_domain": "acme.com"}],
-            "pagination": {"page": 1, "per_page": 100},
-        }
-        mock_resp.raise_for_status = MagicMock()
-
-        with patch("services.apollo._get_integration_api_key", new_callable=AsyncMock, return_value="key"), \
-             patch("httpx.AsyncClient") as mock_client_cls:
-
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            result = await fetch_list_companies(user_id=1, list_id="l1")
-
-        assert len(result["organizations"]) == 1
-        # Verify label_ids passed
-        call_json = mock_client.post.call_args[1]["json"]
-        assert call_json["label_ids"] == ["l1"]
 
 
 # =============================================================================
@@ -658,95 +547,6 @@ class TestSendTeamsNotification:
 
 
 # =============================================================================
-# Route Tests: Apollo
-# =============================================================================
-
-class TestApolloConnectRoute:
-    @pytest.mark.asyncio
-    async def test_valid_key_connects(self, authed_client):
-        with patch("routes.integrations.apollo_validate", new_callable=AsyncMock, return_value=True), \
-             patch("routes._helpers.upsert_integration", new_callable=AsyncMock) as mock_upsert:
-
-            response = await authed_client.post(
-                "/integrations/apollo/connect",
-                json={"api_key": "apollo-key-123"},
-            )
-
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-        mock_upsert.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_invalid_key_rejected(self, authed_client):
-        with patch("routes.integrations.apollo_validate", new_callable=AsyncMock, return_value=False):
-            response = await authed_client.post(
-                "/integrations/apollo/connect",
-                json={"api_key": "bad-key"},
-            )
-
-        assert response.status_code == 400
-
-    @pytest.mark.asyncio
-    async def test_empty_key_rejected(self, authed_client):
-        response = await authed_client.post(
-            "/integrations/apollo/connect",
-            json={"api_key": ""},
-        )
-        assert response.status_code == 400
-
-
-class TestApolloDisconnectRoute:
-    @pytest.mark.asyncio
-    async def test_disconnect(self, authed_client):
-        with patch("routes.integrations.delete_integration", new_callable=AsyncMock, return_value=True) as mock_delete:
-            response = await authed_client.post("/integrations/apollo/disconnect", follow_redirects=False)
-
-        assert response.status_code == 303
-        mock_delete.assert_called_once_with(1, "apollo")
-
-
-class TestApolloImportRoute:
-    @pytest.mark.asyncio
-    async def test_import_creates_list(self, authed_client):
-        with patch("routes._helpers.validate_company_url", side_effect=lambda url: url if url.startswith("http") else f"https://{url}"), \
-             patch("services.apollo.fetch_list_companies", new_callable=AsyncMock, return_value={
-                 "organizations": [
-                     {"id": "org1", "primary_domain": "acme.com"},
-                     {"id": "org2", "primary_domain": "beta.com"},
-                 ],
-             }), \
-             patch("routes._helpers.get_user_usage", new_callable=AsyncMock, return_value={"bonus_credits": 10000, "is_admin": False}), \
-             patch("routes._helpers.use_credit", new_callable=AsyncMock, return_value=True), \
-             patch("routes._helpers.create_list", new_callable=AsyncMock, return_value={"id": 60}), \
-             patch("routes._helpers.add_list_accounts", new_callable=AsyncMock), \
-             patch("routes._helpers.update_list_credits", new_callable=AsyncMock), \
-             patch("database.set_list_source", new_callable=AsyncMock) as mock_source, \
-             patch("routes._helpers.create_tracked_task", new_callable=AsyncMock):
-
-            response = await authed_client.post(
-                "/integrations/apollo/import",
-                json={"list_id": "l1", "name": "Apollo Import"},
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["list_id"] == 60
-        mock_source.assert_called_once()
-        source_arg = mock_source.call_args[0][1]
-        assert source_arg["provider"] == "apollo"
-        assert "https://acme.com" in source_arg["org_ids"]
-
-    @pytest.mark.asyncio
-    async def test_import_requires_list_id(self, authed_client):
-        response = await authed_client.post(
-            "/integrations/apollo/import",
-            json={"name": "Test"},
-        )
-        assert response.status_code == 400
-
-
-# =============================================================================
 # Route Tests: Slack
 # =============================================================================
 
@@ -893,7 +693,6 @@ class TestIntegrationsPageNewProviders:
             response = await authed_client.get("/integrations")
 
         assert response.status_code == 200
-        assert "Apollo" in response.text
         assert "Slack" in response.text
         assert "Microsoft Teams" in response.text
         assert "Google Sheets" in response.text
@@ -901,7 +700,6 @@ class TestIntegrationsPageNewProviders:
     @pytest.mark.asyncio
     async def test_page_shows_connected_for_new_providers(self, authed_client):
         integrations = [
-            {"provider": "apollo", "access_token": "tok", "created_at": datetime.now(), "updated_at": datetime.now()},
             {"provider": "slack", "access_token": "url", "created_at": datetime.now(), "updated_at": datetime.now()},
         ]
         with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=integrations), \

@@ -155,9 +155,6 @@ class TestV1PushDeprecated:
 # =============================================================================
 
 KEPT_ROUTES = [
-    # Apollo (connect needs JSON body)
-    ("post", "/integrations/apollo/connect", {"api_key": "test-key"}),
-    ("post", "/integrations/apollo/disconnect", None),
     # Slack (connect needs JSON body)
     ("post", "/integrations/slack/connect", {"webhook_url": "https://hooks.slack.com/test"}),
     ("post", "/integrations/slack/disconnect", None),
@@ -220,7 +217,7 @@ class TestDeprecatedDisconnectUX:
     async def test_hides_section_when_no_deprecated_providers(self, authed_client):
         """When only supported providers are connected, no deprecated section should appear."""
         with patch("routes.integrations.get_user_integrations", new_callable=AsyncMock, return_value=[
-            {"provider": "apollo", "access_token": "tok"},
+            {"provider": "slack", "access_token": "tok"},
         ]), patch("routes.integrations.get_user_usage", new_callable=AsyncMock, return_value={
             "bonus_credits": 0, "is_admin": False,
         }):

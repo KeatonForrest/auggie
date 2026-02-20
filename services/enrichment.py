@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class EnrichmentProvider(ABC):
     """Base class for contact enrichment providers."""
 
-    name: str  # e.g. "apollo", "leadmagic"
+    name: str  # e.g. "leadmagic"
     cost_per_contact: float  # credits cost (0 = free)
 
     @abstractmethod
@@ -33,61 +33,11 @@ class EnrichmentProvider(ABC):
         ...
 
 
-class ApolloEnrichmentProvider(EnrichmentProvider):
-    """Enrich contacts via Apollo people search — free if user has Apollo connected."""
-
-    name = "apollo"
-    cost_per_contact = 0.0
-
-    async def enrich(self, domain: str, api_key: str, *, company_name: str = "", person_titles: list[str] = None) -> list[dict]:
-        clean_domain = domain.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-        contacts = []
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Search for people at this domain
-            payload = {
-                "q_organization_domains": clean_domain,
-                "page": 1,
-                "per_page": 25,
-            }
-            if person_titles:
-                payload["person_titles"] = person_titles
-            resp = await client.post(
-                "https://api.apollo.io/v1/mixed_people/search",
-                headers={"Content-Type": "application/json", "X-Api-Key": api_key},
-                json=payload,
-            )
-            if resp.status_code >= 400:
-                logger.warning("Apollo people search failed for %s: %s %s", clean_domain, resp.status_code, resp.text[:200])
-                return []
-
-            people = resp.json().get("people", [])
-            logger.info("Apollo enrichment found %d people for %s", len(people), clean_domain)
-
-            for person in people:
-                email = person.get("email")
-                if not email:
-                    continue
-                contacts.append({
-                    "first_name": person.get("first_name", ""),
-                    "last_name": person.get("last_name", ""),
-                    "title": person.get("title", ""),
-                    "email": email,
-                    "email_status": person.get("email_status", ""),
-                    "profile_url": person.get("linkedin_url", ""),
-                    "company_name": person.get("organization", {}).get("name", "") or company_name,
-                    "name": f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),
-                })
-
-        return contacts
-
-
 # =============================================================================
 # Provider registry
 # =============================================================================
 
 PROVIDERS: dict[str, EnrichmentProvider] = {
-    "apollo": ApolloEnrichmentProvider(),
 }
 
 
@@ -101,7 +51,7 @@ async def get_provider_priority(user_id: int) -> list[str]:
     Currently: check which providers the user has connected, return in
     default priority order. Later this can be user-configurable.
     """
-    priority_order = ["apollo"]  # expand as providers are added
+    priority_order: list[str] = []  # expand as providers are added
     connected = []
     for provider_name in priority_order:
         integration = await get_integration(user_id, provider_name)

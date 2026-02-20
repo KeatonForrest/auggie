@@ -219,15 +219,12 @@ class TestCollectEnrichmentData:
         """Test that all enrichments are collected and set on scraped_content."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         # Mock all service methods
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration, \
-             patch("services.collect.apollo_get_firmographics") as mock_apollo:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             # Set up mock returns
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
@@ -238,11 +235,6 @@ patch("services.collect.edgar_service") as mock_edgar, \
             mock_retrieval.get_relevant_context = AsyncMock(return_value="Materials content")
             mock_get_retrieval.return_value = mock_retrieval
 
-            # Mock Apollo integration
-            mock_apollo_integration = MagicMock()
-            mock_get_integration.return_value = mock_apollo_integration
-            mock_apollo.return_value = "Apollo firmographics"
-
             result = await collect_enrichment_data(
                 scraped_content=scraped_content,
                 company_url="https://www.example.com",
@@ -250,59 +242,26 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # Verify all enrichments were set
-            assert scraped_content.edgar_filings == "EDGAR content"
-            assert scraped_content.federal_regulations == "Federal Register content"
-            assert scraped_content.firmographics == "Apollo firmographics"
-            assert result == "Materials content"
+        # Verify all enrichments were set
+        assert scraped_content.edgar_filings == "EDGAR content"
+        assert scraped_content.federal_regulations == "Federal Register content"
+        assert result == "Materials content"
 
     @pytest.mark.asyncio
     async def test_individual_failures_dont_break_others(self, mock_settings, scraped_content):
         """Test that failures in individual enrichments don't break the whole process."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
             mock_get_retrieval.return_value = None
-            mock_get_integration.return_value = None
-
-            result = await collect_enrichment_data(
-                scraped_content=scraped_content,
-                company_url="https://www.example.com",
-                user_id=123,
-                verbose=False
-            )
-
-            assert scraped_content.edgar_filings == "EDGAR content"
-            assert scraped_content.federal_regulations == "Federal Register content"
-
-    @pytest.mark.asyncio
-    async def test_federal_register_runs_after_edgar(self, mock_settings, scraped_content):
-        """Test that Federal Register runs after EDGAR and uses SIC code."""
-        mock_client = AsyncMock(spec=httpx.AsyncClient)
-        mock_client.is_closed = False
-
-        with patch("services.collect.get_settings", return_value=mock_settings), \
-             patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
-             patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
-
-            mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
-            mock_edgar._last_sic_code = "5678"
-            mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
-            mock_get_retrieval.return_value = None
-            mock_get_integration.return_value = None
 
             await collect_enrichment_data(
                 scraped_content=scraped_content,
@@ -311,29 +270,52 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # Verify Federal Register was called with EDGAR's SIC code
-            mock_fed_reg.get_upcoming_regulations.assert_called_once()
-            call_kwargs = mock_fed_reg.get_upcoming_regulations.call_args.kwargs
-            assert call_kwargs["sic_code"] == "5678"
-            assert call_kwargs["company_name"] == "example.com"
+        assert scraped_content.edgar_filings == "EDGAR content"
+        assert scraped_content.federal_regulations == "Federal Register content"
+
+    @pytest.mark.asyncio
+    async def test_federal_register_runs_after_edgar(self, mock_settings, scraped_content):
+        """Test that Federal Register runs after EDGAR and uses SIC code."""
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.is_closed = False
+        with patch("services.collect.get_settings", return_value=mock_settings), \
+             patch("services.collect.get_shared_http_client", return_value=mock_client), \
+             patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.federal_register_service") as mock_fed_reg, \
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
+
+            mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
+            mock_edgar._last_sic_code = "5678"
+            mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Federal Register content")
+            mock_get_retrieval.return_value = None
+
+            await collect_enrichment_data(
+                scraped_content=scraped_content,
+                company_url="https://www.example.com",
+                user_id=123,
+                verbose=False
+            )
+
+        # Verify Federal Register was called with EDGAR's SIC code
+        mock_fed_reg.get_upcoming_regulations.assert_called_once()
+        call_kwargs = mock_fed_reg.get_upcoming_regulations.call_args.kwargs
+        assert call_kwargs["sic_code"] == "5678"
+        assert call_kwargs["company_name"] == "example.com"
 
     @pytest.mark.asyncio
     async def test_materials_returned_as_string(self, mock_settings, scraped_content):
         """Test that materials result is returned as string."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
-            mock_get_integration.return_value = None
 
             mock_retrieval = MagicMock()
             mock_retrieval.get_relevant_context = AsyncMock(return_value="Retrieved materials")
@@ -346,8 +328,8 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            assert result == "Retrieved materials"
-            assert isinstance(result, str)
+        assert result == "Retrieved materials"
+        assert isinstance(result, str)
 
     @pytest.mark.asyncio
     async def test_edgar_disabled_respects_setting(self, scraped_content):
@@ -359,19 +341,16 @@ patch("services.collect.edgar_service") as mock_edgar, \
 
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value="Should not be called")
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
             mock_get_retrieval.return_value = None
-            mock_get_integration.return_value = None
 
             await collect_enrichment_data(
                 scraped_content=scraped_content,
@@ -380,9 +359,9 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # EDGAR should not be called
-            mock_edgar.get_company_filings.assert_not_called()
-            assert scraped_content.edgar_filings is None
+        # EDGAR should not be called
+        mock_edgar.get_company_filings.assert_not_called()
+        assert scraped_content.edgar_filings is None
 
     @pytest.mark.asyncio
     async def test_federal_register_disabled_respects_setting(self, scraped_content):
@@ -394,19 +373,16 @@ patch("services.collect.edgar_service") as mock_edgar, \
 
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value="EDGAR content")
             mock_edgar._last_sic_code = "1234"
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value="Should not be called")
             mock_get_retrieval.return_value = None
-            mock_get_integration.return_value = None
 
             await collect_enrichment_data(
                 scraped_content=scraped_content,
@@ -415,28 +391,25 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # Federal Register should not be called
-            mock_fed_reg.get_upcoming_regulations.assert_not_called()
-            assert scraped_content.federal_regulations is None
+        # Federal Register should not be called
+        mock_fed_reg.get_upcoming_regulations.assert_not_called()
+        assert scraped_content.federal_regulations is None
 
     @pytest.mark.asyncio
     async def test_verbose_mode_logs_progress(self, mock_settings, scraped_content):
         """Test that verbose mode doesn't break execution (logging tested separately)."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
             mock_get_retrieval.return_value = None
-            mock_get_integration.return_value = None
 
             # Should not raise error in verbose mode
             result = await collect_enrichment_data(
@@ -446,20 +419,18 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=True
             )
 
-            assert isinstance(result, str)
+        assert isinstance(result, str)
 
     @pytest.mark.asyncio
     async def test_company_name_extraction_in_context(self, mock_settings, scraped_content):
         """Test that company name is correctly extracted and used."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
@@ -468,7 +439,6 @@ patch("services.collect.edgar_service") as mock_edgar, \
             mock_retrieval = MagicMock()
             mock_retrieval.get_relevant_context = AsyncMock(return_value="")
             mock_get_retrieval.return_value = mock_retrieval
-            mock_get_integration.return_value = None
 
             await collect_enrichment_data(
                 scraped_content=scraped_content,
@@ -477,28 +447,25 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # Verify the extracted company name was used
-            mock_edgar.get_company_filings.assert_called_once()
-            call_args = mock_edgar.get_company_filings.call_args
-            assert call_args[0][0] == "acme-corp.com"
+        # Verify the extracted company name was used
+        mock_edgar.get_company_filings.assert_called_once()
+        call_args = mock_edgar.get_company_filings.call_args
+        assert call_args[0][0] == "acme-corp.com"
 
     @pytest.mark.asyncio
     async def test_materials_empty_string_on_none(self, mock_settings, scraped_content):
         """Test that materials returns empty string when retrieval returns None."""
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.is_closed = False
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
-            mock_get_integration.return_value = None
 
             mock_retrieval = MagicMock()
             mock_retrieval.get_relevant_context = AsyncMock(return_value=None)
@@ -511,7 +478,7 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            assert result == ""
+        assert result == ""
 
     @pytest.mark.asyncio
     async def test_materials_uses_homepage_for_context(self, mock_settings, scraped_content):
@@ -520,18 +487,15 @@ patch("services.collect.edgar_service") as mock_edgar, \
         mock_client.is_closed = False
 
         scraped_content.homepage = "A" * 600  # More than 500 chars
-
         with patch("services.collect.get_settings", return_value=mock_settings), \
              patch("services.collect.get_shared_http_client", return_value=mock_client), \
-patch("services.collect.edgar_service") as mock_edgar, \
+             patch("services.collect.edgar_service") as mock_edgar, \
              patch("services.collect.federal_register_service") as mock_fed_reg, \
-             patch("services.collect._get_retrieval_service") as mock_get_retrieval, \
-             patch("services.collect.get_integration") as mock_get_integration:
+             patch("services.collect._get_retrieval_service") as mock_get_retrieval:
 
             mock_edgar.get_company_filings = AsyncMock(return_value=None)
             mock_edgar._last_sic_code = None
             mock_fed_reg.get_upcoming_regulations = AsyncMock(return_value=None)
-            mock_get_integration.return_value = None
 
             mock_retrieval = MagicMock()
             mock_retrieval.get_relevant_context = AsyncMock(return_value="")
@@ -544,6 +508,6 @@ patch("services.collect.edgar_service") as mock_edgar, \
                 verbose=False
             )
 
-            # Verify homepage was truncated to 500 chars
-            call_kwargs = mock_retrieval.get_relevant_context.call_args.kwargs
-            assert call_kwargs["company_description"] == "A" * 500
+        # Verify homepage was truncated to 500 chars
+        call_kwargs = mock_retrieval.get_relevant_context.call_args.kwargs
+        assert call_kwargs["company_description"] == "A" * 500

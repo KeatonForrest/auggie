@@ -9,7 +9,7 @@ AI-powered account research for sales teams. Enter a company URL, get deep resea
 1. **Scrapes company websites** (Firecrawl) — homepage, about, careers, blog, job boards, investor relations
 2. **Detects technology stack** (custom fingerprinting engine) — frameworks, databases, infrastructure across domains
 3. **Analyzes security posture** — DNS records (SPF, DKIM, DMARC), SSL/TLS certificates
-4. **Enriches with contacts** (BYOK — Apollo, PDL, Lusha, Cognism, LeadMagic, ZoomInfo) — finds key decision makers
+4. **Enriches with contacts** (BYOK — PDL, Lusha, Cognism, LeadMagic, ZoomInfo) — finds key decision makers
 5. **Analyzes regulatory filings** (SEC EDGAR, Federal Register) — compliance deadlines, risk factors
 6. **Generates research document** (Gemini 2.5 Flash via OpenRouter) — company overview, pain/fit/timing scoring, talking points
 7. **Writes outreach emails** (Mistral Small Creative via OpenRouter) — personalized 3-email sequence tailored to the research
@@ -31,7 +31,7 @@ AI-powered account research for sales teams. Enter a company URL, get deep resea
 - **Vanity URLs** — Shareable `/@org/doc-slug` links for research documents
 - **OG images** — Dynamic Open Graph images for link previews
 - **Platforms hub** — Guides for Clay, Make, n8n, Zapier
-- **14+ integrations** — Apollo, PDL, Lusha, Cognism, LeadMagic, ZoomInfo, HubSpot, Salesforce, Outreach, SalesLoft, Instantly, Smartlead, Gong Engage, Google Sheets
+- **14+ integrations** — PDL, Lusha, Cognism, LeadMagic, ZoomInfo, HubSpot, Salesforce, Outreach, SalesLoft, Instantly, Smartlead, Gong Engage, Google Sheets
 - **Notifications** — Slack and Microsoft Teams webhooks
 
 ## Project Structure
@@ -97,7 +97,6 @@ account_research/
 │   ├── og_image.py      # OG image generation
 │   ├── notifications.py # Slack/Teams webhooks
 │   ├── automation.py    # Automation rule evaluation
-│   ├── apollo.py        # Apollo.io
 │   ├── pdl.py           # People Data Labs
 │   ├── lusha.py         # Lusha
 │   ├── cognism.py       # Cognism

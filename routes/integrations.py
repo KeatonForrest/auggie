@@ -16,9 +16,8 @@ from routes._helpers import (
     _oauth_connect, _oauth_callback, _apikey_connect, _run_crm_import,
 )
 from routes.integrations_constants import DEPRECATION_MESSAGE, DEPRECATED_PROVIDERS, DEPRECATED_PROVIDER_NAMES
-from routes.schemas import ApiKeyConnectRequest, ApolloImportRequest, SlackConnectRequest
+from routes.schemas import ApiKeyConnectRequest, SlackConnectRequest
 from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
-from services.apollo import validate_integration_api_key as apollo_validate
 from services.notifications import validate_webhook_url, send_slack_notification, validate_teams_webhook_url, send_teams_notification
 
 settings = get_settings()
@@ -296,59 +295,6 @@ async def zoominfo_companies(request: Request, user: dict = Depends(require_onbo
 async def zoominfo_import(request: Request, user: dict = Depends(require_onboarding)):
     """Import selected ZoomInfo companies into an Auggie list."""
     return _deprecated_response("zoominfo")
-
-
-# ==========================================================================
-# Apollo
-# ==========================================================================
-
-@router.post("/integrations/apollo/connect")
-async def apollo_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Apollo API key after validation."""
-    body = ApiKeyConnectRequest(**(await request.json()))
-    return await _apikey_connect(user, "apollo", body.api_key, apollo_validate, "Apollo API key")
-
-
-@router.post("/integrations/apollo/disconnect")
-async def apollo_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Apollo integration."""
-    await delete_integration(user["id"], "apollo")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/apollo/lists")
-async def apollo_lists(request: Request, user: dict = Depends(require_onboarding)):
-    """List saved Apollo lists."""
-    from services.apollo import list_saved_lists
-    try:
-        lists = await list_saved_lists(user["id"])
-    except Exception as e:
-        logger.error("Apollo API error: %s", e, extra={"event_type": "integration_provider_error", "provider": "apollo", "status_code": 502})
-        raise HTTPException(status_code=502, detail=f"Apollo API error: {e}")
-    return JSONResponse(lists)
-
-
-@router.post("/integrations/apollo/import")
-async def apollo_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import companies from an Apollo saved list into an Auggie list."""
-    from services.apollo import fetch_list_companies
-
-    body = ApolloImportRequest(**(await request.json()))
-    data = await fetch_list_companies(user["id"], body.list_id)
-    logger.info("Apollo import response keys: %s", list(data.keys()) if isinstance(data, dict) else type(data))
-    organizations = data.get("organizations", []) or data.get("accounts", [])
-    logger.info("Apollo import found %d organizations", len(organizations))
-    if organizations:
-        logger.info("Apollo first org keys: %s", list(organizations[0].keys()))
-
-    def extractor(org):
-        domain = (org.get("primary_domain") or org.get("website_url") or "").strip()
-        return domain, org.get("id")  # Apollo org ID
-
-    def source_metadata(id_map):
-        return {"provider": "apollo", "org_ids": id_map}
-
-    return await _run_crm_import(user, organizations, body.name, extractor, source_metadata_fn=source_metadata)
 
 
 # ==========================================================================

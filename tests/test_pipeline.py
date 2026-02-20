@@ -261,20 +261,15 @@ async def test_batch_enrich_no_provider_returns_422(authed_client):
 
 
 @pytest.mark.asyncio
-async def test_batch_enrich_with_provider_queues_task(authed_client):
-    """POST /lists/{id}/batch-enrich with a provider connected should queue task."""
+async def test_batch_enrich_no_providers_returns_422(authed_client):
+    """POST /lists/{id}/batch-enrich with no enrichment providers returns 422."""
     fake_list = {"id": 1, "user_id": 1, "name": "Test", "status": "completed",
                  "total_accounts": 5, "analyzed_accounts": 5, "failed_accounts": 0}
-    fake_integration = {"id": 1, "access_token": "test-key"}
-    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list), \
-         patch("services.enrichment.get_integration", new_callable=AsyncMock, return_value=fake_integration), \
-         patch("routes.lists.create_tracked_task", new_callable=AsyncMock), \
-         patch("routes.lists.count_ready_accounts", new_callable=AsyncMock, return_value=3):
+    with patch("routes.lists.get_list", new_callable=AsyncMock, return_value=fake_list):
         response = await authed_client.post("/lists/1/batch-enrich", json={})
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = response.json()
-        assert data["success"] is True
-        assert data["queued_count"] == 3
+        assert "provider" in data["error"].lower()
 
 
 @pytest.mark.asyncio

@@ -60,19 +60,6 @@
         {% endif %}
     </div>
 
-    <!-- Import from Apollo -->
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Import from Apollo</h2>
-        {% if apollo_connected %}
-        <p class="text-sm text-gray-500 mb-4">Select a saved list from your Apollo account to import companies.</p>
-        <button onclick="openApolloImport()" id="apollo-import-btn" class="bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700 text-sm font-medium">
-            Choose Apollo List
-        </button>
-        {% else %}
-        <p class="text-sm text-gray-500">Connect Apollo on the <a href="/integrations" class="text-blue-600 hover:text-blue-800 font-medium">Integrations page</a> to import from your saved lists.</p>
-        {% endif %}
-    </div>
-
     <!-- Recent Lists -->
     {% if lists %}
     <div class="bg-white shadow rounded-lg overflow-hidden">
@@ -155,29 +142,6 @@
     </div>
     {% endif %}
 
-{% if apollo_connected %}
-<!-- Apollo Import Modal -->
-<div id="apollo-import-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="if(event.target===this) closeApolloImport()">
-    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Import from Apollo</h2>
-            <button onclick="closeApolloImport()" class="text-gray-400 hover:text-gray-600">&times;</button>
-        </div>
-        <div class="p-6 overflow-y-auto flex-1">
-            <div id="ap-loading" class="text-center py-8 text-gray-500">Loading saved lists...</div>
-            <div id="ap-lists" class="hidden space-y-2"></div>
-            <div id="ap-error" class="hidden text-center py-8 text-red-600"></div>
-        </div>
-        <div class="p-6 border-t flex justify-end">
-            <input type="text" id="ap-list-name" placeholder="List name" value="Apollo Import" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 mr-3">
-            <button onclick="importApolloList()" id="ap-import-btn" class="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50" disabled>
-                Import & Analyze
-            </button>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 </div>
 {% endblock %}
 
@@ -216,66 +180,6 @@ function importGoogleSheet() {
         btn.disabled = false;
         btn.textContent = 'Import & Analyze';
     });
-}
-
-// Apollo import
-var apSelectedListId = null;
-
-function openApolloImport() {
-    document.getElementById('apollo-import-modal').classList.remove('hidden');
-    loadApolloLists();
-}
-
-function closeApolloImport() {
-    document.getElementById('apollo-import-modal').classList.add('hidden');
-}
-
-function loadApolloLists() {
-    document.getElementById('ap-loading').classList.remove('hidden');
-    document.getElementById('ap-error').classList.add('hidden');
-    document.getElementById('ap-lists').classList.add('hidden');
-    fetch('/integrations/apollo/lists')
-        .then(function(r) { if (!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(function(lists) {
-            document.getElementById('ap-loading').classList.add('hidden');
-            var container = document.getElementById('ap-lists');
-            container.classList.remove('hidden');
-            container.innerHTML = '';
-            lists.forEach(function(l) {
-                var div = document.createElement('div');
-                div.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer';
-                div.textContent = l.name || l.id;
-                div.onclick = function() {
-                    container.querySelectorAll('div').forEach(function(d) { d.className = 'p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer'; });
-                    div.className = 'p-3 rounded-lg border border-amber-600 bg-amber-50 cursor-pointer';
-                    apSelectedListId = l.id;
-                    document.getElementById('ap-import-btn').disabled = false;
-                };
-                container.appendChild(div);
-            });
-            if (lists.length === 0) container.innerHTML = '<p class="text-gray-500 text-sm">No saved lists found in Apollo.</p>';
-        })
-        .catch(function() {
-            document.getElementById('ap-loading').classList.add('hidden');
-            document.getElementById('ap-error').classList.remove('hidden');
-            document.getElementById('ap-error').textContent = 'Failed to load lists from Apollo.';
-        });
-}
-
-function importApolloList() {
-    if (!apSelectedListId) return;
-    var btn = document.getElementById('ap-import-btn');
-    btn.disabled = true; btn.textContent = 'Importing...';
-    fetch('/integrations/apollo/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: apSelectedListId, name: document.getElementById('ap-list-name').value || 'Apollo Import' })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) window.location.href = '/lists/' + data.list_id;
-        else { btn.disabled = false; btn.textContent = 'Import & Analyze'; }
-    })
-    .catch(function() { btn.disabled = false; btn.textContent = 'Import & Analyze'; });
 }
 
 </script>

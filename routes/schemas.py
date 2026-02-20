@@ -22,11 +22,6 @@ class ZoomInfoImportRequest(BaseModel):
     name: str = "ZoomInfo Import"
 
 
-class ApolloImportRequest(BaseModel):
-    list_id: str
-    name: str = "Apollo Import"
-
-
 class PDLImportRequest(BaseModel):
     query: dict
     name: str = "PDL Import"
