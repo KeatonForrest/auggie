@@ -226,34 +226,6 @@
         </div>
     </div>
 
-    {% if deprecated_integrations %}
-    <!-- Deprecated Integrations -->
-    <h2 class="text-lg font-semibold text-gray-500 mb-1">Deprecated Integrations</h2>
-    <p class="text-sm text-gray-400 mb-4">These integrations are no longer supported. You may disconnect them below.</p>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-        {% for dep in deprecated_integrations %}
-        <div class="bg-gray-50 rounded-lg shadow p-6 border border-gray-200">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-600">{{ dep.name }}</h3>
-                        <p class="text-sm text-gray-400">Deprecated</p>
-                    </div>
-                </div>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Connected</span>
-            </div>
-            <form method="post" action="/integrations/{{ dep.provider }}/disconnect" class="inline">
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
-                    Disconnect
-                </button>
-            </form>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 </div>
 
 {% endblock %}

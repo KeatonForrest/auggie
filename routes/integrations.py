@@ -1,7 +1,5 @@
 """Integration routes: OAuth + API-key connect/disconnect/callback/import for all providers."""
 
-import logging
-
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
@@ -13,23 +11,14 @@ from database import (
 )
 from routes._helpers import (
     templates, logger,
-    _oauth_connect, _oauth_callback, _apikey_connect, _run_crm_import,
+    _oauth_connect, _oauth_callback,
 )
-from routes.integrations_constants import DEPRECATION_MESSAGE, DEPRECATED_PROVIDERS, DEPRECATED_PROVIDER_NAMES
 from routes.schemas import ApiKeyConnectRequest, SlackConnectRequest
 from services.google_sheets import get_authorize_url as gsheets_authorize_url, exchange_code as gsheets_exchange_code
 from services.notifications import validate_webhook_url, send_slack_notification, validate_teams_webhook_url, send_teams_notification
 
 settings = get_settings()
 router = APIRouter()
-
-
-def _deprecated_response(provider: str) -> JSONResponse:
-    """Return a 410 Gone response for deprecated integrations."""
-    return JSONResponse(
-        status_code=410,
-        content={"error": {"code": "provider_deprecated", "message": f"{provider}: {DEPRECATION_MESSAGE}"}},
-    )
 
 
 # ==========================================================================
@@ -42,10 +31,6 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
     integrations = await get_user_integrations(user["id"])
     integration_map = {i["provider"]: i for i in integrations}
     usage = await get_user_usage(user["id"])
-    deprecated_connected = [
-        {"provider": p, "name": DEPRECATED_PROVIDER_NAMES.get(p, p)}
-        for p in integration_map if p in DEPRECATED_PROVIDERS
-    ]
     return templates.TemplateResponse(
         request,
         "integrations.html",
@@ -54,322 +39,27 @@ async def integrations_page(request: Request, user: dict = Depends(require_onboa
             "integrations": integration_map,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
-            "deprecated_integrations": deprecated_connected,
         }
     )
 
 
 # ==========================================================================
-# HubSpot
+# Deprecated provider disconnect (safety valve — no UI, tokens only)
 # ==========================================================================
 
-@router.get("/integrations/hubspot/connect")
-async def hubspot_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to HubSpot OAuth."""
-    return _deprecated_response("hubspot")
+_DEPRECATED_PROVIDERS = frozenset({
+    "hubspot", "salesforce", "outreach", "salesloft", "gong_engage",
+    "zoominfo", "instantly", "smartlead", "pdl", "lusha", "cognism",
+})
 
 
-@router.get("/integrations/hubspot/callback")
-async def hubspot_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle HubSpot OAuth callback."""
-    return _deprecated_response("hubspot")
-
-
-@router.post("/integrations/hubspot/disconnect")
-async def hubspot_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect HubSpot integration."""
-    await delete_integration(user["id"], "hubspot")
+@router.post("/integrations/{provider}/disconnect")
+async def deprecated_disconnect(provider: str, request: Request, user: dict = Depends(require_auth)):
+    """Disconnect a deprecated integration. Allows cleanup of legacy tokens."""
+    if provider not in _DEPRECATED_PROVIDERS:
+        raise HTTPException(status_code=404, detail="Not found")
+    await delete_integration(user["id"], provider)
     return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/hubspot/companies")
-async def hubspot_companies(request: Request, user: dict = Depends(require_onboarding)):
-    """Fetch companies from HubSpot for import selection."""
-    return _deprecated_response("hubspot")
-
-
-@router.post("/integrations/hubspot/import")
-async def hubspot_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import selected HubSpot companies into an Auggie list."""
-    return _deprecated_response("hubspot")
-
-
-# ==========================================================================
-# Instantly
-# ==========================================================================
-
-@router.post("/integrations/instantly/connect")
-async def instantly_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Instantly API key after validation."""
-    return _deprecated_response("instantly")
-
-
-@router.post("/integrations/instantly/disconnect")
-async def instantly_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Instantly integration."""
-    await delete_integration(user["id"], "instantly")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/instantly/campaigns")
-async def instantly_campaigns(request: Request, user: dict = Depends(require_onboarding)):
-    """List Instantly campaigns."""
-    return _deprecated_response("instantly")
-
-
-# ==========================================================================
-# Smartlead
-# ==========================================================================
-
-@router.post("/integrations/smartlead/connect")
-async def smartlead_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Smartlead API key after validation."""
-    return _deprecated_response("smartlead")
-
-
-@router.post("/integrations/smartlead/disconnect")
-async def smartlead_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Smartlead integration."""
-    await delete_integration(user["id"], "smartlead")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/smartlead/campaigns")
-async def smartlead_campaigns(request: Request, user: dict = Depends(require_onboarding)):
-    """List Smartlead campaigns."""
-    return _deprecated_response("smartlead")
-
-
-# ==========================================================================
-# Salesforce
-# ==========================================================================
-
-@router.get("/integrations/salesforce/connect")
-async def salesforce_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to Salesforce OAuth."""
-    return _deprecated_response("salesforce")
-
-
-@router.get("/integrations/salesforce/callback")
-async def salesforce_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle Salesforce OAuth callback."""
-    return _deprecated_response("salesforce")
-
-
-@router.post("/integrations/salesforce/disconnect")
-async def salesforce_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Salesforce integration."""
-    await delete_integration(user["id"], "salesforce")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/salesforce/accounts")
-async def salesforce_accounts(request: Request, user: dict = Depends(require_onboarding)):
-    """Fetch accounts from Salesforce for import selection."""
-    return _deprecated_response("salesforce")
-
-
-@router.post("/integrations/salesforce/import")
-async def salesforce_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import selected Salesforce accounts into an Auggie list."""
-    return _deprecated_response("salesforce")
-
-
-# ==========================================================================
-# Outreach
-# ==========================================================================
-
-@router.get("/integrations/outreach/connect")
-async def outreach_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to Outreach OAuth."""
-    return _deprecated_response("outreach")
-
-
-@router.get("/integrations/outreach/callback")
-async def outreach_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle Outreach OAuth callback."""
-    return _deprecated_response("outreach")
-
-
-@router.post("/integrations/outreach/disconnect")
-async def outreach_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Outreach integration."""
-    await delete_integration(user["id"], "outreach")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/outreach/sequences")
-async def outreach_sequences(request: Request, user: dict = Depends(require_onboarding)):
-    """List Outreach sequences."""
-    return _deprecated_response("outreach")
-
-
-# ==========================================================================
-# SalesLoft
-# ==========================================================================
-
-@router.get("/integrations/salesloft/connect")
-async def salesloft_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to SalesLoft OAuth."""
-    return _deprecated_response("salesloft")
-
-
-@router.get("/integrations/salesloft/callback")
-async def salesloft_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle SalesLoft OAuth callback."""
-    return _deprecated_response("salesloft")
-
-
-@router.post("/integrations/salesloft/disconnect")
-async def salesloft_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect SalesLoft integration."""
-    await delete_integration(user["id"], "salesloft")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/salesloft/cadences")
-async def salesloft_cadences(request: Request, user: dict = Depends(require_onboarding)):
-    """List SalesLoft cadences."""
-    return _deprecated_response("salesloft")
-
-
-# ==========================================================================
-# Gong Engage
-# ==========================================================================
-
-@router.get("/integrations/gong_engage/connect")
-async def gong_engage_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to Gong Engage OAuth."""
-    return _deprecated_response("gong_engage")
-
-
-@router.get("/integrations/gong_engage/callback")
-async def gong_engage_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle Gong Engage OAuth callback."""
-    return _deprecated_response("gong_engage")
-
-
-@router.post("/integrations/gong_engage/disconnect")
-async def gong_engage_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Gong Engage integration."""
-    await delete_integration(user["id"], "gong_engage")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/gong_engage/flows")
-async def gong_engage_flows(request: Request, user: dict = Depends(require_onboarding)):
-    """List Gong Engage flows."""
-    return _deprecated_response("gong_engage")
-
-
-# ==========================================================================
-# ZoomInfo
-# ==========================================================================
-
-@router.get("/integrations/zoominfo/connect")
-async def zoominfo_connect(request: Request, user: dict = Depends(require_auth)):
-    """Redirect to ZoomInfo OAuth with PKCE."""
-    return _deprecated_response("zoominfo")
-
-
-@router.get("/integrations/zoominfo/callback")
-async def zoominfo_callback(request: Request, user: dict = Depends(require_auth)):
-    """Handle ZoomInfo OAuth callback with PKCE verifier."""
-    return _deprecated_response("zoominfo")
-
-
-@router.post("/integrations/zoominfo/disconnect")
-async def zoominfo_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect ZoomInfo integration."""
-    await delete_integration(user["id"], "zoominfo")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.get("/integrations/zoominfo/companies")
-async def zoominfo_companies(request: Request, user: dict = Depends(require_onboarding)):
-    """Search companies via ZoomInfo API."""
-    return _deprecated_response("zoominfo")
-
-
-@router.post("/integrations/zoominfo/import")
-async def zoominfo_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Import selected ZoomInfo companies into an Auggie list."""
-    return _deprecated_response("zoominfo")
-
-
-# ==========================================================================
-# PDL (People Data Labs)
-# ==========================================================================
-
-@router.post("/integrations/pdl/connect")
-async def pdl_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save PDL API key after validation."""
-    return _deprecated_response("pdl")
-
-
-@router.post("/integrations/pdl/disconnect")
-async def pdl_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect PDL integration."""
-    await delete_integration(user["id"], "pdl")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.post("/integrations/pdl/search")
-async def pdl_search(request: Request, user: dict = Depends(require_onboarding)):
-    """Search companies via PDL API and return results for UI preview."""
-    return _deprecated_response("pdl")
-
-
-@router.post("/integrations/pdl/import")
-async def pdl_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Search PDL and import matching companies into an Auggie list."""
-    return _deprecated_response("pdl")
-
-
-# ==========================================================================
-# Lusha
-# ==========================================================================
-
-@router.post("/integrations/lusha/connect")
-async def lusha_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Lusha API key after validation."""
-    return _deprecated_response("lusha")
-
-
-@router.post("/integrations/lusha/disconnect")
-async def lusha_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Lusha integration."""
-    await delete_integration(user["id"], "lusha")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.post("/integrations/lusha/import")
-async def lusha_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Search Lusha with filters and import matching companies into an Auggie list."""
-    return _deprecated_response("lusha")
-
-
-# ==========================================================================
-# Cognism
-# ==========================================================================
-
-@router.post("/integrations/cognism/connect")
-async def cognism_connect(request: Request, user: dict = Depends(require_auth)):
-    """Save Cognism API key after validation."""
-    return _deprecated_response("cognism")
-
-
-@router.post("/integrations/cognism/disconnect")
-async def cognism_disconnect(request: Request, user: dict = Depends(require_auth)):
-    """Disconnect Cognism integration."""
-    await delete_integration(user["id"], "cognism")
-    return RedirectResponse(url="/integrations", status_code=303)
-
-
-@router.post("/integrations/cognism/import")
-async def cognism_import(request: Request, user: dict = Depends(require_onboarding)):
-    """Search Cognism with filters and import matching companies into an Auggie list."""
-    return _deprecated_response("cognism")
 
 
 # ==========================================================================

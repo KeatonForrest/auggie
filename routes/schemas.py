@@ -7,39 +7,6 @@ class ApiKeyConnectRequest(BaseModel):
     api_key: str
 
 
-class HubSpotImportRequest(BaseModel):
-    companies: list[dict]
-    name: str = "HubSpot Import"
-
-
-class SalesforceImportRequest(BaseModel):
-    accounts: list[dict]
-    name: str = "Salesforce Import"
-
-
-class ZoomInfoImportRequest(BaseModel):
-    companies: list[dict]
-    name: str = "ZoomInfo Import"
-
-
-class PDLImportRequest(BaseModel):
-    query: dict
-    name: str = "PDL Import"
-    size: int = 50
-
-
-class LushaImportRequest(BaseModel):
-    filters: dict
-    name: str = "Lusha Import"
-    size: int = 50
-
-
-class CognismImportRequest(BaseModel):
-    filters: dict
-    name: str = "Cognism Import"
-    size: int = 50
-
-
 class GoogleSheetsImportRequest(BaseModel):
     url: str
     list_name: str = "Google Sheets Import"
@@ -47,26 +14,6 @@ class GoogleSheetsImportRequest(BaseModel):
 
 class SlackConnectRequest(BaseModel):
     webhook_url: str
-
-
-class PushCampaignRequest(BaseModel):
-    campaign_id: str
-    account_ids: list[int] = []
-
-
-class PushSequencesRequest(BaseModel):
-    account_ids: list[int] = []
-
-
-class PushCampaignWithSequencesRequest(BaseModel):
-    account_ids: list[int] = []
-    include_leads: bool = False
-
-
-class PushGongEngageRequest(BaseModel):
-    flow_id: str
-    flow_owner_email: str
-    account_ids: list[int] = []
 
 
 class AccountIdsRequest(BaseModel):

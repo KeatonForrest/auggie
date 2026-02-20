@@ -23,19 +23,10 @@ from api.validation import validate_company_url
 from api.tasks import create_tracked_task
 from api.errors import APIError
 from routes._helpers import normalize_url, templates, logger
-from routes.integrations_constants import DEPRECATION_MESSAGE
 from routes.schemas import AccountIdsRequest
 from db.outreach import get_outreach_drafts_batch
 
 router = APIRouter()
-
-
-def _deprecated_response(provider: str):
-    """Return a 410 Gone response for deprecated integrations."""
-    return JSONResponse(
-        status_code=410,
-        content={"error": {"code": "provider_deprecated", "message": f"{provider}: {DEPRECATION_MESSAGE}"}},
-    )
 
 
 @router.get("/lists", response_class=HTMLResponse)
@@ -53,10 +44,6 @@ async def lists_page(request: Request, user: dict = Depends(require_onboarding))
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
             "google_sheets_connected": gsheets_integration is not None,
-            "zoominfo_connected": False,
-            "pdl_connected": False,
-            "lusha_connected": False,
-            "cognism_connected": False,
         }
     )
 
@@ -302,11 +289,6 @@ async def view_list(
             "sort": sort,
             "credits": usage.get("bonus_credits", 0) / 100,
             "is_admin": usage.get("is_admin", False),
-            "instantly_connected": False,
-            "smartlead_connected": False,
-            "outreach_connected": False,
-            "salesloft_connected": False,
-            "gong_engage_connected": False,
             "google_sheets_connected": gsheets_integration is not None,
             "scored_count": scored_count,
             "enriched_count": enriched_count,
@@ -761,75 +743,3 @@ async def get_account_contacts(
     })
 
 
-# ==========================================================================
-# Push-to-integration routes
-# ==========================================================================
-
-@router.post("/lists/{list_id}/push-instantly")
-async def push_to_instantly(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push selected accounts from a list to an Instantly campaign."""
-    return _deprecated_response("instantly")
-
-
-@router.post("/lists/{list_id}/push-smartlead")
-async def push_to_smartlead(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push selected accounts from a list to a Smartlead campaign."""
-    return _deprecated_response("smartlead")
-
-
-@router.post("/lists/{list_id}/push-instantly-campaign")
-async def push_to_instantly_campaign(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Bulk create Instantly campaigns with Auggie-generated sequences."""
-    return _deprecated_response("instantly")
-
-
-@router.post("/lists/{list_id}/push-smartlead-campaign")
-async def push_to_smartlead_campaign(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Bulk create Smartlead campaigns with Auggie-generated sequences."""
-    return _deprecated_response("smartlead")
-
-
-@router.post("/lists/{list_id}/push-outreach")
-async def push_to_outreach(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push Auggie-generated sequences to Outreach (sequences only, no contacts)."""
-    return _deprecated_response("outreach")
-
-
-@router.post("/lists/{list_id}/push-salesloft")
-async def push_to_salesloft(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push Auggie-generated sequences to SalesLoft as cadences (no contacts)."""
-    return _deprecated_response("salesloft")
-
-
-@router.post("/lists/{list_id}/push-gong-engage")
-async def push_to_gong_engage(
-    request: Request,
-    list_id: int,
-    user: dict = Depends(require_onboarding),
-):
-    """Push Auggie-generated sequences to a Gong Engage flow with content overrides."""
-    return _deprecated_response("gong_engage")

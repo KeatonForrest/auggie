@@ -54,35 +54,8 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket_name: str = "auggie-materials"
 
-    # People Data Labs (for contact enrichment)
-    pdl_api_key: str = ""
-
     # LeadMagic (for contact enrichment)
     leadmagic_api_key: str = ""
-
-    # HubSpot (CRM integration)
-    hubspot_client_id: str = ""
-    hubspot_client_secret: str = ""
-
-    # Salesforce (CRM integration)
-    salesforce_client_id: str = ""
-    salesforce_client_secret: str = ""
-
-    # Outreach (sales engagement)
-    outreach_client_id: str = ""
-    outreach_client_secret: str = ""
-
-    # ZoomInfo (data enrichment)
-    zoominfo_client_id: str = ""
-    zoominfo_client_secret: str = ""
-
-    # SalesLoft (sales engagement)
-    salesloft_client_id: str = ""
-    salesloft_client_secret: str = ""
-
-    # Gong Engage (sales engagement)
-    gong_engage_client_id: str = ""
-    gong_engage_client_secret: str = ""
 
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
@@ -98,9 +71,6 @@ class Settings(BaseSettings):
 
     # Slack webhook for internal failure alerts (task exhausted retries)
     slack_webhook_url: str = ""
-
-    # Redis (unused for now — placeholder for future rate limiter backend)
-    redis_url: str = ""
 
     # Feature flags
     materials_enabled: bool = False
