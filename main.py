@@ -160,6 +160,9 @@ async def lifespan(app: FastAPI):
     # Warn if default session secret is used in non-localhost mode
     if "localhost" not in settings.app_url and settings.session_secret == "dev-secret-change-in-production":
         logger.warning("Using default session secret in production! Set SESSION_SECRET to a strong random value.")
+    # Warn if Stripe webhook secret is missing in production
+    if "localhost" not in settings.app_url and (not settings.stripe_webhook_secret or settings.stripe_webhook_secret == "whsec_placeholder"):
+        logger.error("STRIPE_WEBHOOK_SECRET is not configured! Credit purchases will NOT be fulfilled via webhooks.")
 
     # Start the task queue worker in-process
     import asyncio as _asyncio

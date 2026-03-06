@@ -164,9 +164,30 @@ async def stripe_webhook(request: Request):
     if event.type == "checkout.session.completed":
         session = event.data.object
         if session.mode == "payment" and session.payment_status == "paid":
-            credits = int(session.metadata.get("credits", 10))
-            user_id = int(session.metadata.get("user_id"))
-            added = await fulfill_session(session.id, user_id, credits)
+            # Validate required metadata
+            raw_credits = session.metadata.get("credits")
+            raw_user_id = session.metadata.get("user_id")
+            if not raw_credits or not raw_user_id:
+                logger.error("[Webhook] Missing metadata in session %s: credits=%s, user_id=%s", session.id, raw_credits, raw_user_id)
+                raise HTTPException(status_code=400, detail="Missing required metadata (credits, user_id)")
+
+            try:
+                credits = int(raw_credits)
+                user_id = int(raw_user_id)
+            except (ValueError, TypeError) as exc:
+                logger.error("[Webhook] Invalid metadata in session %s: %s", session.id, exc)
+                raise HTTPException(status_code=400, detail="Invalid metadata format")
+
+            if credits <= 0:
+                logger.error("[Webhook] Non-positive credit amount %d in session %s", credits, session.id)
+                raise HTTPException(status_code=400, detail="Invalid credit amount")
+
+            try:
+                added = await fulfill_session(session.id, user_id, credits)
+            except Exception:
+                logger.exception("[Webhook] Failed to fulfill session %s for user %d", session.id, user_id)
+                raise HTTPException(status_code=500, detail="Fulfillment failed")
+
             if added:
                 logger.info("[Webhook] Fulfilled %d credits for user %d (session %s)", credits, user_id, session.id)
             else:
