@@ -1053,33 +1053,21 @@ class TestFormatSections:
 
 
 class TestFrontendSignalSuppression:
-    def test_db_seller_gets_frontend_suppression_note(self, claude_service):
-        """Database seller system prompt includes frontend/CDN suppression."""
+    def test_suppression_handled_by_pipeline(self, claude_service):
+        """Frontend/CDN/security suppression is now handled upstream by the pipeline.
+
+        Tech detection scopes to product domains only (no marketing site),
+        and pain_inference handles seller-category boosting/dampening.
+        The system prompt no longer contains suppression instructions.
+        """
         result = claude_service._build_system_prompt(
             product_context="MongoDB Atlas - scalable nosql database platform",
             problems_solved="database scaling, sql query performance",
             seller_product_category="database",
         )
-        assert "FRONTEND/CDN SIGNAL SUPPRESSION" in result
-
-    def test_non_db_seller_no_frontend_suppression_note(self, claude_service):
-        """Non-database seller system prompt does NOT include frontend suppression."""
-        result = claude_service._build_system_prompt(
-            product_context="Salesforce CRM for enterprise sales",
-            problems_solved="sales pipeline management",
-        )
         assert "FRONTEND/CDN SIGNAL SUPPRESSION" not in result
-
-    def test_suppression_note_mentions_key_terms(self, claude_service):
-        """Suppression note references React, Vue, CDN, and database bottleneck."""
-        result = claude_service._build_system_prompt(
-            product_context="PostgreSQL managed database service with sql optimization",
-            problems_solved="database hosting, sql query optimization",
-            seller_product_category="database",
-        )
-        assert "React" in result
-        assert "CDN" in result
-        assert "database bottleneck" in result
+        assert "SECURITY SIGNAL SUPPRESSION" not in result
+        assert "WEBSITE QUALITY SIGNAL SUPPRESSION" not in result
 
 
 # --- Background-only pain signal rendering ---
@@ -1482,17 +1470,14 @@ class TestTieredUserPrompt:
         assert tier3_text_full[:3001] not in marketing_section
 
     def test_system_prompt_includes_tier_structure_when_enabled(self, tiered_service):
-        """System prompt includes DATA TIER STRUCTURE when flag is on."""
+        """System prompt includes EVIDENCE HIERARCHY when flag is on."""
         result = tiered_service._build_system_prompt(product_context="Test product")
-        assert "DATA TIER STRUCTURE" in result
-        assert "TIER 1" in result
-        assert "TIER 2" in result
-        assert "TIER 3" in result
+        assert "EVIDENCE HIERARCHY" in result
 
     def test_system_prompt_no_tier_structure_when_disabled(self, claude_service):
-        """System prompt omits DATA TIER STRUCTURE when flag is off."""
+        """System prompt omits EVIDENCE HIERARCHY when flag is off."""
         result = claude_service._build_system_prompt(product_context="Test product")
-        assert "DATA TIER STRUCTURE" not in result
+        assert "EVIDENCE HIERARCHY" not in result
 
 
 # --- Research Validation ---

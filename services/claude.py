@@ -117,67 +117,10 @@ class ClaudeService:
         text = problems_solved.lower()
         return any(kw in text for kw in self._WEB_INFRA_KEYWORDS)
 
-    def _security_suppression_note(self, problems_solved: str, product_type: str) -> str:
-        """Return prompt instruction to suppress security signals for non-security sellers."""
-        if self._sells_security(problems_solved, product_type):
-            return ""
-        return """**IMPORTANT — SECURITY SIGNAL SUPPRESSION**: The seller does NOT sell a security product. Completely ignore all email security signals (SPF, DKIM, DMARC), SSL/TLS certificate issues, and security header grades when writing this document. Do NOT mention them in Existential Data Points, Stated Business Problems, Before Scenario, score evidence, or any other section. These signals are irrelevant to this seller's product and will confuse the reader. Focus exclusively on pain signals relevant to what the seller actually sells.
-
-"""
-
-    def _infrastructure_data_descriptions(self, problems_solved: str, product_type: str) -> str:
-        """Return data source descriptions for DNS/SSL/security headers, tailored to seller type."""
-        sells_sec = self._sells_security(problems_solved, product_type)
-
-        dns_desc = """7. **DNS Infrastructure Signals** - From automated DNS record analysis:
-   - NS provider reveals cloud infrastructure (AWS, Cloudflare, GCP, Azure)
-   - MX records reveal email provider (Google Workspace, Microsoft 365)"""
-        if sells_sec:
-            dns_desc += """
-   - SPF/DKIM/DMARC presence indicates email security maturity — missing records are a concrete pain signal"""
-        dns_desc += """
-   - These are VERIFIED facts from public DNS records"""
-
-        ssl_desc = """
-
-8. **SSL/TLS Certificate** - From automated certificate inspection:
-   - Issuer and expiry reveal certificate management practices"""
-        if sells_sec:
-            ssl_desc += """
-   - Let's Encrypt = automated renewal (good hygiene); short expiry without automation = operational risk"""
-        ssl_desc += """
-   - Wildcard certs and SAN count hint at infrastructure complexity"""
-
-        sec_desc = ""
-        if sells_sec:
-            sec_desc = """
-
-9. **Security Header Analysis** - Automated scoring of 6 key HTTP security headers:
-   - Grade A-F based on presence of HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-   - Low grades (D/F) are concrete evidence of security underinvestment — use in Existential Data Points when combined with other signals
-   - Cross-reference with other infrastructure signals for compounding security narratives"""
-
-        return dns_desc + ssl_desc + sec_desc
-
-    def _website_quality_suppression_note(self, problems_solved: str, product_type: str) -> str:
-        """Return prompt instruction to suppress website quality signals for non-web-infra sellers."""
-        if self._sells_web_infrastructure(problems_solved, product_type):
-            return ""
-        return """**IMPORTANT — WEBSITE QUALITY SIGNAL SUPPRESSION**: The seller does NOT sell a website monitoring, SEO, or web development product. Completely ignore all website quality issues — 404 errors, broken links, dead pages, misconfigured captchas, page load problems, missing meta tags, accessibility issues, and similar website defects — when writing this document. Do NOT mention them in Existential Data Points, Stated Business Problems, Before Scenario, score evidence, or any other section. These are website maintenance issues, not business pain signals relevant to this seller's product.
-
-"""
-
-    _FRONTEND_CDN_KEYWORDS = {"database", "db ", "data warehouse", "data lake", "sql", "nosql", "mongodb", "postgres", "postgresql", "mysql", "redis", "dynamodb", "data platform", "data infrastructure"}
-
-    def _frontend_signal_suppression_note(self, problems_solved: str, seller_product_category: str) -> str:
-        """Return prompt instruction to suppress frontend/CDN signals for non-webperf sellers."""
-        text = (problems_solved + " " + seller_product_category).lower()
-        hits = sum(1 for kw in self._FRONTEND_CDN_KEYWORDS if kw in text)
-        if hits < 2:
-            return ""
-        return """**IMPORTANT — FRONTEND/CDN SIGNAL SUPPRESSION**: The seller sells a database or data infrastructure product. Do NOT elevate frontend framework observations (React, Vue, Angular, jQuery, Svelte, Next.js, CSS tooling, bundlers), CDN presence/absence (Cloudflare, Fastly, Akamai), page speed, or marketing tag issues into Existential Data Points, PVP Seed, Talking Points, Before Scenario, or score evidence UNLESS the signal explicitly ties to a database bottleneck, query performance issue, or data layer consequence. Frontend/CDN signals are irrelevant to this seller's product and confuse the reader. Focus exclusively on data infrastructure, query performance, scaling pressure, and operational pain.
-
-"""
+    # Legacy suppression methods removed — the pipeline now handles signal filtering upstream:
+    # - Security signals: hard-suppressed by pain_inference._apply_seller_weighting for non-security sellers
+    # - Frontend/CDN noise: eliminated by tech_detection scoping to product domains only
+    # - Website quality: not collected from marketing sites anymore
 
     def _build_system_prompt(self, product_context: str, retrieved_materials: str = "", seller_company: str = "",
                                target_personas: str = "", target_industries: str = "", problems_solved: str = "",
@@ -233,48 +176,43 @@ The company data contains several types of information with different reliabilit
    - Match these to the company's industry to assess regulatory pressure
    - Upcoming deadlines are strong Timing signals — companies need to act before effective dates
 
-{self._infrastructure_data_descriptions(problems_solved, product_type)}
+7. **Infrastructure Signals** - DNS, SSL, security headers, and robots.txt analysis, pre-processed into a single report:
+   - Cloud provider hints from NS records, email provider from MX records
+   - Certificate management practices (issuer, expiry, automation)
+   - Security header grade (A-F) and robots.txt paths
+   - These are factual observations — the pipeline has already scored their significance
 
-{self._security_suppression_note(problems_solved, product_type)}{self._website_quality_suppression_note(problems_solved, product_type)}{self._frontend_signal_suppression_note(problems_solved, seller_product_category)}10. **Robots.txt Signals** - Parsed from the company's robots.txt:
-    - Disallowed /api or /graphql paths confirm API infrastructure exists
-    - Disallowed /admin paths confirm internal tooling
-    - Crawl-delay values hint at server capacity concerns
-
-11. **Parsed Job Signals** - Structured extraction from job posting text:
+8. **Parsed Job Signals** - Structured extraction from job posting text:
     - Technology mentions by category (language, framework, database, cloud, data, devops, security)
-    - Role types (backend, frontend, fullstack, data, devops, security, mobile, marketing, sales, finance, operations, healthcare_clinical, hr_people, legal_compliance, product, project_management, construction, education)
-    - Seniority distribution — heavy senior/staff hiring signals hard problems; heavy junior hiring signals scaling
-    - Roles marked as "Relevant" are most important for this seller's product category — prioritize these in the Hiring Signals section
-    - Use these to cross-reference and validate the detected tech stack
+    - Role types and seniority distribution
+    - Roles marked as "Relevant" are most important for this seller's product category
 
-12. **Programmatic Pain Signals** - Automated inferences from combining multiple data sources:
-    - Each signal has a rule ID, severity, confidence score, and evidence list
-    - These are STARTING POINTS — validate against other data before including in the document
-    - Do NOT repeat these verbatim. Synthesize them into your own analysis by combining multiple data sources
-    - High-confidence signals (70+) should be strongly considered for Existential Data Points
-    - Lower-confidence signals are hypotheses — include only if corroborated by other evidence
+9. **Programmatic Pain Signals** - Pre-scored inferences from combining multiple data sources:
+    - Each signal has severity, confidence score, and evidence list
+    - Signals are pre-weighted for seller relevance — high-confidence signals (70+) have already been validated as relevant to the seller's product
+    - Synthesize into your analysis. Do NOT repeat verbatim
 
-13. **Firmographic Data** - Company size, industry, funding, contacts
+10. **External Context** - Web search results shaped by the seller's product category:
+    - Recent news, developments, and market context
+    - Technology and infrastructure mentions from external sources
+    - Challenges and scaling signals from third-party coverage
+    - Cross-reference with first-party data for corroboration
 
-14. **Third-Party Web Mentions** - Search results from across the web about this company:
-    - Crunchbase/PitchBook profiles: founding year, employee count, funding rounds, investors, leadership
-    - G2/Capterra pages: product category, competitor comparisons, customer reviews, pricing tier
-    - Press coverage: product launches, partnerships, acquisitions, funding announcements
-    - These are EXTERNAL perspectives — they fill gaps when the company's own website is sparse
-    - Cross-reference with first-party data. If a Crunchbase profile says "50 employees" and job postings show 30+ open roles, that's a growth signal
-    - This data only appears for companies with thin web presence, so when you see it, lean on it heavily
+11. **Firmographic Data** - Company size, industry, funding, contacts
 """
 
         if self.settings.research_tiered_prompt_enabled:
             base_prompt += """
-DATA TIER STRUCTURE:
+EVIDENCE HIERARCHY:
 
-The research data in the user message is organized into three tiers by signal reliability:
-- **TIER 1 (HIGH-CONFIDENCE):** Verified/structured data — product subdomain tech, parsed job signals, detailed job postings, firmographics, SEC filings, high-confidence pain inferences (>= 70). Treat as ground truth. Build Existential Data Points primarily from this tier.
-- **TIER 2 (MEDIUM-CONFIDENCE):** First-party website content — homepage, about, careers, blog, DNS, robots.txt, investor relations, medium-confidence pain inferences (40-69), federal regulations. Use to support Tier 1 or surface secondary patterns.
-- **TIER 3 (LOWER-CONFIDENCE):** Inferred/secondary data — marketing-site tech, SSL/TLS, security headers, web mentions, additional pages, low-confidence pain inferences (< 40), background-only signals. Use only to corroborate higher-tier signals.
+The pipeline has already filtered and scored evidence by reliability. In the research data:
+- **Product domain tech detections** are ground truth (first-party, observed).
+- **Job postings and parsed signals** are high-confidence (structured, verified).
+- **Pain signals** are pre-scored with confidence values — trust these scores as-is.
+- **External context (Perplexity)** provides timing and market signals — cross-reference with first-party data.
+- **Website content** (homepage, about, blog) is context for understanding the company, not direct evidence.
 
-When a Tier 3 signal contradicts a Tier 1 signal, trust Tier 1. When Tier 2 corroborates Tier 1, increase confidence. Never build an Existential Data Point solely from Tier 3 evidence.
+Build Existential Data Points from observed tech + job signals + high-confidence pain inferences. Use website content and external context to add narrative depth.
 """
 
         base_prompt += f"""
@@ -828,6 +766,55 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         return "\n".join(result)
 
     @staticmethod
+    @staticmethod
+    def _format_infrastructure_section(
+        dns_profile: Optional[DNSProfile] = None,
+        ssl_profile: Optional[SSLProfile] = None,
+        security_posture: Optional[SecurityPosture] = None,
+        robots_signals: Optional[RobotsSignals] = None,
+    ) -> list[str]:
+        """Format collapsed infrastructure signals into one prompt section."""
+        lines: list[str] = []
+        has_content = False
+
+        if dns_profile and (dns_profile.ns_provider or dns_profile.cloud_provider_hints):
+            if not has_content:
+                lines.append("## Infrastructure Signals")
+                has_content = True
+            if dns_profile.ns_provider:
+                lines.append(f"- DNS: {dns_profile.ns_provider}")
+            if dns_profile.cloud_provider_hints:
+                lines.append(f"- Cloud: {', '.join(dns_profile.cloud_provider_hints)}")
+
+        if ssl_profile and ssl_profile.issuer:
+            if not has_content:
+                lines.append("## Infrastructure Signals")
+                has_content = True
+            parts = [f"Issuer: {ssl_profile.issuer}"]
+            if ssl_profile.expiry_days is not None:
+                parts.append(f"expires in {ssl_profile.expiry_days}d")
+            if ssl_profile.automation_inferred:
+                parts.append("auto-renewed")
+            lines.append(f"- SSL: {', '.join(parts)}")
+
+        if security_posture and security_posture.grade:
+            if not has_content:
+                lines.append("## Infrastructure Signals")
+                has_content = True
+            lines.append(f"- Security headers: {security_posture.grade} ({security_posture.score}/6)")
+
+        if robots_signals:
+            if not has_content:
+                lines.append("## Infrastructure Signals")
+                has_content = True
+            if robots_signals.api_paths:
+                lines.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
+            if robots_signals.admin_paths:
+                lines.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
+
+        return lines
+
+    @staticmethod
     def _format_job_signals_section(job_signals: JobSignals, seller_product_category: str = "") -> list[str]:
         """Format parsed job signals, splitting role types by relevance when a category is known."""
         lines: list[str] = ["## Parsed Job Signals"]
@@ -923,42 +910,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("Marketing sites often use different tech than the product itself.")
             sections.append("")
 
-        if dns_profile:
-            sections.append("## DNS Infrastructure Signals")
-            if dns_profile.ns_provider:
-                sections.append(f"- NS Provider: {dns_profile.ns_provider}")
-            if dns_profile.cloud_provider_hints:
-                sections.append(f"- Cloud hints: {', '.join(dns_profile.cloud_provider_hints)}")
-            sections.append("")
-
-        if ssl_profile:
-            sections.append("## SSL/TLS Certificate")
-            if ssl_profile.issuer:
-                sections.append(f"- Issuer: {ssl_profile.issuer}")
-            if ssl_profile.expiry_days is not None:
-                sections.append(f"- Expires in: {ssl_profile.expiry_days} days")
-            sections.append(f"- SAN count: {ssl_profile.san_count}")
-            sections.append(f"- Wildcard: {'Yes' if ssl_profile.is_wildcard else 'No'}")
-            sections.append(f"- Automated renewal: {'Likely' if ssl_profile.automation_inferred else 'Unknown'}")
-            sections.append("")
-
-        if security_posture:
-            sections.append("## Security Header Analysis")
-            sections.append(f"- Grade: {security_posture.grade} ({security_posture.score}/6)")
-            if security_posture.present:
-                sections.append(f"- Present: {', '.join(security_posture.present)}")
-            if security_posture.missing:
-                sections.append(f"- Missing: {', '.join(security_posture.missing)}")
-            sections.append("")
-
-        if robots_signals:
-            sections.append("## Robots.txt Signals")
-            if robots_signals.api_paths:
-                sections.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
-            if robots_signals.admin_paths:
-                sections.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
-            if robots_signals.crawl_delay is not None:
-                sections.append(f"- Crawl delay: {robots_signals.crawl_delay}")
+        # Infrastructure signals (DNS + SSL + security headers + robots) — one section
+        infra_lines = self._format_infrastructure_section(dns_profile, ssl_profile, security_posture, robots_signals)
+        if infra_lines:
+            sections.extend(infra_lines)
             sections.append("")
 
         if job_signals and (job_signals.tech_mentions or job_signals.role_types):
@@ -1235,22 +1190,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             tier2_parts.append(scraped.blog[:5000])
             tier2_parts.append("")
 
-        if dns_profile:
-            tier2_parts.append("## DNS Infrastructure Signals")
-            if dns_profile.ns_provider:
-                tier2_parts.append(f"- NS Provider: {dns_profile.ns_provider}")
-            if dns_profile.cloud_provider_hints:
-                tier2_parts.append(f"- Cloud hints: {', '.join(dns_profile.cloud_provider_hints)}")
-            tier2_parts.append("")
-
-        if robots_signals:
-            tier2_parts.append("## Robots.txt Signals")
-            if robots_signals.api_paths:
-                tier2_parts.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
-            if robots_signals.admin_paths:
-                tier2_parts.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
-            if robots_signals.crawl_delay is not None:
-                tier2_parts.append(f"- Crawl delay: {robots_signals.crawl_delay}")
+        # Infrastructure signals — consolidated into one section
+        infra_lines = self._format_infrastructure_section(dns_profile, ssl_profile, security_posture, robots_signals)
+        if infra_lines:
+            tier2_parts.extend(infra_lines)
             tier2_parts.append("")
 
         if scraped.investor_relations:
@@ -1283,26 +1226,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         if tier3_tech:
             tier3_parts.append("## VERIFIED Technologies — Marketing Site")
             tier3_parts.append(tier3_tech[:3000])
-            tier3_parts.append("")
-
-        if ssl_profile:
-            tier3_parts.append("## SSL/TLS Certificate")
-            if ssl_profile.issuer:
-                tier3_parts.append(f"- Issuer: {ssl_profile.issuer}")
-            if ssl_profile.expiry_days is not None:
-                tier3_parts.append(f"- Expires in: {ssl_profile.expiry_days} days")
-            tier3_parts.append(f"- SAN count: {ssl_profile.san_count}")
-            tier3_parts.append(f"- Wildcard: {'Yes' if ssl_profile.is_wildcard else 'No'}")
-            tier3_parts.append(f"- Automated renewal: {'Likely' if ssl_profile.automation_inferred else 'Unknown'}")
-            tier3_parts.append("")
-
-        if security_posture:
-            tier3_parts.append("## Security Header Analysis")
-            tier3_parts.append(f"- Grade: {security_posture.grade} ({security_posture.score}/6)")
-            if security_posture.present:
-                tier3_parts.append(f"- Present: {', '.join(security_posture.present)}")
-            if security_posture.missing:
-                tier3_parts.append(f"- Missing: {', '.join(security_posture.missing)}")
             tier3_parts.append("")
 
         if scraped.web_mentions:
