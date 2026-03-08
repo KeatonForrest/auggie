@@ -58,6 +58,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 import pydantic
+from fastapi.exceptions import RequestValidationError
 
 from config import get_settings
 from database import init_database, close_database, get_all_documents, get_user_usage, get_user_materials
@@ -237,7 +238,8 @@ app.add_middleware(
     allow_origins=[settings.app_url],
     # PATCH triggers browser preflight; include OPTIONS explicitly.
     allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+    expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Idempotency-Key"],
     allow_credentials=True,
 )
 
@@ -332,6 +334,20 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     if request_id:
         error_body["request_id"] = request_id
     return JSONResponse({"error": error_body}, status_code=exc.status_code)
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(request: Request, exc: RequestValidationError):
+    """Normalize FastAPI's validation errors to our standard error envelope."""
+    request_id = getattr(request.state, "request_id", None)
+    messages = []
+    for err in exc.errors():
+        loc = " → ".join(str(l) for l in err["loc"])
+        messages.append(f"{loc}: {err['msg']}")
+    error_body = {"code": "validation_error", "message": "; ".join(messages)}
+    if request_id:
+        error_body["request_id"] = request_id
+    return JSONResponse({"error": error_body}, status_code=422)
 
 
 @app.exception_handler(pydantic.ValidationError)
