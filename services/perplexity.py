@@ -61,6 +61,60 @@ _CATEGORY_QUERIES: dict[str, list[str]] = {
         '"{company}" recent news funding growth 2025 2026',
         '"{company}" hiring security engineer SecOps CISO IT security careers',
     ],
+    "hrtech": [
+        '"{company}" HR technology workforce management challenges',
+        '"{company}" hiring recruiting operations people analytics careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" payroll benefits HRIS employee experience',
+    ],
+    "legaltech": [
+        '"{company}" legal operations contract management compliance challenges',
+        '"{company}" hiring legal ops paralegal counsel careers',
+        '"{company}" recent news funding regulatory 2025 2026',
+        '"{company}" legal technology ediscovery CLM automation',
+    ],
+    "ecommerce": [
+        '"{company}" ecommerce platform checkout conversion challenges',
+        '"{company}" hiring ecommerce engineer product catalog careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" order management fulfillment inventory technology',
+    ],
+    "constructiontech": [
+        '"{company}" construction technology project management challenges',
+        '"{company}" hiring construction technology BIM engineer careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" field service jobsite management subcontractor',
+    ],
+    "edtech": [
+        '"{company}" education technology LMS learning platform challenges',
+        '"{company}" hiring instructional designer edtech engineer careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" student engagement curriculum e-learning',
+    ],
+    "proptech": [
+        '"{company}" real estate technology property management challenges',
+        '"{company}" hiring property technology real estate engineer careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" lease management smart building tenant experience',
+    ],
+    "insurtech": [
+        '"{company}" insurance technology claims underwriting challenges',
+        '"{company}" hiring actuary insurance engineer insurtech careers',
+        '"{company}" recent news funding regulatory 2025 2026',
+        '"{company}" policy management risk assessment automation',
+    ],
+    "supplychain": [
+        '"{company}" supply chain logistics technology challenges',
+        '"{company}" hiring supply chain logistics operations engineer careers',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" warehouse management freight procurement visibility',
+    ],
+    "govtech": [
+        '"{company}" government technology public sector challenges',
+        '"{company}" hiring govtech public sector engineer FedRAMP careers',
+        '"{company}" recent news funding government contracts 2025 2026',
+        '"{company}" civic technology citizen services procurement',
+    ],
 }
 
 _DEFAULT_QUERIES = [

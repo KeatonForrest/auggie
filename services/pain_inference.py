@@ -38,6 +38,56 @@ _CATEGORY_KEYWORDS = {
         "infrastructure as code", "monitoring", "logging", "container",
         "developer platform",
     ],
+    "security": [
+        "cybersecurity", "security", "siem", "soar", "zero trust", "identity",
+        "access management", "threat detection", "vulnerability", "penetration",
+        "endpoint protection", "soc ", "security operations", "encryption",
+    ],
+    "hrtech": [
+        "hris", "human resources", "payroll", "talent management", "recruiting",
+        "applicant tracking", "workforce", "employee engagement", "hr tech",
+        "people analytics", "benefits administration", "onboarding platform",
+    ],
+    "legaltech": [
+        "legal tech", "contract management", "clm", "ediscovery", "legal ops",
+        "compliance management", "legal automation", "case management",
+        "document review", "legal workflow",
+    ],
+    "ecommerce": [
+        "ecommerce", "e-commerce", "shopping cart", "checkout", "product catalog",
+        "order management", "inventory management", "marketplace", "storefront",
+        "commerce platform", "fulfillment", "dropship",
+    ],
+    "constructiontech": [
+        "construction", "building information", "bim", "project management",
+        "field service", "jobsite", "subcontractor", "estimating",
+        "construction management", "blueprints", "takeoff",
+    ],
+    "edtech": [
+        "education", "lms", "learning management", "edtech", "courseware",
+        "student", "curriculum", "e-learning", "training platform",
+        "instructional design", "classroom",
+    ],
+    "proptech": [
+        "real estate", "property management", "proptech", "lease", "tenant",
+        "building management", "smart building", "real estate technology",
+        "mls", "property listing",
+    ],
+    "insurtech": [
+        "insurance", "insurtech", "underwriting", "claims management",
+        "actuarial", "policy management", "insurance platform",
+        "risk assessment", "insurance automation",
+    ],
+    "supplychain": [
+        "supply chain", "logistics", "freight", "warehouse management",
+        "transportation management", "fleet", "last mile", "procurement",
+        "supply chain visibility", "inventory optimization",
+    ],
+    "govtech": [
+        "government", "govtech", "civic tech", "public sector", "fedramp",
+        "government contracting", "municipal", "citizen services",
+        "government procurement", "public safety",
+    ],
 }
 
 _FRONTEND_DENYLIST = {
