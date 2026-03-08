@@ -38,6 +38,7 @@ async def enqueue(task_type: str, payload: dict) -> int:
 async def claim_next(worker_id: str) -> Optional[dict]:
     """Claim the next pending task using SELECT FOR UPDATE SKIP LOCKED.
 
+    Only claims tasks whose run_at has passed (supports retry backoff).
     Returns the task record or None if nothing is available.
     """
     async with _db._pool.acquire() as conn:
@@ -50,7 +51,9 @@ async def claim_next(worker_id: str) -> Optional[dict]:
                 claimed_by = $1
             WHERE id = (
                 SELECT id FROM task_queue
-                WHERE status = 'pending' AND attempts < max_attempts
+                WHERE status = 'pending'
+                  AND attempts < max_attempts
+                  AND (run_at IS NULL OR run_at <= now())
                 ORDER BY created_at
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -77,7 +80,8 @@ async def complete(task_id: int) -> None:
 
 
 async def fail(task_id: int, error: str) -> bool:
-    """Mark a task as failed. If attempts < max_attempts, requeue as pending.
+    """Mark a task as failed. If attempts < max_attempts, requeue as pending
+    with exponential backoff (10s * 2^attempts, capped at 5 minutes).
 
     Returns True if retries are exhausted (terminal failure).
     """
@@ -89,7 +93,12 @@ async def fail(task_id: int, error: str) -> bool:
                 error = $2,
                 completed_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END,
                 started_at = NULL,
-                claimed_by = NULL
+                claimed_by = NULL,
+                run_at = CASE
+                    WHEN attempts < max_attempts
+                    THEN now() + make_interval(secs := LEAST(10 * power(2, attempts), 300))
+                    ELSE run_at
+                END
             WHERE id = $1
             RETURNING (attempts >= max_attempts) AS exhausted
             """,
@@ -101,16 +110,20 @@ async def fail(task_id: int, error: str) -> bool:
 async def requeue_stale(timeout_minutes: int = 15) -> int:
     """Requeue tasks stuck in 'running' state beyond the timeout.
 
+    Increments attempts so hung tasks eventually hit max_attempts.
     Returns the number of tasks requeued.
     """
     async with _db._pool.acquire() as conn:
         result = await conn.execute(
             """
             UPDATE task_queue
-            SET status = 'pending', started_at = NULL, claimed_by = NULL
+            SET status = CASE WHEN attempts + 1 < max_attempts THEN 'pending' ELSE 'failed' END,
+                attempts = attempts + 1,
+                started_at = NULL,
+                claimed_by = NULL,
+                completed_at = CASE WHEN attempts + 1 >= max_attempts THEN now() ELSE NULL END
             WHERE status = 'running'
               AND started_at < now() - make_interval(mins := $1)
-              AND attempts < max_attempts
             """,
             timeout_minutes,
         )
@@ -210,6 +223,24 @@ async def retry_failed_task(task_id: int) -> bool:
             task_id,
         )
         return result == "UPDATE 1"
+
+
+async def cleanup_completed_tasks(days: int = 7) -> int:
+    """Delete completed and failed tasks older than N days. Returns count deleted."""
+    async with _db._pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            DELETE FROM task_queue
+            WHERE status IN ('completed', 'failed')
+              AND completed_at < now() - make_interval(days := $1)
+              AND task_type NOT LIKE '_finalize_%'
+            """,
+            days,
+        )
+        count = int(result.split()[-1])
+        if count:
+            logger.info("Cleaned up %d completed/failed tasks older than %d days", count, days)
+        return count
 
 
 async def get_queue_stats() -> dict[str, int]:

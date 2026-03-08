@@ -22,6 +22,7 @@ WORKER_ID = f"worker-{uuid.uuid4().hex[:8]}"
 STALE_CHECK_INTERVAL = 60  # seconds
 WATCHLIST_CHECK_INTERVAL = 60  # seconds
 IDEMPOTENCY_CLEANUP_INTERVAL = 3600  # seconds (60 min)
+COMPLETED_TASK_CLEANUP_INTERVAL = 3600  # seconds (60 min)
 
 _settings = get_settings()
 POLL_INTERVAL = _settings.worker_poll_interval
@@ -112,6 +113,7 @@ async def _poll_loop(semaphore: asyncio.Semaphore) -> None:
     stale_counter = 0
     watchlist_counter = 0
     idempotency_counter = 0
+    completed_cleanup_counter = 0
 
     while not _shutdown.is_set():
         # Periodically requeue stale tasks
@@ -134,6 +136,15 @@ async def _poll_loop(semaphore: asyncio.Semaphore) -> None:
                     logger.info("Cleaned up %d expired idempotency keys", deleted)
             except Exception as e:
                 logger.warning("Idempotency cleanup failed: %s", e)
+
+        # Periodically clean up old completed/failed tasks
+        completed_cleanup_counter += POLL_INTERVAL
+        if completed_cleanup_counter >= COMPLETED_TASK_CLEANUP_INTERVAL:
+            completed_cleanup_counter = 0
+            try:
+                await task_queue.cleanup_completed_tasks()
+            except Exception as e:
+                logger.warning("Completed task cleanup failed: %s", e)
 
         # Periodically enqueue due watchlist items
         watchlist_counter += POLL_INTERVAL

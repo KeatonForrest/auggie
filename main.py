@@ -119,15 +119,23 @@ class RateLimitHeaderMiddleware:
         await self.app(scope, receive, send_with_headers)
 
 
-class LatencyLoggingMiddleware(BaseHTTPMiddleware):
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    """Log every API request with method, path, status, and latency."""
     async def dispatch(self, request, call_next):
         if request.url.path == "/health":
             return await call_next(request)
         start = time.monotonic()
         response = await call_next(request)
         duration = time.monotonic() - start
-        if duration > 1.0:
-            logger.warning("SLOW %s %s -> %s (%.2fs)", request.method, request.url.path, response.status_code, duration)
+        level = logging.WARNING if duration > 1.0 else logging.INFO
+        # Only log API and auth routes at INFO; skip static/template pages
+        path = request.url.path
+        if path.startswith("/v1/") or path.startswith("/auth/") or duration > 1.0:
+            logger.log(
+                level, "%s %s -> %s (%.3fs)",
+                request.method, path, response.status_code, duration,
+                extra={"event_type": "access_log", "duration_ms": int(duration * 1000)},
+            )
         return response
 
 
@@ -227,7 +235,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.add_middleware(RequestIDMiddleware)
 
 # Latency logging
-app.add_middleware(LatencyLoggingMiddleware)
+app.add_middleware(AccessLogMiddleware)
 
 # Security headers
 app.add_middleware(SecurityHeadersMiddleware)
@@ -276,7 +284,12 @@ async def health_check():
     try:
         async with _pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return JSONResponse({"status": "ok", "db": "ok"})
+        pool_info = {
+            "size": _pool.get_size(),
+            "free": _pool.get_idle_size(),
+            "used": _pool.get_size() - _pool.get_idle_size(),
+        }
+        return JSONResponse({"status": "ok", "db": "ok", "pool": pool_info})
     except Exception:
         return JSONResponse({"status": "degraded", "db": "error"}, status_code=503)
 

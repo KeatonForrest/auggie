@@ -298,7 +298,10 @@ class AuggieClient:
     ) -> None:
         self._client = httpx.Client(
             base_url=base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": f"auggie-python/{__version__}",
+            },
             timeout=timeout,
         )
         self._max_retries = max_retries
@@ -465,7 +468,7 @@ class AuggieClient:
     # Lists
     # ------------------------------------------------------------------
 
-    def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> AccountList:
+    def create_list(self, name: str, company_urls: list[str], analyze: bool = False) -> AccountList:
         """Create a persistent list. Returns ``{"list_id": ..., "name": ..., "status": ..., "total_accounts": N}``."""
         return AccountList(self._request("POST", "/v1/lists", json={
             "name": name,
@@ -689,7 +692,10 @@ class AsyncAuggieClient:
     ) -> None:
         self._client = httpx.AsyncClient(
             base_url=base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": f"auggie-python/{__version__}",
+            },
             timeout=timeout,
         )
         self._max_retries = max_retries

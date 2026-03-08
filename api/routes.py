@@ -704,17 +704,18 @@ async def create_bulk_research(request: Request, body: BulkResearchRequest, api_
         except ValueError as e:
             raise APIError("validation_error", f"Invalid URL '{url}': {e}", 422)
 
-    # Reserve credits upfront atomically
+    # Reserve credits and create bulk job atomically
     n = len(validated_urls)
     usage = await get_user_usage(api_user["id"])
     is_admin = usage.get("is_admin", False)
     if not is_admin:
-        credits_needed = n * 100  # cents
-        ok = await use_credit(api_user["id"], cents=credits_needed)
-        if not ok:
+        from db.bulk import create_bulk_job_with_credit
+        try:
+            bulk_job = await create_bulk_job_with_credit(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
+        except ValueError:
             raise APIError("insufficient_credits", f"Insufficient credits. Need {n}, have {usage.get('bonus_credits', 0) // 100}", 402)
-
-    bulk_job = await create_bulk_job(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
+    else:
+        bulk_job = await create_bulk_job(api_user["id"], api_user["api_key_id"], body.name, n, n * 100)
     await create_bulk_job_items(bulk_job["id"], validated_urls)
 
     await create_tracked_task(

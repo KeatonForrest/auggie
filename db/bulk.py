@@ -17,6 +17,40 @@ async def create_bulk_job(user_id: int, api_key_id: int, name: str | None, total
         return dict(row)
 
 
+async def create_bulk_job_with_credit(
+    user_id: int, api_key_id: int, name: str | None,
+    total_items: int, cents: int,
+) -> dict:
+    """Atomically deduct credits and create a bulk job in one transaction.
+
+    Returns the job record. Raises ValueError if insufficient credits.
+    """
+    async with _db._pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                UPDATE organizations
+                SET bonus_credits = bonus_credits - $2
+                WHERE id = (SELECT org_id FROM users WHERE id = $1) AND bonus_credits >= $2
+                RETURNING bonus_credits
+                """,
+                user_id, cents,
+            )
+            if row is None:
+                raise ValueError("Insufficient credits")
+            job = await conn.fetchrow(
+                """
+                INSERT INTO bulk_jobs (user_id, api_key_id, name, total_items, credits_reserved)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+                """,
+                user_id, api_key_id, name, total_items, cents,
+            )
+    from db.users import _invalidate_usage_cache
+    _invalidate_usage_cache(user_id)
+    return dict(job)
+
+
 async def get_bulk_job(bulk_job_id: int, user_id: int) -> dict | None:
     """Get a bulk job by ID (scoped to user)."""
     async with _db._pool.acquire() as conn:

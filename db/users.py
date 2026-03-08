@@ -333,25 +333,32 @@ async def use_credit(user_id: int, cents: int = 100) -> bool:
             UPDATE organizations
             SET bonus_credits = bonus_credits - $2
             WHERE id = (SELECT org_id FROM users WHERE id = $1) AND bonus_credits >= $2
-            RETURNING bonus_credits
+            RETURNING id, bonus_credits
             """,
             user_id, cents
         )
         _invalidate_usage_cache(user_id)
+        if row is not None:
+            from db.credit_ledger import record_credit_event
+            await record_credit_event(row["id"], -cents, row["bonus_credits"], "charge")
         return row is not None
 
 
 async def refund_credit(user_id: int, cents: int = 100) -> None:
     """Refund credits to user's org pool (e.g. when a reserved job fails)."""
     async with _db._pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """
             UPDATE organizations SET bonus_credits = bonus_credits + $2
             WHERE id = (SELECT org_id FROM users WHERE id = $1)
+            RETURNING id, bonus_credits
             """,
             user_id, cents
         )
         _invalidate_usage_cache(user_id)
+        if row is not None:
+            from db.credit_ledger import record_credit_event
+            await record_credit_event(row["id"], cents, row["bonus_credits"], "refund")
 
 
 async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
@@ -371,10 +378,13 @@ async def fulfill_session(session_id: str, user_id: int, credits: int) -> bool:
                 )
             except asyncpg.exceptions.UniqueViolationError:
                 return False
-            await conn.execute(
-                "UPDATE organizations SET bonus_credits = bonus_credits + $2 WHERE id = $1",
+            row = await conn.fetchrow(
+                "UPDATE organizations SET bonus_credits = bonus_credits + $2 WHERE id = $1 RETURNING bonus_credits",
                 org_id, cents,
             )
+            if row is not None:
+                from db.credit_ledger import record_credit_event
+                await record_credit_event(org_id, cents, row["bonus_credits"], "topup")
             return True
 
 
