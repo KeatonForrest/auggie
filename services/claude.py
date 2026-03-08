@@ -195,6 +195,7 @@ The company data contains several types of information with different reliabilit
     - Recent news, developments, and market context
     - Technology and infrastructure mentions from external sources
     - Challenges and scaling signals from third-party coverage
+    - **Hiring signals**: Role titles, tech requirements, and time-open mentions from LinkedIn/Indeed/job boards. Treat these the same as scraped job postings — they reveal what the company is investing in and struggling to fill
     - Cross-reference with first-party data for corroboration
 
 11. **Firmographic Data** - Company size, industry, funding, contacts

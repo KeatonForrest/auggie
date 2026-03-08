@@ -29,26 +29,37 @@ _CATEGORY_QUERIES: dict[str, list[str]] = {
         '"{company}" database migration scalability challenges',
         '"{company}" data infrastructure engineering blog',
         '"{company}" recent news funding growth 2025 2026',
+        '"{company}" hiring database engineer data infrastructure DBA careers',
     ],
     "fintech": [
         '"{company}" payment processing compliance PCI challenges',
         '"{company}" financial infrastructure banking technology',
         '"{company}" recent news funding regulatory 2025 2026',
+        '"{company}" hiring payments engineer compliance fintech careers',
     ],
     "healthtech": [
         '"{company}" healthcare integration HIPAA compliance challenges',
         '"{company}" clinical data EHR technology infrastructure',
         '"{company}" recent news funding growth 2025 2026',
+        '"{company}" hiring health informatics clinical engineer HIPAA careers',
     ],
     "martech": [
         '"{company}" marketing technology stack CDP analytics challenges',
         '"{company}" customer data attribution personalization',
         '"{company}" recent news funding growth 2025 2026',
+        '"{company}" hiring marketing operations growth engineer analytics careers',
     ],
     "devtools": [
         '"{company}" developer experience CI/CD infrastructure challenges',
         '"{company}" engineering platform deployment observability',
         '"{company}" recent news funding growth 2025 2026',
+        '"{company}" hiring DevOps SRE platform engineer infrastructure careers',
+    ],
+    "security": [
+        '"{company}" cybersecurity compliance vulnerability challenges',
+        '"{company}" security infrastructure identity access management',
+        '"{company}" recent news funding growth 2025 2026',
+        '"{company}" hiring security engineer SecOps CISO IT security careers',
     ],
 }
 
@@ -56,6 +67,7 @@ _DEFAULT_QUERIES = [
     '"{company}" recent news developments 2025 2026',
     '"{company}" technology stack infrastructure engineering',
     '"{company}" challenges problems scaling',
+    '"{company}" hiring open roles engineering careers 2025 2026',
 ]
 
 
