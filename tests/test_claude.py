@@ -299,21 +299,21 @@ class TestBuildUserPrompt:
         assert "Please generate the Account Research Document" in result
         # Should not have any section headers for empty fields
         assert "## Homepage Content" not in result
-        assert "## About Page" not in result
+        assert "## Site Structure" not in result
 
     def test_all_fields_populated(self, claude_service):
         """Test with all ScrapedContent fields populated."""
         scraped = ScrapedContent(
             homepage="Homepage content here",
-            about="About page content",
-            careers="Careers page content",
-            blog="Blog content",
+            site_structure={
+                "careers": "https://example.com/careers",
+                "docs": "https://example.com/api/docs",
+            },
             job_postings="Job posting 1\nJob posting 2",
-            additional_pages="Additional content",
-            investor_relations="Investor relations content",
             edgar_filings="SEC filing 1",
             federal_regulations="Regulation 1",
-            firmographics="500 employees, Series B"
+            firmographics="500 employees, Series B",
+            web_mentions="Perplexity context",
         )
         result = claude_service._build_user_prompt(
             company_url="https://example.com",
@@ -324,22 +324,16 @@ class TestBuildUserPrompt:
         assert "500 employees, Series B" in result
         assert "## Homepage Content" in result
         assert "Homepage content here" in result
-        assert "## About Page" in result
-        assert "About page content" in result
-        assert "## Careers/Jobs Landing Page" in result
-        assert "Careers page content" in result
-        assert "## Blog/Engineering Blog Content" in result
-        assert "Blog content" in result
+        assert "## Site Structure" in result
+        assert "Site structure: /careers, /api/docs" in result
         assert "## Detailed Job Postings" in result
         assert "Job posting 1" in result
-        assert "## Additional Website Pages" in result
-        assert "Additional content" in result
-        assert "## Investor Relations (Public Company)" in result
-        assert "Investor relations content" in result
         assert "## SEC EDGAR Filings (Public Company)" in result
         assert "SEC filing 1" in result
         assert "## Upcoming Federal Regulations" in result
         assert "Regulation 1" in result
+        assert "## Third-Party Web Mentions" in result
+        assert "Perplexity context" in result
 
     def test_tech_by_domain_included(self, claude_service):
         """Test with tech_by_domain adds verified technologies section."""
@@ -384,18 +378,23 @@ class TestBuildUserPrompt:
         # Verify it's not longer than 5000
         assert "x" * 5001 not in result
 
-    def test_truncation_about(self, claude_service):
-        """Test that about is truncated to 3000 characters."""
-        long_content = "y" * 10000
-        scraped = ScrapedContent(about=long_content)
+    def test_site_structure_formatting(self, claude_service):
+        """Test that site structure is rendered as a compact path-only block."""
+        scraped = ScrapedContent(
+            site_structure={
+                "careers": "https://example.com/careers/",
+                "docs": "https://example.com/api/docs",
+                "status": "https://example.com/status/",
+            }
+        )
 
         result = claude_service._build_user_prompt(
             company_url="https://example.com",
             scraped=scraped
         )
 
-        assert "y" * 3000 in result
-        assert "y" * 3001 not in result
+        assert "## Site Structure" in result
+        assert "Site structure: /careers, /api/docs, /status" in result
 
     def test_truncation_job_postings(self, claude_service):
         """Test that job_postings is truncated to 15000 characters."""
@@ -415,9 +414,8 @@ class TestBuildUserPrompt:
         scraped = ScrapedContent(
             firmographics="Firmographic data",
             homepage="Homepage",
-            about="About",
-            careers="Careers",
-            blog="Blog"
+            site_structure={"careers": "https://example.com/careers"},
+            job_postings="Jobs"
         )
 
         result = claude_service._build_user_prompt(
@@ -428,11 +426,10 @@ class TestBuildUserPrompt:
         # Check order by finding indices
         firmographics_idx = result.index("## CONFIRMED Firmographic Data")
         homepage_idx = result.index("## Homepage Content")
-        about_idx = result.index("## About Page")
-        careers_idx = result.index("## Careers/Jobs Landing Page")
-        blog_idx = result.index("## Blog/Engineering Blog Content")
+        site_structure_idx = result.index("## Site Structure")
+        jobs_idx = result.index("## Detailed Job Postings")
 
-        assert firmographics_idx < homepage_idx < about_idx < careers_idx < blog_idx
+        assert firmographics_idx < homepage_idx < site_structure_idx < jobs_idx
 
 
 class TestParseSections:
@@ -1347,7 +1344,7 @@ class TestTieredUserPrompt:
         """All three tier headers appear in correct order when content exists."""
         scraped = ScrapedContent(
             homepage="Homepage", firmographics="500 employees",
-            additional_pages="Extra pages",
+            web_mentions="External context",
         )
         tech_by_domain = {
             "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
@@ -1360,6 +1357,21 @@ class TestTieredUserPrompt:
         t2 = result.index("## TIER 2: MEDIUM-CONFIDENCE SIGNALS")
         t3 = result.index("## TIER 3: LOWER-CONFIDENCE SIGNALS")
         assert t1 < t2 < t3
+
+    def test_site_structure_in_tier2(self, tiered_service):
+        """Site structure should appear as a compact Tier 2 signal block."""
+        scraped = ScrapedContent(
+            homepage="Homepage",
+            site_structure={
+                "careers": "https://example.com/careers",
+                "docs": "https://example.com/api/docs",
+            },
+        )
+        result = tiered_service._build_user_prompt("https://example.com", scraped)
+        t2_start = result.index("## TIER 2:")
+        tier2 = result[t2_start:]
+        assert "## Site Structure" in tier2
+        assert "Site structure: /careers, /api/docs" in tier2
 
     def test_empty_tiers_suppressed(self, tiered_service):
         """Tiers with no content should not emit headers."""

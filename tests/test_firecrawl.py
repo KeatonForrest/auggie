@@ -156,100 +156,91 @@ class TestScrapeJobBoard:
         assert "greenhouse" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_fallback_to_search(self, firecrawl_service, client):
+    async def test_no_direct_boards_returns_none(self, firecrawl_service, client):
         async def mock_scrape(cl, url, include_html=False):
             return None
 
-        with patch.object(firecrawl_service, "_scrape_url", side_effect=mock_scrape), \
-             patch.object(firecrawl_service, "_web_search", new_callable=AsyncMock, return_value="search results"):
+        with patch.object(firecrawl_service, "_scrape_url", side_effect=mock_scrape):
             result = await firecrawl_service._scrape_job_board(client, "Acme", "acme.com")
-        assert result == "search results"
-
-
-class TestCheckSubdomainExists:
-    @pytest.mark.asyncio
-    async def test_success(self, firecrawl_service, client):
-        resp = MagicMock(status_code=200, url="https://blog.example.com/page")
-        client.head.return_value = resp
-        result = await firecrawl_service._check_subdomain_exists(client, "https://blog.example.com")
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_redirect_different_host(self, firecrawl_service, client):
-        resp = MagicMock(status_code=200, url="https://other.com")
-        client.head.return_value = resp
-        result = await firecrawl_service._check_subdomain_exists(client, "https://blog.example.com")
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_timeout(self, firecrawl_service, client):
-        client.head.side_effect = httpx.TimeoutException("t")
-        result = await firecrawl_service._check_subdomain_exists(client, "https://blog.example.com")
-        assert result is False
-
-
-class TestScrapeEngineeringBlog:
-    @pytest.mark.asyncio
-    async def test_finds_subdomain(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return "engineering.example.com" in url
-
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check), \
-             patch.object(firecrawl_service, "_scrape_url", new_callable=AsyncMock, return_value="x" * 400):
-            result = await firecrawl_service._scrape_engineering_blog(client, "example.com")
-        assert result is not None
-
-    @pytest.mark.asyncio
-    async def test_none_found(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return False
-
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check):
-            result = await firecrawl_service._scrape_engineering_blog(client, "example.com")
         assert result is None
 
 
-class TestScrapeDeveloperDocs:
+class TestFetchSitemap:
     @pytest.mark.asyncio
-    async def test_finds_subdomain(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return "docs.example.com" in url
+    async def test_discovers_high_signal_paths(self, firecrawl_service, client):
+        response = MagicMock(status_code=200)
+        response.text = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/careers</loc></url>
+  <url><loc>https://example.com/api/docs</loc></url>
+  <url><loc>https://example.com/status</loc></url>
+  <url><loc>https://example.com/platform</loc></url>
+</urlset>
+"""
+        client.get.return_value = response
 
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check), \
-             patch.object(firecrawl_service, "_scrape_url", new_callable=AsyncMock, return_value="x" * 400):
-            result = await firecrawl_service._scrape_developer_docs(client, "example.com")
-        assert result is not None
-        assert "Developer Documentation" in result
+        result = await firecrawl_service._fetch_sitemap(client, "https://example.com")
 
-    @pytest.mark.asyncio
-    async def test_none_found(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return False
-
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check):
-            result = await firecrawl_service._scrape_developer_docs(client, "example.com")
-        assert result is None
-
-
-class TestScrapeInvestorRelations:
-    @pytest.mark.asyncio
-    async def test_finds_subdomain(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return "investor.example.com" in url
-
-        async def mock_scrape(cl, url, include_html=False):
-            return "x" * 400
-
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check), \
-             patch.object(firecrawl_service, "_scrape_url", side_effect=mock_scrape):
-            result = await firecrawl_service._scrape_investor_relations(client, "example.com")
-        assert result is not None
+        assert result == {
+            "careers": "https://example.com/careers",
+            "docs": "https://example.com/api/docs",
+            "status": "https://example.com/status",
+            "platform": "https://example.com/platform",
+        }
 
     @pytest.mark.asyncio
-    async def test_none_found(self, firecrawl_service, client):
-        async def mock_check(cl, url):
-            return False
+    async def test_malformed_xml_returns_empty(self, firecrawl_service, client):
+        response = MagicMock(status_code=200)
+        response.text = "<urlset><url><loc>https://example.com/careers</loc>"
+        client.get.return_value = response
 
-        with patch.object(firecrawl_service, "_check_subdomain_exists", side_effect=mock_check):
-            result = await firecrawl_service._scrape_investor_relations(client, "example.com")
-        assert result is None
+        result = await firecrawl_service._fetch_sitemap(client, "https://example.com")
+
+        assert result == {}
+
+
+class TestScrapeCompany:
+    @pytest.mark.asyncio
+    async def test_reduced_pipeline_returns_homepage_jobs_and_site_structure(self, firecrawl_service):
+        client = AsyncMock()
+
+        with patch("services.firecrawl.get_shared_http_client", new_callable=AsyncMock, return_value=client), \
+             patch.object(
+                 firecrawl_service,
+                 "_scrape_url",
+                 new_callable=AsyncMock,
+                 return_value=("# Homepage", "<html>Homepage</html>"),
+             ) as mock_scrape_url, \
+             patch.object(
+                 firecrawl_service,
+                 "_scrape_job_board",
+                 new_callable=AsyncMock,
+                 return_value="## Jobs from greenhouse",
+             ) as mock_job_board, \
+             patch.object(
+                 firecrawl_service,
+                 "_fetch_sitemap",
+                 new_callable=AsyncMock,
+                 return_value={
+                     "careers": "https://example.com/careers",
+                     "docs": "https://example.com/api/docs",
+                 },
+             ) as mock_sitemap:
+            result = await firecrawl_service.scrape_company("example.com")
+
+        mock_scrape_url.assert_awaited_once_with(client, "https://example.com", include_html=True)
+        mock_job_board.assert_awaited_once_with(client, "example", "example.com")
+        mock_sitemap.assert_awaited_once_with(client, "https://example.com")
+
+        assert result.homepage == "# Homepage"
+        assert result.homepage_html == "<html>Homepage</html>"
+        assert result.job_postings == "## Jobs from greenhouse"
+        assert result.site_structure == {
+            "careers": "https://example.com/careers",
+            "docs": "https://example.com/api/docs",
+        }
+        assert result.about is None
+        assert result.blog is None
+        assert result.additional_pages is None
+        assert result.investor_relations is None
+        assert result.web_mentions is None

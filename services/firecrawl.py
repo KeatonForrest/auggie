@@ -6,7 +6,7 @@ import httpx
 import asyncio
 import xml.etree.ElementTree as ET
 from typing import Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 from models import ScrapedContent
 from config import get_settings
@@ -122,7 +122,6 @@ class FirecrawlService:
     ) -> Optional[str]:
         """Scrape job postings from common job boards and ATS platforms."""
         company_slug = company_name.lower().replace(' ', '').replace('-', '').replace('_', '')
-        domain_slug = domain.split('.')[0].lower()
 
         # Top 3 most common job board URLs (reduced for cost optimization)
         job_board_urls = [
@@ -160,14 +159,8 @@ class FirecrawlService:
         if job_content:
             return "\n\n---\n\n".join(job_content)
 
-        # Fallback: web search for jobs if direct scraping failed
-        logger.debug("No direct job boards found, searching web for %s jobs...", company_name)
-        search_result = await self._web_search(
-            client,
-            f"{company_name} careers jobs hiring",
-            num_results=3
-        )
-        return search_result
+        logger.debug("No supported direct job boards found for %s", company_name)
+        return None
 
     async def _web_search(
         self,
@@ -224,154 +217,46 @@ class FirecrawlService:
         logger.debug("Starting comprehensive scrape for %s...", domain)
 
         client = await get_shared_http_client()
-        logger.debug("Running all scraping tasks in parallel...")
-
-        other_urls = {
-            "about": urljoin(base_url, "/about"),
-            "blog": urljoin(base_url, "/blog"),
-        }
+        logger.debug("Running reduced scraping tasks in parallel...")
 
         # Homepage needs HTML for tech detection
         homepage_task = self._scrape_url(client, base_url, include_html=True)
-        other_tasks = {name: self._scrape_url(client, url) for name, url in other_urls.items()}
         job_task = self._scrape_job_board(client, company_name, domain)
-        investor_task = self._scrape_investor_relations(client, domain)
-        engineering_task = self._scrape_engineering_blog(client, domain)
-        docs_task = self._scrape_developer_docs(client, domain)
         sitemap_task = self._fetch_sitemap(client, base_url)
 
-        results = await asyncio.gather(
+        homepage_result, job_result, sitemap_result = await asyncio.gather(
             homepage_task,
-            *other_tasks.values(),
             job_task,
-            investor_task,
-            engineering_task,
-            docs_task,
             sitemap_task,
             return_exceptions=True
         )
 
-        # Unpack results
-        homepage_result = results[0]
         if isinstance(homepage_result, Exception):
             homepage_markdown, homepage_html = None, None
         else:
             homepage_markdown, homepage_html = homepage_result
 
-        core_results = {}
-        for i, name in enumerate(other_tasks.keys()):
-            result = results[i + 1]
-            if not isinstance(result, Exception):
-                core_results[name] = result
-
-        job_postings = results[-5] if not isinstance(results[-5], Exception) else None
-        investor_content = results[-4] if not isinstance(results[-4], Exception) else None
-        engineering_subdomain = results[-3] if not isinstance(results[-3], Exception) else None
-        docs_content = results[-2] if not isinstance(results[-2], Exception) else None
-        sitemap_urls = results[-1] if not isinstance(results[-1], Exception) else {}
-
-        # Sitemap fallbacks: scrape alternative URLs for empty content categories
-        sitemap_fallback_tasks = {}
-        if sitemap_urls:
-            if not core_results.get("about") and "about" in sitemap_urls:
-                logger.debug("Sitemap fallback: scraping %s for about page", sitemap_urls["about"])
-                sitemap_fallback_tasks["about"] = self._scrape_url(client, sitemap_urls["about"])
-            if not core_results.get("blog") and "blog" in sitemap_urls:
-                logger.debug("Sitemap fallback: scraping %s for blog/content", sitemap_urls["blog"])
-                sitemap_fallback_tasks["blog"] = self._scrape_url(client, sitemap_urls["blog"])
-            if not job_postings and "careers" in sitemap_urls:
-                logger.debug("Sitemap fallback: scraping %s for careers", sitemap_urls["careers"])
-                sitemap_fallback_tasks["careers"] = self._scrape_url(client, sitemap_urls["careers"])
-            if "products" in sitemap_urls:
-                logger.debug("Sitemap fallback: scraping %s for products/solutions", sitemap_urls["products"])
-                sitemap_fallback_tasks["products"] = self._scrape_url(client, sitemap_urls["products"])
-
-        if sitemap_fallback_tasks:
-            fallback_results = await asyncio.gather(
-                *sitemap_fallback_tasks.values(), return_exceptions=True
-            )
-            for key, result in zip(sitemap_fallback_tasks.keys(), fallback_results):
-                if isinstance(result, Exception) or not result or len(result) < 200:
-                    continue
-                if key == "about":
-                    core_results["about"] = result
-                elif key == "blog":
-                    core_results["blog"] = result
-                elif key == "careers":
-                    job_postings = result
-                elif key == "products":
-                    core_results["products"] = result
-
-        # Combine engineering content from /engineering path, subdomains, and docs
-        engineering_path = core_results.get("engineering")
-        additional_parts = []
-        if engineering_path and len(engineering_path) > 200:
-            additional_parts.append(engineering_path)
-        if engineering_subdomain and len(engineering_subdomain) > 200:
-            additional_parts.append(engineering_subdomain)
-        if docs_content and len(docs_content) > 200:
-            additional_parts.append(docs_content)
-        # Include products/solutions page from sitemap if found
-        products_content = core_results.get("products")
-        if products_content and len(products_content) > 200:
-            additional_parts.append(f"## Products/Solutions Page\n\n{products_content}")
-        additional_content = "\n\n---\n\n".join(additional_parts) if additional_parts else None
-
-        # Thin-profile detection: count how many content sources returned data
-        content_sources = [
-            core_results.get("about"),
-            core_results.get("blog"),
-            job_postings,
-            investor_content,
-            engineering_subdomain,
-            docs_content,
-        ]
-        filled_count = sum(1 for s in content_sources if s and len(s) > 200)
-
-        web_mentions = None
-        if filled_count < 3:
-            logger.debug(
-                "Thin profile detected for %s (%d/6 sources). Searching web for mentions...",
-                domain, filled_count
-            )
-            try:
-                web_mentions = await self._search_web_mentions(client, company_name, domain)
-                if web_mentions:
-                    logger.debug("Found web mentions for thin profile %s", domain)
-            except Exception as e:
-                logger.warning("Web mentions search failed (non-fatal): %s", e)
+        job_postings = job_result if not isinstance(job_result, Exception) else None
+        sitemap_urls = sitemap_result if not isinstance(sitemap_result, Exception) else {}
 
         logger.debug("Scraping complete!")
 
         return ScrapedContent(
             homepage=homepage_markdown,
             homepage_html=homepage_html,
-            about=core_results.get("about"),
+            about=None,
             careers=None,
-            blog=core_results.get("blog"),
+            blog=None,
             job_postings=job_postings,
-            additional_pages=additional_content,
+            additional_pages=None,
+            site_structure=sitemap_urls or None,
             news=None,
-            investor_relations=investor_content,
-            web_mentions=web_mentions,
+            investor_relations=None,
+            web_mentions=None,
         )
 
     # URL path patterns for sitemap categorization
     _SITEMAP_PATTERNS: dict[str, list[re.Pattern]] = {
-        "about": [
-            re.compile(r"^/about-?us/?$", re.I),
-            re.compile(r"^/company/?$", re.I),
-            re.compile(r"^/our-?story/?$", re.I),
-            re.compile(r"^/who-?we-?are/?$", re.I),
-            re.compile(r"^/team/?$", re.I),
-        ],
-        "blog": [
-            re.compile(r"^/news/?$", re.I),
-            re.compile(r"^/resources/?$", re.I),
-            re.compile(r"^/insights/?$", re.I),
-            re.compile(r"^/articles/?$", re.I),
-            re.compile(r"^/media/?$", re.I),
-        ],
         "careers": [
             re.compile(r"^/careers/?$", re.I),
             re.compile(r"^/jobs/?$", re.I),
@@ -379,12 +264,33 @@ class FirecrawlService:
             re.compile(r"^/work-?with-?us/?$", re.I),
             re.compile(r"^/openings/?$", re.I),
         ],
+        "docs": [
+            re.compile(r"^/docs/?$", re.I),
+            re.compile(r"^/api/docs/?$", re.I),
+            re.compile(r"^/documentation/?$", re.I),
+            re.compile(r"^/developers?/?$", re.I),
+            re.compile(r"^/developer-?docs/?$", re.I),
+        ],
+        "status": [
+            re.compile(r"^/status/?$", re.I),
+            re.compile(r"^/status-page/?$", re.I),
+            re.compile(r"^/system-?status/?$", re.I),
+        ],
+        "platform": [
+            re.compile(r"^/platform/?$", re.I),
+            re.compile(r"^/workspace/?$", re.I),
+            re.compile(r"^/console/?$", re.I),
+            re.compile(r"^/app/?$", re.I),
+        ],
         "products": [
             re.compile(r"^/products/?$", re.I),
             re.compile(r"^/solutions/?$", re.I),
             re.compile(r"^/services/?$", re.I),
-            re.compile(r"^/platform/?$", re.I),
             re.compile(r"^/features/?$", re.I),
+        ],
+        "security": [
+            re.compile(r"^/security/?$", re.I),
+            re.compile(r"^/trust/?$", re.I),
         ],
     }
 
@@ -395,7 +301,7 @@ class FirecrawlService:
     ) -> dict[str, str]:
         """Fetch and parse sitemap.xml for high-value page URLs.
 
-        Returns a dict mapping category (about, blog, careers, products) to
+        Returns a dict mapping category (careers, docs, status, platform, etc.) to
         the best URL found for that category. Uses plain HTTP — zero Firecrawl
         credits.
         """
@@ -464,192 +370,3 @@ class FirecrawlService:
             return {}
         except Exception:
             return {}
-
-    async def _search_web_mentions(
-        self,
-        client: httpx.AsyncClient,
-        company_name: str,
-        domain: str
-    ) -> Optional[str]:
-        """Search the web for third-party mentions of a company.
-
-        Targets Crunchbase profiles, G2 reviews, press coverage, and other
-        sources that provide firmographic and market context when the company's
-        own website is sparse.
-        """
-        searches = [
-            f'"{company_name}" company about funding',
-            f'"{company_name}" reviews OR customers OR product',
-        ]
-
-        tasks = [
-            self._web_search(client, q, num_results=3) for q in searches
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        parts = []
-        seen_urls: set[str] = set()
-        for result in results:
-            if isinstance(result, Exception) or not result:
-                continue
-            # Deduplicate across searches by checking source URLs
-            for block in result.split("\n\n---\n\n"):
-                source_line = ""
-                for line in block.split("\n"):
-                    if line.startswith("Source: "):
-                        source_line = line[8:].strip()
-                        break
-                # Skip results from the company's own domain
-                if source_line and domain in source_line:
-                    continue
-                if source_line and source_line in seen_urls:
-                    continue
-                if source_line:
-                    seen_urls.add(source_line)
-                parts.append(block)
-
-        if not parts:
-            return None
-
-        # Cap at 5 results to avoid token bloat
-        return "\n\n---\n\n".join(parts[:5])
-
-    async def _check_subdomain_exists(
-        self,
-        client: httpx.AsyncClient,
-        url: str
-    ) -> bool:
-        """Check if a subdomain exists with a quick HEAD/GET request."""
-        try:
-            response = await client.head(
-                url,
-                follow_redirects=True,
-                timeout=5.0,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; AuggieBot/1.0)"}
-            )
-            # Check if we got a successful response and didn't redirect to main domain
-            if response.status_code < 400:
-                final_url = str(response.url)
-                # Make sure we didn't get redirected to the main site
-                if url.split('/')[2] in final_url:
-                    return True
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.ConnectTimeout):
-            pass
-        except Exception:
-            pass
-        return False
-
-    async def _scrape_engineering_blog(
-        self,
-        client: httpx.AsyncClient,
-        domain: str
-    ) -> Optional[str]:
-        """Check for and scrape engineering blog subdomains."""
-        # Common engineering blog subdomains
-        eng_subdomains = [
-            f"https://engineering.{domain}",
-            f"https://tech.{domain}",
-            f"https://developers.{domain}",
-        ]
-
-        # Check which subdomains exist
-        check_tasks = [self._check_subdomain_exists(client, url) for url in eng_subdomains]
-        exists_results = await asyncio.gather(*check_tasks)
-
-        existing_eng_urls = [url for url, exists in zip(eng_subdomains, exists_results) if exists]
-
-        if not existing_eng_urls:
-            return None
-
-        logger.debug("Found engineering blog subdomain: %s", existing_eng_urls[0])
-
-        # Scrape the first existing engineering subdomain
-        eng_url = existing_eng_urls[0]
-        content = await self._scrape_url(client, eng_url)
-
-        if content and len(content) > 300:
-            return content
-
-        return None
-
-    async def _scrape_developer_docs(
-        self,
-        client: httpx.AsyncClient,
-        domain: str
-    ) -> Optional[str]:
-        """Check for and scrape developer documentation subdomains."""
-        # Common docs/developer subdomains
-        doc_subdomains = [
-            f"https://docs.{domain}",
-            f"https://developer.{domain}",
-            f"https://api.{domain}",
-        ]
-
-        # Check which subdomains exist (free HEAD requests)
-        check_tasks = [self._check_subdomain_exists(client, url) for url in doc_subdomains]
-        exists_results = await asyncio.gather(*check_tasks)
-
-        existing_doc_urls = [url for url, exists in zip(doc_subdomains, exists_results) if exists]
-
-        if not existing_doc_urls:
-            return None
-
-        logger.debug("Found developer docs subdomain: %s", existing_doc_urls[0])
-
-        # Scrape the first existing docs subdomain
-        doc_url = existing_doc_urls[0]
-        content = await self._scrape_url(client, doc_url)
-
-        if content and len(content) > 300:
-            return f"## Developer Documentation ({doc_url})\n\n{content}"
-
-        return None
-
-    async def _scrape_investor_relations(
-        self,
-        client: httpx.AsyncClient,
-        domain: str
-    ) -> Optional[str]:
-        """Check for and scrape investor relations subdomains (public companies only)."""
-        # Common investor relations subdomains
-        ir_subdomains = [
-            f"https://investor.{domain}",
-            f"https://investors.{domain}",
-            f"https://ir.{domain}",
-        ]
-
-        # Check which subdomains exist
-        check_tasks = [self._check_subdomain_exists(client, url) for url in ir_subdomains]
-        exists_results = await asyncio.gather(*check_tasks)
-
-        existing_ir_urls = [url for url, exists in zip(ir_subdomains, exists_results) if exists]
-
-        if not existing_ir_urls:
-            logger.debug("No investor relations subdomain found for %s", domain)
-            return None
-
-        logger.debug("Found investor relations subdomain: %s", existing_ir_urls[0])
-
-        # Scrape the first existing IR subdomain
-        ir_url = existing_ir_urls[0]
-
-        # Try to get key pages from the IR site (reduced for cost optimization)
-        ir_pages = [
-            ir_url,  # Main IR page
-            f"{ir_url}/news",
-        ]
-
-        scrape_tasks = [self._scrape_url(client, url) for url in ir_pages]
-        results = await asyncio.gather(*scrape_tasks, return_exceptions=True)
-
-        content_parts = []
-        for url, content in zip(ir_pages, results):
-            if isinstance(content, str) and content and len(content) > 300:
-                # Truncate each page to avoid token bloat
-                content_parts.append(f"### {url}\n\n{content[:4000]}")
-                logger.debug("Scraped IR content from %s", url)
-
-        if content_parts:
-            return "\n\n---\n\n".join(content_parts)
-
-        return None

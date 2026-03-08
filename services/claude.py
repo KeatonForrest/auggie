@@ -3,6 +3,7 @@
 import logging
 import re
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 from openai import AsyncOpenAI
 from typing import Optional
 from datetime import datetime
@@ -144,24 +145,23 @@ The company data contains several types of information with different reliabilit
    - This is the REAL technology stack they use to build their product. PRIORITIZE THIS - it reveals what they actually build with.
    - **If no product subdomains were found**: This is NEUTRAL, not negative. Many companies use non-obvious subdomain patterns, SSO redirects, or single-page apps on the main domain. Do NOT editorialize about missing subdomains or call it "concerning." Simply omit the product stack section or note it was not detected.
 
-2. **Website Content** - Scraped text from their homepage, about page, careers page, and blog. Look for:
+2. **Homepage Content** - Scraped text from the main website homepage. Look for:
    - Specific projects or initiatives mentioned by name
    - Stated business problems or challenges
    - Company goals and strategic direction
-   - Engineering blog posts that mention technologies
+   - Product positioning and business context
 
-3. **Job Postings** - Strong signals about:
+3. **Site Structure** - Lightweight URL pattern signals discovered from the sitemap:
+   - Paths like /careers, /docs, /status, /platform, /security, /products
+   - Use this as directional context about what parts of the site exist
+   - Do NOT infer technology choices from path names alone
+
+4. **Job Postings** - Strong signals about:
    - Technologies they are hiring for (these are INFERRED but reliable)
    - Specific projects or teams mentioned
    - Problems they are trying to solve
    - Technical requirements
    - How long roles have been open (longer = harder problem or higher bar)
-
-4. **Investor Relations** (public companies only) - From investor.company.com:
-   - Strategic priorities and initiatives from leadership
-   - Financial performance and business outlook
-   - Press releases about major projects, partnerships, acquisitions
-   - Digital transformation and technology investment mentions
 
 5. **SEC EDGAR Filings** (public companies only) - From SEC.gov:
    - 8-K filings: Material events like leadership changes, M&A, restructuring, layoffs
@@ -209,9 +209,9 @@ The pipeline has already filtered and scored evidence by reliability. In the res
 - **Job postings and parsed signals** are high-confidence (structured, verified).
 - **Pain signals** are pre-scored with confidence values — trust these scores as-is.
 - **External context (Perplexity)** provides timing and market signals — cross-reference with first-party data.
-- **Website content** (homepage, about, blog) is context for understanding the company, not direct evidence.
+- **Homepage content and site structure** are context for understanding the company, not direct evidence.
 
-Build Existential Data Points from observed tech + job signals + high-confidence pain inferences. Use website content and external context to add narrative depth.
+Build Existential Data Points from observed tech + job signals + high-confidence pain inferences. Use homepage content, site structure, and external context to add narrative depth.
 """
 
         base_prompt += f"""
@@ -896,6 +896,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
     ) -> str:
         """Build the user prompt with all scraped research data (flat, original format)."""
         sections = [f"# Research Data for {company_url}\n"]
+        site_structure_line = self._format_site_structure(scraped.site_structure)
 
         if tech_by_domain:
             sections.append("## VERIFIED Technologies (Detected by Scanning Website Code)")
@@ -969,36 +970,15 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(scraped.homepage[:5000])
             sections.append("")
 
-        if scraped.about:
-            sections.append("## About Page")
-            sections.append(scraped.about[:3000])
-            sections.append("")
-
-        if scraped.careers:
-            sections.append("## Careers/Jobs Landing Page")
-            sections.append(scraped.careers[:5000])
-            sections.append("")
-
-        if scraped.blog:
-            sections.append("## Blog/Engineering Blog Content")
-            sections.append(scraped.blog[:5000])
+        if site_structure_line:
+            sections.append("## Site Structure")
+            sections.append(site_structure_line)
             sections.append("")
 
         if scraped.job_postings:
             sections.append("## Detailed Job Postings")
             sections.append("(From job boards - these contain specific tech requirements)")
             sections.append(scraped.job_postings[:15000])
-            sections.append("")
-
-        if scraped.additional_pages:
-            sections.append("## Additional Website Pages")
-            sections.append(scraped.additional_pages[:8000])
-            sections.append("")
-
-        if scraped.investor_relations:
-            sections.append("## Investor Relations (Public Company)")
-            sections.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
-            sections.append(scraped.investor_relations[:8000])
             sections.append("")
 
         if scraped.edgar_filings:
@@ -1015,7 +995,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 
         if scraped.web_mentions:
             sections.append("## Third-Party Web Mentions")
-            sections.append("(From web search — Crunchbase, G2, press coverage, and other external sources. This company had a thin web presence, so these fill critical gaps.)")
+            sections.append("(From Perplexity and external web sources — recent news, market context, press coverage, and third-party references.)")
             sections.append(scraped.web_mentions[:10000])
             sections.append("")
 
@@ -1113,6 +1093,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
     ) -> str:
         """Build the user prompt organized into signal-quality tiers."""
         sections = [f"# Research Data for {company_url}\n"]
+        site_structure_line = self._format_site_structure(scraped.site_structure)
 
         # Split tech by tier
         tier1_tech = ""
@@ -1171,31 +1152,15 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             tier2_parts.append(scraped.homepage[:5000])
             tier2_parts.append("")
 
-        if scraped.about:
-            tier2_parts.append("## About Page")
-            tier2_parts.append(scraped.about[:3000])
-            tier2_parts.append("")
-
-        if scraped.careers:
-            tier2_parts.append("## Careers/Jobs Landing Page")
-            tier2_parts.append(scraped.careers[:5000])
-            tier2_parts.append("")
-
-        if scraped.blog:
-            tier2_parts.append("## Blog/Engineering Blog Content")
-            tier2_parts.append(scraped.blog[:5000])
+        if site_structure_line:
+            tier2_parts.append("## Site Structure")
+            tier2_parts.append(site_structure_line)
             tier2_parts.append("")
 
         # Infrastructure signals — consolidated into one section
         infra_lines = self._format_infrastructure_section(dns_profile, ssl_profile, security_posture, robots_signals)
         if infra_lines:
             tier2_parts.extend(infra_lines)
-            tier2_parts.append("")
-
-        if scraped.investor_relations:
-            tier2_parts.append("## Investor Relations (Public Company)")
-            tier2_parts.append("(From investor.company.com - contains strategic priorities, financial performance, press releases)")
-            tier2_parts.append(scraped.investor_relations[:8000])
             tier2_parts.append("")
 
         if pain_buckets["tier2"]:
@@ -1221,13 +1186,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 
         if scraped.web_mentions:
             tier3_parts.append("## Third-Party Web Mentions")
-            tier3_parts.append("(From web search — Crunchbase, G2, press coverage, and other external sources.)")
+            tier3_parts.append("(From Perplexity and external web sources — recent news, market context, press coverage, and third-party references.)")
             tier3_parts.append(scraped.web_mentions[:8000])
-            tier3_parts.append("")
-
-        if scraped.additional_pages:
-            tier3_parts.append("## Additional Website Pages")
-            tier3_parts.append(scraped.additional_pages[:6000])
             tier3_parts.append("")
 
         if pain_buckets["tier3"]:
@@ -1254,6 +1214,28 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         sections.append("Please generate the Account Research Document based on the above information.")
 
         return "\n".join(sections)
+
+    @staticmethod
+    def _format_site_structure(site_structure: Optional[dict[str, str]]) -> Optional[str]:
+        """Collapse sitemap discoveries into a short path-only signal line."""
+        if not site_structure:
+            return None
+
+        paths: list[str] = []
+        seen: set[str] = set()
+        for category, url in site_structure.items():
+            path = (urlparse(url).path or "").strip() or f"/{category}"
+            normalized = path.rstrip("/") or "/"
+            if normalized == "/":
+                normalized = f"/{category}"
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            paths.append(normalized)
+
+        if not paths:
+            return None
+        return f"Site structure: {', '.join(paths)}"
 
     # --- Post-generation validation checks ---
 

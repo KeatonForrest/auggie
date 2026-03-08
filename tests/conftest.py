@@ -25,11 +25,8 @@ def sample_scraped_content():
     return ScrapedContent(
         homepage="# Acme Corp\nWe build amazing software for enterprises.",
         homepage_html="<html><head></head><body>Acme Corp</body></html>",
-        about="Acme Corp was founded in 2020. We have 500 employees.",
-        careers="We're hiring! Looking for Senior Engineers and Data Scientists.",
-        blog="Our latest post: How we scaled to 1 million users.",
+        site_structure={"careers": "https://acme.com/careers", "docs": "https://acme.com/api/docs"},
         job_postings="Senior Backend Engineer - Python, PostgreSQL, Redis required.",
-        additional_pages="Our product helps teams collaborate better.",
         news="Acme Corp raises $50M Series B.",
     )
 

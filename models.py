@@ -20,6 +20,7 @@ class ScrapedContent(BaseModel):
     blog: Optional[str] = None
     job_postings: Optional[str] = None
     additional_pages: Optional[str] = None
+    site_structure: Optional[dict[str, str]] = None
     news: Optional[str] = None
     investor_relations: Optional[str] = None
     edgar_filings: Optional[str] = None
