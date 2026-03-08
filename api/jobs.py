@@ -19,8 +19,9 @@ from urllib.parse import urlparse as _urlparse
 from services.collect import collect_enrichment_data
 from services.instances import (
     firecrawl_service, claude_service, tech_detection_service,
-    dns_analyzer, ssl_analyzer, job_parser, pain_engine,
+    job_parser, pain_engine,
 )
+from services import infrastructure_signals
 from models import SignalBundle, SellerContext
 from config import get_settings
 from api.webhooks import sign_payload
@@ -53,28 +54,28 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     full_main_url = f"https://{domain}"
 
     t0 = time.monotonic()
-    tech_by_domain, dns_profile, ssl_profile = await asyncio.gather(
+    tech_by_domain, infra = await asyncio.gather(
         tech_detection_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
-        dns_analyzer.analyze(domain),
-        ssl_analyzer.analyze(domain),
+        infrastructure_signals.analyze(
+            domain,
+            response_headers=None,  # filled below after tech detection captures headers
+            robots_base_url=full_main_url,
+        ),
     )
-    logger.info("[pipeline %s] tech+dns+ssl: %.1fs", domain, time.monotonic() - t0)
+    # Backfill security headers from tech detection's captured headers
+    main_headers = tech_detection_service.get_last_main_headers()
+    if main_headers:
+        from services.infrastructure_signals import _score_security_headers
+        _score_security_headers(infra, main_headers)
+    logger.info("[pipeline %s] tech+infra: %.1fs", domain, time.monotonic() - t0)
 
-    # Phase 3: security headers, robots, job signals
-    security_posture = tech_detection_service.score_security_headers(
-        tech_detection_service.get_last_main_headers()
-    )
-    robots_text = tech_detection_service.get_robots_text(full_main_url)
-    robots_signals = tech_detection_service.extract_robots_signals(robots_text) if robots_text else None
     job_signals = job_parser.parse(scraped_content.job_postings) if scraped_content.job_postings else None
 
     # Phase 4: pain inference
     t0 = time.monotonic()
     bundle = SignalBundle(
         domain=domain, tech_by_domain=tech_by_domain,
-        dns_profile=dns_profile, ssl_profile=ssl_profile,
-        security_posture=security_posture, robots_signals=robots_signals,
-        job_signals=job_signals,
+        infra=infra, job_signals=job_signals,
     )
     seller_context = SellerContext(
         product_type=user.get("product_type", "saas"),
@@ -110,10 +111,10 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         custom_signals=user.get("custom_signals", ""),
         solution_motion=user.get("solution_motion", "horizontal"),
         seller_product_category=user.get("seller_product_category", ""),
-        dns_profile=dns_profile,
-        ssl_profile=ssl_profile,
-        security_posture=security_posture,
-        robots_signals=robots_signals,
+        dns_profile=infra.dns_profile,
+        ssl_profile=infra.ssl_profile,
+        security_posture=infra.security_posture,
+        robots_signals=infra.robots_signals,
         job_signals=job_signals,
         pain_inferences=pain_inferences,
     )
@@ -125,7 +126,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     # Phase 5: persist tech signals and pain inferences
     try:
         from db.tech_signals import save_tech_signals, save_pain_inferences
-        await save_tech_signals(doc_id, tech_by_domain, dns_profile, ssl_profile, job_signals)
+        await save_tech_signals(doc_id, tech_by_domain, infra.dns_profile, infra.ssl_profile, job_signals)
         await save_pain_inferences(doc_id, pain_inferences)
     except Exception:
         logger.warning("Failed to save tech signals/pain inferences for doc %s", doc_id, exc_info=True)

@@ -120,6 +120,72 @@ class RobotsSignals(BaseModel):
     interesting_disallows: list[str] = []
 
 
+class InfrastructureSignals(BaseModel):
+    """Collapsed infrastructure analysis: DNS + SSL + security headers + robots.txt."""
+    domain: str
+    # DNS
+    ns_provider: Optional[str] = None
+    mx_provider: Optional[str] = None
+    has_spf: bool = False
+    has_dkim: bool = False
+    has_dmarc: bool = False
+    dmarc_policy: Optional[str] = None
+    cloud_provider_hints: list[str] = []
+    # SSL
+    ssl_issuer: Optional[str] = None
+    ssl_expiry_days: Optional[int] = None
+    ssl_san_count: int = 0
+    ssl_is_wildcard: bool = False
+    ssl_automation_inferred: bool = False
+    # Security headers
+    security_score: int = 0
+    security_present: list[str] = []
+    security_missing: list[str] = []
+    security_grade: str = "F"
+    # Robots.txt
+    robots_api_paths: list[str] = []
+    robots_admin_paths: list[str] = []
+    robots_crawl_delay: Optional[float] = None
+    robots_interesting_disallows: list[str] = []
+
+    @property
+    def dns_profile(self) -> "DNSProfile":
+        """Backward-compat accessor for code that reads DNS fields."""
+        return DNSProfile(
+            domain=self.domain, ns_provider=self.ns_provider,
+            mx_provider=self.mx_provider, has_spf=self.has_spf,
+            has_dkim=self.has_dkim, has_dmarc=self.has_dmarc,
+            dmarc_policy=self.dmarc_policy, cloud_provider_hints=list(self.cloud_provider_hints),
+        )
+
+    @property
+    def ssl_profile(self) -> "SSLProfile":
+        """Backward-compat accessor for code that reads SSL fields."""
+        return SSLProfile(
+            domain=self.domain, issuer=self.ssl_issuer,
+            expiry_days=self.ssl_expiry_days, san_count=self.ssl_san_count,
+            is_wildcard=self.ssl_is_wildcard, automation_inferred=self.ssl_automation_inferred,
+        )
+
+    @property
+    def security_posture(self) -> "SecurityPosture":
+        """Backward-compat accessor for code that reads security header fields."""
+        return SecurityPosture(
+            score=self.security_score, present=list(self.security_present),
+            missing=list(self.security_missing), grade=self.security_grade,
+        )
+
+    @property
+    def robots_signals(self) -> Optional["RobotsSignals"]:
+        """Backward-compat accessor for code that reads robots fields."""
+        if not self.robots_api_paths and not self.robots_admin_paths and self.robots_crawl_delay is None and not self.robots_interesting_disallows:
+            return None
+        return RobotsSignals(
+            api_paths=list(self.robots_api_paths), admin_paths=list(self.robots_admin_paths),
+            crawl_delay=self.robots_crawl_delay, interesting_disallows=list(self.robots_interesting_disallows),
+        )
+
+
 class TechMention(BaseModel):
     name: str
     category: str
@@ -151,13 +217,68 @@ class SellerContext(BaseModel):
 class SignalBundle(BaseModel):
     domain: str = ""
     tech_by_domain: dict = {}
-    dns_profile: Optional[DNSProfile] = None
-    ssl_profile: Optional[SSLProfile] = None
-    security_posture: Optional[SecurityPosture] = None
-    robots_signals: Optional[RobotsSignals] = None
+    infra: Optional[InfrastructureSignals] = None
     job_signals: Optional[JobSignals] = None
 
+    # Backward-compat properties so pain_inference rules keep working
+    @property
+    def dns_profile(self) -> Optional[DNSProfile]:
+        return self.infra.dns_profile if self.infra else None
+
+    @property
+    def ssl_profile(self) -> Optional[SSLProfile]:
+        return self.infra.ssl_profile if self.infra else None
+
+    @property
+    def security_posture(self) -> Optional[SecurityPosture]:
+        return self.infra.security_posture if self.infra else None
+
+    @property
+    def robots_signals(self) -> Optional[RobotsSignals]:
+        return self.infra.robots_signals if self.infra else None
+
     model_config = {"arbitrary_types_allowed": True}
+
+    def __init__(self, **data):
+        """Accept legacy dns_profile/ssl_profile/security_posture/robots_signals kwargs
+        and fold them into a single InfrastructureSignals object."""
+        dns = data.pop("dns_profile", None)
+        ssl_p = data.pop("ssl_profile", None)
+        sec = data.pop("security_posture", None)
+        rob = data.pop("robots_signals", None)
+
+        if data.get("infra") is None and any(x is not None for x in (dns, ssl_p, sec, rob)):
+            domain = data.get("domain", "")
+            infra_kwargs: dict = {"domain": domain}
+            if dns:
+                infra_kwargs["ns_provider"] = dns.ns_provider
+                infra_kwargs["mx_provider"] = dns.mx_provider
+                infra_kwargs["has_spf"] = dns.has_spf
+                infra_kwargs["has_dkim"] = dns.has_dkim
+                infra_kwargs["has_dmarc"] = dns.has_dmarc
+                infra_kwargs["dmarc_policy"] = dns.dmarc_policy
+                infra_kwargs["cloud_provider_hints"] = list(dns.cloud_provider_hints)
+                if not domain and dns.domain:
+                    infra_kwargs["domain"] = dns.domain
+            if ssl_p:
+                infra_kwargs["ssl_issuer"] = ssl_p.issuer
+                infra_kwargs["ssl_expiry_days"] = ssl_p.expiry_days
+                infra_kwargs["ssl_san_count"] = ssl_p.san_count
+                infra_kwargs["ssl_is_wildcard"] = ssl_p.is_wildcard
+                infra_kwargs["ssl_automation_inferred"] = ssl_p.automation_inferred
+            if sec:
+                infra_kwargs["security_score"] = sec.score
+                infra_kwargs["security_present"] = list(sec.present)
+                infra_kwargs["security_missing"] = list(sec.missing)
+                infra_kwargs["security_grade"] = sec.grade
+            if rob:
+                infra_kwargs["robots_api_paths"] = list(rob.api_paths)
+                infra_kwargs["robots_admin_paths"] = list(rob.admin_paths)
+                infra_kwargs["robots_crawl_delay"] = rob.crawl_delay
+                infra_kwargs["robots_interesting_disallows"] = list(rob.interesting_disallows)
+            data["infra"] = InfrastructureSignals(**infra_kwargs)
+
+        super().__init__(**data)
 
 
 _APP_PREFIXES = ("app.", "dashboard.", "portal.", "console.", "platform.", "my.", "admin.", "web.")
