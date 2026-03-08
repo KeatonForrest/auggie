@@ -26,16 +26,15 @@ except ImportError as e:
 class TechDetectionService:
     """Service for detecting technologies on websites."""
 
-    # High-signal subdomains that reveal tech stack (trimmed from 30+ to top 10)
+    # High-signal subdomains that reveal tech stack
     COMMON_APP_SUBDOMAINS = [
-        "app", "api", "dashboard", "portal", "admin",
-        "login", "console", "platform", "shop", "store",
+        "app", "api", "dashboard", "portal", "admin", "login",
     ]
 
-    # Common authenticated paths to check on main domain
+    # High-signal app paths on main domain (kept minimal — duplicates like
+    # /signin, /sign-in, /member, /membership add latency without new signal)
     COMMON_APP_PATHS = [
-        "/app", "/dashboard", "/portal", "/login", "/signin", "/sign-in",
-        "/account", "/member", "/membership", "/my-account", "/profile",
+        "/app", "/dashboard", "/portal", "/login",
     ]
 
     def __init__(self):
@@ -310,7 +309,7 @@ class TechDetectionService:
 
     async def discover_subdomains(self, base_domain: str) -> list[tuple[str, dict]]:
         """Discover which app subdomains exist for a domain.
-        Returns list of (url, headers) tuples."""
+        Returns list of (url, headers) tuples. Deduplicates by final URL."""
         base_domain = base_domain.replace("https://", "").replace("http://", "")
         base_domain = base_domain.split("/")[0].replace("www.", "")
 
@@ -322,10 +321,18 @@ class TechDetectionService:
         tasks = [self._rate_limited_check(client, url) for url in urls_to_check]
         results = await asyncio.gather(*tasks)
 
-        found = [r for r in results if r is not None]
+        # Dedup by final URL — some subdomains redirect to the same app
+        seen_urls: set[str] = set()
+        found: list[tuple[str, dict]] = []
+        for r in results:
+            if r is not None:
+                final_url = r[0].rstrip("/").lower()
+                if final_url not in seen_urls:
+                    seen_urls.add(final_url)
+                    found.append(r)
 
         if found:
-            logger.debug("Found %s app subdomains: %s", len(found), [u for u, _ in found])
+            logger.debug("Found %s app subdomains (deduped): %s", len(found), [u for u, _ in found])
         else:
             logger.debug("No app subdomains found")
 
@@ -333,7 +340,8 @@ class TechDetectionService:
 
     async def discover_app_paths(self, base_url: str) -> list[tuple[str, dict]]:
         """Discover which app paths exist on the main domain.
-        Returns list of (url, headers) tuples. Respects robots.txt."""
+        Returns list of (url, headers) tuples. Respects robots.txt.
+        Deduplicates paths that redirect to the same final URL."""
         if not base_url.startswith("http"):
             base_url = f"https://{base_url}"
         base_url = base_url.rstrip("/")
@@ -355,10 +363,18 @@ class TechDetectionService:
         tasks = [self._rate_limited_check(client, url) for url in urls_to_check]
         results = await asyncio.gather(*tasks)
 
-        found = [r for r in results if r is not None]
+        # Dedup by final URL — multiple paths often redirect to the same login page
+        seen_urls: set[str] = set()
+        found: list[tuple[str, dict]] = []
+        for r in results:
+            if r is not None:
+                final_url = r[0].rstrip("/").lower()
+                if final_url not in seen_urls:
+                    seen_urls.add(final_url)
+                    found.append(r)
 
         if found:
-            logger.debug("Found %s app paths: %s", len(found), [u for u, _ in found])
+            logger.debug("Found %s app paths (deduped): %s", len(found), [u for u, _ in found])
 
         return found
 
