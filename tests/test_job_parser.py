@@ -37,7 +37,12 @@ class TestJobParser:
         result = parser.parse("")
         assert result.tech_mentions == []
         assert result.role_types == []
+        assert result.role_type_counts == {}
         assert result.seniority_distribution == {}
+        assert result.initiative_signals == []
+        assert result.delivery_model_signals == []
+        assert result.capacity_signals == []
+        assert result.capability_gap_signals == []
         assert result.total_roles_parsed == 0
 
     def test_none_input(self, parser):
@@ -161,3 +166,38 @@ class TestJobParser:
         text = "\nMarketing Manager\nSales Director\nOperations Analyst\n"
         result = parser.parse(text)
         assert result.total_roles_parsed >= 3
+
+    def test_extracts_initiative_and_gap_signals(self, parser):
+        text = """
+        We are modernizing a legacy platform and leading a cloud migration to AWS.
+        This leader will define the landing zone strategy and modernization roadmap.
+        Hiring: Director of Engineering
+        """
+        result = parser.parse(text)
+        assert "Cloud migration / modernization" in result.initiative_signals
+        assert any("Cloud migration / modernization language without dedicated DevOps/platform hiring" == gap
+                   for gap in result.capability_gap_signals)
+        assert "Manager/director hiring appears ahead of execution-team buildout" in result.capability_gap_signals
+
+    def test_extracts_delivery_model_signals(self, parser):
+        text = """
+        You will coordinate with external partners, manage vendor relationships,
+        and work with consulting resources during implementation.
+        """
+        result = parser.parse(text)
+        assert "Professional services / consulting language" in result.delivery_model_signals
+        assert "Partner / vendor coordination" in result.delivery_model_signals
+        assert "Contractor / external team usage" in result.delivery_model_signals
+
+    def test_capacity_cluster_and_role_counts(self, parser):
+        text = """
+        Senior Backend Engineer
+        Staff Platform Engineer
+        Senior Data Engineer
+        DevOps Engineer
+        """
+        result = parser.parse(text)
+        assert result.role_type_counts["backend"] >= 1
+        assert result.role_type_counts["data"] >= 1
+        assert result.role_type_counts["devops"] >= 1
+        assert any(signal.startswith("Coordinated specialist hiring across") for signal in result.capacity_signals)

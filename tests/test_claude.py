@@ -1166,12 +1166,27 @@ class TestBackgroundOnlyPainSignals:
 class TestFormatJobSignalsSection:
     """Tests for _format_job_signals_section static method."""
 
-    def _make_signals(self, role_types=None, tech_mentions=None, seniority=None):
+    def _make_signals(
+        self,
+        role_types=None,
+        tech_mentions=None,
+        seniority=None,
+        role_type_counts=None,
+        initiative_signals=None,
+        delivery_model_signals=None,
+        capacity_signals=None,
+        capability_gap_signals=None,
+    ):
         from models import JobSignals, TechMention
         return JobSignals(
             tech_mentions=tech_mentions or [],
             role_types=role_types or [],
+            role_type_counts=role_type_counts or {},
             seniority_distribution=seniority or {},
+            initiative_signals=initiative_signals or [],
+            delivery_model_signals=delivery_model_signals or [],
+            capacity_signals=capacity_signals or [],
+            capability_gap_signals=capability_gap_signals or [],
             total_roles_parsed=0,
         )
 
@@ -1232,6 +1247,22 @@ class TestFormatJobSignalsSection:
         lines = ClaudeService._format_job_signals_section(signals, "")
         joined = "\n".join(lines)
         assert "Seniority: senior: 3, junior: 1" in joined
+
+    def test_extended_job_signals_included(self):
+        signals = self._make_signals(
+            role_type_counts={"devops": 2, "backend": 1},
+            initiative_signals=["Cloud migration / modernization"],
+            delivery_model_signals=["Partner / vendor coordination"],
+            capacity_signals=["Coordinated specialist hiring across devops, backend"],
+            capability_gap_signals=["Manager/director hiring appears ahead of execution-team buildout"],
+        )
+        lines = ClaudeService._format_job_signals_section(signals, "")
+        joined = "\n".join(lines)
+        assert "Role counts: devops x2, backend x1" in joined
+        assert "Initiative signals: Cloud migration / modernization" in joined
+        assert "Delivery model signals: Partner / vendor coordination" in joined
+        assert "Capacity signals: Coordinated specialist hiring across devops, backend" in joined
+        assert "Capability gaps: Manager/director hiring appears ahead of execution-team buildout" in joined
 
 
 # --- Format Tech By Tier ---

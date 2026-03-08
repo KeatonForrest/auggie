@@ -38,6 +38,11 @@ _CATEGORY_KEYWORDS = {
         "infrastructure as code", "monitoring", "logging", "container",
         "developer platform",
     ],
+    "cloud": [
+        "cloud migration", "cloud modernization", "aws", "amazon web services",
+        "azure", "gcp", "google cloud", "landing zone", "well-architected",
+        "finops", "platform engineering", "multi-account", "eks",
+    ],
     "security": [
         "cybersecurity", "security", "siem", "soar", "zero trust", "identity",
         "access management", "threat detection", "vulnerability", "penetration",
@@ -118,6 +123,11 @@ _CATEGORY_LINKAGE_TERMS: dict[str, list[str]] = {
         "developer experience", "build time", "pipeline",
         "infrastructure", "deployment velocity", "developer productivity",
     ],
+    "cloud": [
+        "cloud migration", "landing zone", "well-architected", "multi-account",
+        "cost optimization", "finops", "platform engineering", "eks",
+        "kubernetes", "observability", "infrastructure modernization",
+    ],
 }
 
 # Backward compat alias
@@ -133,6 +143,7 @@ _RULE_FAMILIES: dict[str, set[str]] = {
 # Maps seller category → set of denied signal families
 _CATEGORY_DENYLISTS: dict[str, set[str]] = {
     "database": _FRONTEND_DENYLIST,
+    "cloud": {"frontend_frameworks", "marketing_tags"},
     "fintech": {"frontend_frameworks", "cdn_delivery", "marketing_tags"},
     "healthtech": {"frontend_frameworks", "cdn_delivery", "marketing_tags"},
     "martech": {"devops_infra", "security_scanning"},
@@ -232,6 +243,10 @@ class PainInferenceEngine:
             self._cert_gap,
             self._marketing_product_mismatch,
             self._data_infra_pain,
+            self._partner_delivery_motion,
+            self._cloud_program_capacity_gap,
+            self._data_program_capacity_gap,
+            self._transformation_hiring_cluster,
             self._tag_bloat,
             self._vendor_lock_in,
             self._compliance_gap,
@@ -488,6 +503,107 @@ class PainInferenceEngine:
                 category="data",
             )
         return None
+
+    def _partner_delivery_motion(self, bundle: SignalBundle) -> Optional[PainInference]:
+        js = bundle.job_signals
+        if not js or not js.delivery_model_signals:
+            return None
+        return PainInference(
+            rule_id="partner_delivery_motion",
+            title="Partner-Friendly Delivery Motion",
+            description="Job language references partners, consultants, or external delivery models, which usually makes outside services easier to attach.",
+            severity="medium",
+            evidence=js.delivery_model_signals[:3],
+            confidence=60,
+            category="operations",
+        )
+
+    def _cloud_program_capacity_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
+        js = bundle.job_signals
+        if not js:
+            return None
+        cloud_gaps = [
+            gap for gap in js.capability_gap_signals
+            if "Cloud migration / modernization" in gap or "Platform engineering buildout" in gap
+        ]
+        if not cloud_gaps:
+            return None
+        evidence = list(cloud_gaps[:2])
+        if js.initiative_signals:
+            evidence.append(f"Initiatives: {', '.join(i for i in js.initiative_signals if 'Cloud' in i or 'Platform' in i)}")
+        return PainInference(
+            rule_id="cloud_program_capacity_gap",
+            title="Cloud Program Capacity Gap",
+            description="Cloud or platform transformation language appears without a matching internal delivery bench, suggesting a strong opening for external implementation help.",
+            severity="high",
+            evidence=evidence,
+            confidence=70,
+            category="operations",
+        )
+
+    def _data_program_capacity_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
+        js = bundle.job_signals
+        if not js:
+            return None
+        data_gaps = [
+            gap for gap in js.capability_gap_signals
+            if "Data platform / analytics buildout" in gap or "AI / ML rollout" in gap
+        ]
+        if not data_gaps:
+            return None
+        evidence = list(data_gaps[:2])
+        if js.initiative_signals:
+            evidence.append(f"Initiatives: {', '.join(i for i in js.initiative_signals if 'Data platform' in i or 'AI / ML' in i)}")
+        return PainInference(
+            rule_id="data_program_capacity_gap",
+            title="Data Program Capacity Gap",
+            description="Data or AI initiative language appears without dedicated in-house hiring, suggesting execution capacity is thin.",
+            severity="high",
+            evidence=evidence,
+            confidence=70,
+            category="data",
+        )
+
+    def _transformation_hiring_cluster(self, bundle: SignalBundle) -> Optional[PainInference]:
+        js = bundle.job_signals
+        if not js or not js.initiative_signals:
+            return None
+        cluster_signal = next(
+            (signal for signal in js.capacity_signals if signal.startswith("Coordinated specialist hiring")),
+            None,
+        )
+        if not cluster_signal:
+            return None
+
+        target_initiatives = [
+            initiative for initiative in js.initiative_signals
+            if initiative in {
+                "Cloud migration / modernization",
+                "Platform engineering buildout",
+                "Data platform / analytics buildout",
+                "AI / ML rollout",
+                "Quality engineering / test automation",
+            }
+        ]
+        if not target_initiatives:
+            return None
+
+        if any(initiative in {"Data platform / analytics buildout", "AI / ML rollout"} for initiative in target_initiatives):
+            category = "data"
+        elif any(initiative in {"Cloud migration / modernization", "Platform engineering buildout"} for initiative in target_initiatives):
+            category = "operations"
+        else:
+            category = "engineering"
+
+        return PainInference(
+            rule_id="transformation_hiring_cluster",
+            title="Transformation Hiring Cluster",
+            description="The hiring pattern points to an active transformation program that is likely to strain internal delivery bandwidth.",
+            severity="medium",
+            evidence=[cluster_signal, f"Initiatives: {', '.join(target_initiatives)}"],
+            confidence=60,
+            category=category,
+        )
 
     def _tag_bloat(self, bundle: SignalBundle) -> Optional[PainInference]:
         techs = self._get_all_tech_names_and_cats(bundle)
@@ -858,6 +974,11 @@ class PainInferenceEngine:
     # Maps seller category → pain rule_ids that get extra boost (2x weight)
     _SELLER_CATEGORY_BOOSTS: dict[str, set[str]] = {
         "database": {"database_scaling_pressure", "data_infra_pain", "scaling_pressure", "tech_debt"},
+        "cloud": {
+            "multi_cloud", "vendor_lock_in", "scaling_pressure",
+            "cloud_program_capacity_gap", "transformation_hiring_cluster",
+            "partner_delivery_motion", "observability_gap", "observability_stack_detected",
+        },
         "fintech": {"compliance_gap", "security_gap", "cert_gap"},
         "healthtech": {"compliance_gap", "security_gap"},
         "martech": {"identity_fragmentation", "tag_bloat", "marketing_product_mismatch"},

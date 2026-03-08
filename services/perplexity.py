@@ -55,6 +55,12 @@ _CATEGORY_QUERIES: dict[str, list[str]] = {
         '"{company}" recent news funding growth 2025 2026',
         '"{company}" hiring DevOps SRE platform engineer infrastructure careers',
     ],
+    "cloud": [
+        '"{company}" AWS cloud migration modernization platform engineering',
+        '"{company}" landing zone FinOps observability Well-Architected',
+        '"{company}" recent news cloud transformation growth 2025 2026',
+        '"{company}" hiring DevOps platform cloud infrastructure AWS careers',
+    ],
     "security": [
         '"{company}" cybersecurity compliance vulnerability challenges',
         '"{company}" security infrastructure identity access management',

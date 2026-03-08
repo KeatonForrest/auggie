@@ -203,6 +203,81 @@ class TestDataInfraPain:
         assert "data_infra_pain" not in ids
 
 
+class TestPartnerDeliveryMotion:
+    def test_triggers(self, engine):
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=[],
+                tech_mentions=[],
+                delivery_model_signals=["Professional services / consulting language"],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "partner_delivery_motion" in ids
+
+
+class TestCloudProgramCapacityGap:
+    def test_triggers(self, engine):
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["product"],
+                tech_mentions=[],
+                initiative_signals=["Cloud migration / modernization"],
+                capability_gap_signals=[
+                    "Cloud migration / modernization language without dedicated DevOps/platform hiring",
+                ],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "cloud_program_capacity_gap" in ids
+
+    def test_no_trigger_without_gap(self, engine):
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["devops"],
+                tech_mentions=[],
+                initiative_signals=["Cloud migration / modernization"],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "cloud_program_capacity_gap" not in ids
+
+
+class TestDataProgramCapacityGap:
+    def test_triggers(self, engine):
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["product"],
+                tech_mentions=[],
+                initiative_signals=["Data platform / analytics buildout"],
+                capability_gap_signals=[
+                    "Data platform / analytics buildout language without dedicated data engineering/analytics hiring",
+                ],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "data_program_capacity_gap" in ids
+
+
+class TestTransformationHiringCluster:
+    def test_triggers(self, engine):
+        bundle = SignalBundle(
+            job_signals=JobSignals(
+                role_types=["backend", "devops", "data"],
+                tech_mentions=[],
+                initiative_signals=["Cloud migration / modernization"],
+                capacity_signals=["Coordinated specialist hiring across devops, backend, data"],
+            ),
+        )
+        results = engine.evaluate(bundle)
+        ids = [r.rule_id for r in results]
+        assert "transformation_hiring_cluster" in ids
+
+
 class TestTagBloat:
     def test_triggers(self, engine):
         bundle = SignalBundle(
@@ -999,6 +1074,9 @@ class TestFrontendRuleKillSwitch:
 class TestDetectSellerCategory:
     def test_detects_database(self):
         assert detect_seller_category("MongoDB Atlas - scalable database platform") == "database"
+
+    def test_detects_cloud(self):
+        assert detect_seller_category("AWS cloud migration landing zone and FinOps services") == "cloud"
 
     def test_returns_empty_for_crm(self):
         assert detect_seller_category("Salesforce CRM for enterprise sales") == ""

@@ -184,6 +184,8 @@ The company data contains several types of information with different reliabilit
 8. **Parsed Job Signals** - Structured extraction from job posting text:
     - Technology mentions by category (language, framework, database, cloud, data, devops, security)
     - Role types and seniority distribution
+    - Initiative signals (migration, platform buildout, data/AI rollout, compliance programs)
+    - Delivery model and capability-gap signals inferred from hiring language
     - Roles marked as "Relevant" are most important for this seller's product category
 
 9. **Programmatic Pain Signals** - Pre-scored inferences from combining multiple data sources:
@@ -844,10 +846,32 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             else:
                 lines.append(f"- Role types: {', '.join(job_signals.role_types)}")
 
+        if job_signals.role_type_counts:
+            ordered_counts = sorted(
+                job_signals.role_type_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+            lines.append(
+                "- Role counts: "
+                + ", ".join(f"{role} x{count}" for role, count in ordered_counts)
+            )
+
         # Seniority distribution
         if job_signals.seniority_distribution:
             seniority_str = ", ".join(f"{k}: {v}" for k, v in job_signals.seniority_distribution.items())
             lines.append(f"- Seniority: {seniority_str}")
+
+        if job_signals.initiative_signals:
+            lines.append(f"- Initiative signals: {', '.join(job_signals.initiative_signals)}")
+
+        if job_signals.delivery_model_signals:
+            lines.append(f"- Delivery model signals: {', '.join(job_signals.delivery_model_signals)}")
+
+        if job_signals.capacity_signals:
+            lines.append(f"- Capacity signals: {', '.join(job_signals.capacity_signals)}")
+
+        if job_signals.capability_gap_signals:
+            lines.append(f"- Capability gaps: {', '.join(job_signals.capability_gap_signals)}")
 
         return lines
 

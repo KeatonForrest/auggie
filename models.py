@@ -160,7 +160,12 @@ class TechMention(BaseModel):
 class JobSignals(BaseModel):
     tech_mentions: list[TechMention] = []
     role_types: list[str] = []
+    role_type_counts: dict[str, int] = {}
     seniority_distribution: dict[str, int] = {}
+    initiative_signals: list[str] = []
+    delivery_model_signals: list[str] = []
+    capacity_signals: list[str] = []
+    capability_gap_signals: list[str] = []
     total_roles_parsed: int = 0
 
 
