@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from db._pool import get_connection
-from models import TechStack, DNSProfile, SSLProfile, JobSignals, PainInference
+from models import TechStack, InfrastructureSignals, JobSignals, PainInference
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 async def save_tech_signals(
     document_id: int,
     tech_by_domain: dict[str, TechStack],
-    dns_profile: Optional[DNSProfile] = None,
-    ssl_profile: Optional[SSLProfile] = None,
+    infra: Optional[InfrastructureSignals] = None,
     job_signals: Optional[JobSignals] = None,
 ) -> int:
     """Flatten all signals into tech_signals rows. Returns count inserted."""
@@ -30,20 +29,20 @@ async def save_tech_signals(
                 ))
 
     # DNS signals
-    if dns_profile:
-        domain = dns_profile.domain
-        if dns_profile.ns_provider:
-            rows.append((document_id, domain, "dns", dns_profile.ns_provider, "dns-ns", 100, None, "{}"))
-        if dns_profile.mx_provider:
-            rows.append((document_id, domain, "dns", dns_profile.mx_provider, "dns-mx", 100, None, "{}"))
-        for hint in dns_profile.cloud_provider_hints:
+    if infra:
+        domain = infra.domain
+        if infra.ns_provider:
+            rows.append((document_id, domain, "dns", infra.ns_provider, "dns-ns", 100, None, "{}"))
+        if infra.mx_provider:
+            rows.append((document_id, domain, "dns", infra.mx_provider, "dns-mx", 100, None, "{}"))
+        for hint in infra.cloud_provider_hints:
             rows.append((document_id, domain, "dns", hint, "cloud-hint", 80, None, "{}"))
 
     # SSL signals
-    if ssl_profile and ssl_profile.issuer:
+    if infra and infra.ssl_issuer:
         rows.append((
-            document_id, ssl_profile.domain, "ssl", ssl_profile.issuer, "ssl-issuer", 100, None,
-            json.dumps({"expiry_days": ssl_profile.expiry_days, "automation": ssl_profile.automation_inferred}),
+            document_id, infra.domain, "ssl", infra.ssl_issuer, "ssl-issuer", 100, None,
+            json.dumps({"expiry_days": infra.ssl_expiry_days, "automation": infra.ssl_automation_inferred}),
         ))
 
     # Job signals

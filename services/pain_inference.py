@@ -347,9 +347,9 @@ class PainInferenceEngine:
         return None
 
     def _security_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
-        sp = bundle.security_posture
-        if sp and sp.score <= 2:
-            evidence = [f"Security header score: {sp.score}/6 (grade {sp.grade})", f"Missing headers: {', '.join(sp.missing[:3])}"]
+        infra = bundle.infra
+        if infra and infra.security_score <= 2:
+            evidence = [f"Security header score: {infra.security_score}/6 (grade {infra.security_grade})", f"Missing headers: {', '.join(infra.security_missing[:3])}"]
             return PainInference(
                 rule_id="security_gap",
                 title="Security Posture Gap",
@@ -366,7 +366,7 @@ class PainInferenceEngine:
         if not js:
             return None
         devops_roles = [r for r in js.role_types if r in ("devops", "security")]
-        cloud_hints = bundle.dns_profile.cloud_provider_hints if bundle.dns_profile else []
+        cloud_hints = bundle.infra.cloud_provider_hints if bundle.infra else []
         if devops_roles and len(set(cloud_hints)) <= 1:
             return PainInference(
                 rule_id="scaling_pressure",
@@ -381,8 +381,8 @@ class PainInferenceEngine:
 
     def _multi_cloud(self, bundle: SignalBundle) -> Optional[PainInference]:
         clouds = set()
-        if bundle.dns_profile:
-            clouds.update(bundle.dns_profile.cloud_provider_hints)
+        if bundle.infra:
+            clouds.update(bundle.infra.cloud_provider_hints)
         techs = self._get_all_tech_names_and_cats(bundle)
         for n, c in techs:
             nl = n.lower()
@@ -405,17 +405,17 @@ class PainInferenceEngine:
         return None
 
     def _email_risk(self, bundle: SignalBundle) -> Optional[PainInference]:
-        dns = bundle.dns_profile
-        if not dns:
+        infra = bundle.infra
+        if not infra:
             return None
         issues = []
-        if not dns.has_spf:
+        if not infra.has_spf:
             issues.append("Missing SPF record")
-        if not dns.has_dkim:
+        if not infra.has_dkim:
             issues.append("Missing DKIM record")
-        if dns.has_dmarc and dns.dmarc_policy == "none":
+        if infra.has_dmarc and infra.dmarc_policy == "none":
             issues.append("DMARC policy set to 'none' (monitoring only)")
-        elif not dns.has_dmarc:
+        elif not infra.has_dmarc:
             issues.append("No DMARC record")
         if issues:
             return PainInference(
@@ -430,16 +430,16 @@ class PainInferenceEngine:
         return None
 
     def _cert_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
-        ssl = bundle.ssl_profile
-        if not ssl:
+        infra = bundle.infra
+        if not infra or infra.ssl_expiry_days is None:
             return None
-        if ssl.expiry_days is not None and ssl.expiry_days < 30 and not ssl.automation_inferred:
+        if infra.ssl_expiry_days < 30 and not infra.ssl_automation_inferred:
             return PainInference(
                 rule_id="cert_gap",
                 title="Certificate Expiry Risk",
                 description="SSL certificate expiring soon without automated renewal detected.",
                 severity="high",
-                evidence=[f"Certificate expires in {ssl.expiry_days} days", f"Issuer: {ssl.issuer or 'unknown'}", "No automation (e.g. Let's Encrypt) detected"],
+                evidence=[f"Certificate expires in {infra.ssl_expiry_days} days", f"Issuer: {infra.ssl_issuer or 'unknown'}", "No automation (e.g. Let's Encrypt) detected"],
                 confidence=85,
                 category="security",
             )
@@ -506,12 +506,12 @@ class PainInferenceEngine:
 
     def _vendor_lock_in(self, bundle: SignalBundle) -> Optional[PainInference]:
         vendor_sources: dict[str, set[str]] = {}
-        dns = bundle.dns_profile
-        if dns:
+        infra = bundle.infra
+        if infra:
             for vendor, keywords in [("AWS", ["aws", "amazon"]), ("Azure", ["azure", "microsoft"]), ("GCP", ["gcp", "google"])]:
-                if dns.ns_provider and any(k in dns.ns_provider.lower() for k in keywords):
+                if infra.ns_provider and any(k in infra.ns_provider.lower() for k in keywords):
                     vendor_sources.setdefault(vendor, set()).add("DNS NS")
-                if dns.mx_provider and any(k in dns.mx_provider.lower() for k in keywords):
+                if infra.mx_provider and any(k in infra.mx_provider.lower() for k in keywords):
                     vendor_sources.setdefault(vendor, set()).add("Email")
         techs = self._get_all_tech_names_and_cats(bundle)
         for n, c in techs:
@@ -536,9 +536,9 @@ class PainInferenceEngine:
         return None
 
     def _compliance_gap(self, bundle: SignalBundle) -> Optional[PainInference]:
-        sp = bundle.security_posture
+        infra = bundle.infra
         js = bundle.job_signals
-        if not sp or sp.score > 2:
+        if not infra or infra.security_score > 2:
             return None
         if not js:
             return None
@@ -551,7 +551,7 @@ class PainInferenceEngine:
                     break
         if not has_security_signal:
             return None
-        evidence = [f"Security header grade: {sp.grade} ({sp.score}/6)"]
+        evidence = [f"Security header grade: {infra.security_grade} ({infra.security_score}/6)"]
         evidence.append("Security-related hiring signals detected")
         return PainInference(
             rule_id="compliance_gap",
@@ -817,7 +817,7 @@ class PainInferenceEngine:
 
         # systemic_security_underinvestment: if cert_gap fired but SSL has automation_inferred
         if "systemic_security_underinvestment" in result_map:
-            if "cert_gap" in fired_ids and bundle.ssl_profile and bundle.ssl_profile.automation_inferred:
+            if "cert_gap" in fired_ids and bundle.infra and bundle.infra.ssl_automation_inferred:
                 result_map["systemic_security_underinvestment"].confidence -= 15
 
         # observability_gap: if devops in job role_types (they're hiring for it)

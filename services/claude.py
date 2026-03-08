@@ -10,8 +10,8 @@ from datetime import datetime
 
 from models import (
     ScrapedContent, ResearchDocument, TechStack, format_multi_domain_tech,
-    format_tech_by_tier,
-    DNSProfile, SSLProfile, SecurityPosture, RobotsSignals, JobSignals, PainInference,
+    format_tech_by_tier, InfrastructureSignals,
+    JobSignals, PainInference,
 )
 
 logger = logging.getLogger(__name__)
@@ -767,49 +767,48 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 
     @staticmethod
     def _format_infrastructure_section(
-        dns_profile: Optional[DNSProfile] = None,
-        ssl_profile: Optional[SSLProfile] = None,
-        security_posture: Optional[SecurityPosture] = None,
-        robots_signals: Optional[RobotsSignals] = None,
+        infra: Optional[InfrastructureSignals] = None,
     ) -> list[str]:
         """Format collapsed infrastructure signals into one prompt section."""
+        if not infra:
+            return []
+
         lines: list[str] = []
         has_content = False
 
-        if dns_profile and (dns_profile.ns_provider or dns_profile.cloud_provider_hints):
-            if not has_content:
-                lines.append("## Infrastructure Signals")
-                has_content = True
-            if dns_profile.ns_provider:
-                lines.append(f"- DNS: {dns_profile.ns_provider}")
-            if dns_profile.cloud_provider_hints:
-                lines.append(f"- Cloud: {', '.join(dns_profile.cloud_provider_hints)}")
+        if infra.ns_provider or infra.cloud_provider_hints:
+            lines.append("## Infrastructure Signals")
+            has_content = True
+            if infra.ns_provider:
+                lines.append(f"- DNS: {infra.ns_provider}")
+            if infra.cloud_provider_hints:
+                lines.append(f"- Cloud: {', '.join(infra.cloud_provider_hints)}")
 
-        if ssl_profile and ssl_profile.issuer:
+        if infra.ssl_issuer:
             if not has_content:
                 lines.append("## Infrastructure Signals")
                 has_content = True
-            parts = [f"Issuer: {ssl_profile.issuer}"]
-            if ssl_profile.expiry_days is not None:
-                parts.append(f"expires in {ssl_profile.expiry_days}d")
-            if ssl_profile.automation_inferred:
+            parts = [f"Issuer: {infra.ssl_issuer}"]
+            if infra.ssl_expiry_days is not None:
+                parts.append(f"expires in {infra.ssl_expiry_days}d")
+            if infra.ssl_automation_inferred:
                 parts.append("auto-renewed")
             lines.append(f"- SSL: {', '.join(parts)}")
 
-        if security_posture and security_posture.grade:
+        if infra.security_grade:
             if not has_content:
                 lines.append("## Infrastructure Signals")
                 has_content = True
-            lines.append(f"- Security headers: {security_posture.grade} ({security_posture.score}/6)")
+            lines.append(f"- Security headers: {infra.security_grade} ({infra.security_score}/6)")
 
-        if robots_signals:
+        if infra.robots_api_paths or infra.robots_admin_paths:
             if not has_content:
                 lines.append("## Infrastructure Signals")
                 has_content = True
-            if robots_signals.api_paths:
-                lines.append(f"- API paths: {', '.join(robots_signals.api_paths)}")
-            if robots_signals.admin_paths:
-                lines.append(f"- Admin paths: {', '.join(robots_signals.admin_paths)}")
+            if infra.robots_api_paths:
+                lines.append(f"- API paths: {', '.join(infra.robots_api_paths)}")
+            if infra.robots_admin_paths:
+                lines.append(f"- Admin paths: {', '.join(infra.robots_admin_paths)}")
 
         return lines
 
@@ -857,10 +856,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
-        dns_profile: Optional[DNSProfile] = None,
-        ssl_profile: Optional[SSLProfile] = None,
-        security_posture: Optional[SecurityPosture] = None,
-        robots_signals: Optional[RobotsSignals] = None,
+        infra: Optional[InfrastructureSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
         seller_product_category: str = "",
@@ -869,16 +865,14 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         if self.settings.research_tiered_prompt_enabled:
             return self._build_tiered_user_prompt(
                 company_url, scraped, tech_by_domain,
-                dns_profile=dns_profile, ssl_profile=ssl_profile,
-                security_posture=security_posture, robots_signals=robots_signals,
-                job_signals=job_signals, pain_inferences=pain_inferences,
+                infra=infra, job_signals=job_signals,
+                pain_inferences=pain_inferences,
                 seller_product_category=seller_product_category,
             )
         return self._build_flat_user_prompt(
             company_url, scraped, tech_by_domain,
-            dns_profile=dns_profile, ssl_profile=ssl_profile,
-            security_posture=security_posture, robots_signals=robots_signals,
-            job_signals=job_signals, pain_inferences=pain_inferences,
+            infra=infra, job_signals=job_signals,
+            pain_inferences=pain_inferences,
             seller_product_category=seller_product_category,
         )
 
@@ -887,10 +881,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
-        dns_profile: Optional[DNSProfile] = None,
-        ssl_profile: Optional[SSLProfile] = None,
-        security_posture: Optional[SecurityPosture] = None,
-        robots_signals: Optional[RobotsSignals] = None,
+        infra: Optional[InfrastructureSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
         seller_product_category: str = "",
@@ -909,7 +900,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append("")
 
         # Infrastructure signals (DNS + SSL + security headers + robots) — one section
-        infra_lines = self._format_infrastructure_section(dns_profile, ssl_profile, security_posture, robots_signals)
+        infra_lines = self._format_infrastructure_section(infra)
         if infra_lines:
             sections.extend(infra_lines)
             sections.append("")
@@ -1084,10 +1075,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         company_url: str,
         scraped: ScrapedContent,
         tech_by_domain: Optional[dict[str, TechStack]] = None,
-        dns_profile: Optional[DNSProfile] = None,
-        ssl_profile: Optional[SSLProfile] = None,
-        security_posture: Optional[SecurityPosture] = None,
-        robots_signals: Optional[RobotsSignals] = None,
+        infra: Optional[InfrastructureSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
         seller_product_category: str = "",
@@ -1159,7 +1147,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             tier2_parts.append("")
 
         # Infrastructure signals — consolidated into one section
-        infra_lines = self._format_infrastructure_section(dns_profile, ssl_profile, security_posture, robots_signals)
+        infra_lines = self._format_infrastructure_section(infra)
         if infra_lines:
             tier2_parts.extend(infra_lines)
             tier2_parts.append("")
@@ -1410,10 +1398,7 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         target_industries: str = "",
         problems_solved: str = "",
         product_type: str = "saas",
-        dns_profile: Optional[DNSProfile] = None,
-        ssl_profile: Optional[SSLProfile] = None,
-        security_posture: Optional[SecurityPosture] = None,
-        robots_signals: Optional[RobotsSignals] = None,
+        infra: Optional[InfrastructureSignals] = None,
         job_signals: Optional[JobSignals] = None,
         pain_inferences: Optional[list[PainInference]] = None,
         custom_signals: str = "",
@@ -1440,9 +1425,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         )
         user_prompt = self._build_user_prompt(
             company_url, scraped, tech_by_domain,
-            dns_profile=dns_profile, ssl_profile=ssl_profile,
-            security_posture=security_posture, robots_signals=robots_signals,
-            job_signals=job_signals, pain_inferences=pain_inferences,
+            infra=infra, job_signals=job_signals,
+            pain_inferences=pain_inferences,
             seller_product_category=seller_product_category,
         )
 

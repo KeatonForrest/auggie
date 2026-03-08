@@ -122,10 +122,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         custom_signals=user.get("custom_signals", ""),
         solution_motion=user.get("solution_motion", "horizontal"),
         seller_product_category=user.get("seller_product_category", ""),
-        dns_profile=infra.dns_profile,
-        ssl_profile=infra.ssl_profile,
-        security_posture=infra.security_posture,
-        robots_signals=infra.robots_signals,
+        infra=infra,
         job_signals=job_signals,
         pain_inferences=pain_inferences,
     )
@@ -137,7 +134,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     # Phase 5: persist tech signals and pain inferences
     try:
         from db.tech_signals import save_tech_signals, save_pain_inferences
-        await save_tech_signals(doc_id, tech_by_domain, infra.dns_profile, infra.ssl_profile, job_signals)
+        await save_tech_signals(doc_id, tech_by_domain, infra, job_signals)
         await save_pain_inferences(doc_id, pain_inferences)
     except Exception:
         logger.warning("Failed to save tech signals/pain inferences for doc %s", doc_id, exc_info=True)

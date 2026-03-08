@@ -149,42 +149,6 @@ class InfrastructureSignals(BaseModel):
     robots_crawl_delay: Optional[float] = None
     robots_interesting_disallows: list[str] = []
 
-    @property
-    def dns_profile(self) -> "DNSProfile":
-        """Backward-compat accessor for code that reads DNS fields."""
-        return DNSProfile(
-            domain=self.domain, ns_provider=self.ns_provider,
-            mx_provider=self.mx_provider, has_spf=self.has_spf,
-            has_dkim=self.has_dkim, has_dmarc=self.has_dmarc,
-            dmarc_policy=self.dmarc_policy, cloud_provider_hints=list(self.cloud_provider_hints),
-        )
-
-    @property
-    def ssl_profile(self) -> "SSLProfile":
-        """Backward-compat accessor for code that reads SSL fields."""
-        return SSLProfile(
-            domain=self.domain, issuer=self.ssl_issuer,
-            expiry_days=self.ssl_expiry_days, san_count=self.ssl_san_count,
-            is_wildcard=self.ssl_is_wildcard, automation_inferred=self.ssl_automation_inferred,
-        )
-
-    @property
-    def security_posture(self) -> "SecurityPosture":
-        """Backward-compat accessor for code that reads security header fields."""
-        return SecurityPosture(
-            score=self.security_score, present=list(self.security_present),
-            missing=list(self.security_missing), grade=self.security_grade,
-        )
-
-    @property
-    def robots_signals(self) -> Optional["RobotsSignals"]:
-        """Backward-compat accessor for code that reads robots fields."""
-        if not self.robots_api_paths and not self.robots_admin_paths and self.robots_crawl_delay is None and not self.robots_interesting_disallows:
-            return None
-        return RobotsSignals(
-            api_paths=list(self.robots_api_paths), admin_paths=list(self.robots_admin_paths),
-            crawl_delay=self.robots_crawl_delay, interesting_disallows=list(self.robots_interesting_disallows),
-        )
 
 
 class TechMention(BaseModel):
@@ -220,23 +184,6 @@ class SignalBundle(BaseModel):
     tech_by_domain: dict = {}
     infra: Optional[InfrastructureSignals] = None
     job_signals: Optional[JobSignals] = None
-
-    # Backward-compat properties so pain_inference rules keep working
-    @property
-    def dns_profile(self) -> Optional[DNSProfile]:
-        return self.infra.dns_profile if self.infra else None
-
-    @property
-    def ssl_profile(self) -> Optional[SSLProfile]:
-        return self.infra.ssl_profile if self.infra else None
-
-    @property
-    def security_posture(self) -> Optional[SecurityPosture]:
-        return self.infra.security_posture if self.infra else None
-
-    @property
-    def robots_signals(self) -> Optional[RobotsSignals]:
-        return self.infra.robots_signals if self.infra else None
 
     model_config = {"arbitrary_types_allowed": True}
 

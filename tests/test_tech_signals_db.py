@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from models import TechStack, DetectedTechnology, DNSProfile, SSLProfile, JobSignals, TechMention, PainInference
+from models import TechStack, DetectedTechnology, InfrastructureSignals, JobSignals, TechMention, PainInference
 
 
 @pytest.fixture
@@ -41,8 +41,8 @@ class TestSaveTechSignals:
     async def test_saves_dns_signals(self, mock_get_connection, mock_conn):
         with patch("db.tech_signals.get_connection", mock_get_connection):
             from db.tech_signals import save_tech_signals
-            dns = DNSProfile(domain="example.com", ns_provider="AWS", mx_provider="Google Workspace", cloud_provider_hints=["AWS"])
-            count = await save_tech_signals(1, {}, dns_profile=dns)
+            infra = InfrastructureSignals(domain="example.com", ns_provider="AWS", mx_provider="Google Workspace", cloud_provider_hints=["AWS"])
+            count = await save_tech_signals(1, {}, infra=infra)
         assert count == 3  # ns + mx + cloud hint
         mock_conn.executemany.assert_awaited_once()
 
@@ -50,8 +50,8 @@ class TestSaveTechSignals:
     async def test_saves_ssl_signals(self, mock_get_connection, mock_conn):
         with patch("db.tech_signals.get_connection", mock_get_connection):
             from db.tech_signals import save_tech_signals
-            ssl = SSLProfile(domain="example.com", issuer="Let's Encrypt", expiry_days=60, automation_inferred=True)
-            count = await save_tech_signals(1, {}, ssl_profile=ssl)
+            infra = InfrastructureSignals(domain="example.com", ssl_issuer="Let's Encrypt", ssl_expiry_days=60, ssl_automation_inferred=True)
+            count = await save_tech_signals(1, {}, infra=infra)
         assert count == 1
         mock_conn.executemany.assert_awaited_once()
 
