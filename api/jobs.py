@@ -65,7 +65,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
             response_headers=None,  # filled below after tech detection captures headers
             robots_base_url=full_main_url,
         ),
-        perplexity_service.search(domain, domain.split(".")[0], seller_category=seller_category),
+        perplexity_service.search(domain, domain.split(".")[0].replace("-", " "), seller_category=seller_category),
     )
     # Backfill security headers from tech detection's captured headers
     main_headers = tech_detection_service.get_last_main_headers()

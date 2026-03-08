@@ -1370,8 +1370,8 @@ class TestTieredUserPrompt:
         # Homepage exists → tier2 present
         assert "## TIER 2:" in result
 
-    def test_product_tech_in_tier1_marketing_in_tier3(self, tiered_service):
-        """Product/app tech goes to tier 1, marketing tech to tier 3."""
+    def test_product_tech_in_tier1_marketing_excluded(self, tiered_service):
+        """Product/app tech goes to tier 1, marketing site tech is excluded."""
         scraped = ScrapedContent()
         tech_by_domain = {
             "app.example.com": TechStack(technologies=[DetectedTechnology(name="React")]),
@@ -1380,13 +1380,11 @@ class TestTieredUserPrompt:
         result = tiered_service._build_user_prompt(
             "https://example.com", scraped, tech_by_domain=tech_by_domain,
         )
-        # Find tier boundaries
         t1_start = result.index("## TIER 1:")
-        t3_start = result.index("## TIER 3:")
-        tier1_section = result[t1_start:t3_start]
-        tier3_section = result[t3_start:]
+        tier1_section = result[t1_start:]
         assert "React" in tier1_section
-        assert "jQuery" in tier3_section
+        # Marketing site tech no longer included (Phase 2 stopped collecting it)
+        assert "Marketing Site" not in result
 
     def test_pain_split_by_confidence(self, tiered_service):
         """Pain inferences are split into tiers by confidence."""
@@ -1445,9 +1443,8 @@ class TestTieredUserPrompt:
         assert "x" * 12000 in result
         assert "x" * 12001 not in result
 
-    def test_marketing_tech_cap_3000(self, tiered_service):
-        """Marketing-site tech text is capped at 3000 chars in tier 3."""
-        # Build a tech stack with a very long to_prompt_text output
+    def test_marketing_tech_excluded_from_prompt(self, tiered_service):
+        """Marketing-site tech is no longer included in the tiered prompt."""
         many_techs = [DetectedTechnology(name=f"Tech{i}", category="Framework") for i in range(200)]
         tech_by_domain = {
             "example.com": TechStack(technologies=many_techs),
@@ -1456,18 +1453,7 @@ class TestTieredUserPrompt:
         result = tiered_service._build_user_prompt(
             "https://example.com", scraped, tech_by_domain=tech_by_domain,
         )
-        # Find the marketing tech section in tier 3
-        t3_start = result.index("## TIER 3:")
-        tier3 = result[t3_start:]
-        marketing_start = tier3.index("## VERIFIED Technologies — Marketing Site")
-        # The text after the header should be capped
-        marketing_section = tier3[marketing_start:]
-        # The full tech output would be much longer than 3000 chars
-        _, tier3_text_full = format_tech_by_tier(tech_by_domain)
-        assert len(tier3_text_full) > 3000
-        # But the prompt should have truncated it
-        assert tier3_text_full[:3000] in marketing_section
-        assert tier3_text_full[:3001] not in marketing_section
+        assert "Marketing Site" not in result
 
     def test_system_prompt_includes_tier_structure_when_enabled(self, tiered_service):
         """System prompt includes EVIDENCE HIERARCHY when flag is on."""

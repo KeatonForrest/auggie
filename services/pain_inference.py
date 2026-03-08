@@ -723,7 +723,7 @@ class PainInferenceEngine:
                 "description": "Multiple independent security signals compound into evidence of systemic security underinvestment.",
                 "severity": "high",
                 "category": "security",
-                "constituents": ["security_gap", "email_risk", "cert_gap"],
+                "constituents": ["security_gap", "cert_gap"],
                 "min_matches": 2,
             },
             {

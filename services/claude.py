@@ -140,9 +140,8 @@ UNDERSTANDING THE DATA:
 
 The company data contains several types of information with different reliability levels:
 
-1. **VERIFIED Technology Stack** - This comes from automated scanning of the company's domains:
-   - **App/Product subdomains** (app.*, dashboard.*, portal.*, admin.*, etc.): This is the REAL technology stack they use to build their product. PRIORITIZE THIS - it reveals what they actually build with.
-   - **Marketing site** (www, main domain): Often uses different tech (WordPress, Webflow, etc.) and is less relevant for technical sales conversations.
+1. **VERIFIED Technology Stack** - This comes from automated scanning of the company's product subdomains (app.*, dashboard.*, portal.*, admin.*, etc.):
+   - This is the REAL technology stack they use to build their product. PRIORITIZE THIS - it reveals what they actually build with.
    - **If no product subdomains were found**: This is NEUTRAL, not negative. Many companies use non-obvious subdomain patterns, SSO redirects, or single-page apps on the main domain. Do NOT editorialize about missing subdomains or call it "concerning." Simply omit the product stack section or note it was not detected.
 
 2. **Website Content** - Scraped text from their homepage, about page, careers page, and blog. Look for:
@@ -766,7 +765,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         return "\n".join(result)
 
     @staticmethod
-    @staticmethod
     def _format_infrastructure_section(
         dns_profile: Optional[DNSProfile] = None,
         ssl_profile: Optional[SSLProfile] = None,
@@ -906,8 +904,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(format_multi_domain_tech(tech_by_domain))
             sections.append("")
             sections.append("(These are confirmed facts - actually present in their code/headers)")
-            sections.append("NOTE: Product/Application subdomains (app.*, dashboard.*, etc.) show their ACTUAL tech stack.")
-            sections.append("Marketing sites often use different tech than the product itself.")
             sections.append("")
 
         # Infrastructure signals (DNS + SSL + security headers + robots) — one section
@@ -1119,9 +1115,9 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         sections = [f"# Research Data for {company_url}\n"]
 
         # Split tech by tier
-        tier1_tech, tier3_tech = ("", "")
+        tier1_tech = ""
         if tech_by_domain:
-            tier1_tech, tier3_tech = format_tech_by_tier(tech_by_domain)
+            tier1_tech, _ = format_tech_by_tier(tech_by_domain)
 
         # Split pain by tier
         pain_buckets = self._split_pain_by_tier(pain_inferences or [])
@@ -1222,11 +1218,6 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
 
         # --- TIER 3: LOWER-CONFIDENCE SIGNALS ---
         tier3_parts: list[str] = []
-
-        if tier3_tech:
-            tier3_parts.append("## VERIFIED Technologies — Marketing Site")
-            tier3_parts.append(tier3_tech[:3000])
-            tier3_parts.append("")
 
         if scraped.web_mentions:
             tier3_parts.append("## Third-Party Web Mentions")

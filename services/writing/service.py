@@ -416,8 +416,8 @@ class WritingService:
         # Enforce word limits - shorten over-limit emails in parallel
         over = strategy.over_limit_emails(emails)
         if over:
-            tel.retry_count += len(over)
             for _pass in range(2):
+                tel.retry_count += 1
                 async def _try_shorten(ov: dict) -> tuple[int, str | None]:
                     try:
                         prompt = strategy.shorten_prompt(ov)
@@ -646,6 +646,7 @@ class WritingService:
         message = strategy.parse_output(raw, ctx)
 
         if not message:
+            tel.parse_success = False
             tel.latency_ms = int((time.monotonic() - start_time) * 1000)
             self._emit_telemetry(tel)
             raise SequenceValidationError(
@@ -688,13 +689,18 @@ class WritingService:
             message, mode, limit, model, tel
         )
 
-        # Quality gate - validate via strategy
+        # Quality gate - validate via strategy (reuse full context)
         val_ctx = GenerationContext(
             document=document,
             product_context=product_context,
             report=report,
             mode=mode,
+            linkedin_context=linkedin_context,
+            persona_context=persona_context,
+            seller_company=seller_company,
+            problems_solved=problems_solved,
             company_name=document.company_name,
+            product_category=category,
         )
         result = strategy.validate(message, val_ctx)
 

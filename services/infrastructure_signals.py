@@ -60,7 +60,9 @@ async def analyze(domain: str, response_headers: dict | None = None, robots_base
     """
     dns_task = _analyze_dns(domain)
     ssl_task = _analyze_ssl(domain)
-    robots_task = _fetch_robots(robots_base_url) if robots_base_url else asyncio.coroutine(lambda: (None, None))()
+    async def _noop_robots():
+        return (None, None)
+    robots_task = _fetch_robots(robots_base_url) if robots_base_url else _noop_robots()
 
     dns_result, ssl_result, robots_result = await asyncio.gather(
         dns_task, ssl_task, robots_task, return_exceptions=True,
@@ -215,7 +217,7 @@ def _parse_cert(cert: dict, result: dict) -> None:
     if not_after:
         try:
             expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
-            result["expiry_days"] = (expiry - datetime.now(timezone.utc).replace(tzinfo=None)).days
+            result["expiry_days"] = (expiry.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days
         except (ValueError, TypeError):
             pass
 

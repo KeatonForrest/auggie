@@ -146,15 +146,18 @@ async def search(
     results: list[PerplexityResult] = []
 
     try:
-        async with asyncio.timeout(QUERY_TIMEOUT * len(queries) + 5):
-            async with httpx.AsyncClient(timeout=QUERY_TIMEOUT) as client:
-                tasks = [_single_query(client, settings.perplexity_api_key, q) for q in queries]
-                raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-                for q, r in zip(queries, raw_results):
-                    if isinstance(r, PerplexityResult):
-                        results.append(r)
-                    elif isinstance(r, Exception):
-                        logger.warning("Perplexity query failed: %s — %s", q[:60], r)
+        overall_timeout = QUERY_TIMEOUT * len(queries) + 5
+        async with httpx.AsyncClient(timeout=QUERY_TIMEOUT) as client:
+            tasks = [_single_query(client, settings.perplexity_api_key, q) for q in queries]
+            raw_results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=overall_timeout,
+            )
+            for q, r in zip(queries, raw_results):
+                if isinstance(r, PerplexityResult):
+                    results.append(r)
+                elif isinstance(r, Exception):
+                    logger.warning("Perplexity query failed: %s — %s", q[:60], r)
     except (TimeoutError, asyncio.TimeoutError):
         logger.warning("Perplexity search timed out for %s", domain)
     except Exception as e:

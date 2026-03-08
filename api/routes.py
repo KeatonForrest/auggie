@@ -420,6 +420,7 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
 
     company_domain = document.company_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
 
+    credit_charged = False
     try:
         contacts = await leadmagic.enrich_contacts(
             company_domain=company_domain,
@@ -431,6 +432,7 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
             await save_enriched_contacts(body.document_id, api_user["id"], contacts)
             if not is_admin:
                 await use_credit(api_user["id"], cents=50)
+                credit_charged = True
 
         await record_api_usage(api_user["api_key_id"], "/v1/enrich", 1)
 
@@ -442,6 +444,11 @@ async def enrich_contacts(request: Request, body: EnrichRequest, api_user: dict 
             await save_idempotency(api_user["api_key_id"], idem_key, 200, response_body.model_dump())
         return response_body
     except Exception as e:
+        if credit_charged and not is_admin:
+            try:
+                await refund_credit(api_user["id"], cents=50)
+            except Exception:
+                logger.error("Failed to refund credit for user %s", api_user["id"])
         logger.exception("Enrichment failed", extra={"event_type": "api_enrich_failed", "doc_id": body.document_id})
         raise APIError("internal_error", "Internal error", 500)
 
