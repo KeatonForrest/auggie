@@ -409,25 +409,21 @@ class TestAnalyzeMultipleDomains:
         assert results == {}
 
     @pytest.mark.asyncio
-    async def test_with_html(self, tech_detection_service):
-        main_ts = TechStack(technologies=[DetectedTechnology(name="React", version="18", category="JS", confidence=100)], scan_url="https://example.com")
-
-        with patch.object(tech_detection_service, "analyze_html", new_callable=AsyncMock, return_value=main_ts), \
-             patch.object(tech_detection_service, "discover_subdomains", new_callable=AsyncMock, return_value=[]), \
+    async def test_with_html_skips_main_domain(self, tech_detection_service):
+        """Main domain is no longer fingerprinted — only product subdomains."""
+        with patch.object(tech_detection_service, "discover_subdomains", new_callable=AsyncMock, return_value=[]), \
              patch.object(tech_detection_service, "discover_app_paths", new_callable=AsyncMock, return_value=[]):
             results = await tech_detection_service.analyze_multiple_domains("https://example.com", "<html/>")
-        assert "example.com" in results
-        assert results["example.com"].technologies[0].name == "React"
+        # No marketing site tech in results
+        assert results == {}
 
     @pytest.mark.asyncio
-    async def test_without_html(self, tech_detection_service):
-        main_ts = TechStack(technologies=[], scan_url="https://example.com")
-
-        with patch.object(tech_detection_service, "analyze_url", new_callable=AsyncMock, return_value=main_ts), \
-             patch.object(tech_detection_service, "discover_subdomains", new_callable=AsyncMock, return_value=[]), \
+    async def test_without_html_skips_main_domain(self, tech_detection_service):
+        """Main domain is no longer fingerprinted — only product subdomains."""
+        with patch.object(tech_detection_service, "discover_subdomains", new_callable=AsyncMock, return_value=[]), \
              patch.object(tech_detection_service, "discover_app_paths", new_callable=AsyncMock, return_value=[]):
             results = await tech_detection_service.analyze_multiple_domains("example.com")
-        assert "example.com" in results
+        assert results == {}
 
     @pytest.mark.asyncio
     async def test_subdomains_use_probe_headers(self, tech_detection_service):

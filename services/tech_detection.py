@@ -367,7 +367,12 @@ class TechDetectionService:
         main_url: str,
         main_html: Optional[str] = None,
     ) -> dict[str, TechStack]:
-        """Analyze main domain plus discovered app subdomains and paths."""
+        """Discover product subdomains/paths and fingerprint only those.
+
+        The marketing site (main domain) is NOT fingerprinted — homepage HTML
+        is used for content extraction only (handled by claude.py). This avoids
+        noisy ad pixel, tag manager, and CMS detections.
+        """
         results = {}
 
         if not self.detector:
@@ -378,27 +383,19 @@ class TechDetectionService:
         base_domain = parsed.netloc.replace("www.", "")
         full_main_url = f"https://{base_domain}"
 
-        logger.debug("TechDetect: Analyzing main domain: %s", full_main_url)
-        if main_html:
-            main_headers = await self._fetch_headers(full_main_url)
-            self._last_main_headers = main_headers
-            main_tech = await self.analyze_html(main_html, full_main_url, main_headers)
-        else:
-            main_tech = await self.analyze_url(full_main_url)
-        logger.debug("TechDetect: Main domain result - %s technologies", len(main_tech.technologies))
+        # Capture main domain headers (used by infrastructure_signals for security scoring)
+        # but do NOT run tech fingerprinting on marketing site HTML
+        self._last_main_headers = await self._fetch_headers(full_main_url)
 
-        # Always include main domain in results (even if empty)
-        results[base_domain] = main_tech
-
-        # Discover and analyze subdomains and paths in parallel
+        # Discover product subdomains and app paths in parallel
         subdomains, app_paths = await asyncio.gather(
             self.discover_subdomains(base_domain),
             self.discover_app_paths(full_main_url)
         )
 
-        # Analyze discovered subdomains using headers from probes (no redundant GETs)
+        # Fingerprint discovered product subdomains
         if subdomains:
-            logger.debug("Analyzing %s subdomains...", len(subdomains))
+            logger.debug("Fingerprinting %s product subdomains...", len(subdomains))
             tasks = [self.analyze_html("", url, headers) for url, headers in subdomains]
             subdomain_results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -410,24 +407,32 @@ class TechDetectionService:
                     subdomain_name = urlparse(url).netloc
                     results[subdomain_name] = tech
 
-        # Analyze discovered app paths using headers from probes (no redundant GETs)
+        # Fingerprint discovered app paths
         if app_paths:
-            logger.debug("Analyzing %s app paths...", len(app_paths))
+            logger.debug("Fingerprinting %s app paths...", len(app_paths))
             tasks = [self.analyze_html("", url, headers) for url, headers in app_paths]
             path_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Collect all product-domain tech names to dedup against
+            product_tech_names: set[str] = set()
+            for stack in results.values():
+                product_tech_names.update(t.name for t in stack.technologies)
 
             for (url, _headers), tech in zip(app_paths, path_results):
                 if isinstance(tech, Exception):
                     logger.error("Error analyzing %s: %s", url, tech)
                     continue
                 if tech.technologies:
-                    # Use path as key, e.g., "rei.com/account"
                     parsed_url = urlparse(url)
                     path_key = f"{parsed_url.netloc}{parsed_url.path}"
-                    # Only add if it has different/additional tech than main domain
-                    main_tech_names = {t.name for t in results.get(base_domain, TechStack(technologies=[])).technologies}
-                    new_tech = [t for t in tech.technologies if t.name not in main_tech_names]
+                    new_tech = [t for t in tech.technologies if t.name not in product_tech_names]
                     if new_tech:
                         results[path_key] = TechStack(technologies=new_tech, scan_url=url)
+
+        if results:
+            total_techs = sum(len(s.technologies) for s in results.values())
+            logger.info("TechDetect: %d product domains, %d technologies", len(results), total_techs)
+        else:
+            logger.debug("TechDetect: No product subdomains found for %s", base_domain)
 
         return results
