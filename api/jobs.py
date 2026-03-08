@@ -21,7 +21,8 @@ from services.instances import (
     firecrawl_service, claude_service, tech_detection_service,
     job_parser, pain_engine,
 )
-from services import infrastructure_signals
+from services import infrastructure_signals, perplexity as perplexity_service
+from services.pain_inference import detect_seller_category
 from models import SignalBundle, SellerContext
 from config import get_settings
 from api.webhooks import sign_payload
@@ -53,21 +54,31 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     domain = _parsed.netloc.replace("www.", "") or _parsed.path.split("/")[0].replace("www.", "")
     full_main_url = f"https://{domain}"
 
+    # Extract seller product category early — shapes Perplexity queries
+    seller_category = detect_seller_category(user.get("product_context", ""))
+
     t0 = time.monotonic()
-    tech_by_domain, infra = await asyncio.gather(
+    tech_by_domain, infra, perplexity_results = await asyncio.gather(
         tech_detection_service.analyze_multiple_domains(main_url=company_url, main_html=scraped_content.homepage_html),
         infrastructure_signals.analyze(
             domain,
             response_headers=None,  # filled below after tech detection captures headers
             robots_base_url=full_main_url,
         ),
+        perplexity_service.search(domain, domain.split(".")[0], seller_category=seller_category),
     )
     # Backfill security headers from tech detection's captured headers
     main_headers = tech_detection_service.get_last_main_headers()
     if main_headers:
         from services.infrastructure_signals import _score_security_headers
         _score_security_headers(infra, main_headers)
-    logger.info("[pipeline %s] tech+infra: %.1fs", domain, time.monotonic() - t0)
+    logger.info("[pipeline %s] tech+infra+perplexity: %.1fs (perplexity: %d results, cached=%s)",
+                domain, time.monotonic() - t0, len(perplexity_results.results), perplexity_results.cached)
+
+    # Inject Perplexity results as web mentions for prompt consumption
+    perplexity_text = perplexity_results.as_text()
+    if perplexity_text:
+        scraped_content.web_mentions = perplexity_text
 
     job_signals = job_parser.parse(scraped_content.job_postings) if scraped_content.job_postings else None
 

@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # LeadMagic (for contact enrichment)
     leadmagic_api_key: str = ""
 
+    # Perplexity (for web-grounded search in pipeline)
+    perplexity_api_key: str = ""
+
     # SEC EDGAR (free, no key needed)
     edgar_enabled: bool = True
 

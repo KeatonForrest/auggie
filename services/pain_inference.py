@@ -206,12 +206,12 @@ class PainInferenceEngine:
         self._evaluate_compounds(results)
         self._apply_dampeners(results, bundle)
         self._apply_detection_confidence(results, bundle)
-        if seller is not None:
-            self._apply_seller_weighting(results, seller)
-            results = [r for r in results if r.confidence > 0]
-
-        # Action Tier relevance gate: tag irrelevant signals
+        # Detect seller category for weighting and action tier gating
         seller_category = detect_seller_category(seller_product_context)
+
+        if seller is not None:
+            self._apply_seller_weighting(results, seller, seller_category=seller_category)
+            results = [r for r in results if r.confidence > 0]
         if seller_category:
             filtered_count = 0
             for r in results:
@@ -805,8 +805,23 @@ class PainInferenceEngine:
             relevance[category] = hits
         return relevance
 
-    def _apply_seller_weighting(self, results: list[PainInference], seller: SellerContext) -> None:
-        """Boost/dampen confidence based on seller's product relevance to each category."""
+    # Maps seller category → pain rule_ids that get extra boost (2x weight)
+    _SELLER_CATEGORY_BOOSTS: dict[str, set[str]] = {
+        "database": {"database_scaling_pressure", "data_infra_pain", "scaling_pressure", "tech_debt"},
+        "fintech": {"compliance_gap", "security_gap", "cert_gap"},
+        "healthtech": {"compliance_gap", "security_gap"},
+        "martech": {"identity_fragmentation", "tag_bloat", "marketing_product_mismatch"},
+        "devtools": {"observability_gap", "observability_stack_detected", "tool_sprawl", "scaling_pressure", "tech_debt"},
+    }
+
+    def _apply_seller_weighting(self, results: list[PainInference], seller: SellerContext,
+                                seller_category: str = "") -> None:
+        """Boost/dampen confidence based on seller's product relevance to each category.
+
+        Two-layer boosting:
+        1. Category-level: +15 for matching pain categories (existing)
+        2. Rule-level: +15 extra for specific pain rules aligned to seller category (new)
+        """
         relevance = self._compute_category_relevance(seller)
         max_hits = max(relevance.values()) if relevance else 0
 
@@ -817,9 +832,10 @@ class PainInferenceEngine:
                 if r.category == "security":
                     r.confidence = 0
 
-        if max_hits == 0:
+        if max_hits == 0 and not seller_category:
             return
 
+        # Layer 1: category-level boost/dampen
         for r in results:
             if not r.category or r.confidence == 0:
                 continue
@@ -828,6 +844,14 @@ class PainInferenceEngine:
                 r.confidence += 15
             elif max_hits >= 2:
                 r.confidence -= 10
+
+        # Layer 2: rule-level boost for seller-aligned pain signals
+        if seller_category:
+            boosted_rules = self._SELLER_CATEGORY_BOOSTS.get(seller_category, set())
+            if boosted_rules:
+                for r in results:
+                    if r.rule_id in boosted_rules and r.confidence > 0:
+                        r.confidence += 15
 
         # Professional services bonus: operations and data are universally relevant
         if seller.product_type == "msp":
