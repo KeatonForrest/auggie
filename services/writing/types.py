@@ -154,6 +154,8 @@ _CATEGORY_DENYLISTS = {
             "next.js", "nuxt", "jquery", "bootstrap", "tailwind",
             "css", "scss", "webpack", "vite", "bundler",
             "seo", "page speed", "tag manager", "google tag",
+            "customer data platform", "cdp", "customer data",
+            "attribution", "campaign",
             "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
@@ -174,6 +176,8 @@ _CATEGORY_DENYLISTS = {
             "frontend", "react", "vue", "angular", "svelte",
             "cdn", "content delivery", "seo", "page speed",
             "marketing automation", "tag manager", "google tag",
+            "customer data platform", "cdp", "customer data",
+            "attribution", "campaign",
             "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
@@ -192,6 +196,8 @@ _CATEGORY_DENYLISTS = {
             "frontend", "react", "vue", "angular",
             "cdn", "content delivery", "e-commerce", "ecommerce",
             "marketing automation", "seo", "tag manager",
+            "customer data platform", "cdp", "customer data",
+            "attribution", "campaign",
             "dkim", "dmarc", "spf", "email authentication", "email spoofing", "phishing",
         ],
         "linkage_overrides": [
@@ -241,6 +247,45 @@ _CATEGORY_DENYLISTS = {
             "devtools seller unless the talking point explicitly ties them "
             "to developer experience, build time, CI/CD pipeline, or "
             "infrastructure concerns."
+        ),
+    },
+    "cloud": {
+        "blocked_patterns": [
+            "customer data platform", "cdp", "marketing automation",
+            "tag manager", "google tag", "attribution", "campaign",
+            "seo", "page speed", "frontend", "react", "vue", "angular",
+        ],
+        "linkage_overrides": [
+            "cloud migration", "landing zone", "well-architected",
+            "finops", "platform engineering", "kubernetes",
+            "observability", "infrastructure modernization",
+        ],
+        "prompt_constraint": (
+            "CDP, marketing automation, SEO, and generic frontend angles are "
+            "INVALID for a cloud seller unless the talking point explicitly "
+            "ties them to cloud migration, platform engineering, "
+            "observability, or infrastructure modernization."
+        ),
+    },
+    "cybersecurity": {
+        "blocked_patterns": [
+            "database scaling", "query performance", "read replica",
+            "connection pool", "database migration", "data warehouse",
+            "data lake", "dbt", "postgres", "postgresql", "mysql",
+            "mongodb", "redis", "snowflake", "bigquery", "redshift",
+            "customer data platform", "cdp", "marketing automation",
+            "tag manager", "seo", "page speed",
+        ],
+        "linkage_overrides": [
+            "identity", "access management", "iam", "sso", "auth",
+            "zero trust", "threat", "vulnerability", "compliance",
+            "siem", "soar", "security", "encryption", "endpoint",
+        ],
+        "prompt_constraint": (
+            "Database/data-platform, CDP/martech, and generic website "
+            "performance angles are INVALID for a cybersecurity seller "
+            "unless the talking point explicitly ties them to identity, "
+            "threat detection, security posture, or compliance exposure."
         ),
     },
 }

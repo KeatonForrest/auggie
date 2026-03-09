@@ -136,8 +136,12 @@ _DB_LINKAGE_TERMS = _CATEGORY_LINKAGE_TERMS["database"]
 # Maps rule_id → set of signal families the rule belongs to
 _RULE_FAMILIES: dict[str, set[str]] = {
     "frontend_performance_debt": {"frontend_frameworks"},
+    "identity_fragmentation": {"marketing_tags"},
     "tag_bloat": {"marketing_tags"},
     "marketing_product_mismatch": {"frontend_frameworks"},
+    "marketing_infra_debt": {"marketing_tags"},
+    "data_infra_pain": {"data_infra"},
+    "database_scaling_pressure": {"data_infra"},
 }
 
 # Maps seller category → set of denied signal families
@@ -148,6 +152,7 @@ _CATEGORY_DENYLISTS: dict[str, set[str]] = {
     "healthtech": {"frontend_frameworks", "cdn_delivery", "marketing_tags"},
     "martech": {"devops_infra", "security_scanning"},
     "devtools": {"marketing_tags", "crm_sales"},
+    "security": {"frontend_frameworks", "cdn_delivery", "marketing_tags", "data_infra"},
 }
 
 

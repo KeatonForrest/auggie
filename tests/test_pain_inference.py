@@ -1205,6 +1205,39 @@ class TestActionTierGateInEvaluate:
         assert len(db_signals) == 1
         assert not db_signals[0].category.startswith("_background_")
 
+    @patch("services.pain_inference.get_settings")
+    def test_identity_fragmentation_demoted_for_db_seller(self, mock_settings, engine):
+        """Marketing/CDP-style identity signals should be background-only for DB sellers."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=False)
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(
+                ("GA4", "analytics"),
+                ("Hotjar", "analytics"),
+                ("Mixpanel", "analytics"),
+                ("GTM", "tag manager"),
+            )},
+        )
+        results = engine.evaluate(bundle, seller_product_context="MongoDB Atlas - scalable database platform")
+        identity = [r for r in results if r.rule_id == "identity_fragmentation"]
+        assert len(identity) == 1
+        assert identity[0].category.startswith("_background_")
+
+    @patch("services.pain_inference.get_settings")
+    def test_database_signal_demoted_for_security_seller(self, mock_settings, engine):
+        """Database/data signals should be background-only for security sellers."""
+        mock_settings.return_value = MagicMock(pain_frontend_rule_enabled=False)
+        bundle = SignalBundle(
+            tech_by_domain={"x.com": _make_stack(("postgresql", "database"),)},
+            job_signals=JobSignals(role_types=["data", "backend"], tech_mentions=[], seniority_distribution={}),
+        )
+        results = engine.evaluate(
+            bundle,
+            seller_product_context="Identity security platform for threat detection and compliance",
+        )
+        db_signals = [r for r in results if r.rule_id == "database_scaling_pressure"]
+        assert len(db_signals) == 1
+        assert db_signals[0].category.startswith("_background_")
+
 
 # --- Golden fixture: Nike/Costco-like tech profile ---
 

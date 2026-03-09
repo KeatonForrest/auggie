@@ -335,6 +335,29 @@ class TestBuildUserPrompt:
         assert "## Third-Party Web Mentions" in result
         assert "Perplexity context" in result
 
+    def test_irrelevant_context_filtered_for_database_seller(self, claude_service):
+        """Database sellers should not receive CDP-style job or web context in the prompt."""
+        scraped = ScrapedContent(
+            job_postings=(
+                "Customer data platform rollout with attribution and tag manager ownership.\n\n"
+                "Backend engineer focused on PostgreSQL performance and query optimization."
+            ),
+            web_mentions=(
+                "Pokemon expanded its customer data platform and marketing attribution stack.\n\n"
+                "Pokemon engineering is investing in PostgreSQL reliability and backend performance."
+            ),
+        )
+        result = claude_service._build_user_prompt(
+            company_url="https://example.com",
+            scraped=scraped,
+            seller_product_category="database",
+        )
+
+        assert "customer data platform" not in result.lower()
+        assert "tag manager" not in result.lower()
+        assert "PostgreSQL performance" in result
+        assert "backend performance" in result
+
     def test_tech_by_domain_included(self, claude_service):
         """Test with tech_by_domain adds verified technologies section."""
         scraped = ScrapedContent(homepage="Homepage")
@@ -1478,6 +1501,29 @@ class TestTieredUserPrompt:
         t3_start = result.index("## TIER 3:")
         tier3 = result[t3_start:]
         assert "Third-Party Web Mentions" in tier3
+
+    def test_tiered_prompt_filters_irrelevant_context_for_database_seller(self, tiered_service):
+        """Tiered prompts should drop CDP-style context for database sellers."""
+        scraped = ScrapedContent(
+            job_postings=(
+                "Own customer data platform roadmap and attribution modeling.\n\n"
+                "Own PostgreSQL tuning for backend services."
+            ),
+            web_mentions=(
+                "Pokemon is expanding its CDP and campaign measurement stack.\n\n"
+                "Pokemon is improving PostgreSQL resilience across product systems."
+            ),
+        )
+        result = tiered_service._build_user_prompt(
+            "https://example.com",
+            scraped,
+            seller_product_category="database",
+        )
+
+        assert "cdp" not in result.lower()
+        assert "campaign measurement" not in result.lower()
+        assert "PostgreSQL tuning" in result
+        assert "PostgreSQL resilience" in result
 
     def test_job_postings_cap_12000(self, tiered_service):
         """Job postings are capped at 12000 chars in tiered mode."""

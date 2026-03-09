@@ -17,6 +17,7 @@ from models import (
 logger = logging.getLogger(__name__)
 from config import get_settings
 from services.writing.types import normalize_seller_category, SELLER_RELEVANT_ROLES
+from services.seller_relevance import filter_text_blocks, filter_text_items, is_text_relevant
 from utils.icp import normalize_verticals
 from utils.personas import build_target_titles
 
@@ -822,7 +823,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         # Tech mentions by category
         by_cat: dict[str, list[str]] = {}
         for tm in job_signals.tech_mentions:
-            by_cat.setdefault(tm.category, []).append(f"{tm.name} (x{tm.count})")
+            rendered = f"{tm.name} (x{tm.count})"
+            if not is_text_relevant(f"{tm.category} {tm.name}", seller_product_category):
+                continue
+            by_cat.setdefault(tm.category, []).append(rendered)
         for cat, items in by_cat.items():
             lines.append(f"- {cat}: {', '.join(items)}")
 
@@ -861,18 +865,24 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             seniority_str = ", ".join(f"{k}: {v}" for k, v in job_signals.seniority_distribution.items())
             lines.append(f"- Seniority: {seniority_str}")
 
-        if job_signals.initiative_signals:
-            lines.append(f"- Initiative signals: {', '.join(job_signals.initiative_signals)}")
+        initiative_signals = filter_text_items(job_signals.initiative_signals, seller_product_category)
+        if initiative_signals:
+            lines.append(f"- Initiative signals: {', '.join(initiative_signals)}")
 
-        if job_signals.delivery_model_signals:
-            lines.append(f"- Delivery model signals: {', '.join(job_signals.delivery_model_signals)}")
+        delivery_model_signals = filter_text_items(job_signals.delivery_model_signals, seller_product_category)
+        if delivery_model_signals:
+            lines.append(f"- Delivery model signals: {', '.join(delivery_model_signals)}")
 
-        if job_signals.capacity_signals:
-            lines.append(f"- Capacity signals: {', '.join(job_signals.capacity_signals)}")
+        capacity_signals = filter_text_items(job_signals.capacity_signals, seller_product_category)
+        if capacity_signals:
+            lines.append(f"- Capacity signals: {', '.join(capacity_signals)}")
 
-        if job_signals.capability_gap_signals:
-            lines.append(f"- Capability gaps: {', '.join(job_signals.capability_gap_signals)}")
+        capability_gap_signals = filter_text_items(job_signals.capability_gap_signals, seller_product_category)
+        if capability_gap_signals:
+            lines.append(f"- Capability gaps: {', '.join(capability_gap_signals)}")
 
+        if len(lines) == 1:
+            return []
         return lines
 
     def _build_user_prompt(
@@ -913,6 +923,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         """Build the user prompt with all scraped research data (flat, original format)."""
         sections = [f"# Research Data for {company_url}\n"]
         site_structure_line = self._format_site_structure(scraped.site_structure)
+        filtered_job_postings = filter_text_blocks(scraped.job_postings or "", seller_product_category)
+        filtered_web_mentions = filter_text_blocks(scraped.web_mentions or "", seller_product_category)
 
         if tech_by_domain:
             sections.append("## VERIFIED Technologies (Detected by Scanning Website Code)")
@@ -929,8 +941,9 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.extend(infra_lines)
             sections.append("")
 
-        if job_signals and (job_signals.tech_mentions or job_signals.role_types):
-            sections.extend(self._format_job_signals_section(job_signals, seller_product_category))
+        formatted_job_signals = self._format_job_signals_section(job_signals, seller_product_category) if job_signals else []
+        if formatted_job_signals:
+            sections.extend(formatted_job_signals)
             sections.append("")
 
         if pain_inferences:
@@ -991,10 +1004,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(site_structure_line)
             sections.append("")
 
-        if scraped.job_postings:
+        if filtered_job_postings:
             sections.append("## Detailed Job Postings")
             sections.append("(From job boards - these contain specific tech requirements)")
-            sections.append(scraped.job_postings[:15000])
+            sections.append(filtered_job_postings[:15000])
             sections.append("")
 
         if scraped.edgar_filings:
@@ -1009,10 +1022,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             sections.append(scraped.federal_regulations[:6000])
             sections.append("")
 
-        if scraped.web_mentions:
+        if filtered_web_mentions:
             sections.append("## Third-Party Web Mentions")
             sections.append("(From Perplexity and external web sources — recent news, market context, press coverage, and third-party references.)")
-            sections.append(scraped.web_mentions[:10000])
+            sections.append(filtered_web_mentions[:10000])
             sections.append("")
 
         sections.append("---")
@@ -1107,6 +1120,8 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         """Build the user prompt organized into signal-quality tiers."""
         sections = [f"# Research Data for {company_url}\n"]
         site_structure_line = self._format_site_structure(scraped.site_structure)
+        filtered_job_postings = filter_text_blocks(scraped.job_postings or "", seller_product_category)
+        filtered_web_mentions = filter_text_blocks(scraped.web_mentions or "", seller_product_category)
 
         # Split tech by tier
         tier1_tech = ""
@@ -1124,14 +1139,15 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
             tier1_parts.append(tier1_tech)
             tier1_parts.append("")
 
-        if job_signals and (job_signals.tech_mentions or job_signals.role_types):
-            tier1_parts.extend(self._format_job_signals_section(job_signals, seller_product_category))
+        formatted_job_signals = self._format_job_signals_section(job_signals, seller_product_category) if job_signals else []
+        if formatted_job_signals:
+            tier1_parts.extend(formatted_job_signals)
             tier1_parts.append("")
 
-        if scraped.job_postings:
+        if filtered_job_postings:
             tier1_parts.append("## Detailed Job Postings")
             tier1_parts.append("(From job boards - these contain specific tech requirements)")
-            tier1_parts.append(scraped.job_postings[:12000])
+            tier1_parts.append(filtered_job_postings[:12000])
             tier1_parts.append("")
 
         if scraped.firmographics:
@@ -1197,10 +1213,10 @@ SCORE_SUMMARY: [1-2 sentence justification for the composite score]
         # --- TIER 3: LOWER-CONFIDENCE SIGNALS ---
         tier3_parts: list[str] = []
 
-        if scraped.web_mentions:
+        if filtered_web_mentions:
             tier3_parts.append("## Third-Party Web Mentions")
             tier3_parts.append("(From Perplexity and external web sources — recent news, market context, press coverage, and third-party references.)")
-            tier3_parts.append(scraped.web_mentions[:8000])
+            tier3_parts.append(filtered_web_mentions[:8000])
             tier3_parts.append("")
 
         if pain_buckets["tier3"]:
