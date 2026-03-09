@@ -14,7 +14,7 @@ from services.writing.types import (
     WORD_LIMITS, LINKEDIN_WORD_LIMITS,
     _CATEGORY_KEYWORDS, _CATEGORY_DENYLISTS,
 )
-from services.writing.postprocess import postprocess, trim_to_word_limit, extract_company_core
+from services.writing.postprocess import postprocess, trim_to_word_limit, extract_company_core, deterministic_anchor_insert
 from services.writing.email import EmailStrategy
 from services.writing.linkedin_dm import LinkedInDMStrategy
 from services.writing.linkedin_connection import LinkedInConnectionStrategy
@@ -735,6 +735,15 @@ class WritingService:
                     result = strategy.validate(message, val_ctx)
             except Exception:
                 logger.warning("Anchor rescue retry failed for LinkedIn message")
+
+        # Deterministic anchor fallback: splice company name into message text
+        if not result.is_valid and "anchor" in result.error_reason:
+            message = deterministic_anchor_insert(message, document.company_name)
+            message, anchor_cta = await self._normalize_linkedin(
+                message, mode, limit, model, tel
+            )
+            cta_rescued = cta_rescued or anchor_cta
+            result = strategy.validate(message, val_ctx)
 
         if not result.is_valid:
             tel.validation_fail_reason = result.error_reason

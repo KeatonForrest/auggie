@@ -85,6 +85,26 @@ def extract_company_core(company_name: str) -> str:
     return core if len(core) >= 3 else name_lower
 
 
+def deterministic_anchor_insert(message: str, company_name: str) -> str:
+    """Insert the company name into the first sentence of the message.
+
+    Used as a last-resort fallback when LLM-based anchor rescue fails.
+    Prepends 'At {Core}, ' to the message opening so the anchor check passes.
+    """
+    core = extract_company_core(company_name)
+    if not core:
+        return message
+
+    # Capitalize the core name for natural reading
+    core_display = core.capitalize()
+
+    # If message starts with a capital letter, lowercase it for splicing
+    if message and message[0].isupper():
+        message = message[0].lower() + message[1:]
+
+    return f"At {core_display}, {message}"
+
+
 def company_anchor_match(company_name: str, msg_lower: str) -> bool:
     """Check if the message contains the company name (fuzzy).
 
