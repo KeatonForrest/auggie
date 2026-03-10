@@ -7,6 +7,7 @@ Docs: http://localhost:8000/docs/api
 """
 
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -88,10 +89,23 @@ from routes.admin import router as admin_router
 from routes.watchlist import router as watchlist_router
 from routes.platforms import router as platforms_router
 from routes._helpers import templates
+import db._pool as db_pool_module
 
 settings = get_settings()
 
 _is_https = settings.app_url.startswith("https")
+_DEPLOY_COMMIT_ENV_VARS = (
+    "RAILWAY_GIT_COMMIT_SHA",
+    "SOURCE_VERSION",
+    "GITHUB_SHA",
+    "VERCEL_GIT_COMMIT_SHA",
+    "RENDER_GIT_COMMIT",
+)
+_DEPLOY_ID_ENV_VARS = (
+    "RAILWAY_DEPLOYMENT_ID",
+    "VERCEL_DEPLOYMENT_ID",
+    "RENDER_SERVICE_ID",
+)
 
 
 class RateLimitHeaderMiddleware:
@@ -280,18 +294,45 @@ app.include_router(platforms_router)
 @app.get("/health")
 async def health_check():
     """Unauthenticated health check for uptime monitors and Railway."""
-    from database import _pool
     try:
-        async with _pool.acquire() as conn:
+        pool = db_pool_module._pool
+        async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         pool_info = {
-            "size": _pool.get_size(),
-            "free": _pool.get_idle_size(),
-            "used": _pool.get_size() - _pool.get_idle_size(),
+            "size": pool.get_size(),
+            "free": pool.get_idle_size(),
+            "used": pool.get_size() - pool.get_idle_size(),
         }
         return JSONResponse({"status": "ok", "db": "ok", "pool": pool_info})
     except Exception:
         return JSONResponse({"status": "degraded", "db": "error"}, status_code=503)
+
+
+def _read_first_env(keys: tuple[str, ...]) -> tuple[str | None, str | None]:
+    """Return the first populated env var value from a priority list."""
+    for key in keys:
+        value = os.getenv(key)
+        if value:
+            return value, key
+    return None, None
+
+
+@app.get("/version")
+async def version_check():
+    """Expose deploy metadata so we can confirm which revision is live."""
+    git_commit, git_commit_source = _read_first_env(_DEPLOY_COMMIT_ENV_VARS)
+    deployment_id, deployment_id_source = _read_first_env(_DEPLOY_ID_ENV_VARS)
+    return JSONResponse(
+        {
+            "app_version": app.version,
+            "environment": "production" if _is_production else "development",
+            "git_commit": git_commit or "unknown",
+            "git_commit_source": git_commit_source,
+            "deployment_id": deployment_id,
+            "deployment_id_source": deployment_id_source,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 _ERROR_TITLES = {
     400: "Invalid Request",
