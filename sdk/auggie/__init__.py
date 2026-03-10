@@ -468,7 +468,7 @@ class AuggieClient:
     # Lists
     # ------------------------------------------------------------------
 
-    def create_list(self, name: str, company_urls: list[str], analyze: bool = False) -> AccountList:
+    def create_list(self, name: str, company_urls: list[str], analyze: bool = True) -> AccountList:
         """Create a persistent list. Returns ``{"list_id": ..., "name": ..., "status": ..., "total_accounts": N}``."""
         return AccountList(self._request("POST", "/v1/lists", json={
             "name": name,
