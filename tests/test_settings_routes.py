@@ -17,7 +17,8 @@ async def test_onboarding_enqueues_seller_profile_enrichment(authed_client):
             "/onboarding",
             data={
                 "company_website": "acme.com",
-                "target_personas_text": "VP Sales",
+                "target_level": ["VP"],
+                "target_function": ["Sales / Revenue"],
             },
             follow_redirects=False,
         )
@@ -26,7 +27,7 @@ async def test_onboarding_enqueues_seller_profile_enrichment(authed_client):
         kwargs = mock_update.await_args.kwargs
         assert kwargs["company_website"] == "https://acme.com"
         assert kwargs["company_name"] == "Acme"
-        assert kwargs["target_personas"] == "VP Sales"
+        assert kwargs["target_personas"] == "Levels: VP | Functions: Sales / Revenue"
         mock_clear.assert_awaited_once_with(1)
         mock_task.assert_awaited_once()
 
@@ -52,8 +53,10 @@ async def test_onboarding_page_uses_website_signals_and_icp_only(async_client):
     assert "Company Website" in body
     assert "Custom Signals" in body
     assert "Who are you going after?" in body
+    assert "We use this to build your profile." in body
     assert "What You Sell" not in body
     assert "What problems does your product/service solve?" not in body
+    assert 'name="target_personas_text"' not in body
 
 
 @pytest.mark.asyncio
@@ -84,5 +87,8 @@ async def test_settings_page_frames_manual_fields_as_overrides(async_client):
     assert response.status_code == 200
     body = response.text
     assert "Seller Profile Overrides" in body
+    assert "We use this to build your profile." in body
+    assert "Your Product Category" in body
     assert "What You Sell" not in body
-    assert "What problems does your product/service solve?" in body
+    assert "What problems does your product/service solve?" not in body
+    assert 'name="target_personas_text"' not in body
