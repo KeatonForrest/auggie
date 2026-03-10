@@ -15,7 +15,7 @@ from database import (
     get_user_usage, use_credit, refund_credit,
     save_enriched_contacts, get_enriched_contacts,
     get_research_job, check_duplicate_research,
-    save_feedback, get_feedback, get_effective_product_context,
+    save_feedback, get_feedback, get_effective_product_context, get_effective_problems_solved,
 )
 from db.documents import (
     get_document_by_share_token, get_share_token,
@@ -418,7 +418,7 @@ async def generate_outreach(
             product_type=user.get("product_type", "saas"),
             retrieved_materials=materials,
             seller_company=user.get("company_name", ""),
-            problems_solved=user.get("problems_solved", ""),
+            problems_solved=get_effective_problems_solved(user),
             persona_context=persona_context,
             custom_signals=user.get("custom_signals", ""),
         )
@@ -545,7 +545,7 @@ async def generate_linkedin_message(
             mode=mode,
             retrieved_materials=materials,
             seller_company=user.get("company_name", ""),
-            problems_solved=user.get("problems_solved", ""),
+            problems_solved=get_effective_problems_solved(user),
             persona_context=persona_context,
             custom_signals=user.get("custom_signals", ""),
         )
@@ -665,7 +665,7 @@ async def api_create_research(
             seller_company=user.get("company_name", ""),
             target_personas=user.get("target_personas", ""),
             target_industries=user.get("target_industries", ""),
-            problems_solved=user.get("problems_solved", ""),
+            problems_solved=get_effective_problems_solved(user),
             product_type=user.get("product_type", "saas"),
             custom_signals=user.get("custom_signals", ""),
             solution_motion=user.get("solution_motion", "horizontal"),

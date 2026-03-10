@@ -14,7 +14,7 @@ from database import (
     finalize_bulk_job,
     get_pending_list_accounts, update_list_account,
     finalize_list, get_list_source, get_list_accounts,
-    update_seller_profile, get_effective_product_context,
+    update_seller_profile, get_effective_product_context, get_effective_problems_solved,
 )
 from urllib.parse import urlparse as _urlparse
 from services.collect import collect_enrichment_data
@@ -75,6 +75,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
 
     pipeline_start = time.monotonic()
     effective_product_context = get_effective_product_context(user)
+    effective_problems_solved = get_effective_problems_solved(user)
 
     if job_id:
         await update_job_progress(job_id, "scraping")
@@ -125,7 +126,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     )
     seller_context = SellerContext(
         product_type=user.get("product_type", "saas"),
-        problems_solved=user.get("problems_solved", ""),
+        problems_solved=effective_problems_solved,
     )
     pain_inferences = pain_engine.evaluate(bundle, seller=seller_context,
                                            seller_product_context=effective_product_context)
@@ -152,7 +153,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         seller_company=user.get("company_name", ""),
         target_personas=user.get("target_personas", ""),
         target_industries=user.get("target_industries", ""),
-        problems_solved=user.get("problems_solved", ""),
+        problems_solved=effective_problems_solved,
         product_type=user.get("product_type", "saas"),
         custom_signals=user.get("custom_signals", ""),
         solution_motion=user.get("solution_motion", "horizontal"),
@@ -512,7 +513,7 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
                     product_type=user.get("product_type", "saas"),
                     retrieved_materials=materials,
                     seller_company=user.get("company_name", ""),
-                    problems_solved=user.get("problems_solved", ""),
+                    problems_solved=get_effective_problems_solved(user),
                     custom_signals=user.get("custom_signals", ""),
                 )
                 await save_outreach_draft(account["document_id"], user_id, {"emails": emails})

@@ -108,7 +108,7 @@ CATEGORY_SLUG_MAP: dict[str, str] = {
     "InsurTech": "insurtech",
     "LegalTech": "legaltech",
     "HRTech": "hrtech",
-    "Cybersecurity": "cybersecurity",
+    "Cybersecurity / IT": "cybersecurity",
     "DevTools / Infra": "devtools",
     "E-commerce Tech": "ecommerce",
     "Supply Chain / Logistics Tech": "supplychain",
@@ -123,6 +123,8 @@ def normalize_seller_category(raw: str) -> str:
     """Map a UI category string to its internal slug. Returns '' for unknown/other."""
     if not raw:
         return ""
+    if raw == "Cybersecurity":
+        raw = "Cybersecurity / IT"
     return CATEGORY_SLUG_MAP.get(raw, "")
 
 

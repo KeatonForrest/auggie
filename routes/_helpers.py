@@ -44,7 +44,7 @@ def normalize_url(url: str) -> str:
 # Seller product categories (single-select — describes what the seller builds)
 SELLER_PRODUCT_CATEGORIES = [
     "Fintech", "HealthTech", "MarTech", "ConstructionTech", "EdTech",
-    "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity",
+    "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity / IT",
     "DevTools / Infra", "E-commerce Tech", "Supply Chain / Logistics Tech",
     "GovTech", "TravelTech", "MediaTech", "Other / Cross-industry",
 ]

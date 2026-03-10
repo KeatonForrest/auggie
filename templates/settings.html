@@ -109,12 +109,12 @@
                                 <option value="">Select a category...</option>
                                 {% set seller_cats = [
                                     'Fintech', 'HealthTech', 'MarTech', 'ConstructionTech', 'EdTech',
-                                    'PropTech', 'InsurTech', 'LegalTech', 'HRTech', 'Cybersecurity',
+                                    'PropTech', 'InsurTech', 'LegalTech', 'HRTech', 'Cybersecurity / IT',
                                     'DevTools / Infra', 'E-commerce Tech', 'Supply Chain / Logistics Tech',
                                     'GovTech', 'TravelTech', 'MediaTech', 'Other / Cross-industry'
                                 ] %}
                                 {% for cat in seller_cats %}
-                                <option value="{{ cat }}" {% if user.seller_product_category == cat %}selected{% endif %}>{{ cat }}</option>
+                                <option value="{{ cat }}" {% if user.seller_product_category == cat or (user.seller_product_category == 'Cybersecurity' and cat == 'Cybersecurity / IT') %}selected{% endif %}>{{ cat }}</option>
                                 {% endfor %}
                             </select>
                             <p class="mt-1 text-xs text-gray-500">What category best describes your product? This helps calibrate persona framing.</p>

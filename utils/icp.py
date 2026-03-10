@@ -40,6 +40,7 @@ LEGACY_VERTICAL_MAP: dict[str, str] = {
     "Energy / Utilities": "Energy / Utilities",
     "Media / Entertainment": "Media / Entertainment",
     "Cybersecurity": "Technology",
+    "Cybersecurity / IT": "Technology",
     "Travel / Hospitality": "Travel / Hospitality",
     "Government / Public Sector": "Government / Public Sector",
     # v2 tech-category labels (brief window where these were stored in target_industries)

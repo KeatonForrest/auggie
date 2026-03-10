@@ -363,6 +363,21 @@ def get_effective_product_context(user: dict) -> str:
     return base_context or seller_profile_context
 
 
+def get_effective_problems_solved(user: dict) -> str:
+    """Return manual problems_solved, or fall back to the website-derived profile."""
+    manual = (user.get("problems_solved") or "").strip()
+    if manual:
+        return manual
+
+    seller_profile = user.get("seller_profile") or {}
+    problems = [
+        p.strip()
+        for p in (seller_profile.get("problems_solved") or [])
+        if isinstance(p, str) and p.strip()
+    ]
+    return "; ".join(problems[:5])
+
+
 async def update_user_stripe(
     user_id: int,
     stripe_customer_id: str,
@@ -545,4 +560,3 @@ async def toggle_admin(user_id: int) -> bool:
             user_id
         )
         return row["is_admin"] if row else False
-

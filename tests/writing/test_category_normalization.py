@@ -14,6 +14,9 @@ class TestNormalizeSellerCategory:
     def test_all_ui_strings(self, ui_string, expected_slug):
         assert normalize_seller_category(ui_string) == expected_slug
 
+    def test_legacy_cybersecurity_alias(self):
+        assert normalize_seller_category("Cybersecurity") == "cybersecurity"
+
     def test_empty_returns_empty(self):
         assert normalize_seller_category("") == ""
 
@@ -36,7 +39,7 @@ class TestCategorySlugMap:
         # templates/onboarding.html and templates/settings.html.
         expected = {
             "MarTech", "Fintech", "HealthTech", "ConstructionTech", "EdTech",
-            "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity",
+            "PropTech", "InsurTech", "LegalTech", "HRTech", "Cybersecurity / IT",
             "DevTools / Infra", "E-commerce Tech",
             "Supply Chain / Logistics Tech", "GovTech", "TravelTech",
             "MediaTech", "Other / Cross-industry",

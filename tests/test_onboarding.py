@@ -6,7 +6,10 @@ from routes._helpers import (
     normalize_verticals, SELLER_PRODUCT_CATEGORIES, BUYER_VERTICALS,
     _LEGACY_VERTICAL_MAP,
 )
-from db.users import build_product_context, build_seller_profile_context, get_effective_product_context
+from db.users import (
+    build_product_context, build_seller_profile_context,
+    get_effective_product_context, get_effective_problems_solved,
+)
 
 
 class TestNormalizeVerticals:
@@ -195,3 +198,17 @@ class TestSellerProfileContext:
         assert "**Problems it solves:** Dirty CRM data" in effective
         assert "SELLER WEBSITE PROFILE" in effective
         assert "Acme automates forecasting." in effective
+
+    def test_effective_problems_solved_prefers_manual_override(self):
+        effective = get_effective_problems_solved({
+            "problems_solved": "Database scaling and slow queries",
+            "seller_profile": {"problems_solved": ["Manual reporting", "Data silos"]},
+        })
+        assert effective == "Database scaling and slow queries"
+
+    def test_effective_problems_solved_falls_back_to_seller_profile(self):
+        effective = get_effective_problems_solved({
+            "problems_solved": "",
+            "seller_profile": {"problems_solved": ["Manual reporting", "Data silos"]},
+        })
+        assert effective == "Manual reporting; Data silos"
