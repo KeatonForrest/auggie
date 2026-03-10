@@ -190,6 +190,13 @@ class TestSellerProfileContext:
         assert "VP Revenue Operations" in ctx
         assert "forecasting" in ctx
 
+    def test_build_seller_profile_context_accepts_json_string(self):
+        ctx = build_seller_profile_context(
+            '{"one_liner":"Acme helps RevOps teams clean pipeline data.","problems_solved":["Dirty CRM data"]}'
+        )
+        assert "SELLER WEBSITE PROFILE" in ctx
+        assert "Dirty CRM data" in ctx
+
     def test_effective_product_context_appends_seller_profile(self):
         effective = get_effective_product_context({
             "product_context": "**Problems it solves:** Dirty CRM data",
@@ -210,5 +217,12 @@ class TestSellerProfileContext:
         effective = get_effective_problems_solved({
             "problems_solved": "",
             "seller_profile": {"problems_solved": ["Manual reporting", "Data silos"]},
+        })
+        assert effective == "Manual reporting; Data silos"
+
+    def test_effective_problems_solved_accepts_json_string_profile(self):
+        effective = get_effective_problems_solved({
+            "problems_solved": "",
+            "seller_profile": '{"problems_solved":["Manual reporting","Data silos"]}',
         })
         assert effective == "Manual reporting; Data silos"

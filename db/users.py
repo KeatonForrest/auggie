@@ -16,6 +16,29 @@ def _invalidate_usage_cache(user_id: int) -> None:
     _usage_cache.pop(user_id, None)
 
 
+def _normalize_seller_profile(value: object) -> Optional[dict]:
+    """Return seller_profile as a dict regardless of DB driver JSON behavior."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def _normalize_user_record(user: Optional[dict]) -> Optional[dict]:
+    """Normalize user records fetched from Postgres."""
+    if not user:
+        return user
+    user["seller_profile"] = _normalize_seller_profile(user.get("seller_profile"))
+    return user
+
+
 async def get_user_by_google_id(google_id: str) -> Optional[dict]:
     """Get a user by their Google ID."""
     async with _db._pool.acquire() as conn:
@@ -23,7 +46,7 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
             "SELECT * FROM users WHERE google_id = $1",
             google_id
         )
-        return dict(row) if row else None
+        return _normalize_user_record(dict(row)) if row else None
 
 
 async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
@@ -33,7 +56,7 @@ async def get_user_by_microsoft_id(microsoft_id: str) -> Optional[dict]:
             "SELECT * FROM users WHERE microsoft_id = $1",
             microsoft_id
         )
-        return dict(row) if row else None
+        return _normalize_user_record(dict(row)) if row else None
 
 
 async def get_user_by_id(user_id: int) -> Optional[dict]:
@@ -54,7 +77,7 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
             """,
             user_id
         )
-        return dict(row) if row else None
+        return _normalize_user_record(dict(row)) if row else None
 
 
 async def create_user(email: str, name: str, picture: str, google_id: str) -> dict:
@@ -204,7 +227,7 @@ async def update_user_profile(
         # Invalidate auth cache so the next request sees updated profile
         from auth_cache import invalidate_user_cache
         invalidate_user_cache(user_id)
-        return dict(row)
+        return _normalize_user_record(dict(row))
 
 
 async def clear_seller_profile(user_id: int) -> None:
@@ -243,7 +266,7 @@ async def update_seller_profile(
         )
     from auth_cache import invalidate_user_cache
     invalidate_user_cache(user_id)
-    return dict(row)
+    return _normalize_user_record(dict(row))
 
 
 def build_product_context(
@@ -306,6 +329,7 @@ def build_product_context(
 
 def build_seller_profile_context(seller_profile: Optional[dict]) -> str:
     """Format the website-derived seller profile for prompt injection."""
+    seller_profile = _normalize_seller_profile(seller_profile)
     if not seller_profile:
         return ""
 
@@ -369,7 +393,7 @@ def get_effective_problems_solved(user: dict) -> str:
     if manual:
         return manual
 
-    seller_profile = user.get("seller_profile") or {}
+    seller_profile = _normalize_seller_profile(user.get("seller_profile")) or {}
     problems = [
         p.strip()
         for p in (seller_profile.get("problems_solved") or [])
