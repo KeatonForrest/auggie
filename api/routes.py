@@ -24,6 +24,7 @@ from database import (
     add_list_accounts, get_pending_list_accounts,
     update_list_status, update_list_credits,
     get_recent_document_by_url,
+    get_effective_product_context,
     try_start_list_analysis,
 )
 from api.validation import validate_company_url
@@ -651,7 +652,7 @@ async def generate_sequence(doc_id: int, api_user: dict = Depends(require_api_ke
 
         emails, subject_options = await writing_service.generate_email_sequence(
             document=document,
-            product_context=api_user.get("product_context", ""),
+            product_context=get_effective_product_context(api_user),
             product_type=api_user.get("product_type", "saas"),
             retrieved_materials=materials,
             seller_company=api_user.get("company_name", ""),

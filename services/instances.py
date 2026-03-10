@@ -8,6 +8,7 @@ from services.dns_analyzer import DNSAnalyzer
 from services.ssl_analyzer import SSLAnalyzer
 from services.job_parser import JobParser
 from services.pain_inference import PainInferenceEngine
+from services.seller_profile import SellerProfileService
 from services.vision import VisionService
 
 firecrawl_service = FirecrawlService()
@@ -18,4 +19,5 @@ dns_analyzer = DNSAnalyzer()  # kept for backward compat
 ssl_analyzer = SSLAnalyzer()  # kept for backward compat
 job_parser = JobParser()
 pain_engine = PainInferenceEngine()
+seller_profile_service = SellerProfileService(firecrawl_service)
 vision_service = VisionService()

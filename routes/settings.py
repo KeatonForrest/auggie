@@ -2,6 +2,7 @@
 
 import logging
 import secrets as _secrets
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -9,16 +10,26 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from auth import require_auth, require_onboarding
 from config import get_settings
 from database import (
-    update_user_profile, get_user_usage, get_user_materials,
+    update_user_profile, get_user_usage, get_user_materials, clear_seller_profile,
     create_api_key_record, list_api_keys, revoke_api_key, get_api_key_usage_stats,
     get_user_webhook, upsert_webhook, delete_user_webhook,
     get_material_preview, get_material,
 )
 from api.keys import generate_api_key
+from api.tasks import create_tracked_task
+from api.validation import normalize_url
 from routes._helpers import templates, logger, parse_personas_string, normalize_verticals, SELLER_PRODUCT_CATEGORIES, BUYER_VERTICALS, get_materials_service
 
 settings = get_settings()
 router = APIRouter()
+
+
+def _derive_company_name_from_website(company_website: str) -> str:
+    """Derive a readable company name from a website URL."""
+    parsed = urlparse(company_website)
+    host = parsed.netloc.replace("www.", "")
+    stem = host.split(".")[0]
+    return stem.replace("-", " ").replace("_", " ").title()
 
 
 # =============================================================================
@@ -38,13 +49,15 @@ async def onboarding_page(request: Request, user: dict = Depends(require_auth)):
 @router.post("/onboarding")
 async def complete_onboarding(
     request: Request,
-    company_name: str = Form(...),
+    company_name: str = Form(""),
+    company_website: str = Form(...),
     product_name: str = Form(""),  # Now optional - extracted from materials
     product_description: str = Form(""),  # Now optional - extracted from materials
-    problems_solved: str = Form(...),
+    problems_solved: str = Form(""),
     differentiators: str = Form(""),  # Now optional - extracted from materials
     target_company_size: list[str] = Form([]),
     target_industries: list[str] = Form([]),
+    target_personas_text: str = Form(""),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
     custom_signals: str = Form(""),
@@ -54,6 +67,9 @@ async def complete_onboarding(
     user: dict = Depends(require_auth),
 ):
     """Save onboarding data and redirect to dashboard."""
+    normalized_website = normalize_url(company_website)
+    resolved_company_name = company_name.strip() or _derive_company_name_from_website(normalized_website)
+
     # Join checkbox values into comma-separated strings
     target_size_str = ", ".join(target_company_size) if target_company_size else ""
     target_industries_str = ", ".join(target_industries) if target_industries else ""
@@ -65,11 +81,12 @@ async def complete_onboarding(
         personas_parts.append(f"Levels: {', '.join(target_level)}")
     if target_function:
         personas_parts.append(f"Functions: {', '.join(target_function)}")
-    target_personas_str = " | ".join(personas_parts) if personas_parts else ""
+    target_personas_str = target_personas_text.strip() or (" | ".join(personas_parts) if personas_parts else "")
 
     await update_user_profile(
         user_id=user["id"],
-        company_name=company_name,
+        company_name=resolved_company_name,
+        company_website=normalized_website,
         product_name=product_name,
         product_description=product_description,
         problems_solved=problems_solved,
@@ -82,6 +99,12 @@ async def complete_onboarding(
         custom_signals=custom_signals,
         solution_motion=solution_motion,
         seller_product_category=seller_product_category,
+    )
+    await clear_seller_profile(user["id"])
+    await create_tracked_task(
+        "seller_profile_enrichment",
+        {"user_id": user["id"], "company_website": normalized_website},
+        name=f"seller-profile-{user['id']}",
     )
     return RedirectResponse(url="/", status_code=302)
 
@@ -120,11 +143,13 @@ async def settings_page(
 @router.post("/settings")
 async def save_settings(
     request: Request,
-    company_name: str = Form(...),
+    company_name: str = Form(""),
+    company_website: str = Form(...),
     product_description: str = Form(""),
-    problems_solved: str = Form(...),
+    problems_solved: str = Form(""),
     target_company_size: list[str] = Form([]),
     target_industries: list[str] = Form([]),
+    target_personas_text: str = Form(""),
     target_level: list[str] = Form([]),
     target_function: list[str] = Form([]),
     custom_signals: str = Form(""),
@@ -134,6 +159,9 @@ async def save_settings(
     user: dict = Depends(require_onboarding),
 ):
     """Save updated profile settings."""
+    normalized_website = normalize_url(company_website)
+    resolved_company_name = company_name.strip() or _derive_company_name_from_website(normalized_website)
+
     # Join checkbox values into comma-separated strings
     target_size_str = ", ".join(target_company_size) if target_company_size else ""
     target_industries_str = ", ".join(target_industries) if target_industries else ""
@@ -144,11 +172,15 @@ async def save_settings(
         personas_parts.append(f"Levels: {', '.join(target_level)}")
     if target_function:
         personas_parts.append(f"Functions: {', '.join(target_function)}")
-    target_personas_str = " | ".join(personas_parts) if personas_parts else ""
+    target_personas_str = target_personas_text.strip() or (" | ".join(personas_parts) if personas_parts else "")
+
+    current_website = (user.get("company_website") or "").strip()
+    needs_profile_refresh = normalized_website != current_website or not user.get("seller_profile")
 
     await update_user_profile(
         user_id=user["id"],
-        company_name=company_name,
+        company_name=resolved_company_name,
+        company_website=normalized_website,
         product_name=user.get("product_name") or "",
         product_description=product_description,
         problems_solved=problems_solved,
@@ -162,6 +194,13 @@ async def save_settings(
         solution_motion=solution_motion,
         seller_product_category=seller_product_category,
     )
+    if needs_profile_refresh:
+        await clear_seller_profile(user["id"])
+        await create_tracked_task(
+            "seller_profile_enrichment",
+            {"user_id": user["id"], "company_website": normalized_website},
+            name=f"seller-profile-{user['id']}",
+        )
     return RedirectResponse(url="/settings?saved=true", status_code=302)
 
 

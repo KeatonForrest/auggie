@@ -1,5 +1,6 @@
 """User database operations."""
 
+import json
 import asyncpg
 from typing import Optional
 from cachetools import TTLCache
@@ -142,6 +143,7 @@ async def create_user_microsoft(email: str, name: str, picture: str, microsoft_i
 async def update_user_profile(
     user_id: int,
     company_name: str,
+    company_website: str,
     product_name: str,
     product_description: str,
     problems_solved: str,
@@ -178,23 +180,24 @@ async def update_user_profile(
             UPDATE users
             SET company_name = $2,
                 product_context = $3,
-                product_name = $4,
-                product_description = $5,
-                problems_solved = $6,
-                differentiators = $7,
-                target_company_size = $8,
-                target_industries = $9,
-                target_personas = $10,
-                competitors = $11,
-                product_type = $12,
-                custom_signals = $13,
-                solution_motion = $14,
-                seller_product_category = $15
+                company_website = $4,
+                product_name = $5,
+                product_description = $6,
+                problems_solved = $7,
+                differentiators = $8,
+                target_company_size = $9,
+                target_industries = $10,
+                target_personas = $11,
+                competitors = $12,
+                product_type = $13,
+                custom_signals = $14,
+                solution_motion = $15,
+                seller_product_category = $16
             WHERE id = $1
             RETURNING *
             """,
             user_id, company_name, product_context,
-            product_name, product_description, problems_solved, differentiators,
+            company_website.strip(), product_name, product_description, problems_solved, differentiators,
             target_company_size, target_industries, target_personas, competitors,
             product_type, custom_signals, solution_motion, seller_product_category
         )
@@ -202,6 +205,45 @@ async def update_user_profile(
         from auth_cache import invalidate_user_cache
         invalidate_user_cache(user_id)
         return dict(row)
+
+
+async def clear_seller_profile(user_id: int) -> None:
+    """Clear cached seller website profile so it can be rebuilt."""
+    async with _db._pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET seller_profile = NULL,
+                seller_profile_updated_at = NULL
+            WHERE id = $1
+            """,
+            user_id,
+        )
+    from auth_cache import invalidate_user_cache
+    invalidate_user_cache(user_id)
+
+
+async def update_seller_profile(
+    user_id: int,
+    company_website: str,
+    seller_profile: dict,
+) -> dict:
+    """Persist the latest seller website profile."""
+    async with _db._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE users
+            SET company_website = $2,
+                seller_profile = $3::jsonb,
+                seller_profile_updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            """,
+            user_id, company_website.strip(), json.dumps(seller_profile),
+        )
+    from auth_cache import invalidate_user_cache
+    invalidate_user_cache(user_id)
+    return dict(row)
 
 
 def build_product_context(
@@ -260,6 +302,65 @@ def build_product_context(
         parts.append("(Product details to be extracted from uploaded materials)")
 
     return "\n".join(parts)
+
+
+def build_seller_profile_context(seller_profile: Optional[dict]) -> str:
+    """Format the website-derived seller profile for prompt injection."""
+    if not seller_profile:
+        return ""
+
+    parts = ["SELLER WEBSITE PROFILE (derived from the seller's public website):"]
+
+    one_liner = (seller_profile.get("one_liner") or "").strip()
+    if one_liner:
+        parts.append(f"- Website value proposition: {one_liner}")
+
+    problems = [p.strip() for p in (seller_profile.get("problems_solved") or []) if isinstance(p, str) and p.strip()]
+    if problems:
+        parts.append(f"- Website-derived problems solved: {', '.join(problems[:5])}")
+
+    personas = [p.strip() for p in (seller_profile.get("target_personas") or []) if isinstance(p, str) and p.strip()]
+    if personas:
+        parts.append(f"- Website-derived target personas: {', '.join(personas[:5])}")
+
+    industries = [i.strip() for i in (seller_profile.get("target_industries") or []) if isinstance(i, str) and i.strip()]
+    if industries:
+        parts.append(f"- Website-derived target industries: {', '.join(industries[:6])}")
+
+    sizes = [s.strip() for s in (seller_profile.get("target_company_sizes") or []) if isinstance(s, str) and s.strip()]
+    if sizes:
+        parts.append(f"- Website-derived target company sizes: {', '.join(sizes[:4])}")
+
+    differentiators = [d.strip() for d in (seller_profile.get("differentiators") or []) if isinstance(d, str) and d.strip()]
+    if differentiators:
+        parts.append(f"- Website-derived differentiators: {', '.join(differentiators[:5])}")
+
+    proof_points = [p.strip() for p in (seller_profile.get("proof_points") or []) if isinstance(p, str) and p.strip()]
+    if proof_points:
+        parts.append(f"- Website-derived proof points: {', '.join(proof_points[:4])}")
+
+    keywords = [k.strip() for k in (seller_profile.get("keywords_to_seek") or []) if isinstance(k, str) and k.strip()]
+    if keywords:
+        parts.append(f"- Keywords to seek in account research: {', '.join(keywords[:8])}")
+
+    notes = (seller_profile.get("notes") or "").strip()
+    if notes:
+        parts.append(f"- Notes: {notes}")
+
+    source_pages = [u.strip() for u in (seller_profile.get("source_pages") or []) if isinstance(u, str) and u.strip()]
+    if source_pages:
+        parts.append(f"- Source pages: {', '.join(source_pages[:4])}")
+
+    return "\n".join(parts)
+
+
+def get_effective_product_context(user: dict) -> str:
+    """Combine explicit onboarding context with website-derived seller profile."""
+    base_context = (user.get("product_context") or "").strip()
+    seller_profile_context = build_seller_profile_context(user.get("seller_profile"))
+    if base_context and seller_profile_context:
+        return f"{base_context}\n\n{seller_profile_context}"
+    return base_context or seller_profile_context
 
 
 async def update_user_stripe(
@@ -444,5 +545,4 @@ async def toggle_admin(user_id: int) -> bool:
             user_id
         )
         return row["is_admin"] if row else False
-
 

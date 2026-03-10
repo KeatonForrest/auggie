@@ -40,6 +40,18 @@ class TestDispatch:
             mock_tq.complete.assert_called_once_with(1)
 
     @pytest.mark.asyncio
+    async def test_dispatch_seller_profile_task(self, worker_module):
+        task = {"id": 15, "task_type": "seller_profile_enrichment", "payload": {"user_id": 1, "company_website": "https://acme.com"}}
+        mock_tq = MagicMock()
+        mock_tq.complete = AsyncMock()
+
+        with patch("db.task_queue", mock_tq, create=True), \
+             patch("api.jobs.run_seller_profile_enrichment", new_callable=AsyncMock) as mock_job:
+            await worker_module._dispatch(task)
+            mock_job.assert_called_once_with(user_id=1, company_website="https://acme.com")
+            mock_tq.complete.assert_called_once_with(15)
+
+    @pytest.mark.asyncio
     async def test_dispatch_bulk_task(self, worker_module):
         task = {"id": 2, "task_type": "bulk", "payload": {"bulk_id": "b1"}}
         mock_tq = MagicMock()

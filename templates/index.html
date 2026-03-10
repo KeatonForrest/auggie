@@ -59,6 +59,18 @@ It extends base.html and fills in the 'content' block.
 </div>
 {% endif %}
 
+{% if not user.company_website or not user.seller_profile %}
+<div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <p class="text-sm font-semibold text-amber-900">New: auto-build your seller profile from your website</p>
+            <p class="mt-1 text-sm text-amber-800">Add your company website in Settings and Auggie will map the site, scrape 3 high-signal pages, and use that profile in research and messaging.</p>
+        </div>
+        <a href="/settings" class="shrink-0 rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700">Update Settings</a>
+    </div>
+</div>
+{% endif %}
+
 <div class="bg-white rounded-lg shadow p-6">
     <h1 class="text-2xl font-bold text-gray-900 mb-2">
         Generate Account Research

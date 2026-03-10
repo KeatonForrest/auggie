@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_website TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS seller_profile JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS seller_profile_updated_at TIMESTAMPTZ;

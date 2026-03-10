@@ -14,20 +14,54 @@ from database import (
     finalize_bulk_job,
     get_pending_list_accounts, update_list_account,
     finalize_list, get_list_source, get_list_accounts,
+    update_seller_profile, get_effective_product_context,
 )
 from urllib.parse import urlparse as _urlparse
 from services.collect import collect_enrichment_data
 from services.instances import (
     firecrawl_service, claude_service, tech_detection_service,
-    job_parser, pain_engine,
+    job_parser, pain_engine, seller_profile_service,
 )
 from services import infrastructure_signals, perplexity as perplexity_service
 from services.pain_inference import detect_seller_category
+from api.validation import validate_company_url
 from models import SignalBundle, SellerContext
 from config import get_settings
 from api.webhooks import sign_payload
 
 logger = logging.getLogger(__name__)
+
+
+async def run_seller_profile_enrichment(user_id: int, company_website: str) -> None:
+    """Build and persist a seller website profile for prompt enrichment."""
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise RuntimeError("User not found")
+
+    current_website = (user.get("company_website") or "").strip()
+    if not current_website:
+        logger.info("seller profile enrichment skipped: no website for user %s", user_id)
+        return
+    if company_website.strip() and current_website != company_website.strip():
+        logger.info("seller profile enrichment skipped: stale task for user %s", user_id)
+        return
+
+    try:
+        validated_website = validate_company_url(current_website)
+    except ValueError:
+        logger.warning("seller profile enrichment skipped: invalid website for user %s", user_id)
+        return
+
+    profile = await seller_profile_service.build_profile(
+        validated_website,
+        company_name=user.get("company_name", ""),
+    )
+    await update_seller_profile(user_id, validated_website, profile)
+    logger.info(
+        "seller profile enrichment completed for user %s (%d source pages)",
+        user_id,
+        len(profile.get("source_pages") or []),
+    )
 
 
 async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | None = None) -> int:
@@ -40,6 +74,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         raise RuntimeError("User not found")
 
     pipeline_start = time.monotonic()
+    effective_product_context = get_effective_product_context(user)
 
     if job_id:
         await update_job_progress(job_id, "scraping")
@@ -55,7 +90,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     full_main_url = f"https://{domain}"
 
     # Extract seller product category early — shapes Perplexity queries
-    seller_category = detect_seller_category(user.get("product_context", ""))
+    seller_category = detect_seller_category(effective_product_context)
 
     t0 = time.monotonic()
     tech_by_domain, infra, perplexity_results = await asyncio.gather(
@@ -93,7 +128,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
         problems_solved=user.get("problems_solved", ""),
     )
     pain_inferences = pain_engine.evaluate(bundle, seller=seller_context,
-                                           seller_product_context=user.get("product_context", ""))
+                                           seller_product_context=effective_product_context)
     pain_ms = (time.monotonic() - t0) * 1000
     logger.info("[pipeline %s] pain inference: %.0fms (%d signals)", domain, pain_ms, len(pain_inferences))
 
@@ -111,7 +146,7 @@ async def _run_research_pipeline(user_id: int, company_url: str, job_id: int | N
     document = await claude_service.generate_research_document(
         company_url=company_url,
         scraped=scraped_content,
-        product_context=user.get("product_context", ""),
+        product_context=effective_product_context,
         tech_by_domain=tech_by_domain,
         retrieved_materials=retrieved_materials,
         seller_company=user.get("company_name", ""),
@@ -473,7 +508,7 @@ async def run_batch_write_sequences(list_id: int, user_id: int, account_ids: lis
                     pass  # Non-fatal, proceed without materials
                 emails, _subject_options = await writing_service.generate_email_sequence(
                     document=doc,
-                    product_context=user.get("product_context", ""),
+                    product_context=get_effective_product_context(user),
                     product_type=user.get("product_type", "saas"),
                     retrieved_materials=materials,
                     seller_company=user.get("company_name", ""),

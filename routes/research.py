@@ -15,7 +15,7 @@ from database import (
     get_user_usage, use_credit, refund_credit,
     save_enriched_contacts, get_enriched_contacts,
     get_research_job, check_duplicate_research,
-    save_feedback, get_feedback,
+    save_feedback, get_feedback, get_effective_product_context,
 )
 from db.documents import (
     get_document_by_share_token, get_share_token,
@@ -414,7 +414,7 @@ async def generate_outreach(
 
         emails, subject_options = await writing_service.generate_email_sequence(
             document=document,
-            product_context=user.get("product_context", ""),
+            product_context=get_effective_product_context(user),
             product_type=user.get("product_type", "saas"),
             retrieved_materials=materials,
             seller_company=user.get("company_name", ""),
@@ -540,7 +540,7 @@ async def generate_linkedin_message(
 
         result = await writing_service.generate_linkedin_message(
             document=document,
-            product_context=user.get("product_context", ""),
+            product_context=get_effective_product_context(user),
             linkedin_context=linkedin_context,
             mode=mode,
             retrieved_materials=materials,
@@ -659,7 +659,7 @@ async def api_create_research(
         document = await claude_service.generate_research_document(
             company_url=company_url,
             scraped=scraped_content,
-            product_context=user["product_context"],
+            product_context=get_effective_product_context(user),
             tech_by_domain=tech_by_domain,
             retrieved_materials=retrieved_materials,
             seller_company=user.get("company_name", ""),

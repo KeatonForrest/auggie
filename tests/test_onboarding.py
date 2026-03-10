@@ -6,7 +6,7 @@ from routes._helpers import (
     normalize_verticals, SELLER_PRODUCT_CATEGORIES, BUYER_VERTICALS,
     _LEGACY_VERTICAL_MAP,
 )
-from db.users import build_product_context
+from db.users import build_product_context, build_seller_profile_context, get_effective_product_context
 
 
 class TestNormalizeVerticals:
@@ -169,3 +169,29 @@ class TestBuildProductContext:
             competitors="",
         )
         assert "**Solution motion:**" not in ctx
+
+
+class TestSellerProfileContext:
+    """Tests for website-derived seller profile prompt context."""
+
+    def test_build_seller_profile_context_renders_profile(self):
+        ctx = build_seller_profile_context({
+            "one_liner": "Acme helps RevOps teams clean pipeline data.",
+            "problems_solved": ["Dirty CRM data", "Manual forecasting"],
+            "target_personas": ["VP Revenue Operations", "CRO"],
+            "keywords_to_seek": ["forecasting", "pipeline hygiene"],
+            "source_pages": ["https://acme.com", "https://acme.com/product"],
+        })
+        assert "SELLER WEBSITE PROFILE" in ctx
+        assert "Acme helps RevOps teams clean pipeline data." in ctx
+        assert "VP Revenue Operations" in ctx
+        assert "forecasting" in ctx
+
+    def test_effective_product_context_appends_seller_profile(self):
+        effective = get_effective_product_context({
+            "product_context": "**Problems it solves:** Dirty CRM data",
+            "seller_profile": {"one_liner": "Acme automates forecasting."},
+        })
+        assert "**Problems it solves:** Dirty CRM data" in effective
+        assert "SELLER WEBSITE PROFILE" in effective
+        assert "Acme automates forecasting." in effective

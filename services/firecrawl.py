@@ -61,6 +61,44 @@ class FirecrawlService:
             logger.error("Error scraping %s: %s", url, e)
             return (None, None) if include_html else None
 
+    async def _map_site(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        max_links: int = 50,
+    ) -> list[str]:
+        """Discover site URLs via Firecrawl's map endpoint."""
+        try:
+            response = await client.post(
+                "https://api.firecrawl.dev/v2/map",
+                headers=self.headers,
+                json={"url": url, "limit": max_links},
+                timeout=30.0,
+            )
+            if response.status_code != 200:
+                logger.error("Firecrawl map error for %s: %s", url, response.status_code)
+                return []
+
+            body = response.json()
+            data = body.get("data", [])
+            if isinstance(data, dict):
+                candidates = data.get("links") or data.get("urls") or []
+            else:
+                candidates = data
+
+            discovered: list[str] = []
+            for item in candidates:
+                if isinstance(item, str) and item:
+                    discovered.append(item)
+                elif isinstance(item, dict):
+                    candidate = item.get("url") or item.get("link")
+                    if candidate:
+                        discovered.append(candidate)
+            return discovered
+        except Exception as e:
+            logger.error("Error mapping %s: %s", url, e)
+            return []
+
     async def _crawl_site(self, client: httpx.AsyncClient, url: str, max_pages: int = 10) -> list[str]:
         """Crawl multiple pages from a site. Returns list of markdown content."""
         try:
