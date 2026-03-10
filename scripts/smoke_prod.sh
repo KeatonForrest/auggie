@@ -19,13 +19,26 @@ check() {
   local name="$1"
   local url="$2"
   local expected="$3"  # comma-separated acceptable status codes
+  local follow_mode="$4"
+  local status="000"
+  local attempt=1
+  local max_attempts=5
+  local curl_args=(-s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 15 --retry 2 --retry-all-errors --retry-delay 1 -H "Accept: application/json")
 
-  status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -L -H "Accept: application/json" "$url" 2>/dev/null || echo "000")
-
-  # For checks that should NOT follow redirects
-  if [ "$4" = "no-follow" ]; then
-    status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -H "Accept: application/json" "$url" 2>/dev/null || echo "000")
+  if [ "$follow_mode" = "follow" ]; then
+    curl_args+=(-L)
   fi
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    status=$(curl "${curl_args[@]}" "$url" 2>/dev/null || echo "000")
+    if echo "$expected" | grep -qw "$status"; then
+      break
+    fi
+    if [ "$attempt" -lt "$max_attempts" ]; then
+      sleep 2
+    fi
+    attempt=$((attempt + 1))
+  done
 
   # Check if status is in expected list
   if echo "$expected" | grep -qw "$status"; then
