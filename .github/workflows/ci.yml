@@ -63,7 +63,36 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Wait for deploy
-        run: sleep 60
+        env:
+          APP_URL: ${{ secrets.PRODUCTION_URL }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::PRODUCTION_URL secret is not set. Cannot wait for deploy."
+            exit 1
+          fi
+
+          APP_URL="${APP_URL%/}"
+          deadline=$((SECONDS + 300))
+
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            version_json="$(curl -fsS "$APP_URL/version" || true)"
+            live_sha="$(printf '%s' "$version_json" | grep -o '"git_commit":"[^"]*"' | head -n1 | cut -d'"' -f4)"
+
+            if [ -n "$live_sha" ]; then
+              echo "Live SHA: $live_sha"
+            fi
+
+            if [ "$live_sha" = "$EXPECTED_SHA" ]; then
+              echo "Production is serving $EXPECTED_SHA"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "::error::Timed out waiting for production to serve $EXPECTED_SHA"
+          exit 1
 
       - name: Run smoke tests against production
         env:
