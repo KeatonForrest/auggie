@@ -13,9 +13,16 @@ import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 
+from collections import deque
+from datetime import datetime, timezone
+
 from config import get_settings as _get_settings
 
+_boot_time = time.monotonic()
 _boot_settings = _get_settings()
+
+# Rolling window of 5xx error timestamps for health reporting
+_error_timestamps: deque[float] = deque(maxlen=500)
 _is_production = "localhost" not in _boot_settings.app_url
 
 # --- Request ID context var (available to logging filter) ---
@@ -131,6 +138,30 @@ class RateLimitHeaderMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class ErrorCountMiddleware:
+    """Pure ASGI middleware that records timestamps of 5xx responses."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        status_code = 200
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 200)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+        if status_code >= 500:
+            _error_timestamps.append(time.monotonic())
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
@@ -276,6 +307,9 @@ app.add_middleware(
 # Rate limit headers (pure ASGI — reads ContextVar set by endpoint rate limiters)
 app.add_middleware(RateLimitHeaderMiddleware)
 
+# 5xx error counting for health endpoint
+app.add_middleware(ErrorCountMiddleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(billing_router)
@@ -291,21 +325,79 @@ app.include_router(watchlist_router)
 app.include_router(platforms_router)
 
 
+def _get_rss_mb() -> float | None:
+    """Read RSS from /proc/self/status (Linux). Returns MB or None."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024  # kB → MB
+    except Exception:
+        pass
+    return None
+
+
+def _count_errors_since(cutoff: float) -> int:
+    """Count error timestamps newer than cutoff (monotonic seconds)."""
+    count = 0
+    for ts in reversed(_error_timestamps):
+        if ts < cutoff:
+            break
+        count += 1
+    return count
+
+
 @app.get("/health")
 async def health_check():
     """Unauthenticated health check for uptime monitors and Railway."""
+    now = time.monotonic()
+    git_commit, _ = _read_first_env(_DEPLOY_COMMIT_ENV_VARS)
+
+    # --- DB check with latency ---
+    db_status = "ok"
+    db_latency_ms: float | None = None
+    pool_info = {}
     try:
         pool = db_pool_module._pool
+        t0 = time.monotonic()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
+        db_latency_ms = round((time.monotonic() - t0) * 1000, 2)
         pool_info = {
             "size": pool.get_size(),
             "free": pool.get_idle_size(),
             "used": pool.get_size() - pool.get_idle_size(),
         }
-        return JSONResponse({"status": "ok", "db": "ok", "pool": pool_info})
     except Exception:
-        return JSONResponse({"status": "degraded", "db": "error"}, status_code=503)
+        db_status = "error"
+
+    # --- Error counts ---
+    errors_5min = _count_errors_since(now - 300)
+    errors_1hr = _count_errors_since(now - 3600)
+
+    # --- Overall status ---
+    if db_status != "ok":
+        status = "down"
+    elif errors_5min > 5:
+        status = "degraded"
+    else:
+        status = "ok"
+
+    http_code = 503 if status == "down" else 200
+
+    body = {
+        "status": status,
+        "service": "auggie",
+        "version": app.version,
+        "git_commit": git_commit or "unknown",
+        "uptime_seconds": round(now - _boot_time, 1),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "db": {"status": db_status, "latency_ms": db_latency_ms, "pool": pool_info},
+        "memory": {"rss_mb": _get_rss_mb()},
+        "error_counts": {"last_5min": errors_5min, "last_1hr": errors_1hr},
+    }
+
+    return JSONResponse(body, status_code=http_code, headers={"Cache-Control": "no-store"})
 
 
 def _read_first_env(keys: tuple[str, ...]) -> tuple[str | None, str | None]:
