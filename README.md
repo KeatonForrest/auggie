@@ -13,7 +13,6 @@ AI-powered account research for sales teams. Enter a company URL, get deep resea
 5. **Analyzes regulatory filings** (SEC EDGAR, Federal Register) — compliance deadlines, risk factors
 6. **Generates research document** (Gemini 2.5 Flash via OpenRouter) — company overview, pain/fit/timing scoring, talking points
 7. **Writes outreach emails** (Mistral Small Creative via OpenRouter) — personalized 3-email sequence tailored to the research
-8. **Pushes to sales tools** — Instantly, Smartlead, Outreach, SalesLoft, Gong Engage
 
 ## Features
 
