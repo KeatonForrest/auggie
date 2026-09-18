@@ -13,3 +13,6 @@ OAUTH_SETUP_CHECKLIST.md
 PricingRoadmap2026.md
 WorkflowImagePrompts.json
 WorkflowImagePrompts.md
+.env.local
+.env.*
+!.env.example
